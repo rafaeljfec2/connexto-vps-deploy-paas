@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/wire"
 	_ "github.com/lib/pq"
+	"github.com/lmittmann/tint"
 
 	"github.com/paasdeploy/backend/internal/config"
 	"github.com/paasdeploy/backend/internal/domain"
@@ -61,6 +62,7 @@ var HandlerSet = wire.NewSet(
 	ProvideHealthHandler,
 	handler.NewAppHandler,
 	handler.NewSSEHandler,
+	handler.NewSwaggerHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -136,12 +138,20 @@ func ProvideLogger(cfg *config.Config) *slog.Logger {
 		logLevel = slog.LevelInfo
 	}
 
-	opts := &slog.HandlerOptions{
-		Level: logLevel,
+	var handler slog.Handler
+
+	if cfg.Server.Env == "development" {
+		handler = tint.NewHandler(os.Stdout, &tint.Options{
+			Level:      logLevel,
+			TimeFormat: "15:04:05",
+		})
+	} else {
+		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: logLevel,
+		})
 	}
 
-	h := slog.NewJSONHandler(os.Stdout, opts)
-	return slog.New(h)
+	return slog.New(handler)
 }
 
 func ProvideDatabase(cfg *config.Config) (*sql.DB, func(), error) {
@@ -188,5 +198,6 @@ type Application struct {
 	HealthHandler  *handler.HealthHandler
 	AppHandler     *handler.AppHandler
 	SSEHandler     *handler.SSEHandler
+	SwaggerHandler *handler.SwaggerHandler
 	WebhookHandler *github.WebhookHandler
 }

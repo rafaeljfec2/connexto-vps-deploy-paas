@@ -15,6 +15,7 @@ type Config struct {
 }
 
 type ServerConfig struct {
+	Env      string
 	Host     string
 	Port     int
 	LogLevel string
@@ -46,6 +47,7 @@ type GitHubConfig struct {
 func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
+			Env:      getEnv("APP_ENV", "development"),
 			Host:     getEnv("HOST", "0.0.0.0"),
 			Port:     getEnvInt("PORT", 8080),
 			LogLevel: getEnv("LOG_LEVEL", "info"),

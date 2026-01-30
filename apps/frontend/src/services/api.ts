@@ -1,7 +1,7 @@
 import type { ApiEnvelope, App, CreateAppInput, Deployment } from "@/types";
 import { ApiError, isApiError } from "@/types";
 
-const API_BASE = "/api";
+const API_BASE = "/paas-deploy/v1";
 
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {

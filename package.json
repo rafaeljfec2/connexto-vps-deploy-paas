@@ -9,7 +9,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "backend:dev": "cd apps/backend && go run cmd/api/main.go",
+    "backend:dev": "cd apps/backend && air",
     "backend:build": "cd apps/backend && go build -o bin/api cmd/api/main.go",
     "backend:test": "cd apps/backend && go test ./...",
     "docker:up": "docker compose -f deploy/docker-compose.yml up -d",

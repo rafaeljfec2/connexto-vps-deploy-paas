@@ -37,6 +37,7 @@ func InitializeApplication() (*Application, func(), error) {
 	appService := ProvideAppService(postgresAppRepository, postgresDeploymentRepository, manager, logger)
 	appHandler := handler.NewAppHandler(appService)
 	sseHandler := handler.NewSSEHandler()
+	swaggerHandler := handler.NewSwaggerHandler()
 	webhookHandler := ProvideGitHubWebhookHandler(configConfig, postgresAppRepository, postgresDeploymentRepository, logger)
 	application := &Application{
 		Config:         configConfig,
@@ -47,6 +48,7 @@ func InitializeApplication() (*Application, func(), error) {
 		HealthHandler:  healthHandler,
 		AppHandler:     appHandler,
 		SSEHandler:     sseHandler,
+		SwaggerHandler: swaggerHandler,
 		WebhookHandler: webhookHandler,
 	}
 	return application, func() {

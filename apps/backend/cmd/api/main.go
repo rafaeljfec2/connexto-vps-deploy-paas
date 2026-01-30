@@ -54,6 +54,7 @@ func main() {
 	app.AppHandler.Register(app.Server.App())
 	app.SSEHandler.Register(app.Server.App())
 	app.WebhookHandler.Register(app.Server.App())
+	app.SwaggerHandler.Register(app.Server.App())
 
 	go func() {
 		if err := app.Server.Start(); err != nil {

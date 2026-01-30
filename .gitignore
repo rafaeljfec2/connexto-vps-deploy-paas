@@ -10,6 +10,8 @@ out/
 
 # Go
 apps/backend/bin/
+apps/backend/tmp/
+apps/backend/build-errors.log
 *.exe
 *.exe~
 *.dll
@@ -67,3 +69,6 @@ temp/
 
 # Plan files (Cursor)
 .cursor/
+
+# Ngrok binary
+ngrok

@@ -24,7 +24,12 @@ func NewHealthHandler(version string) *HealthHandler {
 }
 
 func (h *HealthHandler) Register(app *fiber.App) {
+	app.Get("/", h.Root)
 	app.Get("/health", h.Health)
+}
+
+func (h *HealthHandler) Root(c *fiber.Ctx) error {
+	return c.Redirect("/paas-deploy/v1/swagger/index.html", fiber.StatusMovedPermanently)
 }
 
 func (h *HealthHandler) Health(c *fiber.Ctx) error {

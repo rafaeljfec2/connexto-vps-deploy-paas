@@ -58,6 +58,22 @@ func (h *WebhookHandler) Register(app *fiber.App) {
 	webhooks.Post("/github", h.HandleWebhook)
 }
 
+// HandleWebhook godoc
+//
+//	@Summary		Recebe eventos do GitHub
+//	@Description	Endpoint que recebe push events do GitHub para disparar deploys automaticos
+//	@Tags			webhooks
+//	@Accept			json
+//	@Produce		json
+//	@Param			X-GitHub-Event		header	string		true	"Tipo do evento (push, ping)"
+//	@Param			X-Hub-Signature-256	header	string		true	"Assinatura HMAC-SHA256"
+//	@Param			X-GitHub-Delivery	header	string		true	"ID unico da entrega"
+//	@Param			payload				body	PushEvent	true	"Payload do evento"
+//	@Success		200					{object}	map[string]string	"Evento processado (ping ou branch ignorado)"
+//	@Success		202					{object}	map[string]string	"Deploy iniciado"
+//	@Failure		400					{object}	map[string]string	"Payload invalido"
+//	@Failure		401					{object}	map[string]string	"Assinatura invalida"
+//	@Router			/webhooks/github [post]
 func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 	deliveryID := c.Get(HeaderGitHubDelivery)
 	event := c.Get(HeaderGitHubEvent)
