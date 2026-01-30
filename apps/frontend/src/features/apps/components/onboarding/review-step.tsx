@@ -5,7 +5,8 @@ import {
   EyeOff,
   FolderGit2,
   GitBranch,
-  Github,
+  Link,
+  Package,
   Variable,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,28 +20,43 @@ interface ReviewItemProps {
   readonly empty?: string;
 }
 
-function ReviewItem({ icon, label, value, empty }: ReviewItemProps) {
+function ReviewItem({ icon, label, value, empty }: Readonly<ReviewItemProps>) {
+  const displayValue = value || (
+    <span className="text-muted-foreground italic">{empty}</span>
+  );
+
   return (
     <div className="flex items-start gap-3 p-3 border rounded-lg">
       <div className="text-primary mt-0.5">{icon}</div>
       <div className="min-w-0 flex-1">
         <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="font-medium truncate">
-          {value || (
-            <span className="text-muted-foreground italic">{empty}</span>
-          )}
-        </p>
+        <p className="font-medium truncate">{displayValue}</p>
       </div>
       <Check className="h-4 w-4 text-green-500 mt-1" />
     </div>
   );
 }
 
-export function ReviewStep({ data, onNext, onBack }: StepProps) {
+interface ReviewStepProps extends StepProps {}
+
+export function ReviewStep({
+  data,
+  onNext,
+  onBack,
+}: Readonly<ReviewStepProps>) {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
 
   const toggleShowSecret = (localId: string) => {
     setShowSecrets((prev) => ({ ...prev, [localId]: !prev[localId] }));
+  };
+
+  const getEnvVarDisplayValue = (
+    isSecret: boolean,
+    localId: string,
+    value: string,
+  ): string => {
+    if (!isSecret) return value;
+    return showSecrets[localId] ? value : "••••••••";
   };
 
   return (
@@ -59,17 +75,17 @@ export function ReviewStep({ data, onNext, onBack }: StepProps) {
         <div className="space-y-4">
           <div>
             <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
-              <Github className="h-4 w-4" />
+              <FolderGit2 className="h-4 w-4" />
               Repository Settings
             </h4>
             <div className="space-y-2">
               <ReviewItem
-                icon={<Github className="h-4 w-4" />}
+                icon={<Package className="h-4 w-4" />}
                 label="Application Name"
                 value={data.name}
               />
               <ReviewItem
-                icon={<Github className="h-4 w-4" />}
+                icon={<Link className="h-4 w-4" />}
                 label="Repository"
                 value={data.repositoryUrl}
               />
@@ -110,11 +126,11 @@ export function ReviewStep({ data, onNext, onBack }: StepProps) {
                       {envVar.key}
                     </span>
                     <span className="font-mono text-sm text-muted-foreground flex-1 truncate">
-                      {envVar.isSecret
-                        ? showSecrets[envVar.localId]
-                          ? envVar.value
-                          : "••••••••"
-                        : envVar.value}
+                      {getEnvVarDisplayValue(
+                        envVar.isSecret,
+                        envVar.localId,
+                        envVar.value,
+                      )}
                     </span>
                     {envVar.isSecret && (
                       <Button

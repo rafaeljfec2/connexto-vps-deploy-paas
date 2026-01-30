@@ -1,4 +1,4 @@
-import { ClipboardCheck, Github, Rocket, Variable } from "lucide-react";
+import { ClipboardCheck, FolderGit2, Rocket, Variable } from "lucide-react";
 import type { CreateEnvVarInput } from "@/types";
 
 export interface OnboardingData {
@@ -21,7 +21,7 @@ export interface StepProps {
 }
 
 export const ONBOARDING_STEPS = [
-  { id: "repository", title: "Repository", icon: Github },
+  { id: "repository", title: "Repository", icon: FolderGit2 },
   { id: "environment", title: "Environment", icon: Variable },
   { id: "review", title: "Review", icon: ClipboardCheck },
   { id: "deploy", title: "Deploy", icon: Rocket },

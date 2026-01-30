@@ -17,7 +17,14 @@ const INITIAL_VAR: EditingEnvVar = {
   isSecret: false,
 };
 
-export function EnvironmentStep({ data, onUpdate, onNext, onBack }: StepProps) {
+interface EnvironmentStepProps extends StepProps {}
+
+export function EnvironmentStep({
+  data,
+  onUpdate,
+  onNext,
+  onBack,
+}: Readonly<EnvironmentStepProps>) {
   const [newVar, setNewVar] = useState<EditingEnvVar>(INITIAL_VAR);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [showPasteMode, setShowPasteMode] = useState(false);
@@ -46,6 +53,16 @@ export function EnvironmentStep({ data, onUpdate, onNext, onBack }: StepProps) {
     setShowSecrets((prev) => ({ ...prev, [localId]: !prev[localId] }));
   };
 
+  const isSecretKeyword = (key: string): boolean => {
+    const lowerKey = key.toLowerCase();
+    return (
+      lowerKey.includes("secret") ||
+      lowerKey.includes("password") ||
+      lowerKey.includes("token") ||
+      lowerKey.includes("key")
+    );
+  };
+
   const handlePasteEnvFile = () => {
     const lines = pasteContent.split("\n");
     const newVars: LocalEnvVar[] = [];
@@ -60,10 +77,11 @@ export function EnvironmentStep({ data, onUpdate, onNext, onBack }: StepProps) {
       const key = trimmed.slice(0, eqIndex).trim().toUpperCase();
       let value = trimmed.slice(eqIndex + 1).trim();
 
-      if (
+      const isQuoted =
         (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      ) {
+        (value.startsWith("'") && value.endsWith("'"));
+
+      if (isQuoted) {
         value = value.slice(1, -1);
       }
 
@@ -72,11 +90,7 @@ export function EnvironmentStep({ data, onUpdate, onNext, onBack }: StepProps) {
           localId: crypto.randomUUID(),
           key,
           value,
-          isSecret:
-            key.toLowerCase().includes("secret") ||
-            key.toLowerCase().includes("password") ||
-            key.toLowerCase().includes("token") ||
-            key.toLowerCase().includes("key"),
+          isSecret: isSecretKeyword(key),
         });
       }
     }
@@ -87,6 +101,22 @@ export function EnvironmentStep({ data, onUpdate, onNext, onBack }: StepProps) {
 
     setPasteContent("");
     setShowPasteMode(false);
+  };
+
+  const getEnvVarDisplayValue = (
+    isSecret: boolean,
+    localId: string,
+    value: string,
+  ): string => {
+    if (!isSecret) return value;
+    return showSecrets[localId] ? value : "••••••••";
+  };
+
+  const handleKeyChange = (value: string) => {
+    setNewVar((prev) => ({
+      ...prev,
+      key: value.toUpperCase().replaceAll(/[^A-Z0-9_]/g, "_"),
+    }));
   };
 
   return (
@@ -152,12 +182,7 @@ export function EnvironmentStep({ data, onUpdate, onNext, onBack }: StepProps) {
             <Input
               placeholder="KEY_NAME"
               value={newVar.key}
-              onChange={(e) =>
-                setNewVar((prev) => ({
-                  ...prev,
-                  key: e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"),
-                }))
-              }
+              onChange={(e) => handleKeyChange(e.target.value)}
               className="font-mono text-sm md:w-1/3"
             />
             <div className="relative flex-1">
@@ -210,11 +235,11 @@ export function EnvironmentStep({ data, onUpdate, onNext, onBack }: StepProps) {
                     {envVar.key}
                   </span>
                   <span className="font-mono text-sm text-muted-foreground flex-1 truncate">
-                    {envVar.isSecret
-                      ? showSecrets[envVar.localId]
-                        ? envVar.value
-                        : "••••••••"
-                      : envVar.value}
+                    {getEnvVarDisplayValue(
+                      envVar.isSecret,
+                      envVar.localId,
+                      envVar.value,
+                    )}
                   </span>
                   {envVar.isSecret && (
                     <Button

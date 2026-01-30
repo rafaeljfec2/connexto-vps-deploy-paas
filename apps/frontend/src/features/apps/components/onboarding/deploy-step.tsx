@@ -46,7 +46,23 @@ const INITIAL_PHASES: readonly PhaseStatus[] = [
   { phase: "deploying", label: "Starting first deployment", status: "pending" },
 ];
 
-export function DeployStep({ data, onBack }: DeployStepProps) {
+function getHeaderTitle(isCompleted: boolean, hasError: boolean): string {
+  if (isCompleted) return "Deployment started!";
+  if (hasError) return "Deployment failed";
+  return "Deploying your application...";
+}
+
+function getHeaderDescription(isCompleted: boolean, hasError: boolean): string {
+  if (isCompleted) {
+    return "Your application is being deployed. You can track the progress on the app details page.";
+  }
+  if (hasError) {
+    return "Something went wrong during the deployment process.";
+  }
+  return "Please wait while we set up your application.";
+}
+
+export function DeployStep({ data, onBack }: Readonly<DeployStepProps>) {
   const navigate = useNavigate();
   const createApp = useCreateApp();
   const [appId, setAppId] = useState<string | null>(null);
@@ -152,19 +168,11 @@ export function DeployStep({ data, onBack }: DeployStepProps) {
           <div className="flex items-center gap-2 text-primary">
             <Rocket className="h-5 w-5" />
             <h3 className="font-semibold">
-              {isCompleted
-                ? "Deployment started!"
-                : hasError
-                  ? "Deployment failed"
-                  : "Deploying your application..."}
+              {getHeaderTitle(isCompleted, hasError)}
             </h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            {isCompleted
-              ? "Your application is being deployed. You can track the progress on the app details page."
-              : hasError
-                ? "Something went wrong during the deployment process."
-                : "Please wait while we set up your application."}
+            {getHeaderDescription(isCompleted, hasError)}
           </p>
         </div>
 

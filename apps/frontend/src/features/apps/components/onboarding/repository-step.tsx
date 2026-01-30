@@ -1,11 +1,17 @@
-import { FolderGit2, GitBranch, Github } from "lucide-react";
+import { FolderGit2, GitBranch, Link } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/form-field";
 import type { StepProps } from "./types";
 
-export function RepositoryStep({ data, onUpdate, onNext }: StepProps) {
+interface RepositoryStepProps extends StepProps {}
+
+export function RepositoryStep({
+  data,
+  onUpdate,
+  onNext,
+}: Readonly<RepositoryStepProps>) {
   const isValid =
     data.name.length >= 2 && data.repositoryUrl.includes("github.com");
 
@@ -20,7 +26,7 @@ export function RepositoryStep({ data, onUpdate, onNext }: StepProps) {
       <CardContent className="p-0 md:p-6 space-y-6">
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-primary">
-            <Github className="h-5 w-5" />
+            <FolderGit2 className="h-5 w-5" />
             <h3 className="font-semibold">Connect your repository</h3>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -48,7 +54,7 @@ export function RepositoryStep({ data, onUpdate, onNext }: StepProps) {
 
         <FormField label="Repository URL" htmlFor="repository" required>
           <div className="relative">
-            <Github className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Link className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               id="repository"
               placeholder="https://github.com/owner/repo"
