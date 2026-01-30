@@ -1,8 +1,18 @@
 import { useState } from "react";
-import { Eye, EyeOff, Plus, Save, Trash2, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Plus,
+  Save,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   useCreateEnvVar,
   useDeleteEnvVar,
@@ -34,6 +44,7 @@ export function EnvVarsManager({ appId }: EnvVarsManagerProps) {
   const updateEnvVar = useUpdateEnvVar(appId);
   const deleteEnvVar = useDeleteEnvVar(appId);
 
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [editing, setEditing] = useState<EditingVar>(INITIAL_EDITING);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -95,31 +106,42 @@ export function EnvVarsManager({ appId }: EnvVarsManagerProps) {
     setShowSecrets((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Environment Variables</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  const varsCount = envVars?.length ?? 0;
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle>Environment Variables</CardTitle>
-        {!isAdding && (
-          <Button size="sm" onClick={handleAdd}>
+      <CardHeader
+        className="flex flex-row items-center justify-between space-y-0 cursor-pointer select-none"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center gap-2">
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
+          <CardTitle>Environment Variables</CardTitle>
+          <span className="text-sm text-muted-foreground font-normal">
+            ({varsCount})
+          </span>
+        </div>
+        {isExpanded && !isAdding && (
+          <Button
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAdd();
+            }}
+          >
             <Plus className="h-4 w-4 mr-1" />
             Add Variable
           </Button>
         )}
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className={cn("space-y-3", !isExpanded && "hidden")}>
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        )}
         {isAdding && (
           <div className="flex flex-col gap-2 p-3 border rounded-lg bg-muted/50">
             <div className="flex gap-2">
