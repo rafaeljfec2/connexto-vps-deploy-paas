@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Plus, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function Header() {
   return (
@@ -11,7 +12,8 @@ export function Header() {
           <span>PaaSDeploy</span>
         </Link>
 
-        <nav className="ml-auto flex items-center gap-4">
+        <nav className="ml-auto flex items-center gap-2">
+          <ThemeToggle />
           <Button asChild>
             <Link to="/apps/new">
               <Plus className="h-4 w-4 mr-2" />
