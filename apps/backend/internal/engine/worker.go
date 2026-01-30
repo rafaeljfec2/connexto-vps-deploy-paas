@@ -34,7 +34,8 @@ type PaasDeployConfig struct {
 		Retries     int    `json:"retries"`
 		StartPeriod string `json:"startPeriod"`
 	} `json:"healthcheck"`
-	Port      int               `json:"port"`
+	Port     int `json:"port"`
+	HostPort int `json:"hostPort,omitempty"`
 	Env       map[string]string `json:"env,omitempty"`
 	Resources struct {
 		Memory string `json:"memory"`
@@ -341,17 +342,24 @@ func (w *Worker) generateComposeFile(appDir, appName, imageTag string) error {
 			appName, appName, appName, cfg.Port)
 	}
 
+	var portMapping string
+	if cfg.HostPort > 0 {
+		portMapping = fmt.Sprintf("%d:%d", cfg.HostPort, cfg.Port)
+	} else {
+		portMapping = fmt.Sprintf("%d", cfg.Port)
+	}
+
 	composeContent := fmt.Sprintf("services:\n"+
 		"  %s:\n"+
 		"    image: %s\n"+
 		"    container_name: %s\n"+
 		"    restart: unless-stopped\n"+
 		"    ports:\n"+
-		"      - \"%d\"\n"+
+		"      - \"%s\"\n"+
 		"%s"+
 		"%s"+
 		"    healthcheck:\n"+
-		"      test: [\"CMD\", \"wget\", \"-q\", \"--spider\", \"http://localhost:%d%s\"]\n"+
+		"      test: [\"CMD\", \"wget\", \"-q\", \"--spider\", \"http://127.0.0.1:%d%s\"]\n"+
 		"      interval: %s\n"+
 		"      timeout: %s\n"+
 		"      retries: %d\n"+
@@ -369,7 +377,7 @@ func (w *Worker) generateComposeFile(appDir, appName, imageTag string) error {
 		appName,
 		imageTag,
 		appName,
-		cfg.Port,
+		portMapping,
 		envVars,
 		labels,
 		cfg.Port,
@@ -389,7 +397,12 @@ func (w *Worker) generateComposeFile(appDir, appName, imageTag string) error {
 func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
 	w.log(deploy.ID, app.ID, "Performing health check...")
 
-	healthURL := fmt.Sprintf("http://localhost:%d%s", w.deployConfig.Port, w.deployConfig.Healthcheck.Path)
+	port := w.deployConfig.Port
+	if w.deployConfig.HostPort > 0 {
+		port = w.deployConfig.HostPort
+	}
+
+	healthURL := fmt.Sprintf("http://localhost:%d%s", port, w.deployConfig.Healthcheck.Path)
 
 	time.Sleep(healthCheckStartDelay)
 

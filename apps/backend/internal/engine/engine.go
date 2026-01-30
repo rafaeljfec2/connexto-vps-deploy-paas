@@ -169,3 +169,7 @@ func (e *Engine) WorkerCount() int {
 func (e *Engine) Notifier() Notifier {
 	return e.notifier
 }
+
+func (e *Engine) GetAppHealth(ctx context.Context, appName string) *ContainerHealth {
+	return e.healthMonitor.CheckApp(ctx, appName)
+}

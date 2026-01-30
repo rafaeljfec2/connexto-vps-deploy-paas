@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@/services/api";
 import { sseClient } from "@/services/sse";
 import type { App, Deployment, HealthStatus, SSEEvent } from "@/types";
 
@@ -81,8 +82,12 @@ export function useSSE() {
 export function useAppHealth(appId: string | undefined) {
   return useQuery<HealthStatus | null>({
     queryKey: ["app-health", appId],
-    queryFn: () => null,
-    enabled: false,
-    staleTime: Infinity,
+    queryFn: async () => {
+      if (!appId) return null;
+      return api.apps.health(appId);
+    },
+    enabled: !!appId,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
   });
 }

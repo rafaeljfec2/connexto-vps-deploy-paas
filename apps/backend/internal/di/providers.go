@@ -67,6 +67,7 @@ var HandlerSet = wire.NewSet(
 	handler.NewSSEHandler,
 	handler.NewSwaggerHandler,
 	handler.NewEnvVarHandler,
+	handler.NewContainerHealthHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -208,15 +209,16 @@ func ProvideServerConfig(cfg *config.Config) server.Config {
 }
 
 type Application struct {
-	Config         *config.Config
-	Logger         *slog.Logger
-	DB             *sql.DB
-	Engine         *engine.Engine
-	Server         *server.Server
-	HealthHandler  *handler.HealthHandler
-	AppHandler     *handler.AppHandler
-	SSEHandler     *handler.SSEHandler
-	SwaggerHandler *handler.SwaggerHandler
-	EnvVarHandler  *handler.EnvVarHandler
-	WebhookHandler *github.WebhookHandler
+	Config                 *config.Config
+	Logger                 *slog.Logger
+	DB                     *sql.DB
+	Engine                 *engine.Engine
+	Server                 *server.Server
+	HealthHandler          *handler.HealthHandler
+	AppHandler             *handler.AppHandler
+	SSEHandler             *handler.SSEHandler
+	SwaggerHandler         *handler.SwaggerHandler
+	EnvVarHandler          *handler.EnvVarHandler
+	ContainerHealthHandler *handler.ContainerHealthHandler
+	WebhookHandler         *github.WebhookHandler
 }

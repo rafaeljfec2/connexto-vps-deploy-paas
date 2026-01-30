@@ -43,19 +43,21 @@ func InitializeApplication() (*Application, func(), error) {
 	sseHandler := handler.NewSSEHandler()
 	swaggerHandler := handler.NewSwaggerHandler()
 	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository)
+	containerHealthHandler := handler.NewContainerHealthHandler(postgresAppRepository, engineEngine)
 	webhookHandler := ProvideGitHubWebhookHandler(config, postgresAppRepository, postgresDeploymentRepository, logger)
 	application := &Application{
-		Config:         config,
-		Logger:         logger,
-		DB:             db,
-		Engine:         engineEngine,
-		Server:         serverServer,
-		HealthHandler:  healthHandler,
-		AppHandler:     appHandler,
-		SSEHandler:     sseHandler,
-		SwaggerHandler: swaggerHandler,
-		EnvVarHandler:  envVarHandler,
-		WebhookHandler: webhookHandler,
+		Config:                 config,
+		Logger:                 logger,
+		DB:                     db,
+		Engine:                 engineEngine,
+		Server:                 serverServer,
+		HealthHandler:          healthHandler,
+		AppHandler:             appHandler,
+		SSEHandler:             sseHandler,
+		SwaggerHandler:         swaggerHandler,
+		EnvVarHandler:          envVarHandler,
+		ContainerHealthHandler: containerHealthHandler,
+		WebhookHandler:         webhookHandler,
 	}
 	return application, func() {
 		cleanup()

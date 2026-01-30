@@ -26,8 +26,8 @@ func NewAppCleaner(baseDir string, logger *slog.Logger) *AppCleaner {
 func (c *AppCleaner) CleanApp(ctx context.Context, appID, appName string) error {
 	c.logger.Info("Starting app cleanup", "appID", appID, "appName", appName)
 
-	if err := c.stopContainers(ctx, appID); err != nil {
-		c.logger.Warn("Failed to stop containers", "appID", appID, "error", err)
+	if err := c.stopAndRemoveContainer(ctx, appName); err != nil {
+		c.logger.Warn("Failed to stop/remove container", "appName", appName, "error", err)
 	}
 
 	if err := c.removeImages(ctx, appName); err != nil {
@@ -42,21 +42,16 @@ func (c *AppCleaner) CleanApp(ctx context.Context, appID, appName string) error 
 	return nil
 }
 
-func (c *AppCleaner) stopContainers(ctx context.Context, appID string) error {
-	appDir := filepath.Join(c.baseDir, appID)
-	composeFile := filepath.Join(appDir, "docker-compose.yml")
-
-	if _, err := os.Stat(composeFile); os.IsNotExist(err) {
-		c.logger.Debug("No docker-compose.yml found, skipping container stop", "appID", appID)
-		return nil
-	}
-
-	c.executor.SetWorkDir(appDir)
+func (c *AppCleaner) stopAndRemoveContainer(ctx context.Context, appName string) error {
 	c.executor.SetTimeout(2 * time.Minute)
 
-	_, err := c.executor.Run(ctx, "docker", "compose", "-f", composeFile, "down", "--remove-orphans", "-v")
+	c.logger.Info("Stopping container", "containerName", appName)
+	_, _ = c.executor.Run(ctx, "docker", "stop", appName)
+
+	c.logger.Info("Removing container with volumes", "containerName", appName)
+	_, err := c.executor.Run(ctx, "docker", "rm", "-f", "-v", appName)
 	if err != nil {
-		return fmt.Errorf("docker compose down failed: %w", err)
+		return fmt.Errorf("docker rm failed: %w", err)
 	}
 
 	return nil

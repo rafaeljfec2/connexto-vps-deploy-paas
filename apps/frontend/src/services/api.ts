@@ -6,6 +6,7 @@ import type {
   CreateEnvVarInput,
   Deployment,
   EnvVar,
+  HealthStatus,
   WebhookSetupResult,
   WebhookStatus,
 } from "@/types";
@@ -61,6 +62,9 @@ export const api = {
     list: (): Promise<readonly App[]> => fetchApiList<App>(`${API_BASE}/apps`),
 
     get: (id: string): Promise<App> => fetchApi<App>(`${API_BASE}/apps/${id}`),
+
+    health: (id: string): Promise<HealthStatus> =>
+      fetchApi<HealthStatus>(`${API_BASE}/apps/${id}/health`),
 
     create: (input: CreateAppInput): Promise<App> =>
       fetchApi<App>(`${API_BASE}/apps`, {
