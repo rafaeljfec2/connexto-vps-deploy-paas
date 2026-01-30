@@ -17,6 +17,7 @@ export interface App {
   readonly workdir: string;
   readonly config: Record<string, unknown>;
   readonly status: AppStatus;
+  readonly webhookId: number | null;
   readonly lastDeployedAt: string | null;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -50,4 +51,17 @@ export interface SSEEvent {
   readonly appId: string;
   readonly message?: string;
   readonly timestamp: string;
+}
+
+export interface WebhookSetupResult {
+  readonly webhookId: number;
+  readonly provider: string;
+  readonly active: boolean;
+}
+
+export interface WebhookStatus {
+  readonly exists: boolean;
+  readonly active: boolean;
+  readonly lastPingAt: string | null;
+  readonly error: string | null;
 }

@@ -1,0 +1,11 @@
+{
+  "name": "@paasdeploy/backend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "air",
+    "build": "go build -o bin/api cmd/api/main.go",
+    "test": "go test ./...",
+    "clean": "rm -rf bin tmp"
+  }
+}

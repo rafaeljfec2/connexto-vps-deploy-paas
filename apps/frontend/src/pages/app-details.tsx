@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  CheckCircle,
   ExternalLink,
   Folder,
   GitBranch,
+  Link2,
+  Link2Off,
   RefreshCw,
   RotateCcw,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +17,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { IconText } from "@/components/icon-text";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { useApp } from "@/features/apps/hooks/use-apps";
+import {
+  useApp,
+  useRemoveWebhook,
+  useSetupWebhook,
+  useWebhookStatus,
+} from "@/features/apps/hooks/use-apps";
 import { DeployTimeline } from "@/features/deploys/components/deploy-timeline";
 import { LogViewer } from "@/features/deploys/components/log-viewer";
 import {
@@ -27,8 +36,11 @@ export function AppDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const { data: app, isLoading: appLoading } = useApp(id ?? "");
   const { data: deployments } = useDeploys(id ?? "");
+  const { data: webhookStatus } = useWebhookStatus(id ?? "");
   const redeploy = useRedeploy();
   const rollback = useRollback();
+  const setupWebhook = useSetupWebhook();
+  const removeWebhook = useRemoveWebhook();
 
   const [selectedDeployId, setSelectedDeployId] = useState<string | null>(null);
 
@@ -46,6 +58,18 @@ export function AppDetailsPage() {
   const handleRollback = () => {
     if (id) {
       rollback.mutate(id);
+    }
+  };
+
+  const handleSetupWebhook = () => {
+    if (id) {
+      setupWebhook.mutate(id);
+    }
+  };
+
+  const handleRemoveWebhook = () => {
+    if (id) {
+      removeWebhook.mutate(id);
     }
   };
 
@@ -153,6 +177,60 @@ export function AppDetailsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>GitHub Webhook</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {app.webhookId ? (
+                <>
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  <div>
+                    <p className="font-medium">Webhook configured</p>
+                    <p className="text-sm text-muted-foreground">
+                      Auto-deploy enabled for push events
+                      {webhookStatus?.active === false && (
+                        <span className="text-yellow-500 ml-2">(inactive)</span>
+                      )}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Webhook not configured</p>
+                    <p className="text-sm text-muted-foreground">
+                      Configure to enable auto-deploy on push
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+            {app.webhookId ? (
+              <Button
+                variant="outline"
+                onClick={handleRemoveWebhook}
+                disabled={removeWebhook.isPending}
+              >
+                <Link2Off className="h-4 w-4 mr-2" />
+                Remove Webhook
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSetupWebhook}
+                disabled={setupWebhook.isPending}
+              >
+                <Link2 className="h-4 w-4 mr-2" />
+                Setup Webhook
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

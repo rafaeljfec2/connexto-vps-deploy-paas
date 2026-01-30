@@ -1,4 +1,11 @@
-import type { ApiEnvelope, App, CreateAppInput, Deployment } from "@/types";
+import type {
+  ApiEnvelope,
+  App,
+  CreateAppInput,
+  Deployment,
+  WebhookSetupResult,
+  WebhookStatus,
+} from "@/types";
 import { ApiError, isApiError } from "@/types";
 
 const API_BASE = "/paas-deploy/v1";
@@ -84,5 +91,26 @@ export const api = {
       fetchApi<Deployment>(`${API_BASE}/apps/${appId}/rollback`, {
         method: "POST",
       }),
+  },
+
+  webhooks: {
+    setup: (appId: string): Promise<WebhookSetupResult> =>
+      fetchApi<WebhookSetupResult>(`${API_BASE}/apps/${appId}/webhook`, {
+        method: "POST",
+      }),
+
+    remove: async (appId: string): Promise<void> => {
+      const response = await fetch(`${API_BASE}/apps/${appId}/webhook`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+
+    status: (appId: string): Promise<WebhookStatus> =>
+      fetchApi<WebhookStatus>(`${API_BASE}/apps/${appId}/webhook/status`),
   },
 };

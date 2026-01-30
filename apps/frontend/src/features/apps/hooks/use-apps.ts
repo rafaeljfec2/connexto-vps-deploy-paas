@@ -38,3 +38,37 @@ export function useDeleteApp() {
     },
   });
 }
+
+export function useSetupWebhook() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (appId: string) => api.webhooks.setup(appId),
+    onSuccess: (_data, appId) => {
+      queryClient.invalidateQueries({ queryKey: ["app", appId] });
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+      queryClient.invalidateQueries({ queryKey: ["webhookStatus", appId] });
+    },
+  });
+}
+
+export function useRemoveWebhook() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (appId: string) => api.webhooks.remove(appId),
+    onSuccess: (_data, appId) => {
+      queryClient.invalidateQueries({ queryKey: ["app", appId] });
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+      queryClient.invalidateQueries({ queryKey: ["webhookStatus", appId] });
+    },
+  });
+}
+
+export function useWebhookStatus(appId: string) {
+  return useQuery({
+    queryKey: ["webhookStatus", appId],
+    queryFn: () => api.webhooks.status(appId),
+    enabled: !!appId,
+  });
+}
