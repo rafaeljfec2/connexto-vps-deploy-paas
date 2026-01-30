@@ -68,6 +68,7 @@ var HandlerSet = wire.NewSet(
 	handler.NewSwaggerHandler,
 	handler.NewEnvVarHandler,
 	handler.NewContainerHealthHandler,
+	ProvideAppAdminHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -115,6 +116,10 @@ func ProvideWebhookManager(cfg *config.Config, logger *slog.Logger) webhook.Mana
 
 func ProvideAppCleaner(cfg *config.Config, logger *slog.Logger) *engine.AppCleaner {
 	return engine.NewAppCleaner(cfg.Deploy.DataDir, logger)
+}
+
+func ProvideAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, cfg *config.Config) *handler.AppAdminHandler {
+	return handler.NewAppAdminHandler(appRepo, eng, cfg.Deploy.DataDir)
 }
 
 func ProvideAppService(
@@ -220,5 +225,6 @@ type Application struct {
 	SwaggerHandler         *handler.SwaggerHandler
 	EnvVarHandler          *handler.EnvVarHandler
 	ContainerHealthHandler *handler.ContainerHealthHandler
+	AppAdminHandler        *handler.AppAdminHandler
 	WebhookHandler         *github.WebhookHandler
 }

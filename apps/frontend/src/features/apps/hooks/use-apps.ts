@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
-import type { CreateAppInput } from "@/types";
+import type { CreateAppInput, UpdateAppInput } from "@/types";
 
 export function useApps() {
   return useQuery({
@@ -82,5 +82,67 @@ export function useWebhookStatus(appId: string) {
     queryKey: ["webhookStatus", appId],
     queryFn: () => api.webhooks.status(appId),
     enabled: !!appId,
+  });
+}
+
+export function useAppURL(appId: string | undefined) {
+  return useQuery({
+    queryKey: ["appUrl", appId],
+    queryFn: () => api.apps.url(appId!),
+    enabled: !!appId,
+  });
+}
+
+export function useAppConfig(appId: string | undefined) {
+  return useQuery({
+    queryKey: ["appConfig", appId],
+    queryFn: () => api.apps.config(appId!),
+    enabled: !!appId,
+  });
+}
+
+export function useUpdateApp() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateAppInput }) =>
+      api.apps.update(id, input),
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ["app", id] });
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+    },
+  });
+}
+
+export function useRestartContainer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (appId: string) => api.container.restart(appId),
+    onSuccess: (_data, appId) => {
+      queryClient.invalidateQueries({ queryKey: ["app-health", appId] });
+    },
+  });
+}
+
+export function useStopContainer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (appId: string) => api.container.stop(appId),
+    onSuccess: (_data, appId) => {
+      queryClient.invalidateQueries({ queryKey: ["app-health", appId] });
+    },
+  });
+}
+
+export function useStartContainer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (appId: string) => api.container.start(appId),
+    onSuccess: (_data, appId) => {
+      queryClient.invalidateQueries({ queryKey: ["app-health", appId] });
+    },
   });
 }

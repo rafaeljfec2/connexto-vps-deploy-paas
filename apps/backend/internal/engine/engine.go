@@ -17,6 +17,7 @@ type Engine struct {
 	dispatcher    *Dispatcher
 	notifier      *ChannelNotifier
 	healthMonitor *HealthMonitor
+	docker        *DockerClient
 	workers       []*Worker
 	logger        *slog.Logger
 	ctx           context.Context
@@ -42,6 +43,7 @@ func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRep
 		dispatcher:    dispatcher,
 		notifier:      notifier,
 		healthMonitor: healthMonitor,
+		docker:        docker,
 		logger:        logger.With("component", "engine"),
 		ctx:           ctx,
 		cancel:        cancel,
@@ -172,4 +174,16 @@ func (e *Engine) Notifier() Notifier {
 
 func (e *Engine) GetAppHealth(ctx context.Context, appName string) *ContainerHealth {
 	return e.healthMonitor.CheckApp(ctx, appName)
+}
+
+func (e *Engine) RestartContainer(ctx context.Context, containerName string) error {
+	return e.docker.RestartContainer(ctx, containerName)
+}
+
+func (e *Engine) StopContainer(ctx context.Context, containerName string) error {
+	return e.docker.StopContainer(ctx, containerName)
+}
+
+func (e *Engine) StartContainer(ctx context.Context, containerName string) error {
+	return e.docker.StartContainer(ctx, containerName)
 }

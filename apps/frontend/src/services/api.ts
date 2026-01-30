@@ -1,12 +1,16 @@
 import type {
   ApiEnvelope,
   App,
+  AppConfig,
+  AppURL,
   BulkEnvVarInput,
+  ContainerActionResult,
   CreateAppInput,
   CreateEnvVarInput,
   Deployment,
   EnvVar,
   HealthStatus,
+  UpdateAppInput,
   WebhookSetupResult,
   WebhookStatus,
 } from "@/types";
@@ -66,6 +70,18 @@ export const api = {
     health: (id: string): Promise<HealthStatus> =>
       fetchApi<HealthStatus>(`${API_BASE}/apps/${id}/health`),
 
+    url: (id: string): Promise<AppURL> =>
+      fetchApi<AppURL>(`${API_BASE}/apps/${id}/url`),
+
+    config: (id: string): Promise<AppConfig> =>
+      fetchApi<AppConfig>(`${API_BASE}/apps/${id}/config`),
+
+    update: (id: string, input: UpdateAppInput): Promise<App> =>
+      fetchApi<App>(`${API_BASE}/apps/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+
     create: (input: CreateAppInput): Promise<App> =>
       fetchApi<App>(`${API_BASE}/apps`, {
         method: "POST",
@@ -109,6 +125,26 @@ export const api = {
       fetchApi<Deployment>(`${API_BASE}/apps/${appId}/rollback`, {
         method: "POST",
       }),
+  },
+
+  container: {
+    restart: (appId: string): Promise<ContainerActionResult> =>
+      fetchApi<ContainerActionResult>(
+        `${API_BASE}/apps/${appId}/container/restart`,
+        { method: "POST" },
+      ),
+
+    stop: (appId: string): Promise<ContainerActionResult> =>
+      fetchApi<ContainerActionResult>(
+        `${API_BASE}/apps/${appId}/container/stop`,
+        { method: "POST" },
+      ),
+
+    start: (appId: string): Promise<ContainerActionResult> =>
+      fetchApi<ContainerActionResult>(
+        `${API_BASE}/apps/${appId}/container/start`,
+        { method: "POST" },
+      ),
   },
 
   webhooks: {

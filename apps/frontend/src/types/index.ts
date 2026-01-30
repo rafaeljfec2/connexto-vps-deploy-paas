@@ -93,3 +93,37 @@ export interface CreateEnvVarInput {
 export interface BulkEnvVarInput {
   readonly vars: readonly CreateEnvVarInput[];
 }
+
+export interface AppURL {
+  readonly url: string;
+  readonly port: number;
+  readonly hostPort: number;
+}
+
+export interface AppConfig {
+  readonly name: string;
+  readonly port: number;
+  readonly hostPort: number;
+  readonly healthcheck: {
+    readonly path: string;
+    readonly interval: string;
+    readonly timeout: string;
+    readonly retries: number;
+    readonly startPeriod: string;
+  };
+  readonly resources: {
+    readonly memory: string;
+    readonly cpu: string;
+  };
+  readonly domains: readonly string[];
+}
+
+export interface ContainerActionResult {
+  readonly success: boolean;
+  readonly message: string;
+}
+
+export interface UpdateAppInput {
+  readonly branch?: string;
+  readonly workdir?: string;
+}

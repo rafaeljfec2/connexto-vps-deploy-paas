@@ -44,6 +44,7 @@ func InitializeApplication() (*Application, func(), error) {
 	swaggerHandler := handler.NewSwaggerHandler()
 	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository)
 	containerHealthHandler := handler.NewContainerHealthHandler(postgresAppRepository, engineEngine)
+	appAdminHandler := ProvideAppAdminHandler(postgresAppRepository, engineEngine, config)
 	webhookHandler := ProvideGitHubWebhookHandler(config, postgresAppRepository, postgresDeploymentRepository, logger)
 	application := &Application{
 		Config:                 config,
@@ -57,6 +58,7 @@ func InitializeApplication() (*Application, func(), error) {
 		SwaggerHandler:         swaggerHandler,
 		EnvVarHandler:          envVarHandler,
 		ContainerHealthHandler: containerHealthHandler,
+		AppAdminHandler:        appAdminHandler,
 		WebhookHandler:         webhookHandler,
 	}
 	return application, func() {

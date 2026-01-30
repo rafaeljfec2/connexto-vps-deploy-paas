@@ -262,3 +262,39 @@ func formatUptime(d time.Duration) string {
 	}
 	return fmt.Sprintf("%dm", minutes)
 }
+
+func (d *DockerClient) RestartContainer(ctx context.Context, containerName string) error {
+	d.logger.Info("Restarting container", "containerName", containerName)
+	d.executor.SetTimeout(2 * time.Minute)
+
+	_, err := d.executor.Run(ctx, "docker", "restart", containerName)
+	if err != nil {
+		return fmt.Errorf("failed to restart container: %w", err)
+	}
+
+	return nil
+}
+
+func (d *DockerClient) StopContainer(ctx context.Context, containerName string) error {
+	d.logger.Info("Stopping container", "containerName", containerName)
+	d.executor.SetTimeout(1 * time.Minute)
+
+	_, err := d.executor.Run(ctx, "docker", "stop", containerName)
+	if err != nil {
+		return fmt.Errorf("failed to stop container: %w", err)
+	}
+
+	return nil
+}
+
+func (d *DockerClient) StartContainer(ctx context.Context, containerName string) error {
+	d.logger.Info("Starting container", "containerName", containerName)
+	d.executor.SetTimeout(1 * time.Minute)
+
+	_, err := d.executor.Run(ctx, "docker", "start", containerName)
+	if err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	return nil
+}
