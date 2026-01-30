@@ -115,19 +115,21 @@ func (q *Queue) UpdateAppLastDeployedAt(appID string) error {
 
 func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, config, status, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE id = $1 AND status != 'deleted'
 	`
 
 	var app domain.App
 	var lastDeployedAt sql.NullTime
+	var workdir sql.NullString
 
 	err := q.db.QueryRow(query, appID).Scan(
 		&app.ID,
 		&app.Name,
 		&app.RepositoryURL,
 		&app.Branch,
+		&workdir,
 		&app.Config,
 		&app.Status,
 		&lastDeployedAt,
@@ -141,6 +143,7 @@ func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 		return nil, err
 	}
 
+	app.Workdir = workdir.String
 	if lastDeployedAt.Valid {
 		app.LastDeployedAt = &lastDeployedAt.Time
 	}

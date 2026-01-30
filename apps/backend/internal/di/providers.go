@@ -24,7 +24,7 @@ import (
 )
 
 var ConfigSet = wire.NewSet(
-	config.Load,
+	ProvideConfig,
 )
 
 var LoggerSet = wire.NewSet(
@@ -89,6 +89,14 @@ var AppSet = wire.NewSet(
 )
 
 const Version = "0.1.0"
+
+func ProvideConfig() (*config.Config, error) {
+	cfg := config.Load()
+	if err := cfg.EnsureDirectories(); err != nil {
+		return nil, fmt.Errorf("failed to ensure directories: %w", err)
+	}
+	return cfg, nil
+}
 
 func ProvideHealthHandler() *handler.HealthHandler {
 	return handler.NewHealthHandler(Version)

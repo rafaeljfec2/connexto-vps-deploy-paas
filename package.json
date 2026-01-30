@@ -4,7 +4,8 @@
   "private": true,
   "description": "A lightweight, self-hosted PaaS for automatic deployments",
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=@paasdeploy/backend & sleep 3 && turbo run dev --filter=@paasdeploy/frontend",
+    "dev:parallel": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

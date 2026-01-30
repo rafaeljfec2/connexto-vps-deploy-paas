@@ -174,7 +174,14 @@ export function AppDetailsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <LogViewer logs={selectedDeploy?.logs ?? null} />
+            <LogViewer
+              logs={selectedDeploy?.logs ?? null}
+              title={
+                selectedDeploy
+                  ? `Logs (${selectedDeploy.commitSha.slice(0, 7)})`
+                  : "Logs"
+              }
+            />
           </CardContent>
         </Card>
       </div>

@@ -11,7 +11,7 @@ import (
 )
 
 type AppCleaner interface {
-	CleanApp(ctx context.Context, appName string) error
+	CleanApp(ctx context.Context, appID, appName string) error
 }
 
 type AppService struct {
@@ -130,7 +130,21 @@ func (s *AppService) DeleteApp(ctx context.Context, id string) error {
 		go s.removeWebhookAsync(ctx, app)
 	}
 
+	if s.appCleaner != nil {
+		go s.cleanAppAsync(ctx, app)
+	}
+
 	return s.appRepo.Delete(id)
+}
+
+func (s *AppService) cleanAppAsync(ctx context.Context, app *domain.App) {
+	if err := s.appCleaner.CleanApp(ctx, app.ID, app.Name); err != nil {
+		s.logger.Warn("failed to clean app resources",
+			"app_id", app.ID,
+			"app_name", app.Name,
+			"error", err,
+		)
+	}
 }
 
 func (s *AppService) removeWebhookAsync(ctx context.Context, app *domain.App) {
@@ -184,7 +198,7 @@ func (s *AppService) PurgeApp(ctx context.Context, id string) error {
 	}
 
 	if s.appCleaner != nil {
-		if err := s.appCleaner.CleanApp(ctx, app.Name); err != nil {
+		if err := s.appCleaner.CleanApp(ctx, app.ID, app.Name); err != nil {
 			s.logger.Warn("failed to clean app resources",
 				"app_id", app.ID,
 				"error", err,

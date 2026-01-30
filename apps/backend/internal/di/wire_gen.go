@@ -7,7 +7,6 @@
 package di
 
 import (
-	"github.com/paasdeploy/backend/internal/config"
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/handler"
 	"github.com/paasdeploy/backend/internal/repository"
@@ -21,29 +20,32 @@ import (
 // Injectors from wire.go:
 
 func InitializeApplication() (*Application, func(), error) {
-	configConfig := config.Load()
-	logger := ProvideLogger(configConfig)
-	db, cleanup, err := ProvideDatabase(configConfig)
+	config, err := ProvideConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	logger := ProvideLogger(config)
+	db, cleanup, err := ProvideDatabase(config)
 	if err != nil {
 		return nil, nil, err
 	}
 	postgresEnvVarRepository := repository.NewPostgresEnvVarRepository(db)
-	engineEngine := engine.New(configConfig, db, postgresEnvVarRepository, logger)
-	serverConfig := ProvideServerConfig(configConfig)
+	engineEngine := engine.New(config, db, postgresEnvVarRepository, logger)
+	serverConfig := ProvideServerConfig(config)
 	serverServer := server.New(serverConfig, logger)
 	healthHandler := ProvideHealthHandler()
 	postgresAppRepository := repository.NewPostgresAppRepository(db)
 	postgresDeploymentRepository := repository.NewPostgresDeploymentRepository(db)
-	manager := ProvideWebhookManager(configConfig, logger)
-	appCleaner := ProvideAppCleaner(configConfig, logger)
+	manager := ProvideWebhookManager(config, logger)
+	appCleaner := ProvideAppCleaner(config, logger)
 	appService := ProvideAppService(postgresAppRepository, postgresDeploymentRepository, postgresEnvVarRepository, manager, appCleaner, logger)
 	appHandler := handler.NewAppHandler(appService)
 	sseHandler := handler.NewSSEHandler()
 	swaggerHandler := handler.NewSwaggerHandler()
 	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository)
-	webhookHandler := ProvideGitHubWebhookHandler(configConfig, postgresAppRepository, postgresDeploymentRepository, logger)
+	webhookHandler := ProvideGitHubWebhookHandler(config, postgresAppRepository, postgresDeploymentRepository, logger)
 	application := &Application{
-		Config:         configConfig,
+		Config:         config,
 		Logger:         logger,
 		DB:             db,
 		Engine:         engineEngine,

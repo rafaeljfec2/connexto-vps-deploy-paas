@@ -149,6 +149,29 @@ func (d *DockerClient) RemoveImage(ctx context.Context, tag string) error {
 	return nil
 }
 
+func (d *DockerClient) EnsureNetwork(ctx context.Context, networkName string) error {
+	d.logger.Info("Checking Docker network", "network", networkName)
+
+	result, err := d.executor.Run(ctx, "docker", "network", "inspect", networkName)
+	if err == nil {
+		d.logger.Info("Network already exists", "network", networkName)
+		return nil
+	}
+
+	if !strings.Contains(result.Stderr, "No such network") && !strings.Contains(result.Stderr, "network") {
+		return fmt.Errorf("failed to inspect network: %w", err)
+	}
+
+	d.logger.Info("Creating Docker network", "network", networkName)
+	_, err = d.executor.Run(ctx, "docker", "network", "create", networkName)
+	if err != nil {
+		return fmt.Errorf("failed to create network %s: %w", networkName, err)
+	}
+
+	d.logger.Info("Docker network created successfully", "network", networkName)
+	return nil
+}
+
 func (d *DockerClient) getImagePrefix() string {
 	if d.registry != "" {
 		return d.registry + "/paasdeploy"
@@ -157,7 +180,11 @@ func (d *DockerClient) getImagePrefix() string {
 }
 
 func (d *DockerClient) GetImageTag(appName, commitSHA string) string {
-	return fmt.Sprintf("%s/%s:%s", d.getImagePrefix(), appName, commitSHA[:12])
+	tag := commitSHA
+	if len(tag) > 12 {
+		tag = tag[:12]
+	}
+	return fmt.Sprintf("%s/%s:%s", d.getImagePrefix(), appName, tag)
 }
 
 func (d *DockerClient) GetLatestTag(appName string) string {

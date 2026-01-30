@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -123,4 +124,35 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func (c *Config) EnsureDirectories() error {
+	dirs := []string{
+		c.Deploy.DataDir,
+		filepath.Join(c.Deploy.DataDir, ".locks"),
+	}
+
+	for _, dir := range dirs {
+		if err := ensureWritableDir(dir); err != nil {
+			return fmt.Errorf("failed to ensure directory %s: %w", dir, err)
+		}
+	}
+
+	return nil
+}
+
+func ensureWritableDir(dir string) error {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	testFile := filepath.Join(dir, ".write_test")
+	f, err := os.Create(testFile)
+	if err != nil {
+		return fmt.Errorf("directory is not writable: %w", err)
+	}
+	f.Close()
+	os.Remove(testFile)
+
+	return nil
 }

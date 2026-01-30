@@ -121,10 +121,14 @@ func (w *Worker) Run(ctx context.Context, deploy *domain.Deployment, app *domain
 }
 
 func (w *Worker) getAppDir(repoDir, workdir string) string {
+	var appDir string
 	if workdir == "" || workdir == "." {
-		return repoDir
+		appDir = repoDir
+	} else {
+		appDir = filepath.Join(repoDir, workdir)
 	}
-	return filepath.Join(repoDir, workdir)
+	w.deps.Logger.Info("Calculated appDir", "repoDir", repoDir, "workdir", workdir, "appDir", appDir)
+	return appDir
 }
 
 func (w *Worker) loadEnvVars(appID string) error {
@@ -163,7 +167,7 @@ func (w *Worker) syncGit(ctx context.Context, deploy *domain.Deployment, app *do
 	if err != nil {
 		return err
 	}
-	w.log(deploy.ID, app.ID, "Checked out commit: %s", sha[:12])
+	w.log(deploy.ID, app.ID, "Checked out commit: %s", truncateSHA(sha))
 
 	return nil
 }
@@ -171,7 +175,10 @@ func (w *Worker) syncGit(ctx context.Context, deploy *domain.Deployment, app *do
 func (w *Worker) loadConfig(appDir string) error {
 	configPath := filepath.Join(appDir, "paasdeploy.json")
 
+	w.deps.Logger.Info("Looking for paasdeploy.json", "configPath", configPath, "appDir", appDir)
+
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		w.deps.Logger.Error("paasdeploy.json not found", "configPath", configPath, "appDir", appDir)
 		return fmt.Errorf("paasdeploy.json not found in repository - this file is required for deployment")
 	}
 
@@ -259,6 +266,10 @@ func (w *Worker) buildDocker(ctx context.Context, deploy *domain.Deployment, app
 func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment, app *domain.App, appDir string) error {
 	w.log(deploy.ID, app.ID, "Deploying container...")
 
+	if err := w.deps.Docker.EnsureNetwork(ctx, "paasdeploy"); err != nil {
+		return fmt.Errorf("failed to ensure network: %w", err)
+	}
+
 	imageTag := w.deps.Docker.GetImageTag(app.Name, deploy.CommitSHA)
 
 	if err := w.generateComposeFile(appDir, app.Name, imageTag); err != nil {
@@ -330,8 +341,7 @@ func (w *Worker) generateComposeFile(appDir, appName, imageTag string) error {
 			appName, appName, appName, cfg.Port)
 	}
 
-	composeContent := fmt.Sprintf("version: \"3.8\"\n\n"+
-		"services:\n"+
+	composeContent := fmt.Sprintf("services:\n"+
 		"  %s:\n"+
 		"    image: %s\n"+
 		"    container_name: %s\n"+
@@ -442,4 +452,11 @@ func (w *Worker) log(deployID, appID, format string, args ...interface{}) {
 	w.deps.Dispatcher.AppendLogs(deployID, logLine)
 	w.deps.Notifier.EmitLog(deployID, appID, message)
 	w.deps.Logger.Info(message, "deployId", deployID, "appId", appID)
+}
+
+func truncateSHA(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
 }
