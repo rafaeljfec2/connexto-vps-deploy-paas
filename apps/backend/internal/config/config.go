@@ -11,6 +11,7 @@ type Config struct {
 	Database DatabaseConfig
 	Deploy   DeployConfig
 	Docker   DockerConfig
+	GitHub   GitHubConfig
 }
 
 type ServerConfig struct {
@@ -36,6 +37,12 @@ type DockerConfig struct {
 	Registry string
 }
 
+type GitHubConfig struct {
+	PAT           string
+	WebhookSecret string
+	WebhookURL    string
+}
+
 func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
@@ -56,6 +63,11 @@ func Load() *Config {
 		Docker: DockerConfig{
 			Host:     getEnv("DOCKER_HOST", "unix:///var/run/docker.sock"),
 			Registry: getEnv("DOCKER_REGISTRY", ""),
+		},
+		GitHub: GitHubConfig{
+			PAT:           getEnv("GITHUB_PAT", ""),
+			WebhookSecret: getEnv("GITHUB_WEBHOOK_SECRET", ""),
+			WebhookURL:    getEnv("GITHUB_WEBHOOK_URL", ""),
 		},
 	}
 }

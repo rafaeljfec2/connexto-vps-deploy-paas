@@ -14,10 +14,12 @@ import (
 	"github.com/paasdeploy/backend/internal/config"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/engine"
+	"github.com/paasdeploy/backend/internal/github"
 	"github.com/paasdeploy/backend/internal/handler"
 	"github.com/paasdeploy/backend/internal/repository"
 	"github.com/paasdeploy/backend/internal/server"
 	"github.com/paasdeploy/backend/internal/service"
+	"github.com/paasdeploy/backend/internal/webhook"
 )
 
 var ConfigSet = wire.NewSet(
@@ -39,12 +41,20 @@ var RepositorySet = wire.NewSet(
 	wire.Bind(new(domain.DeploymentRepository), new(*repository.PostgresDeploymentRepository)),
 )
 
+var WebhookSet = wire.NewSet(
+	ProvideWebhookManager,
+)
+
 var ServiceSet = wire.NewSet(
-	service.NewAppService,
+	ProvideAppService,
 )
 
 var EngineSet = wire.NewSet(
 	engine.New,
+)
+
+var GitHubSet = wire.NewSet(
+	ProvideGitHubWebhookHandler,
 )
 
 var HandlerSet = wire.NewSet(
@@ -63,8 +73,10 @@ var AppSet = wire.NewSet(
 	LoggerSet,
 	DatabaseSet,
 	RepositorySet,
+	WebhookSet,
 	ServiceSet,
 	EngineSet,
+	GitHubSet,
 	HandlerSet,
 	ServerSet,
 	wire.Struct(new(Application), "*"),
@@ -74,6 +86,39 @@ const Version = "0.1.0"
 
 func ProvideHealthHandler() *handler.HealthHandler {
 	return handler.NewHealthHandler(Version)
+}
+
+func ProvideWebhookManager(cfg *config.Config, logger *slog.Logger) webhook.Manager {
+	if cfg.GitHub.PAT == "" || cfg.GitHub.WebhookURL == "" {
+		logger.Info("webhook management disabled: GITHUB_PAT or GITHUB_WEBHOOK_URL not configured")
+		return webhook.NewNoOpManager()
+	}
+
+	provider := github.NewPATProvider(cfg.GitHub.PAT)
+	return webhook.NewGitHubManager(provider, cfg.GitHub.WebhookURL, cfg.GitHub.WebhookSecret)
+}
+
+func ProvideAppService(
+	appRepo domain.AppRepository,
+	deploymentRepo domain.DeploymentRepository,
+	webhookManager webhook.Manager,
+	logger *slog.Logger,
+) *service.AppService {
+	return service.NewAppService(appRepo, deploymentRepo, webhookManager, logger)
+}
+
+func ProvideGitHubWebhookHandler(
+	cfg *config.Config,
+	appRepo *repository.PostgresAppRepository,
+	deploymentRepo *repository.PostgresDeploymentRepository,
+	logger *slog.Logger,
+) *github.WebhookHandler {
+	return github.NewWebhookHandler(
+		appRepo,
+		deploymentRepo,
+		cfg.GitHub.WebhookSecret,
+		logger,
+	)
 }
 
 func ProvideLogger(cfg *config.Config) *slog.Logger {
@@ -135,12 +180,13 @@ func ProvideServerConfig(cfg *config.Config) server.Config {
 }
 
 type Application struct {
-	Config        *config.Config
-	Logger        *slog.Logger
-	DB            *sql.DB
-	Engine        *engine.Engine
-	Server        *server.Server
-	HealthHandler *handler.HealthHandler
-	AppHandler    *handler.AppHandler
-	SSEHandler    *handler.SSEHandler
+	Config         *config.Config
+	Logger         *slog.Logger
+	DB             *sql.DB
+	Engine         *engine.Engine
+	Server         *server.Server
+	HealthHandler  *handler.HealthHandler
+	AppHandler     *handler.AppHandler
+	SSEHandler     *handler.SSEHandler
+	WebhookHandler *github.WebhookHandler
 }

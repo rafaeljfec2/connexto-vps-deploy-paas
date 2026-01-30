@@ -21,6 +21,7 @@ type App struct {
 	Workdir        string          `json:"workdir"`
 	Config         json.RawMessage `json:"config"`
 	Status         AppStatus       `json:"status"`
+	WebhookID      *int64          `json:"webhookId,omitempty"`
 	LastDeployedAt *time.Time      `json:"lastDeployedAt,omitempty"`
 	CreatedAt      time.Time       `json:"createdAt"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
@@ -41,12 +42,14 @@ type UpdateAppInput struct {
 	Workdir       *string          `json:"workdir,omitempty"`
 	Config        *json.RawMessage `json:"config,omitempty"`
 	Status        *AppStatus       `json:"status,omitempty"`
+	WebhookID     *int64           `json:"webhookId,omitempty"`
 }
 
 type AppRepository interface {
 	FindAll() ([]App, error)
 	FindByID(id string) (*App, error)
 	FindByName(name string) (*App, error)
+	FindByRepoURL(repoURL string) (*App, error)
 	Create(input CreateAppInput) (*App, error)
 	Update(id string, input UpdateAppInput) (*App, error)
 	Delete(id string) error

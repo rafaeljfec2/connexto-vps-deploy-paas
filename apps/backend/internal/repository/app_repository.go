@@ -18,7 +18,7 @@ func NewPostgresAppRepository(db *sql.DB) *PostgresAppRepository {
 
 func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE status != 'deleted'
 		ORDER BY created_at DESC
@@ -34,6 +34,7 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 	for rows.Next() {
 		var app domain.App
 		var lastDeployedAt sql.NullTime
+		var webhookID sql.NullInt64
 
 		err := rows.Scan(
 			&app.ID,
@@ -43,6 +44,7 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 			&app.Workdir,
 			&app.Config,
 			&app.Status,
+			&webhookID,
 			&lastDeployedAt,
 			&app.CreatedAt,
 			&app.UpdatedAt,
@@ -51,6 +53,9 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 			return nil, err
 		}
 
+		if webhookID.Valid {
+			app.WebhookID = &webhookID.Int64
+		}
 		if lastDeployedAt.Valid {
 			app.LastDeployedAt = &lastDeployedAt.Time
 		}
@@ -63,13 +68,14 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 
 func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE id = $1 AND status != 'deleted'
 	`
 
 	var app domain.App
 	var lastDeployedAt sql.NullTime
+	var webhookID sql.NullInt64
 
 	err := r.db.QueryRow(query, id).Scan(
 		&app.ID,
@@ -79,6 +85,7 @@ func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 		&app.Workdir,
 		&app.Config,
 		&app.Status,
+		&webhookID,
 		&lastDeployedAt,
 		&app.CreatedAt,
 		&app.UpdatedAt,
@@ -90,6 +97,9 @@ func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 		return nil, err
 	}
 
+	if webhookID.Valid {
+		app.WebhookID = &webhookID.Int64
+	}
 	if lastDeployedAt.Valid {
 		app.LastDeployedAt = &lastDeployedAt.Time
 	}
@@ -99,13 +109,14 @@ func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 
 func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE name = $1 AND status != 'deleted'
 	`
 
 	var app domain.App
 	var lastDeployedAt sql.NullTime
+	var webhookID sql.NullInt64
 
 	err := r.db.QueryRow(query, name).Scan(
 		&app.ID,
@@ -115,6 +126,7 @@ func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 		&app.Workdir,
 		&app.Config,
 		&app.Status,
+		&webhookID,
 		&lastDeployedAt,
 		&app.CreatedAt,
 		&app.UpdatedAt,
@@ -126,6 +138,50 @@ func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 		return nil, err
 	}
 
+	if webhookID.Valid {
+		app.WebhookID = &webhookID.Int64
+	}
+	if lastDeployedAt.Valid {
+		app.LastDeployedAt = &lastDeployedAt.Time
+	}
+
+	return &app, nil
+}
+
+func (r *PostgresAppRepository) FindByRepoURL(repoURL string) (*domain.App, error) {
+	query := `
+		SELECT id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
+		FROM apps
+		WHERE repository_url = $1 AND status != 'deleted'
+	`
+
+	var app domain.App
+	var lastDeployedAt sql.NullTime
+	var webhookID sql.NullInt64
+
+	err := r.db.QueryRow(query, repoURL).Scan(
+		&app.ID,
+		&app.Name,
+		&app.RepositoryURL,
+		&app.Branch,
+		&app.Workdir,
+		&app.Config,
+		&app.Status,
+		&webhookID,
+		&lastDeployedAt,
+		&app.CreatedAt,
+		&app.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, domain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if webhookID.Valid {
+		app.WebhookID = &webhookID.Int64
+	}
 	if lastDeployedAt.Valid {
 		app.LastDeployedAt = &lastDeployedAt.Time
 	}
@@ -152,11 +208,12 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 	query := `
 		INSERT INTO apps (name, repository_url, branch, workdir, config, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
-		RETURNING id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
+		RETURNING id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
 	`
 
 	var app domain.App
 	var lastDeployedAt sql.NullTime
+	var webhookID sql.NullInt64
 
 	err := r.db.QueryRow(query, input.Name, input.RepositoryURL, branch, workdir, config).Scan(
 		&app.ID,
@@ -166,6 +223,7 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 		&app.Workdir,
 		&app.Config,
 		&app.Status,
+		&webhookID,
 		&lastDeployedAt,
 		&app.CreatedAt,
 		&app.UpdatedAt,
@@ -174,6 +232,9 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 		return nil, err
 	}
 
+	if webhookID.Valid {
+		app.WebhookID = &webhookID.Int64
+	}
 	if lastDeployedAt.Valid {
 		app.LastDeployedAt = &lastDeployedAt.Time
 	}
@@ -205,15 +266,18 @@ func (r *PostgresAppRepository) Update(id string, input domain.UpdateAppInput) (
 	if input.Status != nil {
 		app.Status = *input.Status
 	}
+	if input.WebhookID != nil {
+		app.WebhookID = input.WebhookID
+	}
 
 	query := `
 		UPDATE apps
-		SET name = $2, repository_url = $3, branch = $4, workdir = $5, config = $6, status = $7, updated_at = NOW()
+		SET name = $2, repository_url = $3, branch = $4, workdir = $5, config = $6, status = $7, webhook_id = $8, updated_at = NOW()
 		WHERE id = $1
 		RETURNING updated_at
 	`
 
-	err = r.db.QueryRow(query, id, app.Name, app.RepositoryURL, app.Branch, app.Workdir, app.Config, app.Status).Scan(&app.UpdatedAt)
+	err = r.db.QueryRow(query, id, app.Name, app.RepositoryURL, app.Branch, app.Workdir, app.Config, app.Status, app.WebhookID).Scan(&app.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

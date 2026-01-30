@@ -12,7 +12,6 @@ import (
 	"github.com/paasdeploy/backend/internal/handler"
 	"github.com/paasdeploy/backend/internal/repository"
 	"github.com/paasdeploy/backend/internal/server"
-	"github.com/paasdeploy/backend/internal/service"
 )
 
 import (
@@ -34,18 +33,21 @@ func InitializeApplication() (*Application, func(), error) {
 	healthHandler := ProvideHealthHandler()
 	postgresAppRepository := repository.NewPostgresAppRepository(db)
 	postgresDeploymentRepository := repository.NewPostgresDeploymentRepository(db)
-	appService := service.NewAppService(postgresAppRepository, postgresDeploymentRepository)
+	manager := ProvideWebhookManager(configConfig, logger)
+	appService := ProvideAppService(postgresAppRepository, postgresDeploymentRepository, manager, logger)
 	appHandler := handler.NewAppHandler(appService)
 	sseHandler := handler.NewSSEHandler()
+	webhookHandler := ProvideGitHubWebhookHandler(configConfig, postgresAppRepository, postgresDeploymentRepository, logger)
 	application := &Application{
-		Config:        configConfig,
-		Logger:        logger,
-		DB:            db,
-		Engine:        engineEngine,
-		Server:        serverServer,
-		HealthHandler: healthHandler,
-		AppHandler:    appHandler,
-		SSEHandler:    sseHandler,
+		Config:         configConfig,
+		Logger:         logger,
+		DB:             db,
+		Engine:         engineEngine,
+		Server:         serverServer,
+		HealthHandler:  healthHandler,
+		AppHandler:     appHandler,
+		SSEHandler:     sseHandler,
+		WebhookHandler: webhookHandler,
 	}
 	return application, func() {
 		cleanup()

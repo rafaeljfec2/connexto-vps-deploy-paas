@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,9 +21,9 @@ func NewAppHandler(appService *service.AppService) *AppHandler {
 }
 
 func (h *AppHandler) Register(app *fiber.App) {
-	api := app.Group("/api")
+	v1 := app.Group("/paas-deploy/v1")
 
-	apps := api.Group("/apps")
+	apps := v1.Group("/apps")
 	apps.Get("/", h.ListApps)
 	apps.Post("/", h.CreateApp)
 	apps.Get("/:id", h.GetApp)
@@ -30,6 +31,10 @@ func (h *AppHandler) Register(app *fiber.App) {
 	apps.Get("/:id/deployments", h.ListDeployments)
 	apps.Post("/:id/redeploy", h.TriggerRedeploy)
 	apps.Post("/:id/rollback", h.TriggerRollback)
+
+	apps.Post("/:id/webhook", h.SetupWebhook)
+	apps.Delete("/:id/webhook", h.RemoveWebhook)
+	apps.Get("/:id/webhook/status", h.GetWebhookStatus)
 }
 
 func (h *AppHandler) ListApps(c *fiber.Ctx) error {
@@ -47,7 +52,8 @@ func (h *AppHandler) CreateApp(c *fiber.Ctx) error {
 		return response.BadRequest(c, "invalid request body")
 	}
 
-	app, err := h.appService.CreateApp(input)
+	ctx := context.Background()
+	app, err := h.appService.CreateApp(ctx, input)
 	if err != nil {
 		return h.handleError(c, err)
 	}
@@ -69,7 +75,8 @@ func (h *AppHandler) GetApp(c *fiber.Ctx) error {
 func (h *AppHandler) DeleteApp(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	if err := h.appService.DeleteApp(id); err != nil {
+	ctx := context.Background()
+	if err := h.appService.DeleteApp(ctx, id); err != nil {
 		return h.handleError(c, err)
 	}
 
@@ -114,6 +121,41 @@ func (h *AppHandler) TriggerRollback(c *fiber.Ctx) error {
 	return response.Created(c, deployment)
 }
 
+func (h *AppHandler) SetupWebhook(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	ctx := context.Background()
+	result, err := h.appService.SetupWebhook(ctx, id)
+	if err != nil {
+		return h.handleError(c, err)
+	}
+
+	return response.OK(c, result)
+}
+
+func (h *AppHandler) RemoveWebhook(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	ctx := context.Background()
+	if err := h.appService.RemoveWebhook(ctx, id); err != nil {
+		return h.handleError(c, err)
+	}
+
+	return response.NoContent(c)
+}
+
+func (h *AppHandler) GetWebhookStatus(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	ctx := context.Background()
+	status, err := h.appService.GetWebhookStatus(ctx, id)
+	if err != nil {
+		return h.handleError(c, err)
+	}
+
+	return response.OK(c, status)
+}
+
 func (h *AppHandler) handleError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
@@ -126,6 +168,8 @@ func (h *AppHandler) handleError(c *fiber.Ctx, err error) error {
 		return response.Conflict(c, err.Error())
 	case errors.Is(err, domain.ErrNoDeployAvailable):
 		return response.NotFound(c, err.Error())
+	case errors.Is(err, domain.ErrWebhookNotConfigured):
+		return response.BadRequest(c, err.Error())
 	default:
 		return response.InternalError(c)
 	}

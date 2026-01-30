@@ -1,21 +1,33 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/webhook"
 )
 
 type AppService struct {
 	appRepo        domain.AppRepository
 	deploymentRepo domain.DeploymentRepository
+	webhookManager webhook.Manager
+	logger         *slog.Logger
 }
 
-func NewAppService(appRepo domain.AppRepository, deploymentRepo domain.DeploymentRepository) *AppService {
+func NewAppService(
+	appRepo domain.AppRepository,
+	deploymentRepo domain.DeploymentRepository,
+	webhookManager webhook.Manager,
+	logger *slog.Logger,
+) *AppService {
 	return &AppService{
 		appRepo:        appRepo,
 		deploymentRepo: deploymentRepo,
+		webhookManager: webhookManager,
+		logger:         logger,
 	}
 }
 
@@ -34,7 +46,7 @@ func (s *AppService) GetApp(id string) (*domain.App, error) {
 	return s.appRepo.FindByID(id)
 }
 
-func (s *AppService) CreateApp(input domain.CreateAppInput) (*domain.App, error) {
+func (s *AppService) CreateApp(ctx context.Context, input domain.CreateAppInput) (*domain.App, error) {
 	if err := s.validateCreateInput(input); err != nil {
 		return nil, err
 	}
@@ -47,15 +59,94 @@ func (s *AppService) CreateApp(input domain.CreateAppInput) (*domain.App, error)
 		return nil, domain.ErrAlreadyExists
 	}
 
-	return s.appRepo.Create(input)
+	app, err := s.appRepo.Create(input)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.webhookManager != nil {
+		go s.setupWebhookAsync(ctx, app)
+	}
+
+	return app, nil
+}
+
+func (s *AppService) setupWebhookAsync(ctx context.Context, app *domain.App) {
+	result, err := s.webhookManager.Setup(ctx, webhook.SetupInput{
+		RepositoryURL: app.RepositoryURL,
+	})
+	if err != nil {
+		s.logger.Error("failed to setup webhook",
+			"app_id", app.ID,
+			"app_name", app.Name,
+			"error", err,
+		)
+		return
+	}
+
+	if result == nil {
+		return
+	}
+
+	_, err = s.appRepo.Update(app.ID, domain.UpdateAppInput{
+		WebhookID: &result.WebhookID,
+	})
+	if err != nil {
+		s.logger.Error("failed to update app with webhook_id",
+			"app_id", app.ID,
+			"webhook_id", result.WebhookID,
+			"error", err,
+		)
+	}
+
+	s.logger.Info("webhook setup completed",
+		"app_id", app.ID,
+		"app_name", app.Name,
+		"webhook_id", result.WebhookID,
+	)
 }
 
 func (s *AppService) UpdateApp(id string, input domain.UpdateAppInput) (*domain.App, error) {
 	return s.appRepo.Update(id, input)
 }
 
-func (s *AppService) DeleteApp(id string) error {
+func (s *AppService) DeleteApp(ctx context.Context, id string) error {
+	app, err := s.appRepo.FindByID(id)
+	if err != nil {
+		return err
+	}
+
+	if s.webhookManager != nil && app.WebhookID != nil {
+		go s.removeWebhookAsync(ctx, app)
+	}
+
 	return s.appRepo.Delete(id)
+}
+
+func (s *AppService) removeWebhookAsync(ctx context.Context, app *domain.App) {
+	if app.WebhookID == nil {
+		return
+	}
+
+	err := s.webhookManager.Remove(ctx, webhook.RemoveInput{
+		RepositoryURL: app.RepositoryURL,
+		WebhookID:     *app.WebhookID,
+	})
+	if err != nil {
+		s.logger.Error("failed to remove webhook",
+			"app_id", app.ID,
+			"app_name", app.Name,
+			"webhook_id", *app.WebhookID,
+			"error", err,
+		)
+		return
+	}
+
+	s.logger.Info("webhook removed",
+		"app_id", app.ID,
+		"app_name", app.Name,
+		"webhook_id", *app.WebhookID,
+	)
 }
 
 func (s *AppService) ListDeployments(appID string) ([]domain.Deployment, error) {
@@ -143,4 +234,88 @@ func (s *AppService) validateCreateInput(input domain.CreateAppInput) error {
 	}
 
 	return nil
+}
+
+func (s *AppService) SetupWebhook(ctx context.Context, appID string) (*webhook.SetupResult, error) {
+	if s.webhookManager == nil {
+		return nil, domain.ErrWebhookNotConfigured
+	}
+
+	app, err := s.appRepo.FindByID(appID)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := s.webhookManager.Setup(ctx, webhook.SetupInput{
+		RepositoryURL: app.RepositoryURL,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if result != nil {
+		_, err = s.appRepo.Update(app.ID, domain.UpdateAppInput{
+			WebhookID: &result.WebhookID,
+		})
+		if err != nil {
+			s.logger.Error("failed to update app with webhook_id",
+				"app_id", app.ID,
+				"webhook_id", result.WebhookID,
+				"error", err,
+			)
+		}
+	}
+
+	return result, nil
+}
+
+func (s *AppService) RemoveWebhook(ctx context.Context, appID string) error {
+	if s.webhookManager == nil {
+		return domain.ErrWebhookNotConfigured
+	}
+
+	app, err := s.appRepo.FindByID(appID)
+	if err != nil {
+		return err
+	}
+
+	if app.WebhookID == nil {
+		return nil
+	}
+
+	err = s.webhookManager.Remove(ctx, webhook.RemoveInput{
+		RepositoryURL: app.RepositoryURL,
+		WebhookID:     *app.WebhookID,
+	})
+	if err != nil {
+		return err
+	}
+
+	var nilWebhookID *int64
+	_, err = s.appRepo.Update(app.ID, domain.UpdateAppInput{
+		WebhookID: nilWebhookID,
+	})
+	return err
+}
+
+func (s *AppService) GetWebhookStatus(ctx context.Context, appID string) (*webhook.Status, error) {
+	if s.webhookManager == nil {
+		return &webhook.Status{
+			Exists: false,
+			Error:  "webhook management not configured",
+		}, nil
+	}
+
+	app, err := s.appRepo.FindByID(appID)
+	if err != nil {
+		return nil, err
+	}
+
+	if app.WebhookID == nil {
+		return &webhook.Status{
+			Exists: false,
+		}, nil
+	}
+
+	return s.webhookManager.Status(ctx, app.RepositoryURL, *app.WebhookID)
 }
