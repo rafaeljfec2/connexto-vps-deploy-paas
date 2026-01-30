@@ -141,3 +141,11 @@ export interface ContainerStats {
   readonly networkTx: number;
   readonly pids: number;
 }
+
+export interface CommitInfo {
+  readonly sha: string;
+  readonly message: string;
+  readonly author: string;
+  readonly date: string;
+  readonly url: string;
+}

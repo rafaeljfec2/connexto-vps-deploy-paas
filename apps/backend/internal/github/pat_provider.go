@@ -168,6 +168,65 @@ func (p *PATProvider) ListWebhooks(ctx context.Context, owner, repo string) ([]W
 	return webhooks, nil
 }
 
+func (p *PATProvider) ListCommits(ctx context.Context, owner, repo, branch string, perPage int) ([]CommitInfo, error) {
+	if perPage <= 0 {
+		perPage = 20
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+
+	url := fmt.Sprintf("%s/repos/%s/%s/commits?sha=%s&per_page=%d", p.baseURL, owner, repo, branch, perPage)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf(errCreateRequest, err)
+	}
+
+	p.setHeaders(req)
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf(errSendRequest, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(respBody))
+	}
+
+	var apiCommits []struct {
+		SHA    string `json:"sha"`
+		Commit struct {
+			Message string `json:"message"`
+			Author  struct {
+				Name  string    `json:"name"`
+				Email string    `json:"email"`
+				Date  time.Time `json:"date"`
+			} `json:"author"`
+		} `json:"commit"`
+		HTMLURL string `json:"html_url"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&apiCommits); err != nil {
+		return nil, fmt.Errorf(errDecodeResponse, err)
+	}
+
+	commits := make([]CommitInfo, len(apiCommits))
+	for i, c := range apiCommits {
+		commits[i] = CommitInfo{
+			SHA:     c.SHA,
+			Message: c.Commit.Message,
+			Author:  c.Commit.Author.Name,
+			Date:    c.Commit.Author.Date,
+			URL:     c.HTMLURL,
+		}
+	}
+
+	return commits, nil
+}
+
 func (p *PATProvider) setHeaders(req *http.Request) {
 	req.Header.Set("Accept", acceptHeader)
 	req.Header.Set("X-GitHub-Api-Version", apiVersion)

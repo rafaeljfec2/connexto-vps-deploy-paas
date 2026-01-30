@@ -164,3 +164,12 @@ export function useContainerStats(appId: string | undefined) {
     refetchInterval: 5000,
   });
 }
+
+export function useCommits(appId: string | undefined, limit = 20) {
+  return useQuery({
+    queryKey: ["commits", appId, limit],
+    queryFn: () => api.apps.commits(appId!, limit),
+    enabled: !!appId,
+    staleTime: 60000,
+  });
+}

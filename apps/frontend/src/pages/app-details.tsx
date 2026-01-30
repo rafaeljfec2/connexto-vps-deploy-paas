@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContainerLogsViewer } from "@/components/container-logs-viewer";
 import { ContainerMetrics } from "@/components/container-metrics";
@@ -39,6 +38,7 @@ import { IconText } from "@/components/icon-text";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { AppSettingsDialog } from "@/features/apps/components/app-settings-dialog";
+import { CommitSelectorInline } from "@/features/apps/components/commit-selector";
 import { EnvVarsManager } from "@/features/apps/components/env-vars-manager";
 import {
   useApp,
@@ -155,8 +155,6 @@ export function AppDetailsPage() {
   const startContainer = useStartContainer();
 
   const [selectedDeployId, setSelectedDeployId] = useState<string | null>(null);
-  const [showCommitInput, setShowCommitInput] = useState(false);
-  const [commitSha, setCommitSha] = useState("");
 
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
@@ -199,8 +197,6 @@ export function AppDetailsPage() {
   const handleRedeploy = (sha?: string) => {
     if (id) {
       redeploy.mutate({ appId: id, commitSha: sha });
-      setShowCommitInput(false);
-      setCommitSha("");
     }
   };
 
@@ -347,45 +343,13 @@ export function AppDetailsPage() {
             )}
           </span>
         }
-        actions={
-          showCommitInput ? (
-            <>
-              <Input
-                placeholder="Commit SHA"
-                value={commitSha}
-                onChange={(e) => setCommitSha(e.target.value)}
-                className="w-40 h-8 text-xs font-mono"
-              />
-              <Button
-                size="sm"
-                onClick={() => handleRedeploy(commitSha)}
-                disabled={!commitSha || redeploy.isPending}
-              >
-                Deploy
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setShowCommitInput(false);
-                  setCommitSha("");
-                }}
-              >
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowCommitInput(true)}
-            >
-              Deploy Commit
-            </Button>
-          )
-        }
       >
         <DeployTimeline appId={app.id} onSelectDeploy={setSelectedDeployId} />
+        <CommitSelectorInline
+          appId={app.id}
+          onSelect={handleRedeploy}
+          disabled={redeploy.isPending}
+        />
       </CollapsibleSection>
 
       <CollapsibleSection

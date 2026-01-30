@@ -41,6 +41,7 @@ func (h *AppHandler) Register(app *fiber.App) {
 	apps.Post("/:id/webhook", h.SetupWebhook)
 	apps.Delete("/:id/webhook", h.RemoveWebhook)
 	apps.Get("/:id/webhook/status", h.GetWebhookStatus)
+	apps.Get("/:id/commits", h.ListCommits)
 }
 
 // ListApps godoc
@@ -273,6 +274,30 @@ func (h *AppHandler) GetWebhookStatus(c *fiber.Ctx) error {
 	}
 
 	return response.OK(c, status)
+}
+
+// ListCommits godoc
+//
+//	@Summary		Lista commits do repositorio
+//	@Description	Retorna os ultimos commits do branch do app
+//	@Tags			apps
+//	@Produce		json
+//	@Param			id		path		string	true	"ID do app"
+//	@Param			limit	query		int		false	"Numero de commits a retornar"	default(20)
+//	@Success		200		{array}		object
+//	@Failure		404		{object}	docs.ErrorInfo
+//	@Router			/apps/{id}/commits [get]
+func (h *AppHandler) ListCommits(c *fiber.Ctx) error {
+	id := c.Params("id")
+	limit := c.QueryInt("limit", 20)
+
+	ctx := context.Background()
+	commits, err := h.appService.ListCommits(ctx, id, limit)
+	if err != nil {
+		return h.handleError(c, err)
+	}
+
+	return response.OK(c, commits)
 }
 
 func (h *AppHandler) handleError(c *fiber.Ctx, err error) error {

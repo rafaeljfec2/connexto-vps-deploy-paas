@@ -101,6 +101,20 @@ func (m *GitHubManager) Status(ctx context.Context, repoURL string, webhookID in
 	}, nil
 }
 
+func (m *GitHubManager) ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]github.CommitInfo, error) {
+	owner, repo, err := parseGitHubURL(repoURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse repository URL: %w", err)
+	}
+
+	commits, err := m.provider.ListCommits(ctx, owner, repo, branch, perPage)
+	if err != nil {
+		return nil, fmt.Errorf("list commits: %w", err)
+	}
+
+	return commits, nil
+}
+
 var (
 	httpsPattern = regexp.MustCompile(`^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?$`)
 	sshPattern   = regexp.MustCompile(`^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$`)

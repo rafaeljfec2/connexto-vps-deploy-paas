@@ -4,6 +4,7 @@ import type {
   AppConfig,
   AppURL,
   BulkEnvVarInput,
+  CommitInfo,
   ContainerActionResult,
   ContainerLogs,
   ContainerStats,
@@ -111,6 +112,9 @@ export const api = {
         throw ApiError.fromResponse(envelope, response.status);
       }
     },
+
+    commits: (id: string, limit = 20): Promise<readonly CommitInfo[]> =>
+      fetchApiList<CommitInfo>(`${API_BASE}/apps/${id}/commits?limit=${limit}`),
   },
 
   deployments: {

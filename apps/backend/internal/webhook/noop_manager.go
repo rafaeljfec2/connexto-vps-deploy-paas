@@ -1,6 +1,10 @@
 package webhook
 
-import "context"
+import (
+	"context"
+
+	"github.com/paasdeploy/backend/internal/github"
+)
 
 var _ Manager = (*NoOpManager)(nil)
 
@@ -23,4 +27,8 @@ func (m *NoOpManager) Status(ctx context.Context, repoURL string, webhookID int6
 		Exists: false,
 		Error:  "webhook management not configured",
 	}, nil
+}
+
+func (m *NoOpManager) ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]github.CommitInfo, error) {
+	return nil, nil
 }

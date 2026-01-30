@@ -1,6 +1,9 @@
 package github
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type WebhookConfig struct {
 	URL         string `json:"url"`
@@ -18,9 +21,18 @@ type Webhook struct {
 	Config    WebhookConfig `json:"config"`
 }
 
+type CommitInfo struct {
+	SHA       string    `json:"sha"`
+	Message   string    `json:"message"`
+	Author    string    `json:"author"`
+	Date      time.Time `json:"date"`
+	URL       string    `json:"url"`
+}
+
 type Provider interface {
 	CreateWebhook(ctx context.Context, owner, repo string, config WebhookConfig) (*Webhook, error)
 	DeleteWebhook(ctx context.Context, owner, repo string, webhookID int64) error
 	GetWebhook(ctx context.Context, owner, repo string, webhookID int64) (*Webhook, error)
 	ListWebhooks(ctx context.Context, owner, repo string) ([]Webhook, error)
+	ListCommits(ctx context.Context, owner, repo, branch string, perPage int) ([]CommitInfo, error)
 }
