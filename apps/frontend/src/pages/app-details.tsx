@@ -12,9 +12,11 @@ import {
   FileText,
   Folder,
   GitBranch,
+  GitCommit,
   Globe,
   HardDrive,
   HeartPulse,
+  History,
   Key,
   Link2,
   Link2Off,
@@ -31,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContainerLogsViewer } from "@/components/container-logs-viewer";
 import { ContainerMetrics } from "@/components/container-metrics";
 import { HealthDetail, HealthIndicator } from "@/components/health-indicator";
@@ -343,21 +346,31 @@ export function AppDetailsPage() {
         }
       >
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Rocket className="h-4 w-4" />
-              Deploy History
-            </div>
-            <DeployTimeline
-              appId={app.id}
-              onSelectDeploy={setSelectedDeployId}
-            />
-            <CommitSelectorInline
-              appId={app.id}
-              onSelect={handleRedeploy}
-              disabled={redeploy.isPending}
-            />
-          </div>
+          <Tabs defaultValue="history" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="history" className="gap-2">
+                <History className="h-4 w-4" />
+                Deploy History
+              </TabsTrigger>
+              <TabsTrigger value="commits" className="gap-2">
+                <GitCommit className="h-4 w-4" />
+                Commits
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="history" className="mt-0">
+              <DeployTimeline
+                appId={app.id}
+                onSelectDeploy={setSelectedDeployId}
+              />
+            </TabsContent>
+            <TabsContent value="commits" className="mt-0">
+              <CommitSelectorInline
+                appId={app.id}
+                onSelect={handleRedeploy}
+                disabled={redeploy.isPending}
+              />
+            </TabsContent>
+          </Tabs>
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <FileText className="h-4 w-4" />

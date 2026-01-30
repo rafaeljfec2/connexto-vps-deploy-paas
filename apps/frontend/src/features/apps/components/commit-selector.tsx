@@ -84,15 +84,10 @@ export function CommitSelectorInline({
   onSelect,
   disabled,
 }: CommitSelectorProps) {
-  const { data: commits, isLoading, error } = useCommits(appId, 20);
+  const { data: commits, isLoading, error } = useCommits(appId, 30);
 
   return (
-    <div className="mt-4 border-t pt-4">
-      <div className="flex items-center gap-2 mb-3">
-        <GitCommit className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">Deploy a specific commit</span>
-      </div>
-
+    <div>
       {isLoading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -119,8 +114,8 @@ export function CommitSelectorInline({
       )}
 
       {commits && commits.length > 0 && (
-        <ScrollArea className="h-[280px] -mx-2">
-          <div className="space-y-1 px-2">
+        <ScrollArea className="h-[320px]">
+          <div className="space-y-1 pr-2">
             {commits.map((commit) => (
               <CommitItem
                 key={commit.sha}
