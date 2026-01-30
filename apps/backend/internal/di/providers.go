@@ -40,6 +40,8 @@ var RepositorySet = wire.NewSet(
 	wire.Bind(new(domain.AppRepository), new(*repository.PostgresAppRepository)),
 	repository.NewPostgresDeploymentRepository,
 	wire.Bind(new(domain.DeploymentRepository), new(*repository.PostgresDeploymentRepository)),
+	repository.NewPostgresEnvVarRepository,
+	wire.Bind(new(domain.EnvVarRepository), new(*repository.PostgresEnvVarRepository)),
 )
 
 var WebhookSet = wire.NewSet(
@@ -63,6 +65,7 @@ var HandlerSet = wire.NewSet(
 	handler.NewAppHandler,
 	handler.NewSSEHandler,
 	handler.NewSwaggerHandler,
+	handler.NewEnvVarHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -199,5 +202,6 @@ type Application struct {
 	AppHandler     *handler.AppHandler
 	SSEHandler     *handler.SSEHandler
 	SwaggerHandler *handler.SwaggerHandler
+	EnvVarHandler  *handler.EnvVarHandler
 	WebhookHandler *github.WebhookHandler
 }

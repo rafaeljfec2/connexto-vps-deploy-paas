@@ -1,8 +1,11 @@
 import type {
   ApiEnvelope,
   App,
+  BulkEnvVarInput,
   CreateAppInput,
+  CreateEnvVarInput,
   Deployment,
+  EnvVar,
   WebhookSetupResult,
   WebhookStatus,
 } from "@/types";
@@ -112,5 +115,46 @@ export const api = {
 
     status: (appId: string): Promise<WebhookStatus> =>
       fetchApi<WebhookStatus>(`${API_BASE}/apps/${appId}/webhook/status`),
+  },
+
+  envVars: {
+    list: (appId: string): Promise<readonly EnvVar[]> =>
+      fetchApiList<EnvVar>(`${API_BASE}/apps/${appId}/env`),
+
+    create: (appId: string, input: CreateEnvVarInput): Promise<EnvVar> =>
+      fetchApi<EnvVar>(`${API_BASE}/apps/${appId}/env`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+
+    bulkUpsert: (
+      appId: string,
+      input: BulkEnvVarInput,
+    ): Promise<readonly EnvVar[]> =>
+      fetchApiList<EnvVar>(`${API_BASE}/apps/${appId}/env/bulk`, {
+        method: "PUT",
+        body: JSON.stringify(input),
+      }),
+
+    update: (
+      appId: string,
+      varId: string,
+      input: Partial<CreateEnvVarInput>,
+    ): Promise<EnvVar> =>
+      fetchApi<EnvVar>(`${API_BASE}/apps/${appId}/env/${varId}`, {
+        method: "PUT",
+        body: JSON.stringify(input),
+      }),
+
+    delete: async (appId: string, varId: string): Promise<void> => {
+      const response = await fetch(`${API_BASE}/apps/${appId}/env/${varId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
   },
 };

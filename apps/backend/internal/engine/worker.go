@@ -49,6 +49,7 @@ type WorkerDeps struct {
 	Health     *HealthChecker
 	Notifier   Notifier
 	Dispatcher *Dispatcher
+	EnvVarRepo domain.EnvVarRepository
 	Logger     *slog.Logger
 }
 
@@ -57,6 +58,7 @@ type Worker struct {
 	dataDir      string
 	deps         WorkerDeps
 	deployConfig *PaasDeployConfig
+	appEnvVars   map[string]string
 }
 
 func NewWorker(id int, dataDir string, deps WorkerDeps) *Worker {
@@ -77,6 +79,10 @@ func (w *Worker) Run(ctx context.Context, deploy *domain.Deployment, app *domain
 
 	w.deps.Notifier.EmitDeployRunning(deploy.ID, app.ID)
 	w.log(deploy.ID, app.ID, "Starting deployment for %s", app.Name)
+
+	if err := w.loadEnvVars(app.ID); err != nil {
+		w.deps.Logger.Warn("Failed to load env vars", "error", err)
+	}
 
 	repoDir := filepath.Join(w.dataDir, app.ID)
 	appDir := w.getAppDir(repoDir, app.Workdir)
@@ -119,6 +125,20 @@ func (w *Worker) getAppDir(repoDir, workdir string) string {
 		return repoDir
 	}
 	return filepath.Join(repoDir, workdir)
+}
+
+func (w *Worker) loadEnvVars(appID string) error {
+	vars, err := w.deps.EnvVarRepo.FindByAppID(appID)
+	if err != nil {
+		return err
+	}
+
+	w.appEnvVars = make(map[string]string)
+	for _, v := range vars {
+		w.appEnvVars[v.Key] = v.Value
+	}
+
+	return nil
 }
 
 func (w *Worker) syncGit(ctx context.Context, deploy *domain.Deployment, app *domain.App, repoDir string) error {
@@ -266,10 +286,22 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 func (w *Worker) generateComposeFile(appDir, appName, imageTag string) error {
 	cfg := w.deployConfig
 
+	allEnvVars := make(map[string]string)
+
+	for k, v := range cfg.Env {
+		allEnvVars[k] = v
+	}
+
+	if w.appEnvVars != nil {
+		for k, v := range w.appEnvVars {
+			allEnvVars[k] = v
+		}
+	}
+
 	var envVars string
-	if len(cfg.Env) > 0 {
+	if len(allEnvVars) > 0 {
 		envVars = "    environment:\n"
-		for k, v := range cfg.Env {
+		for k, v := range allEnvVars {
 			envVars += fmt.Sprintf("      - %s=%s\n", k, v)
 		}
 	}

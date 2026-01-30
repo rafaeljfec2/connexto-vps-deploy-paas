@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { IconText } from "@/components/icon-text";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
+import { EnvVarsManager } from "@/features/apps/components/env-vars-manager";
 import {
   useApp,
   useRemoveWebhook,
@@ -177,6 +178,8 @@ export function AppDetailsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <EnvVarsManager appId={app.id} />
 
       <Card>
         <CardHeader>

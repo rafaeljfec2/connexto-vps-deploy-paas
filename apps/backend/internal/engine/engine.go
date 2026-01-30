@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/paasdeploy/backend/internal/config"
+	"github.com/paasdeploy/backend/internal/domain"
 )
 
 type Engine struct {
@@ -24,7 +25,7 @@ type Engine struct {
 	mu         sync.Mutex
 }
 
-func New(cfg *config.Config, db *sql.DB, logger *slog.Logger) *Engine {
+func New(cfg *config.Config, db *sql.DB, envVarRepo domain.EnvVarRepository, logger *slog.Logger) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	queue := NewQueue(db)
@@ -48,6 +49,7 @@ func New(cfg *config.Config, db *sql.DB, logger *slog.Logger) *Engine {
 		Health:     NewHealthChecker(cfg.Deploy.HealthCheckTimeout, cfg.Deploy.HealthCheckRetries, 5*time.Second, logger),
 		Notifier:   notifier,
 		Dispatcher: dispatcher,
+		EnvVarRepo: envVarRepo,
 		Logger:     logger,
 	}
 

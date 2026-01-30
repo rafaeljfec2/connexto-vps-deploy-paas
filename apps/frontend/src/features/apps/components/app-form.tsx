@@ -20,6 +20,7 @@ export function AppForm() {
   const [name, setName] = useState("");
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [branch, setBranch] = useState("main");
+  const [workdir, setWorkdir] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +30,7 @@ export function AppForm() {
         name,
         repositoryUrl,
         branch,
+        workdir: workdir || undefined,
       });
       navigate("/");
     } catch (error) {
@@ -85,6 +87,19 @@ export function AppForm() {
               placeholder="main"
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
+            />
+          </FormField>
+
+          <FormField
+            label="Working Directory"
+            htmlFor="workdir"
+            helper="Path to the app folder in monorepos (e.g., apps/api). Leave empty for root."
+          >
+            <Input
+              id="workdir"
+              placeholder="apps/api"
+              value={workdir}
+              onChange={(e) => setWorkdir(e.target.value)}
             />
           </FormField>
         </CardContent>

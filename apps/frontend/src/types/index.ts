@@ -65,3 +65,23 @@ export interface WebhookStatus {
   readonly lastPingAt: string | null;
   readonly error: string | null;
 }
+
+export interface EnvVar {
+  readonly id: string;
+  readonly appId: string;
+  readonly key: string;
+  readonly value: string;
+  readonly isSecret: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface CreateEnvVarInput {
+  readonly key: string;
+  readonly value: string;
+  readonly isSecret: boolean;
+}
+
+export interface BulkEnvVarInput {
+  readonly vars: readonly CreateEnvVarInput[];
+}

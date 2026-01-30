@@ -52,6 +52,7 @@ func main() {
 
 	app.HealthHandler.Register(app.Server.App())
 	app.AppHandler.Register(app.Server.App())
+	app.EnvVarHandler.Register(app.Server.App())
 	app.SSEHandler.Register(app.Server.App())
 	app.WebhookHandler.Register(app.Server.App())
 	app.SwaggerHandler.Register(app.Server.App())

@@ -27,7 +27,8 @@ func InitializeApplication() (*Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	engineEngine := engine.New(configConfig, db, logger)
+	postgresEnvVarRepository := repository.NewPostgresEnvVarRepository(db)
+	engineEngine := engine.New(configConfig, db, postgresEnvVarRepository, logger)
 	serverConfig := ProvideServerConfig(configConfig)
 	serverServer := server.New(serverConfig, logger)
 	healthHandler := ProvideHealthHandler()
@@ -38,6 +39,7 @@ func InitializeApplication() (*Application, func(), error) {
 	appHandler := handler.NewAppHandler(appService)
 	sseHandler := handler.NewSSEHandler()
 	swaggerHandler := handler.NewSwaggerHandler()
+	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository)
 	webhookHandler := ProvideGitHubWebhookHandler(configConfig, postgresAppRepository, postgresDeploymentRepository, logger)
 	application := &Application{
 		Config:         configConfig,
@@ -49,6 +51,7 @@ func InitializeApplication() (*Application, func(), error) {
 		AppHandler:     appHandler,
 		SSEHandler:     sseHandler,
 		SwaggerHandler: swaggerHandler,
+		EnvVarHandler:  envVarHandler,
 		WebhookHandler: webhookHandler,
 	}
 	return application, func() {
