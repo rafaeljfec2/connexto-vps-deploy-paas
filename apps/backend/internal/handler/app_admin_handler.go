@@ -13,6 +13,8 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 )
 
+const errAppNotFound = "app not found"
+
 type AppAdminHandler struct {
 	appRepo domain.AppRepository
 	engine  *engine.Engine
@@ -50,7 +52,7 @@ func (h *AppAdminHandler) GetAppURL(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, "app not found")
+		return response.NotFound(c, errAppNotFound)
 	}
 
 	config, err := h.readAppConfig(app.ID, app.Workdir)
@@ -104,7 +106,7 @@ func (h *AppAdminHandler) GetAppConfig(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, "app not found")
+		return response.NotFound(c, errAppNotFound)
 	}
 
 	config, err := h.readAppConfig(app.ID, app.Workdir)
@@ -141,7 +143,7 @@ func (h *AppAdminHandler) RestartContainer(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, "app not found")
+		return response.NotFound(c, errAppNotFound)
 	}
 
 	ctx := context.Background()
@@ -163,7 +165,7 @@ func (h *AppAdminHandler) StopContainer(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, "app not found")
+		return response.NotFound(c, errAppNotFound)
 	}
 
 	ctx := context.Background()
@@ -185,7 +187,7 @@ func (h *AppAdminHandler) StartContainer(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, "app not found")
+		return response.NotFound(c, errAppNotFound)
 	}
 
 	ctx := context.Background()
@@ -217,7 +219,7 @@ func (h *AppAdminHandler) UpdateApp(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, "app not found")
+		return response.NotFound(c, errAppNotFound)
 	}
 
 	updateInput := domain.UpdateAppInput{}

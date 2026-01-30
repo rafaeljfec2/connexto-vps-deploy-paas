@@ -33,12 +33,14 @@ export function AppSettingsDialog({ app }: AppSettingsDialogProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const branchChanged = branch !== app.branch;
+    const workdirChanged = workdir !== app.workdir;
     updateApp.mutate(
       {
         id: app.id,
         input: {
-          branch: branch !== app.branch ? branch : undefined,
-          workdir: workdir !== app.workdir ? workdir : undefined,
+          branch: branchChanged ? branch : undefined,
+          workdir: workdirChanged ? workdir : undefined,
         },
       },
       {

@@ -34,8 +34,8 @@ type PaasDeployConfig struct {
 		Retries     int    `json:"retries"`
 		StartPeriod string `json:"startPeriod"`
 	} `json:"healthcheck"`
-	Port     int `json:"port"`
-	HostPort int `json:"hostPort,omitempty"`
+	Port      int               `json:"port"`
+	HostPort  int               `json:"hostPort,omitempty"`
 	Env       map[string]string `json:"env,omitempty"`
 	Resources struct {
 		Memory string `json:"memory"`
@@ -197,6 +197,18 @@ func (w *Worker) loadConfig(appDir string) error {
 		return fmt.Errorf("paasdeploy.json: 'name' field is required")
 	}
 
+	applyConfigDefaults(&config)
+
+	dockerfilePath := filepath.Join(appDir, config.Build.Dockerfile)
+	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
+		return fmt.Errorf("Dockerfile not found at %s - this file is required for deployment", config.Build.Dockerfile)
+	}
+
+	w.deployConfig = &config
+	return nil
+}
+
+func applyConfigDefaults(config *PaasDeployConfig) {
 	if config.Port == 0 {
 		config.Port = defaultAppPort
 	}
@@ -230,14 +242,6 @@ func (w *Worker) loadConfig(appDir string) error {
 	if config.Resources.CPU == "" {
 		config.Resources.CPU = "0.5"
 	}
-
-	dockerfilePath := filepath.Join(appDir, config.Build.Dockerfile)
-	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
-		return fmt.Errorf("Dockerfile not found at %s - this file is required for deployment", config.Build.Dockerfile)
-	}
-
-	w.deployConfig = &config
-	return nil
 }
 
 func (w *Worker) buildDocker(ctx context.Context, deploy *domain.Deployment, app *domain.App, repoDir, imageTag string) error {
@@ -298,56 +302,9 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 func (w *Worker) generateComposeFile(appDir, appName, imageTag string) error {
 	cfg := w.deployConfig
 
-	allEnvVars := make(map[string]string)
-
-	for k, v := range cfg.Env {
-		allEnvVars[k] = v
-	}
-
-	if w.appEnvVars != nil {
-		for k, v := range w.appEnvVars {
-			allEnvVars[k] = v
-		}
-	}
-
-	var envVars string
-	if len(allEnvVars) > 0 {
-		envVars = "    environment:\n"
-		for k, v := range allEnvVars {
-			envVars += fmt.Sprintf("      - %s=%s\n", k, v)
-		}
-	}
-
-	var labels string
-	if len(cfg.Domains) > 0 {
-		hosts := ""
-		for i, domain := range cfg.Domains {
-			if i > 0 {
-				hosts += " || "
-			}
-			hosts += fmt.Sprintf("Host(`%s`)", domain)
-		}
-		labels = fmt.Sprintf("    labels:\n"+
-			"      - \"traefik.enable=true\"\n"+
-			"      - \"traefik.http.routers.%s.rule=%s\"\n"+
-			"      - \"traefik.http.routers.%s.tls=true\"\n"+
-			"      - \"traefik.http.routers.%s.tls.certresolver=letsencrypt\"\n"+
-			"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
-			appName, hosts, appName, appName, appName, cfg.Port)
-	} else {
-		labels = fmt.Sprintf("    labels:\n"+
-			"      - \"traefik.enable=true\"\n"+
-			"      - \"traefik.http.routers.%s.rule=Host(`%s.localhost`)\"\n"+
-			"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
-			appName, appName, appName, cfg.Port)
-	}
-
-	var portMapping string
-	if cfg.HostPort > 0 {
-		portMapping = fmt.Sprintf("%d:%d", cfg.HostPort, cfg.Port)
-	} else {
-		portMapping = fmt.Sprintf("%d", cfg.Port)
-	}
+	envVars := w.buildEnvVarsYAML(cfg)
+	labels := buildLabelsYAML(appName, cfg.Domains, cfg.Port)
+	portMapping := buildPortMapping(cfg.HostPort, cfg.Port)
 
 	composeContent := fmt.Sprintf("services:\n"+
 		"  %s:\n"+
@@ -392,6 +349,62 @@ func (w *Worker) generateComposeFile(appDir, appName, imageTag string) error {
 
 	composePath := filepath.Join(appDir, "docker-compose.yml")
 	return os.WriteFile(composePath, []byte(composeContent), 0644)
+}
+
+func (w *Worker) buildEnvVarsYAML(cfg *PaasDeployConfig) string {
+	allEnvVars := make(map[string]string)
+
+	for k, v := range cfg.Env {
+		allEnvVars[k] = v
+	}
+
+	if w.appEnvVars != nil {
+		for k, v := range w.appEnvVars {
+			allEnvVars[k] = v
+		}
+	}
+
+	if len(allEnvVars) == 0 {
+		return ""
+	}
+
+	envVars := "    environment:\n"
+	for k, v := range allEnvVars {
+		envVars += fmt.Sprintf("      - %s=%s\n", k, v)
+	}
+	return envVars
+}
+
+func buildLabelsYAML(appName string, domains []string, port int) string {
+	if len(domains) > 0 {
+		hosts := ""
+		for i, domain := range domains {
+			if i > 0 {
+				hosts += " || "
+			}
+			hosts += fmt.Sprintf("Host(`%s`)", domain)
+		}
+		return fmt.Sprintf("    labels:\n"+
+			"      - \"traefik.enable=true\"\n"+
+			"      - \"traefik.http.routers.%s.rule=%s\"\n"+
+			"      - \"traefik.http.routers.%s.tls=true\"\n"+
+			"      - \"traefik.http.routers.%s.tls.certresolver=letsencrypt\"\n"+
+			"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
+			appName, hosts, appName, appName, appName, port)
+	}
+
+	return fmt.Sprintf("    labels:\n"+
+		"      - \"traefik.enable=true\"\n"+
+		"      - \"traefik.http.routers.%s.rule=Host(`%s.localhost`)\"\n"+
+		"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
+		appName, appName, appName, port)
+}
+
+func buildPortMapping(hostPort, port int) string {
+	if hostPort > 0 {
+		return fmt.Sprintf("%d:%d", hostPort, port)
+	}
+	return fmt.Sprintf("%d", port)
 }
 
 func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {

@@ -153,7 +153,7 @@ export function EnvVarsManager({ appId }: EnvVarsManagerProps) {
                     ...prev,
                     key: e.target.value
                       .toUpperCase()
-                      .replace(/[^A-Z0-9_]/g, "_"),
+                      .replaceAll(/[^A-Z0-9_]/g, "_"),
                   }))
                 }
                 className="font-mono text-sm flex-1"
@@ -180,7 +180,7 @@ export function EnvVarsManager({ appId }: EnvVarsManagerProps) {
                     }))
                   }
                   className="rounded"
-                />
+                />{" "}
                 Secret (hidden in UI)
               </label>
               <div className="flex gap-2">
@@ -242,7 +242,7 @@ export function EnvVarsManager({ appId }: EnvVarsManagerProps) {
                       }))
                     }
                     className="rounded"
-                  />
+                  />{" "}
                   Secret
                 </label>
                 <Button
@@ -267,11 +267,9 @@ export function EnvVarsManager({ appId }: EnvVarsManagerProps) {
                   {envVar.key}
                 </span>
                 <span className="font-mono text-sm text-muted-foreground flex-1 truncate">
-                  {envVar.isSecret
-                    ? showSecrets[envVar.id]
-                      ? envVar.value
-                      : "••••••••"
-                    : envVar.value}
+                  {envVar.isSecret && showSecrets[envVar.id] && envVar.value}
+                  {envVar.isSecret && !showSecrets[envVar.id] && "••••••••"}
+                  {!envVar.isSecret && envVar.value}
                 </span>
                 {envVar.isSecret && (
                   <Button
