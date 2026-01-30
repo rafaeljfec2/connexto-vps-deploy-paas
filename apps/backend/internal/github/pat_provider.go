@@ -16,6 +16,11 @@ const (
 	apiVersion      = "2022-11-28"
 	acceptHeader    = "application/vnd.github+json"
 	userAgentHeader = "PaaSDeploy/1.0"
+
+	errCreateRequest   = "create request: %w"
+	errSendRequest     = "send request: %w"
+	errUnexpectedStatus = "unexpected status %d: %s"
+	errDecodeResponse  = "decode response: %w"
 )
 
 var _ Provider = (*PATProvider)(nil)
@@ -53,25 +58,25 @@ func (p *PATProvider) CreateWebhook(ctx context.Context, owner, repo string, con
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errCreateRequest, err)
 	}
 
 	p.setHeaders(req)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(respBody))
 	}
 
 	var webhook Webhook
 	if err := json.NewDecoder(resp.Body).Decode(&webhook); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	return &webhook, nil
@@ -82,20 +87,20 @@ func (p *PATProvider) DeleteWebhook(ctx context.Context, owner, repo string, hoo
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return fmt.Errorf(errCreateRequest, err)
 	}
 
 	p.setHeaders(req)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("send request: %w", err)
+		return fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNoContent {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(respBody))
 	}
 
 	return nil
@@ -106,14 +111,14 @@ func (p *PATProvider) GetWebhook(ctx context.Context, owner, repo string, hookID
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errCreateRequest, err)
 	}
 
 	p.setHeaders(req)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
@@ -123,12 +128,12 @@ func (p *PATProvider) GetWebhook(ctx context.Context, owner, repo string, hookID
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(respBody))
 	}
 
 	var webhook Webhook
 	if err := json.NewDecoder(resp.Body).Decode(&webhook); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	return &webhook, nil
@@ -139,25 +144,25 @@ func (p *PATProvider) ListWebhooks(ctx context.Context, owner, repo string) ([]W
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errCreateRequest, err)
 	}
 
 	p.setHeaders(req)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(respBody))
 	}
 
 	var webhooks []Webhook
 	if err := json.NewDecoder(resp.Body).Decode(&webhooks); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	return webhooks, nil

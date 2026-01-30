@@ -133,20 +133,9 @@ func (h *WebhookHandler) handlePushEvent(c *fiber.Ctx, logger *slog.Logger, even
 		return response.OK(c, map[string]string{"message": "branch deletion ignored"})
 	}
 
-	repoURLs := getRepoURLVariants(event.Repository)
-
-	var app *domain.App
-	var err error
-
-	for _, repoURL := range repoURLs {
-		app, err = h.appFinder.FindByRepoURL(repoURL)
-		if err == nil && app != nil {
-			break
-		}
-		if !errors.Is(err, domain.ErrNotFound) && err != nil {
-			logger.Error("error finding app", slog.String("error", err.Error()))
-			return response.InternalError(c)
-		}
+	app, err := h.findAppByRepository(event.Repository, logger)
+	if err != nil {
+		return response.InternalError(c)
 	}
 
 	if app == nil {
@@ -155,26 +144,51 @@ func (h *WebhookHandler) handlePushEvent(c *fiber.Ctx, logger *slog.Logger, even
 	}
 
 	if app.Branch != branch {
-		logger.Info("push to non-tracked branch",
-			slog.String("app_branch", app.Branch),
-		)
+		logger.Info("push to non-tracked branch", slog.String("app_branch", app.Branch))
 		return response.OK(c, map[string]string{"message": "branch not tracked"})
 	}
 
-	pending, err := h.deploymentCreator.FindPendingByAppID(app.ID)
-	if err != nil && !errors.Is(err, domain.ErrNotFound) {
-		logger.Error("error checking pending deployments", slog.String("error", err.Error()))
+	if hasPending, err := h.hasPendingDeployment(app.ID, logger); err != nil {
 		return response.InternalError(c)
-	}
-	if pending != nil {
+	} else if hasPending {
 		logger.Info("deployment already pending for app", slog.String("app_id", app.ID))
 		return response.OK(c, map[string]string{"message": "deployment already pending"})
 	}
 
-	commitMessage := "Push from GitHub"
-	if event.HeadCommit != nil && event.HeadCommit.Message != "" {
-		commitMessage = truncateString(event.HeadCommit.Message, 200)
+	return h.createDeployment(c, logger, app, event)
+}
+
+func (h *WebhookHandler) findAppByRepository(repo *Repository, logger *slog.Logger) (*domain.App, error) {
+	repoURLs := getRepoURLVariants(repo)
+
+	for _, repoURL := range repoURLs {
+		app, err := h.appFinder.FindByRepoURL(repoURL)
+		if err == nil && app != nil {
+			return app, nil
+		}
+		if !errors.Is(err, domain.ErrNotFound) && err != nil {
+			logger.Error("error finding app", slog.String("error", err.Error()))
+			return nil, err
+		}
 	}
+
+	return nil, nil
+}
+
+func (h *WebhookHandler) hasPendingDeployment(appID string, logger *slog.Logger) (bool, error) {
+	pending, err := h.deploymentCreator.FindPendingByAppID(appID)
+	if errors.Is(err, domain.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		logger.Error("error checking pending deployments", slog.String("error", err.Error()))
+		return false, err
+	}
+	return pending != nil, nil
+}
+
+func (h *WebhookHandler) createDeployment(c *fiber.Ctx, logger *slog.Logger, app *domain.App, event *PushEvent) error {
+	commitMessage := getCommitMessage(event)
 
 	input := domain.CreateDeploymentInput{
 		AppID:         app.ID,
@@ -206,6 +220,13 @@ func (h *WebhookHandler) handlePushEvent(c *fiber.Ctx, logger *slog.Logger, even
 			"traceId": c.Locals("traceId"),
 		},
 	})
+}
+
+func getCommitMessage(event *PushEvent) string {
+	if event.HeadCommit != nil && event.HeadCommit.Message != "" {
+		return truncateString(event.HeadCommit.Message, 200)
+	}
+	return "Push from GitHub"
 }
 
 func extractBranch(ref string) string {

@@ -53,7 +53,7 @@ func Load() *Config {
 			LogLevel: getEnv("LOG_LEVEL", "info"),
 		},
 		Database: DatabaseConfig{
-			URL: getEnv("DATABASE_URL", "postgres://paas_deploy:paas_deploy@localhost:5432/connexto_paas_deploy?sslmode=disable"),
+			URL: getEnv("DATABASE_URL", ""),
 		},
 		Deploy: DeployConfig{
 			DataDir:            getEnv("DEPLOY_DATA_DIR", "/data/apps"),
