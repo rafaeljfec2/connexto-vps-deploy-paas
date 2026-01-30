@@ -7,12 +7,15 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
 	"github.com/paasdeploy/backend/internal/config"
+	"github.com/paasdeploy/backend/internal/database"
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/handler"
 	"github.com/paasdeploy/backend/internal/repository"
@@ -23,6 +26,8 @@ import (
 const version = "0.1.0"
 
 func main() {
+	_ = godotenv.Load()
+
 	cfg := config.Load()
 
 	logger := setupLogger(cfg.Server.LogLevel)
@@ -34,6 +39,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+
+	migrationsPath := getMigrationsPath()
+	if err := database.RunMigrations(db, migrationsPath, logger); err != nil {
+		logger.Error("Failed to run migrations", "error", err)
+		os.Exit(1)
+	}
 
 	appRepo := repository.NewPostgresAppRepository(db)
 	deploymentRepo := repository.NewPostgresDeploymentRepository(db)
@@ -139,4 +150,27 @@ func setupDatabase(url string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func getMigrationsPath() string {
+	execPath, err := os.Executable()
+	if err != nil {
+		return "migrations"
+	}
+
+	execDir := filepath.Dir(execPath)
+
+	possiblePaths := []string{
+		filepath.Join(execDir, "migrations"),
+		filepath.Join(execDir, "..", "..", "migrations"),
+		"migrations",
+	}
+
+	for _, path := range possiblePaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return "migrations"
 }
