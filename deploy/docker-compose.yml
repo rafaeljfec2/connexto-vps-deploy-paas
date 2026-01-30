@@ -1,0 +1,96 @@
+services:
+  traefik:
+    image: traefik:v3.2
+    container_name: paasdeploy-traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8081:8081"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - traefik-logs:/var/log/traefik
+    networks:
+      - paasdeploy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.entrypoints=traefik"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: paasdeploy-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: paasdeploy
+      POSTGRES_PASSWORD: paasdeploy
+      POSTGRES_DB: paasdeploy
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../apps/backend/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - paasdeploy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paasdeploy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ../apps/backend
+      dockerfile: Dockerfile
+    container_name: paasdeploy-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://paasdeploy:paasdeploy@postgres:5432/paasdeploy?sslmode=disable
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      LOG_LEVEL: info
+      DEPLOY_DATA_DIR: /data/apps
+      DEPLOY_WORKERS: "2"
+      DEPLOY_TIMEOUT: "600"
+      HEALTH_CHECK_TIMEOUT: "60"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - deploy-data:/data/apps
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - paasdeploy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`localhost`) && (PathPrefix(`/api`) || PathPrefix(`/events`) || PathPrefix(`/health`))"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.services.backend.loadbalancer.server.port=8080"
+
+  frontend:
+    build:
+      context: ../apps/frontend
+      dockerfile: Dockerfile
+    container_name: paasdeploy-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - paasdeploy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`localhost`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+
+networks:
+  paasdeploy:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  deploy-data:
+  traefik-logs:

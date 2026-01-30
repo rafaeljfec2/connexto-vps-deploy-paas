@@ -1,0 +1,199 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://paasdeploy.dev/schema/paasdeploy.json",
+  "title": "PaaSDeploy Configuration",
+  "description": "Configuration schema for applications deployed with PaaSDeploy",
+  "type": "object",
+  "required": ["name"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Unique name for the application",
+      "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$",
+      "minLength": 2,
+      "maxLength": 63,
+      "examples": ["my-app", "api-service"]
+    },
+    "build": {
+      "type": "object",
+      "description": "Build configuration",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Build type",
+          "enum": ["dockerfile"],
+          "default": "dockerfile"
+        },
+        "dockerfile": {
+          "type": "string",
+          "description": "Path to Dockerfile relative to repository root",
+          "default": "./Dockerfile",
+          "examples": ["./Dockerfile", "./docker/Dockerfile.prod"]
+        },
+        "context": {
+          "type": "string",
+          "description": "Docker build context path",
+          "default": ".",
+          "examples": [".", "./app"]
+        },
+        "args": {
+          "type": "object",
+          "description": "Docker build arguments",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "examples": [
+            {
+              "NODE_ENV": "production",
+              "VERSION": "1.0.0"
+            }
+          ]
+        },
+        "target": {
+          "type": "string",
+          "description": "Docker build target stage",
+          "examples": ["production", "runtime"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "healthcheck": {
+      "type": "object",
+      "description": "Health check configuration",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "HTTP path for health check",
+          "default": "/health",
+          "examples": ["/health", "/api/health", "/_health"]
+        },
+        "interval": {
+          "type": "string",
+          "description": "Interval between health checks",
+          "pattern": "^[0-9]+(s|m)$",
+          "default": "30s",
+          "examples": ["10s", "30s", "1m"]
+        },
+        "timeout": {
+          "type": "string",
+          "description": "Timeout for each health check request",
+          "pattern": "^[0-9]+(s|m)$",
+          "default": "5s",
+          "examples": ["5s", "10s", "30s"]
+        },
+        "retries": {
+          "type": "integer",
+          "description": "Number of retries before marking as unhealthy",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3
+        },
+        "startPeriod": {
+          "type": "string",
+          "description": "Grace period for container startup",
+          "pattern": "^[0-9]+(s|m)$",
+          "default": "10s",
+          "examples": ["10s", "30s", "1m"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "port": {
+      "type": "integer",
+      "description": "Port the application listens on inside the container",
+      "minimum": 1,
+      "maximum": 65535,
+      "default": 8080,
+      "examples": [3000, 8080, 8000]
+    },
+    "env": {
+      "type": "object",
+      "description": "Environment variables for the application",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "examples": [
+        {
+          "NODE_ENV": "production",
+          "LOG_LEVEL": "info"
+        }
+      ]
+    },
+    "resources": {
+      "type": "object",
+      "description": "Resource limits for the container",
+      "properties": {
+        "memory": {
+          "type": "string",
+          "description": "Memory limit (e.g., 256m, 1g)",
+          "pattern": "^[0-9]+(k|m|g)$",
+          "default": "512m",
+          "examples": ["256m", "512m", "1g", "2g"]
+        },
+        "cpu": {
+          "type": "string",
+          "description": "CPU limit (e.g., 0.5, 1, 2)",
+          "pattern": "^[0-9]+(\\.[0-9]+)?$",
+          "default": "0.5",
+          "examples": ["0.25", "0.5", "1", "2"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "domains": {
+      "type": "array",
+      "description": "Custom domains for the application",
+      "items": {
+        "type": "string",
+        "format": "hostname"
+      },
+      "examples": [
+        ["app.example.com"],
+        ["api.example.com", "www.api.example.com"]
+      ]
+    },
+    "replicas": {
+      "type": "integer",
+      "description": "Number of container replicas (future feature)",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 1
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "name": "my-api",
+      "build": {
+        "type": "dockerfile",
+        "dockerfile": "./Dockerfile",
+        "context": "."
+      },
+      "healthcheck": {
+        "path": "/health",
+        "interval": "30s",
+        "timeout": "5s"
+      },
+      "port": 8080,
+      "env": {
+        "NODE_ENV": "production"
+      },
+      "resources": {
+        "memory": "512m",
+        "cpu": "0.5"
+      }
+    },
+    {
+      "name": "frontend-app",
+      "build": {
+        "type": "dockerfile",
+        "dockerfile": "./Dockerfile.prod"
+      },
+      "port": 80,
+      "resources": {
+        "memory": "128m",
+        "cpu": "0.25"
+      }
+    }
+  ]
+}
