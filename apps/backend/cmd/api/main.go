@@ -23,7 +23,7 @@ func main() {
 	}
 	defer cleanup()
 
-	app.Logger.Info("Starting PaaSDeploy API", "version", di.Version)
+	app.Logger.Info("Starting FlowDeploy API", "version", di.Version)
 
 	migrationsPath := getMigrationsPath()
 	if err := database.RunMigrations(app.DB, migrationsPath, app.Logger); err != nil {

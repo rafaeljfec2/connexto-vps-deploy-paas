@@ -1,10 +1,10 @@
-# PaaSDeploy Architecture
+# FlowDeploy Architecture
 
-This document describes the technical architecture of PaaSDeploy.
+This document describes the technical architecture of FlowDeploy.
 
 ## System Overview
 
-PaaSDeploy is a self-hosted deployment platform that orchestrates automatic deployments from GitHub repositories. The system follows a layered architecture with clear separation of concerns.
+FlowDeploy is a self-hosted deployment platform that orchestrates automatic deployments from GitHub repositories. The system follows a layered architecture with clear separation of concerns.
 
 ## High-Level Architecture
 
@@ -166,7 +166,7 @@ internal/
 
 ### Deploy Engine
 
-The deploy engine is the core of PaaSDeploy. It runs as a background process within the API server.
+The deploy engine is the core of FlowDeploy. It runs as a background process within the API server.
 
 #### Components
 

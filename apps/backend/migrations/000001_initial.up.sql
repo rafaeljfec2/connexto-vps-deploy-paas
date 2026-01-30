@@ -1,4 +1,4 @@
--- PaaSDeploy Initial Schema
+-- FlowDeploy Initial Schema
 -- This migration creates the core tables for application and deployment management
 
 -- Enable UUID extension

@@ -13,7 +13,7 @@ This document describes the two-phase approach for GitHub webhook integration, d
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                         PaaS Deploy System                          │
+│                         FlowDeploy System                           │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
 │  ┌──────────────┐    ┌──────────────────┐    ┌──────────────────┐  │

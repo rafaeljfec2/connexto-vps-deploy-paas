@@ -1,6 +1,6 @@
-# Contributing to PaaSDeploy
+# Contributing to FlowDeploy
 
-Thank you for your interest in contributing to PaaSDeploy! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to FlowDeploy! This document provides guidelines and instructions for contributing.
 
 ## Development Setup
 

@@ -30,7 +30,7 @@ type Server struct {
 
 func New(cfg Config, log *slog.Logger) *Server {
 	app := fiber.New(fiber.Config{
-		AppName:               "PaaSDeploy API",
+		AppName:               "FlowDeploy API",
 		ReadTimeout:           cfg.ReadTimeout,
 		WriteTimeout:          cfg.WriteTimeout,
 		IdleTimeout:           cfg.IdleTimeout,

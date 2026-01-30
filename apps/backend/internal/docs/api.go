@@ -1,6 +1,6 @@
-// Package docs contains Swagger documentation for the PaaS Deploy API.
+// Package docs contains Swagger documentation for the FlowDeploy API.
 //
-//	@title						PaaS Deploy API
+//	@title						FlowDeploy API
 //	@version					1.0
 //	@description				API para gerenciamento de aplicacoes e deploys automaticos
 //	@termsOfService				http://swagger.io/terms/

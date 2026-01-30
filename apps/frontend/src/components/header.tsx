@@ -9,7 +9,7 @@ export function Header() {
       <div className="container flex h-16 items-center">
         <Link to="/" className="flex items-center gap-2 font-semibold text-lg">
           <Rocket className="h-6 w-6" />
-          <span>PaaSDeploy</span>
+          <span>FlowDeploy</span>
         </Link>
 
         <nav className="ml-auto flex items-center gap-2">

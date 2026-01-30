@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://paasdeploy.dev/schema/paasdeploy.json",
-  "title": "PaaSDeploy Configuration",
-  "description": "Configuration schema for applications deployed with PaaSDeploy",
+  "title": "FlowDeploy Configuration",
+  "description": "Configuration schema for applications deployed with FlowDeploy",
   "type": "object",
   "required": ["name"],
   "properties": {

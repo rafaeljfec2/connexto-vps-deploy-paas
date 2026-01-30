@@ -1,4 +1,4 @@
-# PaaSDeploy
+# FlowDeploy
 
 [![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)](https://reactjs.org/)
@@ -15,7 +15,7 @@ A lightweight, self-hosted PaaS (Platform as a Service) for automatic deployment
 
 ## Overview
 
-PaaSDeploy is a local deployment platform that automatically deploys applications when changes are pushed to the `main` branch of connected GitHub repositories. It provides a simple, Vercel-like experience for self-hosted environments.
+FlowDeploy is a local deployment platform that automatically deploys applications when changes are pushed to the `main` branch of connected GitHub repositories. It provides a simple, Vercel-like experience for self-hosted environments.
 
 ## Features
 

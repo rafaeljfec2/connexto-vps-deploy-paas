@@ -23,9 +23,9 @@ definitions:
         type: string
       status:
         enum:
-        - active
-        - inactive
-        - deleted
+          - active
+          - inactive
+          - deleted
         example: active
         type: string
       updatedAt:
@@ -55,8 +55,8 @@ definitions:
         example: .
         type: string
     required:
-    - name
-    - repositoryUrl
+      - name
+      - repositoryUrl
     type: object
   docs.Deployment:
     description: Registro de um deploy realizado
@@ -65,7 +65,7 @@ definitions:
         example: 550e8400-e29b-41d4-a716-446655440000
         type: string
       commitMessage:
-        example: 'feat: add new feature'
+        example: "feat: add new feature"
         type: string
       commitSha:
         example: abc123def456
@@ -89,11 +89,11 @@ definitions:
         type: string
       status:
         enum:
-        - pending
-        - running
-        - success
-        - failed
-        - cancelled
+          - pending
+          - running
+          - success
+          - failed
+          - cancelled
         example: success
         type: string
     type: object
@@ -142,9 +142,9 @@ definitions:
           type: string
         type: array
       author:
-        $ref: '#/definitions/github.CommitUser'
+        $ref: "#/definitions/github.CommitUser"
       committer:
-        $ref: '#/definitions/github.CommitUser'
+        $ref: "#/definitions/github.CommitUser"
       distinct:
         type: boolean
       id:
@@ -183,7 +183,7 @@ definitions:
         type: string
       commits:
         items:
-          $ref: '#/definitions/github.Commit'
+          $ref: "#/definitions/github.Commit"
         type: array
       compare:
         type: string
@@ -194,15 +194,15 @@ definitions:
       forced:
         type: boolean
       head_commit:
-        $ref: '#/definitions/github.Commit'
+        $ref: "#/definitions/github.Commit"
       pusher:
-        $ref: '#/definitions/github.Pusher'
+        $ref: "#/definitions/github.Pusher"
       ref:
         type: string
       repository:
-        $ref: '#/definitions/github.Repository'
+        $ref: "#/definitions/github.Repository"
       sender:
-        $ref: '#/definitions/github.User'
+        $ref: "#/definitions/github.User"
     type: object
   github.Pusher:
     properties:
@@ -236,7 +236,7 @@ definitions:
       node_id:
         type: string
       owner:
-        $ref: '#/definitions/github.User'
+        $ref: "#/definitions/github.User"
       private:
         type: boolean
       pushed_at:
@@ -279,278 +279,279 @@ info:
     name: MIT
     url: https://opensource.org/licenses/MIT
   termsOfService: http://swagger.io/terms/
-  title: PaaS Deploy API
+  title: FlowDeploy API
   version: "1.0"
 paths:
   /apps:
     get:
       description: Retorna lista de apps cadastrados no sistema
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             items:
-              $ref: '#/definitions/docs.App'
+              $ref: "#/definitions/docs.App"
             type: array
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Lista todas as aplicacoes
       tags:
-      - apps
+        - apps
     post:
       consumes:
-      - application/json
+        - application/json
       description: Cadastra um novo app para deploy automatico
       parameters:
-      - description: Dados do app
-        in: body
-        name: input
-        required: true
-        schema:
-          $ref: '#/definitions/docs.CreateAppInput'
+        - description: Dados do app
+          in: body
+          name: input
+          required: true
+          schema:
+            $ref: "#/definitions/docs.CreateAppInput"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/docs.App'
+            $ref: "#/definitions/docs.App"
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Cria uma nova aplicacao
       tags:
-      - apps
+        - apps
   /apps/{id}:
     delete:
       description: Deleta um app e remove o webhook associado
       parameters:
-      - description: ID do app
-        in: path
-        name: id
-        required: true
-        type: string
+        - description: ID do app
+          in: path
+          name: id
+          required: true
+          type: string
       responses:
         "204":
           description: No Content
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Remove uma aplicacao
       tags:
-      - apps
+        - apps
     get:
       description: Retorna os detalhes de um app especifico
       parameters:
-      - description: ID do app
-        in: path
-        name: id
-        required: true
-        type: string
+        - description: ID do app
+          in: path
+          name: id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/docs.App'
+            $ref: "#/definitions/docs.App"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Busca uma aplicacao por ID
       tags:
-      - apps
+        - apps
   /apps/{id}/deployments:
     get:
       description: Retorna historico de deploys de um app
       parameters:
-      - description: ID do app
-        in: path
-        name: id
-        required: true
-        type: string
+        - description: ID do app
+          in: path
+          name: id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
             items:
-              $ref: '#/definitions/docs.Deployment'
+              $ref: "#/definitions/docs.Deployment"
             type: array
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Lista deploys de uma aplicacao
       tags:
-      - deployments
+        - deployments
   /apps/{id}/redeploy:
     post:
       consumes:
-      - application/json
+        - application/json
       description: Inicia um deploy manual do app
       parameters:
-      - description: ID do app
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Commit SHA opcional
-        in: body
-        name: input
-        schema:
-          $ref: '#/definitions/handler.RedeployInput'
+        - description: ID do app
+          in: path
+          name: id
+          required: true
+          type: string
+        - description: Commit SHA opcional
+          in: body
+          name: input
+          schema:
+            $ref: "#/definitions/handler.RedeployInput"
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/docs.Deployment'
+            $ref: "#/definitions/docs.Deployment"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Dispara um novo deploy
       tags:
-      - deployments
+        - deployments
   /apps/{id}/rollback:
     post:
       description: Reverte para o ultimo deploy bem-sucedido
       parameters:
-      - description: ID do app
-        in: path
-        name: id
-        required: true
-        type: string
+        - description: ID do app
+          in: path
+          name: id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/docs.Deployment'
+            $ref: "#/definitions/docs.Deployment"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Faz rollback do deploy
       tags:
-      - deployments
+        - deployments
   /apps/{id}/webhook:
     delete:
       description: Deleta webhook do repositorio GitHub
       parameters:
-      - description: ID do app
-        in: path
-        name: id
-        required: true
-        type: string
+        - description: ID do app
+          in: path
+          name: id
+          required: true
+          type: string
       responses:
         "204":
           description: No Content
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Remove webhook do GitHub
       tags:
-      - apps
+        - apps
     post:
       description: Cria webhook automatico no repositorio GitHub
       parameters:
-      - description: ID do app
-        in: path
-        name: id
-        required: true
-        type: string
+        - description: ID do app
+          in: path
+          name: id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/docs.SetupResult'
+            $ref: "#/definitions/docs.SetupResult"
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Configura webhook do GitHub
       tags:
-      - apps
+        - apps
   /apps/{id}/webhook/status:
     get:
       description: Retorna o status do webhook configurado
       parameters:
-      - description: ID do app
-        in: path
-        name: id
-        required: true
-        type: string
+        - description: ID do app
+          in: path
+          name: id
+          required: true
+          type: string
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/docs.WebhookStatus'
+            $ref: "#/definitions/docs.WebhookStatus"
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/docs.ErrorInfo'
+            $ref: "#/definitions/docs.ErrorInfo"
       summary: Verifica status do webhook
       tags:
-      - apps
+        - apps
   /webhooks/github:
     post:
       consumes:
-      - application/json
-      description: Endpoint que recebe push events do GitHub para disparar deploys
+        - application/json
+      description:
+        Endpoint que recebe push events do GitHub para disparar deploys
         automaticos
       parameters:
-      - description: Tipo do evento (push, ping)
-        in: header
-        name: X-GitHub-Event
-        required: true
-        type: string
-      - description: Assinatura HMAC-SHA256
-        in: header
-        name: X-Hub-Signature-256
-        required: true
-        type: string
-      - description: ID unico da entrega
-        in: header
-        name: X-GitHub-Delivery
-        required: true
-        type: string
-      - description: Payload do evento
-        in: body
-        name: payload
-        required: true
-        schema:
-          $ref: '#/definitions/github.PushEvent'
+        - description: Tipo do evento (push, ping)
+          in: header
+          name: X-GitHub-Event
+          required: true
+          type: string
+        - description: Assinatura HMAC-SHA256
+          in: header
+          name: X-Hub-Signature-256
+          required: true
+          type: string
+        - description: ID unico da entrega
+          in: header
+          name: X-GitHub-Delivery
+          required: true
+          type: string
+        - description: Payload do evento
+          in: body
+          name: payload
+          required: true
+          schema:
+            $ref: "#/definitions/github.PushEvent"
       produces:
-      - application/json
+        - application/json
       responses:
         "200":
           description: Evento processado (ping ou branch ignorado)
@@ -578,15 +579,15 @@ paths:
             type: object
       summary: Recebe eventos do GitHub
       tags:
-      - webhooks
+        - webhooks
 schemes:
-- http
-- https
+  - http
+  - https
 swagger: "2.0"
 tags:
-- description: Gerenciamento de aplicacoes
-  name: apps
-- description: Gerenciamento de deploys
-  name: deployments
-- description: Webhooks do GitHub
-  name: webhooks
+  - description: Gerenciamento de aplicacoes
+    name: apps
+  - description: Gerenciamento de deploys
+    name: deployments
+  - description: Webhooks do GitHub
+    name: webhooks

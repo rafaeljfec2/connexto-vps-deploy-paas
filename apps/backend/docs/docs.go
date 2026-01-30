@@ -887,7 +887,7 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "localhost:8080",
 	BasePath:         "/paas-deploy/v1",
 	Schemes:          []string{"http", "https"},
-	Title:            "PaaS Deploy API",
+	Title:            "FlowDeploy API",
 	Description:      "API para gerenciamento de aplicacoes e deploys automaticos",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,

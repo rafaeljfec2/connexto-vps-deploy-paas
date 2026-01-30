@@ -15,7 +15,7 @@ const (
 	defaultTimeout  = 30 * time.Second
 	apiVersion      = "2022-11-28"
 	acceptHeader    = "application/vnd.github+json"
-	userAgentHeader = "PaaSDeploy/1.0"
+	userAgentHeader = "FlowDeploy/1.0"
 
 	errCreateRequest   = "create request: %w"
 	errSendRequest     = "send request: %w"
