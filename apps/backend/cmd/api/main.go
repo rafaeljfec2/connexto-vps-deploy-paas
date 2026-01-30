@@ -11,6 +11,7 @@ import (
 	"github.com/paasdeploy/backend/internal/database"
 	"github.com/paasdeploy/backend/internal/di"
 	"github.com/paasdeploy/backend/internal/engine"
+	"github.com/paasdeploy/backend/internal/handler"
 )
 
 func main() {
@@ -41,6 +42,15 @@ func main() {
 				app.SSEHandler.EmitDeployFailed(event.DeployID, event.AppID, event.Message)
 			case engine.EventTypeLog:
 				app.SSEHandler.EmitLog(event.DeployID, event.AppID, event.Message)
+			case engine.EventTypeHealth:
+				if event.Health != nil {
+					app.SSEHandler.EmitHealth(event.AppID, handler.SSEHealthStatus{
+						Status:    event.Health.Status,
+						Health:    event.Health.Health,
+						StartedAt: event.Health.StartedAt,
+						Uptime:    event.Health.Uptime,
+					})
+				}
 			}
 		}
 	}()

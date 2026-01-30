@@ -17,12 +17,20 @@ const (
 	sseClientBufferSize = 100
 )
 
+type SSEHealthStatus struct {
+	Status    string `json:"status"`
+	Health    string `json:"health"`
+	StartedAt string `json:"startedAt,omitempty"`
+	Uptime    string `json:"uptime,omitempty"`
+}
+
 type SSEEvent struct {
-	Type      string    `json:"type"`
-	DeployID  string    `json:"deployId,omitempty"`
-	AppID     string    `json:"appId,omitempty"`
-	Message   string    `json:"message,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	Type      string           `json:"type"`
+	DeployID  string           `json:"deployId,omitempty"`
+	AppID     string           `json:"appId,omitempty"`
+	Message   string           `json:"message,omitempty"`
+	Health    *SSEHealthStatus `json:"health,omitempty"`
+	Timestamp time.Time        `json:"timestamp"`
 }
 
 type SSEHandler struct {
@@ -67,8 +75,11 @@ func (h *SSEHandler) Stream(c *fiber.Ctx) error {
 			}
 
 			eventType := "deploy"
-			if event.Type == "LOG" {
+			switch event.Type {
+			case "LOG":
 				eventType = "log"
+			case "HEALTH":
+				eventType = "health"
 			}
 
 			fmt.Fprintf(w, "event: %s\n", eventType)
@@ -157,6 +168,14 @@ func (h *SSEHandler) EmitLog(deployID, appID, message string) {
 	})
 }
 
+func (h *SSEHandler) EmitHealth(appID string, health SSEHealthStatus) {
+	h.Emit(SSEEvent{
+		Type:   "HEALTH",
+		AppID:  appID,
+		Health: &health,
+	})
+}
+
 func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 	h.bufMu.RLock()
 	events := make([]SSEEvent, len(h.eventBuf))
@@ -170,8 +189,11 @@ func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 		}
 
 		eventType := "deploy"
-		if event.Type == "LOG" {
+		switch event.Type {
+		case "LOG":
 			eventType = "log"
+		case "HEALTH":
+			eventType = "health"
 		}
 
 		fmt.Fprintf(w, "event: %s\n", eventType)

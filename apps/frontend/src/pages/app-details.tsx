@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { HealthDetail, HealthIndicator } from "@/components/health-indicator";
 import { IconText } from "@/components/icon-text";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -31,6 +32,7 @@ import {
   useRedeploy,
   useRollback,
 } from "@/features/deploys/hooks/use-deploys";
+import { useAppHealth } from "@/hooks/use-sse";
 import { formatRepositoryUrl } from "@/lib/utils";
 
 export function AppDetailsPage() {
@@ -38,6 +40,7 @@ export function AppDetailsPage() {
   const { data: app, isLoading: appLoading } = useApp(id ?? "");
   const { data: deployments } = useDeploys(id ?? "");
   const { data: webhookStatus } = useWebhookStatus(id ?? "");
+  const { data: health } = useAppHealth(id);
   const redeploy = useRedeploy();
   const rollback = useRollback();
   const setupWebhook = useSetupWebhook();
@@ -103,7 +106,10 @@ export function AppDetailsPage() {
         backTo="/"
         title={app.name}
         titleSuffix={
-          latestDeploy && <StatusBadge status={latestDeploy.status} />
+          <div className="flex items-center gap-2">
+            <HealthIndicator health={health} />
+            {latestDeploy && <StatusBadge status={latestDeploy.status} />}
+          </div>
         }
         description={
           <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
@@ -187,6 +193,15 @@ export function AppDetailsPage() {
       </div>
 
       <EnvVarsManager appId={app.id} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Container Health</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HealthDetail health={health} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

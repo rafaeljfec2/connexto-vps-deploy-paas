@@ -24,6 +24,10 @@ class SSEClient {
       this.handleEvent(event);
     });
 
+    this.eventSource.addEventListener("health", (event) => {
+      this.handleEvent(event);
+    });
+
     this.eventSource.onopen = () => {
       this.reconnectAttempts = 0;
     };

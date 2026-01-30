@@ -45,11 +45,19 @@ export interface CreateAppInput {
   readonly workdir?: string;
 }
 
+export interface HealthStatus {
+  readonly status: "running" | "exited" | "paused" | "restarting" | "not_found";
+  readonly health: "healthy" | "unhealthy" | "starting" | "none";
+  readonly startedAt?: string;
+  readonly uptime?: string;
+}
+
 export interface SSEEvent {
-  readonly type: "RUNNING" | "SUCCESS" | "FAILED" | "LOG";
-  readonly deployId: string;
+  readonly type: "RUNNING" | "SUCCESS" | "FAILED" | "LOG" | "HEALTH";
+  readonly deployId?: string;
   readonly appId: string;
   readonly message?: string;
+  readonly health?: HealthStatus;
   readonly timestamp: string;
 }
 

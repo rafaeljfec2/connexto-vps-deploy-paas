@@ -29,12 +29,12 @@ func InitializeApplication() (*Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	postgresAppRepository := repository.NewPostgresAppRepository(db)
 	postgresEnvVarRepository := repository.NewPostgresEnvVarRepository(db)
-	engineEngine := engine.New(config, db, postgresEnvVarRepository, logger)
+	engineEngine := engine.New(config, db, postgresAppRepository, postgresEnvVarRepository, logger)
 	serverConfig := ProvideServerConfig(config)
 	serverServer := server.New(serverConfig, logger)
 	healthHandler := ProvideHealthHandler()
-	postgresAppRepository := repository.NewPostgresAppRepository(db)
 	postgresDeploymentRepository := repository.NewPostgresDeploymentRepository(db)
 	manager := ProvideWebhookManager(config, logger)
 	appCleaner := ProvideAppCleaner(config, logger)

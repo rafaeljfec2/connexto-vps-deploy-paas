@@ -12,40 +12,44 @@ import (
 )
 
 type Engine struct {
-	cfg        *config.Config
-	db         *sql.DB
-	dispatcher *Dispatcher
-	notifier   *ChannelNotifier
-	workers    []*Worker
-	logger     *slog.Logger
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
-	running    bool
-	mu         sync.Mutex
+	cfg           *config.Config
+	db            *sql.DB
+	dispatcher    *Dispatcher
+	notifier      *ChannelNotifier
+	healthMonitor *HealthMonitor
+	workers       []*Worker
+	logger        *slog.Logger
+	ctx           context.Context
+	cancel        context.CancelFunc
+	wg            sync.WaitGroup
+	running       bool
+	mu            sync.Mutex
 }
 
-func New(cfg *config.Config, db *sql.DB, envVarRepo domain.EnvVarRepository, logger *slog.Logger) *Engine {
+func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRepo domain.EnvVarRepository, logger *slog.Logger) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	queue := NewQueue(db)
 	locker := NewLocker(cfg.Deploy.DataDir)
 	notifier := NewChannelNotifier(1000)
 	dispatcher := NewDispatcher(queue, locker, logger)
+	docker := NewDockerClient(cfg.Deploy.DataDir, cfg.Docker.Registry, logger)
+	healthMonitor := NewHealthMonitor(docker, appRepo, notifier, logger)
 
 	engine := &Engine{
-		cfg:        cfg,
-		db:         db,
-		dispatcher: dispatcher,
-		notifier:   notifier,
-		logger:     logger.With("component", "engine"),
-		ctx:        ctx,
-		cancel:     cancel,
+		cfg:           cfg,
+		db:            db,
+		dispatcher:    dispatcher,
+		notifier:      notifier,
+		healthMonitor: healthMonitor,
+		logger:        logger.With("component", "engine"),
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 
 	deps := WorkerDeps{
 		Git:        NewGitClient(cfg.Deploy.DataDir, logger),
-		Docker:     NewDockerClient(cfg.Deploy.DataDir, cfg.Docker.Registry, logger),
+		Docker:     docker,
 		Health:     NewHealthChecker(cfg.Deploy.HealthCheckTimeout, cfg.Deploy.HealthCheckRetries, 5*time.Second, logger),
 		Notifier:   notifier,
 		Dispatcher: dispatcher,
@@ -72,6 +76,8 @@ func (e *Engine) Start() error {
 
 	e.logger.Info("Starting deploy engine", "workers", len(e.workers))
 
+	e.healthMonitor.Start(e.ctx)
+
 	for _, worker := range e.workers {
 		e.wg.Add(1)
 		go e.runWorkerLoop(worker)
@@ -90,6 +96,7 @@ func (e *Engine) Stop() {
 	e.mu.Unlock()
 
 	e.logger.Info("Stopping deploy engine...")
+	e.healthMonitor.Stop()
 	e.cancel()
 	e.wg.Wait()
 	e.notifier.Close()

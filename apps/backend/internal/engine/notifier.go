@@ -11,14 +11,23 @@ const (
 	EventTypeSuccess EventType = "SUCCESS"
 	EventTypeFailed  EventType = "FAILED"
 	EventTypeLog     EventType = "LOG"
+	EventTypeHealth  EventType = "HEALTH"
 )
 
+type HealthStatus struct {
+	Status    string `json:"status"`
+	Health    string `json:"health"`
+	StartedAt string `json:"startedAt,omitempty"`
+	Uptime    string `json:"uptime,omitempty"`
+}
+
 type DeployEvent struct {
-	Type      EventType `json:"type"`
-	DeployID  string    `json:"deployId"`
-	AppID     string    `json:"appId"`
-	Message   string    `json:"message,omitempty"`
-	Timestamp time.Time `json:"timestamp"`
+	Type      EventType     `json:"type"`
+	DeployID  string        `json:"deployId"`
+	AppID     string        `json:"appId"`
+	Message   string        `json:"message,omitempty"`
+	Health    *HealthStatus `json:"health,omitempty"`
+	Timestamp time.Time     `json:"timestamp"`
 }
 
 type Notifier interface {
@@ -26,6 +35,7 @@ type Notifier interface {
 	EmitDeploySuccess(deployID, appID string)
 	EmitDeployFailed(deployID, appID, message string)
 	EmitLog(deployID, appID, message string)
+	EmitHealth(appID string, health HealthStatus)
 }
 
 type ChannelNotifier struct {
@@ -81,6 +91,14 @@ func (n *ChannelNotifier) EmitLog(deployID, appID, message string) {
 		DeployID: deployID,
 		AppID:    appID,
 		Message:  message,
+	})
+}
+
+func (n *ChannelNotifier) EmitHealth(appID string, health HealthStatus) {
+	n.emit(DeployEvent{
+		Type:   EventTypeHealth,
+		AppID:  appID,
+		Health: &health,
 	})
 }
 

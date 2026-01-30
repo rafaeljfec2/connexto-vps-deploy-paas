@@ -26,9 +26,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { HealthIndicator } from "@/components/health-indicator";
 import { IconText } from "@/components/icon-text";
 import { StatusBadge } from "@/components/status-badge";
 import { usePurgeApp } from "@/features/apps/hooks/use-apps";
+import { useAppHealth } from "@/hooks/use-sse";
 import { formatRelativeTime, formatRepositoryUrl } from "@/lib/utils";
 import type { App, Deployment } from "@/types";
 
@@ -41,6 +43,7 @@ export function AppCard({ app, latestDeploy }: AppCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const navigate = useNavigate();
   const purgeApp = usePurgeApp();
+  const { data: health } = useAppHealth(app.id);
 
   const handleDelete = () => {
     purgeApp.mutate(app.id, {
@@ -60,6 +63,7 @@ export function AppCard({ app, latestDeploy }: AppCardProps) {
           <div className="flex items-start justify-between">
             <CardTitle className="text-lg">{app.name}</CardTitle>
             <div className="flex items-center gap-2">
+              <HealthIndicator health={health} />
               {latestDeploy && <StatusBadge status={latestDeploy.status} />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

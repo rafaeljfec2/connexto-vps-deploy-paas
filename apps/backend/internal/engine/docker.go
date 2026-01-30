@@ -190,3 +190,74 @@ func (d *DockerClient) GetImageTag(appName, commitSHA string) string {
 func (d *DockerClient) GetLatestTag(appName string) string {
 	return fmt.Sprintf("%s/%s:latest", d.getImagePrefix(), appName)
 }
+
+type ContainerHealth struct {
+	Name      string
+	Status    string
+	Health    string
+	StartedAt string
+	Uptime    string
+}
+
+func (d *DockerClient) ContainerExists(ctx context.Context, containerName string) (bool, error) {
+	d.executor.SetTimeout(30 * time.Second)
+
+	result, err := d.executor.Run(ctx, "docker", "ps", "-a", "--filter", fmt.Sprintf("name=^%s$", containerName), "--format", "{{.Names}}")
+	if err != nil {
+		return false, fmt.Errorf("failed to check container: %w", err)
+	}
+
+	return strings.TrimSpace(result.Stdout) == containerName, nil
+}
+
+func (d *DockerClient) InspectContainer(ctx context.Context, containerName string) (*ContainerHealth, error) {
+	d.executor.SetTimeout(30 * time.Second)
+
+	format := "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.State.StartedAt}}"
+	result, err := d.executor.Run(ctx, "docker", "inspect", "--format", format, containerName)
+	if err != nil {
+		if strings.Contains(result.Stderr, "No such object") || strings.Contains(result.Stderr, "Error: No such") {
+			return &ContainerHealth{
+				Name:   containerName,
+				Status: "not_found",
+				Health: "none",
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to inspect container: %w", err)
+	}
+
+	parts := strings.Split(strings.TrimSpace(result.Stdout), "|")
+	if len(parts) < 3 {
+		return nil, fmt.Errorf("unexpected inspect output: %s", result.Stdout)
+	}
+
+	health := &ContainerHealth{
+		Name:      containerName,
+		Status:    parts[0],
+		Health:    parts[1],
+		StartedAt: parts[2],
+	}
+
+	if health.Status == "running" && health.StartedAt != "" {
+		startTime, err := time.Parse(time.RFC3339Nano, health.StartedAt)
+		if err == nil {
+			health.Uptime = formatUptime(time.Since(startTime))
+		}
+	}
+
+	return health, nil
+}
+
+func formatUptime(d time.Duration) string {
+	days := int(d.Hours() / 24)
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+
+	if days > 0 {
+		return fmt.Sprintf("%dd %dh %dm", days, hours, minutes)
+	}
+	if hours > 0 {
+		return fmt.Sprintf("%dh %dm", hours, minutes)
+	}
+	return fmt.Sprintf("%dm", minutes)
+}

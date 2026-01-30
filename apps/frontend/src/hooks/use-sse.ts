@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { sseClient } from "@/services/sse";
-import type { App, Deployment, SSEEvent } from "@/types";
+import type { App, Deployment, HealthStatus, SSEEvent } from "@/types";
 
 export function useSSE() {
   const queryClient = useQueryClient();
@@ -52,6 +52,15 @@ export function useSSE() {
             },
           );
           break;
+
+        case "HEALTH":
+          if (event.health) {
+            queryClient.setQueryData<HealthStatus>(
+              ["app-health", event.appId],
+              event.health,
+            );
+          }
+          break;
       }
     },
     [queryClient],
@@ -67,4 +76,13 @@ export function useSSE() {
   }, [handleEvent]);
 
   return { isConnected: sseClient.isConnected };
+}
+
+export function useAppHealth(appId: string | undefined) {
+  return useQuery<HealthStatus | null>({
+    queryKey: ["app-health", appId],
+    queryFn: () => null,
+    enabled: false,
+    staleTime: Infinity,
+  });
 }
