@@ -160,7 +160,6 @@ export function AppDetailsPage() {
     Record<string, boolean>
   >({
     deployments: false,
-    logs: false,
     containerLogs: false,
     metrics: false,
     envVars: false,
@@ -179,7 +178,6 @@ export function AppDetailsPage() {
     const newState = !allExpanded;
     setExpandedSections({
       deployments: newState,
-      logs: newState,
       containerLogs: newState,
       metrics: newState,
       envVars: newState,
@@ -344,37 +342,42 @@ export function AppDetailsPage() {
           </span>
         }
       >
-        <DeployTimeline appId={app.id} onSelectDeploy={setSelectedDeployId} />
-        <CommitSelectorInline
-          appId={app.id}
-          onSelect={handleRedeploy}
-          disabled={redeploy.isPending}
-        />
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Deploy Logs"
-        icon={FileText}
-        expanded={expandedSections.logs ?? false}
-        onToggle={() => toggleSection("logs")}
-        summary={
-          selectedDeploy ? (
-            <span className="font-mono">
-              Commit {selectedDeploy.commitSha.slice(0, 7)}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">No deploy selected</span>
-          )
-        }
-      >
-        <LogViewer
-          logs={selectedDeploy?.logs ?? null}
-          title={
-            selectedDeploy
-              ? `Logs (${selectedDeploy.commitSha.slice(0, 7)})`
-              : "Logs"
-          }
-        />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Rocket className="h-4 w-4" />
+              Deploy History
+            </div>
+            <DeployTimeline
+              appId={app.id}
+              onSelectDeploy={setSelectedDeployId}
+            />
+            <CommitSelectorInline
+              appId={app.id}
+              onSelect={handleRedeploy}
+              disabled={redeploy.isPending}
+            />
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <FileText className="h-4 w-4" />
+              Deploy Logs
+              {selectedDeploy && (
+                <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                  {selectedDeploy.commitSha.slice(0, 7)}
+                </span>
+              )}
+            </div>
+            <LogViewer
+              logs={selectedDeploy?.logs ?? null}
+              title={
+                selectedDeploy
+                  ? `Logs (${selectedDeploy.commitSha.slice(0, 7)})`
+                  : "Logs"
+              }
+            />
+          </div>
+        </div>
       </CollapsibleSection>
 
       <CollapsibleSection
