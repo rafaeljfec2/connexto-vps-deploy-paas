@@ -40,7 +40,7 @@ export function PageHeader({
           {titleSuffix}
         </div>
         {description && (
-          <p className="text-muted-foreground mt-1">{description}</p>
+          <div className="text-muted-foreground mt-1">{description}</div>
         )}
       </div>
       {actions && <div className="flex gap-2">{actions}</div>}

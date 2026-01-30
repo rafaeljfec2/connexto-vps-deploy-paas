@@ -385,7 +385,7 @@ export function AppDetailsPage() {
                     <span className="font-medium">CPU:</span>
                     <span className="font-mono">{appConfig.resources.cpu}</span>
                   </div>
-                  {appConfig.domains.length > 0 && (
+                  {appConfig.domains && appConfig.domains.length > 0 && (
                     <div className="flex items-start gap-2 text-sm">
                       <Globe className="h-4 w-4 text-muted-foreground mt-0.5" />
                       <div>
