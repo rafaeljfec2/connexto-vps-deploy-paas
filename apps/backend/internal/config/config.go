@@ -2,7 +2,9 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -56,7 +58,7 @@ func Load() *Config {
 			URL: getEnv("DATABASE_URL", ""),
 		},
 		Deploy: DeployConfig{
-			DataDir:            getEnv("DEPLOY_DATA_DIR", "/data/apps"),
+			DataDir:            getEnvPath("DEPLOY_DATA_DIR", defaultDataDir()),
 			Workers:            getEnvInt("DEPLOY_WORKERS", 2),
 			Timeout:            time.Duration(getEnvInt("DEPLOY_TIMEOUT", 600)) * time.Second,
 			HealthCheckTimeout: time.Duration(getEnvInt("HEALTH_CHECK_TIMEOUT", 60)) * time.Second,
@@ -74,9 +76,42 @@ func Load() *Config {
 	}
 }
 
+func defaultDataDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "/tmp/paas-deploy/apps"
+	}
+	return filepath.Join(home, ".paas-deploy", "apps")
+}
+
+func expandPath(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(home, path[2:])
+		}
+	}
+
+	if strings.HasPrefix(path, "$HOME") {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return strings.Replace(path, "$HOME", home, 1)
+		}
+	}
+
+	return os.ExpandEnv(path)
+}
+
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvPath(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return expandPath(value)
 	}
 	return defaultValue
 }
