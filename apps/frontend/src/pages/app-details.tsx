@@ -1,23 +1,31 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
+  Activity,
   CheckCircle,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Cpu,
   ExternalLink,
+  FileText,
   Folder,
   GitBranch,
   Globe,
   HardDrive,
   HeartPulse,
+  Key,
   Link2,
   Link2Off,
   Network,
   Play,
   RefreshCw,
+  Rocket,
   RotateCcw,
+  Settings,
   Square,
+  Terminal,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,6 +44,7 @@ import {
   useApp,
   useAppConfig,
   useAppURL,
+  useContainerStats,
   useRemoveWebhook,
   useRestartContainer,
   useSetupWebhook,
@@ -43,6 +52,7 @@ import {
   useStopContainer,
   useWebhookStatus,
 } from "@/features/apps/hooks/use-apps";
+import { useEnvVars } from "@/features/apps/hooks/use-env-vars";
 import { DeployTimeline } from "@/features/deploys/components/deploy-timeline";
 import { LogViewer } from "@/features/deploys/components/log-viewer";
 import {
@@ -51,7 +61,80 @@ import {
   useRollback,
 } from "@/features/deploys/hooks/use-deploys";
 import { useAppHealth } from "@/hooks/use-sse";
-import { formatRepositoryUrl } from "@/lib/utils";
+import { cn, formatRepositoryUrl } from "@/lib/utils";
+
+interface CollapsibleSectionProps {
+  readonly title: string;
+  readonly icon: React.ComponentType<{ className?: string }>;
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+  readonly summary?: React.ReactNode;
+  readonly actions?: React.ReactNode;
+  readonly children: React.ReactNode;
+}
+
+function CollapsibleSection({
+  title,
+  icon: Icon,
+  expanded,
+  onToggle,
+  summary,
+  actions,
+  children,
+}: CollapsibleSectionProps) {
+  return (
+    <Card>
+      <CardHeader
+        className={cn(
+          "flex flex-row items-center justify-between cursor-pointer select-none transition-colors hover:bg-muted/50",
+          !expanded && "pb-4",
+        )}
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            {expanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+            <Icon className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <CardTitle className="text-base">{title}</CardTitle>
+          {!expanded && summary && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground ml-2 truncate">
+              <span className="text-muted-foreground/50">—</span>
+              {summary}
+            </div>
+          )}
+        </div>
+        {actions && (
+          <div
+            className="flex items-center gap-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {actions}
+          </div>
+        )}
+      </CardHeader>
+      {expanded && <CardContent>{children}</CardContent>}
+    </Card>
+  );
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+}
+
+function getHealthColor(health: string): string {
+  if (health === "healthy") return "text-green-500";
+  if (health === "unhealthy") return "text-red-500";
+  return "text-yellow-500";
+}
 
 export function AppDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -61,6 +144,8 @@ export function AppDetailsPage() {
   const { data: health } = useAppHealth(id);
   const { data: appUrl } = useAppURL(id);
   const { data: appConfig } = useAppConfig(id);
+  const { data: envVars } = useEnvVars(id ?? "");
+  const { data: containerStats } = useContainerStats(id);
   const redeploy = useRedeploy();
   const rollback = useRollback();
   const setupWebhook = useSetupWebhook();
@@ -72,7 +157,39 @@ export function AppDetailsPage() {
   const [selectedDeployId, setSelectedDeployId] = useState<string | null>(null);
   const [showCommitInput, setShowCommitInput] = useState(false);
   const [commitSha, setCommitSha] = useState("");
-  const [configExpanded, setConfigExpanded] = useState(false);
+
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({
+    deployments: false,
+    logs: false,
+    containerLogs: false,
+    metrics: false,
+    envVars: false,
+    health: false,
+    config: false,
+    webhook: false,
+  });
+
+  const toggleSection = (section: string) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const allExpanded = Object.values(expandedSections).every(Boolean);
+
+  const toggleAllSections = () => {
+    const newState = !allExpanded;
+    setExpandedSections({
+      deployments: newState,
+      logs: newState,
+      containerLogs: newState,
+      metrics: newState,
+      envVars: newState,
+      health: newState,
+      config: newState,
+      webhook: newState,
+    });
+  };
 
   const latestDeploy = deployments?.[0];
   const selectedDeploy = selectedDeployId
@@ -109,9 +226,10 @@ export function AppDetailsPage() {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Skeleton className="h-96" />
-          <Skeleton className="h-96" />
+        <div className="grid gap-4">
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
         </div>
       </div>
     );
@@ -128,8 +246,13 @@ export function AppDetailsPage() {
     );
   }
 
+  const successfulDeploys = deployments?.filter(
+    (d) => d.status === "success",
+  ).length;
+  const totalDeploys = deployments?.length ?? 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <PageHeader
         backTo="/"
         title={app.name}
@@ -162,6 +285,19 @@ export function AppDetailsPage() {
         }
         actions={
           <>
+            <Button variant="outline" onClick={toggleAllSections}>
+              {allExpanded ? (
+                <>
+                  <ChevronsDownUp className="h-4 w-4 mr-2" />
+                  Collapse All
+                </>
+              ) : (
+                <>
+                  <ChevronsUpDown className="h-4 w-4 mr-2" />
+                  Expand All
+                </>
+              )}
+            </Button>
             {appUrl?.url && (
               <Button variant="outline" asChild>
                 <a href={appUrl.url} target="_blank" rel="noopener noreferrer">
@@ -195,97 +331,168 @@ export function AppDetailsPage() {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Deployments</CardTitle>
-            <div className="flex items-center gap-2">
-              {showCommitInput ? (
-                <>
-                  <Input
-                    placeholder="Commit SHA"
-                    value={commitSha}
-                    onChange={(e) => setCommitSha(e.target.value)}
-                    className="w-40 h-8 text-xs font-mono"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => handleRedeploy(commitSha)}
-                    disabled={!commitSha || redeploy.isPending}
-                  >
-                    Deploy
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setShowCommitInput(false);
-                      setCommitSha("");
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowCommitInput(true)}
-                >
-                  Deploy Commit
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <DeployTimeline
-              appId={app.id}
-              onSelectDeploy={setSelectedDeployId}
-            />
-          </CardContent>
-        </Card>
+      <CollapsibleSection
+        title="Deployments"
+        icon={Rocket}
+        expanded={expandedSections.deployments ?? false}
+        onToggle={() => toggleSection("deployments")}
+        summary={
+          <span>
+            {totalDeploys} deploys ({successfulDeploys} successful)
+            {latestDeploy && (
+              <>
+                {" "}
+                • Latest: <StatusBadge status={latestDeploy.status} size="sm" />
+              </>
+            )}
+          </span>
+        }
+        actions={
+          showCommitInput ? (
+            <>
+              <Input
+                placeholder="Commit SHA"
+                value={commitSha}
+                onChange={(e) => setCommitSha(e.target.value)}
+                className="w-40 h-8 text-xs font-mono"
+              />
+              <Button
+                size="sm"
+                onClick={() => handleRedeploy(commitSha)}
+                disabled={!commitSha || redeploy.isPending}
+              >
+                Deploy
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setShowCommitInput(false);
+                  setCommitSha("");
+                }}
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowCommitInput(true)}
+            >
+              Deploy Commit
+            </Button>
+          )
+        }
+      >
+        <DeployTimeline appId={app.id} onSelectDeploy={setSelectedDeployId} />
+      </CollapsibleSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              Logs
-              {selectedDeploy && (
-                <span className="text-sm font-normal text-muted-foreground ml-2">
-                  ({selectedDeploy.commitSha.slice(0, 7)})
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <LogViewer
-              logs={selectedDeploy?.logs ?? null}
-              title={
-                selectedDeploy
-                  ? `Logs (${selectedDeploy.commitSha.slice(0, 7)})`
-                  : "Logs"
-              }
-            />
-          </CardContent>
-        </Card>
-      </div>
+      <CollapsibleSection
+        title="Deploy Logs"
+        icon={FileText}
+        expanded={expandedSections.logs ?? false}
+        onToggle={() => toggleSection("logs")}
+        summary={
+          selectedDeploy ? (
+            <span className="font-mono">
+              Commit {selectedDeploy.commitSha.slice(0, 7)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">No deploy selected</span>
+          )
+        }
+      >
+        <LogViewer
+          logs={selectedDeploy?.logs ?? null}
+          title={
+            selectedDeploy
+              ? `Logs (${selectedDeploy.commitSha.slice(0, 7)})`
+              : "Logs"
+          }
+        />
+      </CollapsibleSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Container Logs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ContainerLogsViewer appId={app.id} appName={app.name} />
-        </CardContent>
-      </Card>
+      <CollapsibleSection
+        title="Container Logs"
+        icon={Terminal}
+        expanded={expandedSections.containerLogs ?? false}
+        onToggle={() => toggleSection("containerLogs")}
+        summary={
+          health?.status === "running" ? (
+            <span className="text-green-500">Container running</span>
+          ) : (
+            <span className="text-muted-foreground">
+              Container {health?.status ?? "unknown"}
+            </span>
+          )
+        }
+      >
+        <ContainerLogsViewer appId={app.id} appName={app.name} />
+      </CollapsibleSection>
 
-      {id && <ContainerMetrics appId={id} />}
+      <CollapsibleSection
+        title="Resource Usage"
+        icon={Activity}
+        expanded={expandedSections.metrics ?? false}
+        onToggle={() => toggleSection("metrics")}
+        summary={
+          containerStats && containerStats.cpuPercent > 0 ? (
+            <span>
+              CPU: {containerStats.cpuPercent.toFixed(1)}% • Memory:{" "}
+              {formatBytes(containerStats.memoryUsage)} /{" "}
+              {formatBytes(containerStats.memoryLimit)}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">No metrics available</span>
+          )
+        }
+      >
+        {id && <ContainerMetrics appId={id} embedded />}
+      </CollapsibleSection>
 
-      <EnvVarsManager appId={app.id} />
+      <CollapsibleSection
+        title="Environment Variables"
+        icon={Key}
+        expanded={expandedSections.envVars ?? false}
+        onToggle={() => toggleSection("envVars")}
+        summary={
+          <span>
+            {envVars?.length ?? 0} variable
+            {envVars?.length === 1 ? "" : "s"} configured
+          </span>
+        }
+      >
+        <EnvVarsManager appId={app.id} embedded />
+      </CollapsibleSection>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Container Health</CardTitle>
+      <CollapsibleSection
+        title="Container Health"
+        icon={HeartPulse}
+        expanded={expandedSections.health ?? false}
+        onToggle={() => toggleSection("health")}
+        summary={
           <div className="flex items-center gap-2">
+            {health?.status === "running" ? (
+              <>
+                <span className={getHealthColor(health.health)}>
+                  {health.health}
+                </span>
+                {health.uptime && (
+                  <span className="text-muted-foreground">
+                    • Uptime: {health.uptime}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-muted-foreground">
+                {health?.status ?? "unknown"}
+              </span>
+            )}
+          </div>
+        }
+        actions={
+          <>
             <Button
               variant="outline"
               size="sm"
@@ -322,147 +529,157 @@ export function AppDetailsPage() {
                 Start
               </Button>
             )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <HealthDetail health={health} />
-        </CardContent>
-      </Card>
+          </>
+        }
+      >
+        <HealthDetail health={health} />
+      </CollapsibleSection>
 
       {appConfig && (
-        <Card>
-          <CardHeader
-            className="cursor-pointer select-none"
-            onClick={() => setConfigExpanded(!configExpanded)}
-          >
-            <div className="flex items-center gap-2">
-              {configExpanded ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
-              <CardTitle>Deployment Config</CardTitle>
-            </div>
-          </CardHeader>
-          {configExpanded && (
-            <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Network className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Port:</span>
-                    <span className="font-mono">
-                      {appConfig.hostPort === appConfig.port
-                        ? appConfig.port
-                        : `${appConfig.hostPort}:${appConfig.port}`}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <HeartPulse className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Health Check:</span>
-                    <span className="font-mono">
-                      {appConfig.healthcheck.path}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="ml-6">
-                      Interval: {appConfig.healthcheck.interval} | Timeout:{" "}
-                      {appConfig.healthcheck.timeout} | Retries:{" "}
-                      {appConfig.healthcheck.retries}
-                    </span>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm">
-                    <HardDrive className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Memory:</span>
-                    <span className="font-mono">
-                      {appConfig.resources.memory}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Cpu className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">CPU:</span>
-                    <span className="font-mono">{appConfig.resources.cpu}</span>
-                  </div>
-                  {appConfig.domains && appConfig.domains.length > 0 && (
-                    <div className="flex items-start gap-2 text-sm">
-                      <Globe className="h-4 w-4 text-muted-foreground mt-0.5" />
-                      <div>
-                        <span className="font-medium">Domains:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {appConfig.domains.map((domain) => (
-                            <span
-                              key={domain}
-                              className="px-2 py-0.5 bg-muted rounded text-xs font-mono"
-                            >
-                              {domain}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+        <CollapsibleSection
+          title="Deployment Config"
+          icon={Settings}
+          expanded={expandedSections.config ?? false}
+          onToggle={() => toggleSection("config")}
+          summary={
+            <span>
+              Port{" "}
+              {appConfig.hostPort === appConfig.port
+                ? appConfig.port
+                : `${appConfig.hostPort}:${appConfig.port}`}{" "}
+              • {appConfig.resources.memory} RAM • {appConfig.resources.cpu} CPU
+            </span>
+          }
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <Network className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Port:</span>
+                <span className="font-mono">
+                  {appConfig.hostPort === appConfig.port
+                    ? appConfig.port
+                    : `${appConfig.hostPort}:${appConfig.port}`}
+                </span>
               </div>
-            </CardContent>
-          )}
-        </Card>
+              <div className="flex items-center gap-2 text-sm">
+                <HeartPulse className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Health Check:</span>
+                <span className="font-mono">{appConfig.healthcheck.path}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="ml-6">
+                  Interval: {appConfig.healthcheck.interval} | Timeout:{" "}
+                  {appConfig.healthcheck.timeout} | Retries:{" "}
+                  {appConfig.healthcheck.retries}
+                </span>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <HardDrive className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">Memory:</span>
+                <span className="font-mono">{appConfig.resources.memory}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <Cpu className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">CPU:</span>
+                <span className="font-mono">{appConfig.resources.cpu}</span>
+              </div>
+              {appConfig.domains && appConfig.domains.length > 0 && (
+                <div className="flex items-start gap-2 text-sm">
+                  <Globe className="h-4 w-4 text-muted-foreground mt-0.5" />
+                  <div>
+                    <span className="font-medium">Domains:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {appConfig.domains.map((domain) => (
+                        <span
+                          key={domain}
+                          className="px-2 py-0.5 bg-muted rounded text-xs font-mono"
+                        >
+                          {domain}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </CollapsibleSection>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>GitHub Webhook</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              {app.webhookId ? (
-                <>
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <div>
-                    <p className="font-medium">Webhook configured</p>
-                    <p className="text-sm text-muted-foreground">
-                      Auto-deploy enabled for push events
-                      {webhookStatus?.active === false && (
-                        <span className="text-yellow-500 ml-2">(inactive)</span>
-                      )}
-                    </p>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">Webhook not configured</p>
-                    <p className="text-sm text-muted-foreground">
-                      Configure to enable auto-deploy on push
-                    </p>
-                  </div>
-                </>
+      <CollapsibleSection
+        title="GitHub Webhook"
+        icon={Link2}
+        expanded={expandedSections.webhook ?? false}
+        onToggle={() => toggleSection("webhook")}
+        summary={
+          app.webhookId ? (
+            <span className="text-green-500 flex items-center gap-1">
+              <CheckCircle className="h-3 w-3" />
+              Configured
+              {webhookStatus?.active === false && (
+                <span className="text-yellow-500 ml-1">(inactive)</span>
               )}
-            </div>
-            {app.webhookId ? (
-              <Button
-                variant="outline"
-                onClick={handleRemoveWebhook}
-                disabled={removeWebhook.isPending}
-              >
-                <Link2Off className="h-4 w-4 mr-2" />
-                Remove Webhook
-              </Button>
-            ) : (
-              <Button
-                onClick={handleSetupWebhook}
-                disabled={setupWebhook.isPending}
-              >
-                <Link2 className="h-4 w-4 mr-2" />
-                Setup Webhook
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </span>
+          ) : (
+            <span className="text-muted-foreground flex items-center gap-1">
+              <XCircle className="h-3 w-3" />
+              Not configured
+            </span>
+          )
+        }
+        actions={
+          app.webhookId ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRemoveWebhook}
+              disabled={removeWebhook.isPending}
+            >
+              <Link2Off className="h-4 w-4 mr-1" />
+              Remove
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={handleSetupWebhook}
+              disabled={setupWebhook.isPending}
+            >
+              <Link2 className="h-4 w-4 mr-1" />
+              Setup
+            </Button>
+          )
+        }
+      >
+        <div className="flex items-center gap-3">
+          {app.webhookId ? (
+            <>
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <div>
+                <p className="font-medium">Webhook configured</p>
+                <p className="text-sm text-muted-foreground">
+                  Auto-deploy enabled for push events
+                  {webhookStatus?.active === false && (
+                    <span className="text-yellow-500 ml-2">(inactive)</span>
+                  )}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <XCircle className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="font-medium">Webhook not configured</p>
+                <p className="text-sm text-muted-foreground">
+                  Configure to enable auto-deploy on push
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+      </CollapsibleSection>
     </div>
   );
 }

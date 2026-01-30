@@ -1,8 +1,10 @@
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import type { DeployStatus } from "@/types";
 
 interface StatusBadgeProps {
   readonly status: DeployStatus;
+  readonly size?: "sm" | "default";
 }
 
 const statusConfig: Record<
@@ -16,8 +18,15 @@ const statusConfig: Record<
   cancelled: { label: "Cancelled", variant: "pending" },
 };
 
-export function StatusBadge({ status }: StatusBadgeProps) {
+export function StatusBadge({ status, size = "default" }: StatusBadgeProps) {
   const config = statusConfig[status];
 
-  return <Badge variant={config.variant}>{config.label}</Badge>;
+  return (
+    <Badge
+      variant={config.variant}
+      className={cn(size === "sm" && "text-xs px-1.5 py-0")}
+    >
+      {config.label}
+    </Badge>
+  );
 }

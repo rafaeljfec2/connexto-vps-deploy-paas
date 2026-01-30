@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 interface ContainerMetricsProps {
   readonly appId: string;
+  readonly embedded?: boolean;
 }
 
 function formatBytes(bytes: number): string {
@@ -78,7 +79,10 @@ function MetricCard({
   );
 }
 
-export function ContainerMetrics({ appId }: ContainerMetricsProps) {
+export function ContainerMetrics({
+  appId,
+  embedded = false,
+}: ContainerMetricsProps) {
   const {
     data: stats,
     isLoading,
@@ -86,25 +90,80 @@ export function ContainerMetrics({ appId }: ContainerMetricsProps) {
     isFetching,
   } = useContainerStats(appId);
 
-  if (isLoading) {
+  const hasData = stats && (stats.cpuPercent > 0 || stats.memoryUsage > 0);
+
+  const renderMetricsContent = () => {
+    if (isLoading) {
+      return (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+      );
+    }
+
+    if (!hasData) {
+      return (
+        <div className="text-center py-6 text-muted-foreground text-sm">
+          No metrics available. Container may not be running.
+        </div>
+      );
+    }
+
     return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Resource Usage</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-            <Skeleton className="h-24" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          icon={Cpu}
+          title="CPU"
+          value={`${stats.cpuPercent.toFixed(1)}%`}
+          percent={stats.cpuPercent}
+        />
+        <MetricCard
+          icon={HardDrive}
+          title="Memory"
+          value={formatBytes(stats.memoryUsage)}
+          subValue={`/ ${formatBytes(stats.memoryLimit)}`}
+          percent={stats.memoryPercent}
+        />
+        <MetricCard
+          icon={Network}
+          title="Network I/O"
+          value={`↓ ${formatBytes(stats.networkRx)}`}
+          subValue={`↑ ${formatBytes(stats.networkTx)}`}
+        />
+        <MetricCard
+          icon={Users}
+          title="Processes"
+          value={stats.pids.toString()}
+          subValue="PIDs"
+        />
+      </div>
+    );
+  };
+
+  if (embedded) {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="h-7"
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5 mr-1", isFetching && "animate-spin")}
+            />
+            Refresh
+          </Button>
+        </div>
+        {renderMetricsContent()}
+      </div>
     );
   }
-
-  const hasData = stats && (stats.cpuPercent > 0 || stats.memoryUsage > 0);
 
   return (
     <Card>
@@ -123,41 +182,7 @@ export function ContainerMetrics({ appId }: ContainerMetricsProps) {
           Refresh
         </Button>
       </CardHeader>
-      <CardContent>
-        {hasData ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCard
-              icon={Cpu}
-              title="CPU"
-              value={`${stats.cpuPercent.toFixed(1)}%`}
-              percent={stats.cpuPercent}
-            />
-            <MetricCard
-              icon={HardDrive}
-              title="Memory"
-              value={formatBytes(stats.memoryUsage)}
-              subValue={`/ ${formatBytes(stats.memoryLimit)}`}
-              percent={stats.memoryPercent}
-            />
-            <MetricCard
-              icon={Network}
-              title="Network I/O"
-              value={`↓ ${formatBytes(stats.networkRx)}`}
-              subValue={`↑ ${formatBytes(stats.networkTx)}`}
-            />
-            <MetricCard
-              icon={Users}
-              title="Processes"
-              value={stats.pids.toString()}
-              subValue="PIDs"
-            />
-          </div>
-        ) : (
-          <div className="text-center py-6 text-muted-foreground text-sm">
-            No metrics available. Container may not be running.
-          </div>
-        )}
-      </CardContent>
+      <CardContent>{renderMetricsContent()}</CardContent>
     </Card>
   );
 }

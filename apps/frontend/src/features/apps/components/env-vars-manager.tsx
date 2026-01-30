@@ -22,6 +22,7 @@ import {
 
 interface EnvVarsManagerProps {
   readonly appId: string;
+  readonly embedded?: boolean;
 }
 
 interface EditingVar {
@@ -38,13 +39,16 @@ const INITIAL_EDITING: EditingVar = {
   isSecret: false,
 };
 
-export function EnvVarsManager({ appId }: EnvVarsManagerProps) {
+export function EnvVarsManager({
+  appId,
+  embedded = false,
+}: EnvVarsManagerProps) {
   const { data: envVars, isLoading } = useEnvVars(appId);
   const createEnvVar = useCreateEnvVar(appId);
   const updateEnvVar = useUpdateEnvVar(appId);
   const deleteEnvVar = useDeleteEnvVar(appId);
 
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(embedded);
   const [isAdding, setIsAdding] = useState(false);
   const [editing, setEditing] = useState<EditingVar>(INITIAL_EDITING);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -108,6 +112,188 @@ export function EnvVarsManager({ appId }: EnvVarsManagerProps) {
 
   const varsCount = envVars?.length ?? 0;
 
+  const content = (
+    <div className="space-y-3">
+      {!isAdding && (
+        <div className="flex justify-end">
+          <Button size="sm" onClick={handleAdd}>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Variable
+          </Button>
+        </div>
+      )}
+      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
+      {isAdding && (
+        <div className="flex flex-col gap-2 p-3 border rounded-lg bg-muted/50">
+          <div className="flex gap-2">
+            <Input
+              placeholder="KEY_NAME"
+              value={editing.key}
+              onChange={(e) =>
+                setEditing((prev) => ({
+                  ...prev,
+                  key: e.target.value
+                    .toUpperCase()
+                    .replaceAll(/[^A-Z0-9_]/g, "_"),
+                }))
+              }
+              className="font-mono text-sm flex-1"
+            />
+            <Input
+              placeholder="value"
+              type={editing.isSecret ? "password" : "text"}
+              value={editing.value}
+              onChange={(e) =>
+                setEditing((prev) => ({ ...prev, value: e.target.value }))
+              }
+              className="font-mono text-sm flex-[2]"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={editing.isSecret}
+                onChange={(e) =>
+                  setEditing((prev) => ({
+                    ...prev,
+                    isSecret: e.target.checked,
+                  }))
+                }
+                className="rounded"
+              />{" "}
+              Secret (hidden in UI)
+            </label>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleCancelAdd}
+                disabled={createEnvVar.isPending}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleSaveNew}
+                disabled={!editing.key.trim() || createEnvVar.isPending}
+              >
+                <Save className="h-4 w-4 mr-1" />
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {envVars?.length === 0 && !isAdding && (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          No environment variables configured. Add variables to inject them
+          during deployment.
+        </p>
+      )}
+
+      {envVars?.map((envVar) => (
+        <div
+          key={envVar.id}
+          className="flex items-center gap-2 p-3 border rounded-lg"
+        >
+          {editingId === envVar.id ? (
+            <>
+              <span className="font-mono text-sm font-medium min-w-[120px]">
+                {envVar.key}
+              </span>
+              <Input
+                placeholder="new value"
+                type={editing.isSecret ? "password" : "text"}
+                value={editing.value}
+                onChange={(e) =>
+                  setEditing((prev) => ({ ...prev, value: e.target.value }))
+                }
+                className="font-mono text-sm flex-1"
+              />
+              <label className="flex items-center gap-1 text-sm whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={editing.isSecret}
+                  onChange={(e) =>
+                    setEditing((prev) => ({
+                      ...prev,
+                      isSecret: e.target.checked,
+                    }))
+                  }
+                  className="rounded"
+                />{" "}
+                Secret
+              </label>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleCancelEdit}
+                disabled={updateEnvVar.isPending}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                onClick={handleSaveEdit}
+                disabled={updateEnvVar.isPending}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="font-mono text-sm font-medium min-w-[120px]">
+                {envVar.key}
+              </span>
+              <span className="font-mono text-sm text-muted-foreground flex-1 truncate">
+                {envVar.isSecret && showSecrets[envVar.id] && envVar.value}
+                {envVar.isSecret && !showSecrets[envVar.id] && "••••••••"}
+                {!envVar.isSecret && envVar.value}
+              </span>
+              {envVar.isSecret && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => toggleShowSecret(envVar.id)}
+                >
+                  {showSecrets[envVar.id] ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() =>
+                  handleStartEdit(envVar.id, envVar.value, envVar.isSecret)
+                }
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => handleDelete(envVar.id)}
+                disabled={deleteEnvVar.isPending}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
   return (
     <Card>
       <CardHeader
@@ -125,187 +311,9 @@ export function EnvVarsManager({ appId }: EnvVarsManagerProps) {
             ({varsCount})
           </span>
         </div>
-        {isExpanded && !isAdding && (
-          <Button
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleAdd();
-            }}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Variable
-          </Button>
-        )}
       </CardHeader>
-      <CardContent className={cn("space-y-3", !isExpanded && "hidden")}>
-        {isLoading && (
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        )}
-        {isAdding && (
-          <div className="flex flex-col gap-2 p-3 border rounded-lg bg-muted/50">
-            <div className="flex gap-2">
-              <Input
-                placeholder="KEY_NAME"
-                value={editing.key}
-                onChange={(e) =>
-                  setEditing((prev) => ({
-                    ...prev,
-                    key: e.target.value
-                      .toUpperCase()
-                      .replaceAll(/[^A-Z0-9_]/g, "_"),
-                  }))
-                }
-                className="font-mono text-sm flex-1"
-              />
-              <Input
-                placeholder="value"
-                type={editing.isSecret ? "password" : "text"}
-                value={editing.value}
-                onChange={(e) =>
-                  setEditing((prev) => ({ ...prev, value: e.target.value }))
-                }
-                className="font-mono text-sm flex-[2]"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={editing.isSecret}
-                  onChange={(e) =>
-                    setEditing((prev) => ({
-                      ...prev,
-                      isSecret: e.target.checked,
-                    }))
-                  }
-                  className="rounded"
-                />{" "}
-                Secret (hidden in UI)
-              </label>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleCancelAdd}
-                  disabled={createEnvVar.isPending}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleSaveNew}
-                  disabled={!editing.key.trim() || createEnvVar.isPending}
-                >
-                  <Save className="h-4 w-4 mr-1" />
-                  Save
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {envVars?.length === 0 && !isAdding && (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            No environment variables configured. Add variables to inject them
-            during deployment.
-          </p>
-        )}
-
-        {envVars?.map((envVar) => (
-          <div
-            key={envVar.id}
-            className="flex items-center gap-2 p-3 border rounded-lg"
-          >
-            {editingId === envVar.id ? (
-              <>
-                <span className="font-mono text-sm font-medium min-w-[120px]">
-                  {envVar.key}
-                </span>
-                <Input
-                  placeholder="new value"
-                  type={editing.isSecret ? "password" : "text"}
-                  value={editing.value}
-                  onChange={(e) =>
-                    setEditing((prev) => ({ ...prev, value: e.target.value }))
-                  }
-                  className="font-mono text-sm flex-1"
-                />
-                <label className="flex items-center gap-1 text-sm whitespace-nowrap">
-                  <input
-                    type="checkbox"
-                    checked={editing.isSecret}
-                    onChange={(e) =>
-                      setEditing((prev) => ({
-                        ...prev,
-                        isSecret: e.target.checked,
-                      }))
-                    }
-                    className="rounded"
-                  />{" "}
-                  Secret
-                </label>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={handleCancelEdit}
-                  disabled={updateEnvVar.isPending}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  onClick={handleSaveEdit}
-                  disabled={updateEnvVar.isPending}
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-              </>
-            ) : (
-              <>
-                <span className="font-mono text-sm font-medium min-w-[120px]">
-                  {envVar.key}
-                </span>
-                <span className="font-mono text-sm text-muted-foreground flex-1 truncate">
-                  {envVar.isSecret && showSecrets[envVar.id] && envVar.value}
-                  {envVar.isSecret && !showSecrets[envVar.id] && "••••••••"}
-                  {!envVar.isSecret && envVar.value}
-                </span>
-                {envVar.isSecret && (
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => toggleShowSecret(envVar.id)}
-                  >
-                    {showSecrets[envVar.id] ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
-                )}
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() =>
-                    handleStartEdit(envVar.id, envVar.value, envVar.isSecret)
-                  }
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => handleDelete(envVar.id)}
-                  disabled={deleteEnvVar.isPending}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-          </div>
-        ))}
+      <CardContent className={cn(!isExpanded && "hidden")}>
+        {content}
       </CardContent>
     </Card>
   );
