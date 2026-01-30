@@ -142,9 +142,17 @@ func (d *DockerClient) ImageExists(ctx context.Context, tag string) (bool, error
 }
 
 func (d *DockerClient) RemoveImage(ctx context.Context, tag string) error {
-	_, err := d.executor.Run(ctx, "docker", "rmi", "-f", tag)
+	if tag == "" {
+		return nil
+	}
+
+	d.logger.Info("Removing Docker image", "tag", tag)
+	d.executor.SetTimeout(2 * time.Minute)
+
+	_, err := d.executor.RunQuiet(ctx, "docker", "rmi", "-f", tag)
 	if err != nil {
-		return fmt.Errorf("docker rmi failed: %w", err)
+		d.logger.Debug("Failed to remove image (may not exist or in use)", "tag", tag)
+		return nil
 	}
 	return nil
 }
@@ -428,4 +436,17 @@ func parseNetworkValue(s string) int64 {
 	}
 
 	return int64(value * float64(multiplier))
+}
+
+func (d *DockerClient) PruneUnusedImages(ctx context.Context) error {
+	d.logger.Info("Pruning unused Docker images")
+	d.executor.SetTimeout(5 * time.Minute)
+
+	_, err := d.executor.RunQuiet(ctx, "docker", "image", "prune", "-f")
+	if err != nil {
+		d.logger.Debug("Failed to prune images", "error", err)
+		return nil
+	}
+
+	return nil
 }

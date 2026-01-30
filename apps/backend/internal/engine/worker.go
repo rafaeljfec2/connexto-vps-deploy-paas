@@ -460,9 +460,33 @@ func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag st
 		}
 	}
 
+	go w.cleanupOldImages(deploy)
+
 	w.deps.Notifier.EmitDeploySuccess(deploy.ID, app.ID)
 
 	return nil
+}
+
+func (w *Worker) cleanupOldImages(deploy *domain.Deployment) {
+	if deploy.PreviousImageTag == "" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	w.deps.Logger.Info("Cleaning up old Docker image",
+		"deploy_id", deploy.ID,
+		"previous_image", deploy.PreviousImageTag,
+	)
+
+	if err := w.deps.Docker.RemoveImage(ctx, deploy.PreviousImageTag); err != nil {
+		w.deps.Logger.Warn("Failed to remove previous image", "error", err)
+	}
+
+	if err := w.deps.Docker.PruneUnusedImages(ctx); err != nil {
+		w.deps.Logger.Warn("Failed to prune unused images", "error", err)
+	}
 }
 
 func (w *Worker) fail(deploy *domain.Deployment, app *domain.App, err error) error {
