@@ -113,6 +113,15 @@ func (q *Queue) UpdateAppLastDeployedAt(appID string) error {
 	return err
 }
 
+func (q *Queue) UpdateAppRuntime(appID, runtime string) error {
+	if runtime == "" {
+		return nil
+	}
+	query := `UPDATE apps SET runtime = $2, updated_at = NOW() WHERE id = $1`
+	_, err := q.db.Exec(query, appID, runtime)
+	return err
+}
+
 func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 	query := `
 		SELECT id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at

@@ -19,6 +19,7 @@ type App struct {
 	RepositoryURL  string          `json:"repositoryUrl"`
 	Branch         string          `json:"branch"`
 	Workdir        string          `json:"workdir"`
+	Runtime        *string         `json:"runtime,omitempty"`
 	Config         json.RawMessage `json:"config"`
 	Status         AppStatus       `json:"status"`
 	WebhookID      *int64          `json:"webhookId,omitempty"`
@@ -40,6 +41,7 @@ type UpdateAppInput struct {
 	RepositoryURL *string          `json:"repositoryUrl,omitempty"`
 	Branch        *string          `json:"branch,omitempty"`
 	Workdir       *string          `json:"workdir,omitempty"`
+	Runtime       *string          `json:"runtime,omitempty"`
 	Config        *json.RawMessage `json:"config,omitempty"`
 	Status        *AppStatus       `json:"status,omitempty"`
 	WebhookID     *int64           `json:"webhookId,omitempty"`

@@ -18,7 +18,7 @@ func NewPostgresAppRepository(db *sql.DB) *PostgresAppRepository {
 
 func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE status != 'deleted'
 		ORDER BY created_at DESC
@@ -35,6 +35,7 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 		var app domain.App
 		var lastDeployedAt sql.NullTime
 		var webhookID sql.NullInt64
+		var runtime sql.NullString
 
 		err := rows.Scan(
 			&app.ID,
@@ -42,6 +43,7 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 			&app.RepositoryURL,
 			&app.Branch,
 			&app.Workdir,
+			&runtime,
 			&app.Config,
 			&app.Status,
 			&webhookID,
@@ -59,6 +61,9 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 		if lastDeployedAt.Valid {
 			app.LastDeployedAt = &lastDeployedAt.Time
 		}
+		if runtime.Valid {
+			app.Runtime = &runtime.String
+		}
 
 		apps = append(apps, app)
 	}
@@ -68,7 +73,7 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 
 func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE id = $1 AND status != 'deleted'
 	`
@@ -76,6 +81,7 @@ func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 	var app domain.App
 	var lastDeployedAt sql.NullTime
 	var webhookID sql.NullInt64
+	var runtime sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
 		&app.ID,
@@ -83,6 +89,7 @@ func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 		&app.RepositoryURL,
 		&app.Branch,
 		&app.Workdir,
+		&runtime,
 		&app.Config,
 		&app.Status,
 		&webhookID,
@@ -102,6 +109,9 @@ func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 	}
 	if lastDeployedAt.Valid {
 		app.LastDeployedAt = &lastDeployedAt.Time
+	}
+	if runtime.Valid {
+		app.Runtime = &runtime.String
 	}
 
 	return &app, nil
@@ -109,7 +119,7 @@ func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 
 func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE name = $1 AND status != 'deleted'
 	`
@@ -117,6 +127,7 @@ func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 	var app domain.App
 	var lastDeployedAt sql.NullTime
 	var webhookID sql.NullInt64
+	var runtime sql.NullString
 
 	err := r.db.QueryRow(query, name).Scan(
 		&app.ID,
@@ -124,6 +135,7 @@ func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 		&app.RepositoryURL,
 		&app.Branch,
 		&app.Workdir,
+		&runtime,
 		&app.Config,
 		&app.Status,
 		&webhookID,
@@ -143,6 +155,9 @@ func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 	}
 	if lastDeployedAt.Valid {
 		app.LastDeployedAt = &lastDeployedAt.Time
+	}
+	if runtime.Valid {
+		app.Runtime = &runtime.String
 	}
 
 	return &app, nil
@@ -150,7 +165,7 @@ func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 
 func (r *PostgresAppRepository) FindByRepoURL(repoURL string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE repository_url = $1 AND status != 'deleted'
 	`
@@ -158,6 +173,7 @@ func (r *PostgresAppRepository) FindByRepoURL(repoURL string) (*domain.App, erro
 	var app domain.App
 	var lastDeployedAt sql.NullTime
 	var webhookID sql.NullInt64
+	var runtime sql.NullString
 
 	err := r.db.QueryRow(query, repoURL).Scan(
 		&app.ID,
@@ -165,6 +181,7 @@ func (r *PostgresAppRepository) FindByRepoURL(repoURL string) (*domain.App, erro
 		&app.RepositoryURL,
 		&app.Branch,
 		&app.Workdir,
+		&runtime,
 		&app.Config,
 		&app.Status,
 		&webhookID,
@@ -184,6 +201,9 @@ func (r *PostgresAppRepository) FindByRepoURL(repoURL string) (*domain.App, erro
 	}
 	if lastDeployedAt.Valid {
 		app.LastDeployedAt = &lastDeployedAt.Time
+	}
+	if runtime.Valid {
+		app.Runtime = &runtime.String
 	}
 
 	return &app, nil
@@ -208,12 +228,13 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 	query := `
 		INSERT INTO apps (name, repository_url, branch, workdir, config, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
-		RETURNING id, name, repository_url, branch, workdir, config, status, webhook_id, last_deployed_at, created_at, updated_at
+		RETURNING id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
 	`
 
 	var app domain.App
 	var lastDeployedAt sql.NullTime
 	var webhookID sql.NullInt64
+	var runtime sql.NullString
 
 	err := r.db.QueryRow(query, input.Name, input.RepositoryURL, branch, workdir, config).Scan(
 		&app.ID,
@@ -221,6 +242,7 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 		&app.RepositoryURL,
 		&app.Branch,
 		&app.Workdir,
+		&runtime,
 		&app.Config,
 		&app.Status,
 		&webhookID,
@@ -237,6 +259,9 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 	}
 	if lastDeployedAt.Valid {
 		app.LastDeployedAt = &lastDeployedAt.Time
+	}
+	if runtime.Valid {
+		app.Runtime = &runtime.String
 	}
 
 	return &app, nil
@@ -260,6 +285,9 @@ func (r *PostgresAppRepository) Update(id string, input domain.UpdateAppInput) (
 	if input.Workdir != nil {
 		app.Workdir = *input.Workdir
 	}
+	if input.Runtime != nil {
+		app.Runtime = input.Runtime
+	}
 	if input.Config != nil {
 		app.Config = *input.Config
 	}
@@ -272,12 +300,12 @@ func (r *PostgresAppRepository) Update(id string, input domain.UpdateAppInput) (
 
 	query := `
 		UPDATE apps
-		SET name = $2, repository_url = $3, branch = $4, workdir = $5, config = $6, status = $7, webhook_id = $8, updated_at = NOW()
+		SET name = $2, repository_url = $3, branch = $4, workdir = $5, runtime = $6, config = $7, status = $8, webhook_id = $9, updated_at = NOW()
 		WHERE id = $1
 		RETURNING updated_at
 	`
 
-	err = r.db.QueryRow(query, id, app.Name, app.RepositoryURL, app.Branch, app.Workdir, app.Config, app.Status, app.WebhookID).Scan(&app.UpdatedAt)
+	err = r.db.QueryRow(query, id, app.Name, app.RepositoryURL, app.Branch, app.Workdir, app.Runtime, app.Config, app.Status, app.WebhookID).Scan(&app.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

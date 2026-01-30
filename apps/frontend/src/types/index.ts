@@ -15,6 +15,7 @@ export interface App {
   readonly repositoryUrl: string;
   readonly branch: string;
   readonly workdir: string;
+  readonly runtime: string | null;
   readonly config: Record<string, unknown>;
   readonly status: AppStatus;
   readonly webhookId: number | null;

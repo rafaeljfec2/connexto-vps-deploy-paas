@@ -19,8 +19,9 @@ const (
 )
 
 type PaasDeployConfig struct {
-	Name  string `json:"name"`
-	Build struct {
+	Name    string `json:"name"`
+	Runtime string `json:"runtime,omitempty"`
+	Build   struct {
 		Type       string            `json:"type"`
 		Dockerfile string            `json:"dockerfile"`
 		Context    string            `json:"context"`
@@ -451,6 +452,12 @@ func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag st
 
 	if err := w.deps.Dispatcher.UpdateAppLastDeployedAt(app.ID); err != nil {
 		w.deps.Logger.Error("Failed to update app last deployed at", "error", err)
+	}
+
+	if w.deployConfig != nil && w.deployConfig.Runtime != "" {
+		if err := w.deps.Dispatcher.UpdateAppRuntime(app.ID, w.deployConfig.Runtime); err != nil {
+			w.deps.Logger.Error("Failed to update app runtime", "error", err)
+		}
 	}
 
 	w.deps.Notifier.EmitDeploySuccess(deploy.ID, app.ID)

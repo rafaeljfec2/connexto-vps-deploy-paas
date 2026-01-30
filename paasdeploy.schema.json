@@ -20,6 +20,23 @@
       "default": ".",
       "examples": [".", "./apps/api", "./packages/backend", "./services/auth"]
     },
+    "runtime": {
+      "type": "string",
+      "description": "Runtime/technology used by the application",
+      "enum": [
+        "go",
+        "node",
+        "python",
+        "rust",
+        "java",
+        "ruby",
+        "php",
+        "dotnet",
+        "elixir",
+        "other"
+      ],
+      "examples": ["go", "node", "python"]
+    },
     "build": {
       "type": "object",
       "description": "Build configuration",

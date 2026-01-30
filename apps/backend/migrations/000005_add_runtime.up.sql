@@ -1,0 +1,1 @@
+ALTER TABLE apps ADD COLUMN runtime VARCHAR(50);

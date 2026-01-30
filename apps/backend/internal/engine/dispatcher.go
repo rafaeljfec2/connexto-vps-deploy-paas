@@ -92,6 +92,10 @@ func (d *Dispatcher) UpdateAppLastDeployedAt(appID string) error {
 	return d.queue.UpdateAppLastDeployedAt(appID)
 }
 
+func (d *Dispatcher) UpdateAppRuntime(appID, runtime string) error {
+	return d.queue.UpdateAppRuntime(appID, runtime)
+}
+
 func (d *Dispatcher) SetPollTime(duration time.Duration) {
 	d.pollTime = duration
 }
