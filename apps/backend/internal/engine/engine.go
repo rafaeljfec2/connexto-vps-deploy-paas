@@ -187,3 +187,15 @@ func (e *Engine) StopContainer(ctx context.Context, containerName string) error 
 func (e *Engine) StartContainer(ctx context.Context, containerName string) error {
 	return e.docker.StartContainer(ctx, containerName)
 }
+
+func (e *Engine) ContainerLogs(ctx context.Context, containerName string, tail int) (string, error) {
+	return e.docker.ContainerLogs(ctx, containerName, tail)
+}
+
+func (e *Engine) StreamContainerLogs(ctx context.Context, containerName string, output chan<- string) error {
+	return e.docker.StreamContainerLogs(ctx, containerName, output)
+}
+
+func (e *Engine) ContainerStats(ctx context.Context, containerName string) (*ContainerStats, error) {
+	return e.docker.ContainerStats(ctx, containerName)
+}

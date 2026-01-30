@@ -24,6 +24,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ContainerLogsViewer } from "@/components/container-logs-viewer";
+import { ContainerMetrics } from "@/components/container-metrics";
 import { HealthDetail, HealthIndicator } from "@/components/health-indicator";
 import { IconText } from "@/components/icon-text";
 import { PageHeader } from "@/components/page-header";
@@ -266,6 +268,17 @@ export function AppDetailsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Container Logs</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ContainerLogsViewer appId={app.id} appName={app.name} />
+        </CardContent>
+      </Card>
+
+      {id && <ContainerMetrics appId={id} />}
 
       <EnvVarsManager appId={app.id} />
 

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -125,10 +126,22 @@ func (e *Executor) RunWithStreaming(ctx context.Context, output chan<- string, n
 		return fmt.Errorf("failed to start command: %w", err)
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		e.streamOutput(stdout, output)
+	}()
+
+	go func() {
+		defer wg.Done()
+		e.streamOutput(stderr, output)
+	}()
+
 	done := make(chan error)
 	go func() {
-		e.streamOutput(stdout, output)
-		e.streamOutput(stderr, output)
+		wg.Wait()
 		done <- cmd.Wait()
 	}()
 

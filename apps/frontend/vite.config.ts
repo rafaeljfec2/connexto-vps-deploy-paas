@@ -15,10 +15,12 @@ export default defineConfig({
       "/paas-deploy": {
         target: "http://localhost:8080",
         changeOrigin: true,
+        ws: true,
       },
       "/events": {
         target: "http://localhost:8080",
         changeOrigin: true,
+        ws: true,
       },
     },
   },

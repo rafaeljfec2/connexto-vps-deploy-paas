@@ -146,3 +146,21 @@ export function useStartContainer() {
     },
   });
 }
+
+export function useContainerLogs(appId: string | undefined, tail = 100) {
+  return useQuery({
+    queryKey: ["containerLogs", appId, tail],
+    queryFn: () => api.container.logs(appId!, tail),
+    enabled: !!appId,
+    refetchInterval: false,
+  });
+}
+
+export function useContainerStats(appId: string | undefined) {
+  return useQuery({
+    queryKey: ["containerStats", appId],
+    queryFn: () => api.container.stats(appId!),
+    enabled: !!appId,
+    refetchInterval: 5000,
+  });
+}

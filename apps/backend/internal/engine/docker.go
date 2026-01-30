@@ -298,3 +298,134 @@ func (d *DockerClient) StartContainer(ctx context.Context, containerName string)
 
 	return nil
 }
+
+func (d *DockerClient) ContainerLogs(ctx context.Context, containerName string, tail int) (string, error) {
+	d.executor.SetTimeout(30 * time.Second)
+
+	tailArg := "100"
+	if tail > 0 {
+		tailArg = fmt.Sprintf("%d", tail)
+	}
+
+	result, err := d.executor.RunQuiet(ctx, "docker", "logs", "--tail", tailArg, "--timestamps", containerName)
+	if err != nil {
+		stderrLower := strings.ToLower(result.Stderr)
+		if strings.Contains(stderrLower, "no such container") {
+			return "", fmt.Errorf("container not found: %s", containerName)
+		}
+		return "", fmt.Errorf("failed to get container logs: %w", err)
+	}
+
+	output := result.Stdout
+	if result.Stderr != "" && !strings.Contains(strings.ToLower(result.Stderr), "error") {
+		output = result.Stderr + output
+	}
+
+	return output, nil
+}
+
+func (d *DockerClient) StreamContainerLogs(ctx context.Context, containerName string, output chan<- string) error {
+	d.executor.SetTimeout(10 * time.Minute)
+
+	return d.executor.RunWithStreaming(ctx, output, "docker", "logs", "-f", "--tail", "100", "--timestamps", containerName)
+}
+
+type ContainerStats struct {
+	CPUPercent    float64 `json:"cpuPercent"`
+	MemoryUsage   int64   `json:"memoryUsage"`
+	MemoryLimit   int64   `json:"memoryLimit"`
+	MemoryPercent float64 `json:"memoryPercent"`
+	NetworkRx     int64   `json:"networkRx"`
+	NetworkTx     int64   `json:"networkTx"`
+	PIDs          int     `json:"pids"`
+}
+
+func (d *DockerClient) ContainerStats(ctx context.Context, containerName string) (*ContainerStats, error) {
+	d.executor.SetTimeout(30 * time.Second)
+
+	format := "{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.PIDs}}"
+	result, err := d.executor.RunQuiet(ctx, "docker", "stats", "--no-stream", "--format", format, containerName)
+	if err != nil {
+		stderrLower := strings.ToLower(result.Stderr)
+		if strings.Contains(stderrLower, "no such container") {
+			return nil, fmt.Errorf("container not found: %s", containerName)
+		}
+		return nil, fmt.Errorf("failed to get container stats: %w", err)
+	}
+
+	output := strings.TrimSpace(result.Stdout)
+	if output == "" {
+		return nil, fmt.Errorf("no stats available for container: %s", containerName)
+	}
+
+	return parseContainerStats(output)
+}
+
+func parseContainerStats(output string) (*ContainerStats, error) {
+	parts := strings.Split(output, "|")
+	if len(parts) < 5 {
+		return nil, fmt.Errorf("unexpected stats output: %s", output)
+	}
+
+	stats := &ContainerStats{}
+
+	cpuStr := strings.TrimSuffix(parts[0], "%")
+	fmt.Sscanf(cpuStr, "%f", &stats.CPUPercent)
+
+	memParts := strings.Split(parts[1], " / ")
+	if len(memParts) == 2 {
+		stats.MemoryUsage = parseMemoryValue(strings.TrimSpace(memParts[0]))
+		stats.MemoryLimit = parseMemoryValue(strings.TrimSpace(memParts[1]))
+	}
+
+	memPercStr := strings.TrimSuffix(parts[2], "%")
+	fmt.Sscanf(memPercStr, "%f", &stats.MemoryPercent)
+
+	netParts := strings.Split(parts[3], " / ")
+	if len(netParts) == 2 {
+		stats.NetworkRx = parseNetworkValue(strings.TrimSpace(netParts[0]))
+		stats.NetworkTx = parseNetworkValue(strings.TrimSpace(netParts[1]))
+	}
+
+	fmt.Sscanf(parts[4], "%d", &stats.PIDs)
+
+	return stats, nil
+}
+
+func parseMemoryValue(s string) int64 {
+	s = strings.ToUpper(s)
+	var value float64
+	var unit string
+	fmt.Sscanf(s, "%f%s", &value, &unit)
+
+	multiplier := int64(1)
+	switch {
+	case strings.HasPrefix(unit, "K"):
+		multiplier = 1024
+	case strings.HasPrefix(unit, "M"):
+		multiplier = 1024 * 1024
+	case strings.HasPrefix(unit, "G"):
+		multiplier = 1024 * 1024 * 1024
+	}
+
+	return int64(value * float64(multiplier))
+}
+
+func parseNetworkValue(s string) int64 {
+	s = strings.ToUpper(s)
+	var value float64
+	var unit string
+	fmt.Sscanf(s, "%f%s", &value, &unit)
+
+	multiplier := int64(1)
+	switch {
+	case strings.HasPrefix(unit, "K"):
+		multiplier = 1000
+	case strings.HasPrefix(unit, "M"):
+		multiplier = 1000 * 1000
+	case strings.HasPrefix(unit, "G"):
+		multiplier = 1000 * 1000 * 1000
+	}
+
+	return int64(value * float64(multiplier))
+}

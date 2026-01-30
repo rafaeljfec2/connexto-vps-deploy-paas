@@ -127,3 +127,17 @@ export interface UpdateAppInput {
   readonly branch?: string;
   readonly workdir?: string;
 }
+
+export interface ContainerLogs {
+  readonly logs: string;
+}
+
+export interface ContainerStats {
+  readonly cpuPercent: number;
+  readonly memoryUsage: number;
+  readonly memoryLimit: number;
+  readonly memoryPercent: number;
+  readonly networkRx: number;
+  readonly networkTx: number;
+  readonly pids: number;
+}

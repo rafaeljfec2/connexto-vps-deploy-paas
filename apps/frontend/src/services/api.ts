@@ -5,6 +5,8 @@ import type {
   AppURL,
   BulkEnvVarInput,
   ContainerActionResult,
+  ContainerLogs,
+  ContainerStats,
   CreateAppInput,
   CreateEnvVarInput,
   Deployment,
@@ -145,6 +147,17 @@ export const api = {
         `${API_BASE}/apps/${appId}/container/start`,
         { method: "POST" },
       ),
+
+    logs: (appId: string, tail = 100): Promise<ContainerLogs> =>
+      fetchApi<ContainerLogs>(
+        `${API_BASE}/apps/${appId}/container/logs?tail=${tail}`,
+      ),
+
+    logsStreamUrl: (appId: string): string =>
+      `${API_BASE}/apps/${appId}/container/logs?follow=true`,
+
+    stats: (appId: string): Promise<ContainerStats> =>
+      fetchApi<ContainerStats>(`${API_BASE}/apps/${appId}/container/stats`),
   },
 
   webhooks: {
