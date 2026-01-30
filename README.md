@@ -1,5 +1,16 @@
 # PaaSDeploy
 
+[![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Docker](https://img.shields.io/badge/Docker-24+-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Vite](https://img.shields.io/badge/Vite-5.0-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Traefik](https://img.shields.io/badge/Traefik-3.0-24A1C1?style=flat&logo=traefikproxy&logoColor=white)](https://traefik.io/)
+[![pnpm](https://img.shields.io/badge/pnpm-9+-F69220?style=flat&logo=pnpm&logoColor=white)](https://pnpm.io/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
+
 A lightweight, self-hosted PaaS (Platform as a Service) for automatic deployments from GitHub repositories.
 
 ## Overview
@@ -8,12 +19,22 @@ PaaSDeploy is a local deployment platform that automatically deploys application
 
 ## Features
 
+### Core Features
+
 - **Automatic Deployments**: Push to `main` → automatic deploy
 - **Real-time Logs**: Watch deployment progress via SSE (Server-Sent Events)
 - **Rollback Support**: One-click rollback to previous versions
 - **Docker-based**: All applications run in isolated containers
 - **Queue Management**: One deploy per application at a time
 - **Health Checks**: Automatic health verification with rollback on failure
+
+### Recent Additions
+
+- **Monorepo Support**: Deploy specific applications from monorepo structures using `workdir` configuration
+- **Light/Dark Theme**: System-aware theme with manual toggle (light, dark, system)
+- **Database Migrations**: Automatic schema management with golang-migrate
+- **Reusable Components**: Modular UI with PageHeader, IconText, FormField, LoadingGrid, ErrorMessage
+- **Developer Experience**: VSCode configurations, ESLint, Prettier integration
 
 ## Architecture
 
@@ -123,7 +144,7 @@ paasdeploy/
 
 ### Application Contract (paasdeploy.json)
 
-Each deployed application must have a `paasdeploy.json` file in its root:
+Each deployed application must have a `paasdeploy.json` file in its root (or in the directory specified by `workdir` for monorepos):
 
 ```json
 {
@@ -148,6 +169,21 @@ Each deployed application must have a `paasdeploy.json` file in its root:
   }
 }
 ```
+
+### Monorepo Configuration
+
+For monorepo projects, specify the `workdir` when creating an application to point to the subdirectory containing `paasdeploy.json` and `docker-compose.yml`:
+
+```json
+{
+  "name": "my-monorepo-app",
+  "repository_url": "https://github.com/org/monorepo.git",
+  "branch": "main",
+  "workdir": "apps/backend"
+}
+```
+
+The deploy engine will look for configuration files at `{repo_root}/{workdir}/paasdeploy.json`.
 
 ## Environment Variables
 
@@ -233,15 +269,44 @@ See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for development guidelines.
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for in-depth architecture documentation.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and recent changes.
+
 ## License
 
 MIT License - see LICENSE file for details.
 
 ## Roadmap
 
-- [ ] GitHub Webhook integration
-- [ ] User authentication
-- [ ] Multi-tenant support
-- [ ] SSL/TLS with Let's Encrypt
-- [ ] Metrics and monitoring dashboard
-- [ ] Slack/Email notifications
+### Completed
+
+- [x] Core deployment pipeline with queue management
+- [x] Real-time logs via Server-Sent Events (SSE)
+- [x] Rollback support with health check verification
+- [x] Docker-based containerization
+- [x] PostgreSQL-backed deployment queue
+- [x] Monorepo support with `workdir` configuration
+- [x] Light/Dark/System theme support
+- [x] Database migrations with golang-migrate
+- [x] Reusable frontend components
+- [x] ESLint + Prettier code quality tools
+- [x] VSCode debug and task configurations
+
+### In Progress
+
+- [ ] GitHub Webhook integration for automatic triggers
+- [ ] Build logs persistence and search
+
+### Planned
+
+- [ ] User authentication (JWT-based)
+- [ ] Multi-tenant support with workspaces
+- [ ] SSL/TLS with Let's Encrypt auto-renewal
+- [ ] Metrics and monitoring dashboard (Prometheus/Grafana)
+- [ ] Slack/Discord/Email notifications
+- [ ] Environment variable management UI
+- [ ] Deploy previews for pull requests
+- [ ] Custom domain routing
+- [ ] Horizontal scaling with multiple workers
+- [ ] CLI tool for local development

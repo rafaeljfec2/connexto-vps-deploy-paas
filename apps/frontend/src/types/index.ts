@@ -14,6 +14,7 @@ export interface App {
   readonly name: string;
   readonly repositoryUrl: string;
   readonly branch: string;
+  readonly workdir: string;
   readonly config: Record<string, unknown>;
   readonly status: AppStatus;
   readonly lastDeployedAt: string | null;
@@ -40,6 +41,7 @@ export interface CreateAppInput {
   readonly name: string;
   readonly repositoryUrl: string;
   readonly branch?: string;
+  readonly workdir?: string;
 }
 
 export interface SSEEvent {

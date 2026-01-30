@@ -18,7 +18,7 @@ func NewPostgresAppRepository(db *sql.DB) *PostgresAppRepository {
 
 func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, config, status, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE status != 'deleted'
 		ORDER BY created_at DESC
@@ -40,6 +40,7 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 			&app.Name,
 			&app.RepositoryURL,
 			&app.Branch,
+			&app.Workdir,
 			&app.Config,
 			&app.Status,
 			&lastDeployedAt,
@@ -62,7 +63,7 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 
 func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, config, status, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE id = $1 AND status != 'deleted'
 	`
@@ -75,6 +76,7 @@ func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 		&app.Name,
 		&app.RepositoryURL,
 		&app.Branch,
+		&app.Workdir,
 		&app.Config,
 		&app.Status,
 		&lastDeployedAt,
@@ -97,7 +99,7 @@ func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 
 func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, config, status, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE name = $1 AND status != 'deleted'
 	`
@@ -110,6 +112,7 @@ func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
 		&app.Name,
 		&app.RepositoryURL,
 		&app.Branch,
+		&app.Workdir,
 		&app.Config,
 		&app.Status,
 		&lastDeployedAt,
@@ -141,20 +144,26 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 		branch = "main"
 	}
 
+	workdir := input.Workdir
+	if workdir == "" {
+		workdir = "."
+	}
+
 	query := `
-		INSERT INTO apps (name, repository_url, branch, config, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
-		RETURNING id, name, repository_url, branch, config, status, last_deployed_at, created_at, updated_at
+		INSERT INTO apps (name, repository_url, branch, workdir, config, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
+		RETURNING id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
 	`
 
 	var app domain.App
 	var lastDeployedAt sql.NullTime
 
-	err := r.db.QueryRow(query, input.Name, input.RepositoryURL, branch, config).Scan(
+	err := r.db.QueryRow(query, input.Name, input.RepositoryURL, branch, workdir, config).Scan(
 		&app.ID,
 		&app.Name,
 		&app.RepositoryURL,
 		&app.Branch,
+		&app.Workdir,
 		&app.Config,
 		&app.Status,
 		&lastDeployedAt,
@@ -187,6 +196,9 @@ func (r *PostgresAppRepository) Update(id string, input domain.UpdateAppInput) (
 	if input.Branch != nil {
 		app.Branch = *input.Branch
 	}
+	if input.Workdir != nil {
+		app.Workdir = *input.Workdir
+	}
 	if input.Config != nil {
 		app.Config = *input.Config
 	}
@@ -196,12 +208,12 @@ func (r *PostgresAppRepository) Update(id string, input domain.UpdateAppInput) (
 
 	query := `
 		UPDATE apps
-		SET name = $2, repository_url = $3, branch = $4, config = $5, status = $6, updated_at = NOW()
+		SET name = $2, repository_url = $3, branch = $4, workdir = $5, config = $6, status = $7, updated_at = NOW()
 		WHERE id = $1
 		RETURNING updated_at
 	`
 
-	err = r.db.QueryRow(query, id, app.Name, app.RepositoryURL, app.Branch, app.Config, app.Status).Scan(&app.UpdatedAt)
+	err = r.db.QueryRow(query, id, app.Name, app.RepositoryURL, app.Branch, app.Workdir, app.Config, app.Status).Scan(&app.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

@@ -117,6 +117,30 @@ Page Load → React Query → REST API → Cache → Render
 SSE Event → Parse → Update Cache ───────┘
 ```
 
+#### Theme System
+
+The frontend supports light, dark, and system themes:
+
+- **Storage**: User preference stored in `localStorage` under `theme` key
+- **System Detection**: Uses `matchMedia('(prefers-color-scheme: dark)')`
+- **FOUC Prevention**: Initial theme applied via inline script in `index.html`
+- **CSS Variables**: Theme colors defined in `index.css` for `:root` and `.dark`
+
+```tsx
+// Hook usage
+const { theme, setTheme, resolvedTheme } = useTheme();
+```
+
+#### Reusable Components
+
+| Component    | Purpose                                 |
+| ------------ | --------------------------------------- |
+| PageHeader   | Page title, description, back button    |
+| IconText     | Icon + text display for metadata        |
+| FormField    | Label, input wrapper, error handling    |
+| LoadingGrid  | Skeleton loader grid for lists          |
+| ErrorMessage | Consistent error display (inline/block) |
+
 ### Backend (Go)
 
 The backend is a Go application with clear layered architecture.
@@ -179,6 +203,31 @@ The deploy engine is the core of PaaSDeploy. It runs as a background process wit
                                                                            └─────────┘
 ```
 
+#### Monorepo Support
+
+For monorepo deployments, the `workdir` field specifies the subdirectory containing the application:
+
+```
+Repository Root
+├── apps/
+│   ├── frontend/
+│   │   ├── paasdeploy.json    ← workdir: "apps/frontend"
+│   │   └── docker-compose.yml
+│   └── backend/
+│       ├── paasdeploy.json    ← workdir: "apps/backend"
+│       └── docker-compose.yml
+└── packages/
+    └── shared/
+```
+
+The worker calculates the application directory as:
+
+```go
+appDir := filepath.Join(repoDir, app.Workdir)
+```
+
+All configuration loading and Docker Compose operations use `appDir` as the working directory.
+
 #### Queue Management
 
 The queue uses PostgreSQL with `SELECT FOR UPDATE SKIP LOCKED` to ensure:
@@ -210,15 +259,33 @@ FOR UPDATE SKIP LOCKED
 │ name            │       │ id (PK)             │
 │ repository_url  │       │ commit_sha          │
 │ branch          │       │ commit_message      │
-│ config (JSONB)  │       │ status              │
-│ status          │       │ started_at          │
-│ last_deployed_at│       │ finished_at         │
-│ created_at      │       │ error_message       │
-│ updated_at      │       │ logs                │
-└─────────────────┘       │ previous_image_tag  │
-                          │ current_image_tag   │
+│ workdir         │       │ status              │
+│ config (JSONB)  │       │ started_at          │
+│ status          │       │ finished_at         │
+│ last_deployed_at│       │ error_message       │
+│ created_at      │       │ logs                │
+│ updated_at      │       │ previous_image_tag  │
+└─────────────────┘       │ current_image_tag   │
                           │ created_at          │
                           └─────────────────────┘
+```
+
+### Migrations
+
+Database schema is managed via [golang-migrate](https://github.com/golang-migrate/migrate). Migrations run automatically on backend startup.
+
+```
+migrations/
+├── 000001_initial.up.sql       # Initial schema
+├── 000001_initial.down.sql     # Rollback initial
+├── 000002_add_workdir.up.sql   # Monorepo support
+└── 000002_add_workdir.down.sql # Rollback workdir
+```
+
+To create a new migration:
+
+```bash
+migrate create -ext sql -dir apps/backend/migrations -seq <migration_name>
 ```
 
 ### Indexes

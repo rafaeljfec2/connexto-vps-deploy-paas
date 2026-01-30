@@ -60,7 +60,7 @@ export function AppForm() {
               value={name}
               onChange={(e) =>
                 setName(
-                  e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+                  e.target.value.toLowerCase().replaceAll(/[^a-z0-9-]/g, "-"),
                 )
               }
               required

@@ -18,6 +18,7 @@ type App struct {
 	Name           string          `json:"name"`
 	RepositoryURL  string          `json:"repositoryUrl"`
 	Branch         string          `json:"branch"`
+	Workdir        string          `json:"workdir"`
 	Config         json.RawMessage `json:"config"`
 	Status         AppStatus       `json:"status"`
 	LastDeployedAt *time.Time      `json:"lastDeployedAt,omitempty"`
@@ -29,6 +30,7 @@ type CreateAppInput struct {
 	Name          string          `json:"name"`
 	RepositoryURL string          `json:"repositoryUrl"`
 	Branch        string          `json:"branch"`
+	Workdir       string          `json:"workdir"`
 	Config        json.RawMessage `json:"config,omitempty"`
 }
 
@@ -36,6 +38,7 @@ type UpdateAppInput struct {
 	Name          *string          `json:"name,omitempty"`
 	RepositoryURL *string          `json:"repositoryUrl,omitempty"`
 	Branch        *string          `json:"branch,omitempty"`
+	Workdir       *string          `json:"workdir,omitempty"`
 	Config        *json.RawMessage `json:"config,omitempty"`
 	Status        *AppStatus       `json:"status,omitempty"`
 }

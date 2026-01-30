@@ -42,26 +42,17 @@ func New(cfg *config.Config, db *sql.DB, logger *slog.Logger) *Engine {
 		cancel:     cancel,
 	}
 
-	git := NewGitClient(cfg.Deploy.DataDir, logger)
-	docker := NewDockerClient(cfg.Deploy.DataDir, cfg.Docker.Registry, logger)
-	health := NewHealthChecker(
-		cfg.Deploy.HealthCheckTimeout,
-		cfg.Deploy.HealthCheckRetries,
-		5*time.Second,
-		logger,
-	)
+	deps := WorkerDeps{
+		Git:        NewGitClient(cfg.Deploy.DataDir, logger),
+		Docker:     NewDockerClient(cfg.Deploy.DataDir, cfg.Docker.Registry, logger),
+		Health:     NewHealthChecker(cfg.Deploy.HealthCheckTimeout, cfg.Deploy.HealthCheckRetries, 5*time.Second, logger),
+		Notifier:   notifier,
+		Dispatcher: dispatcher,
+		Logger:     logger,
+	}
 
 	for i := 0; i < cfg.Deploy.Workers; i++ {
-		worker := NewWorker(
-			i,
-			cfg.Deploy.DataDir,
-			git,
-			docker,
-			health,
-			notifier,
-			dispatcher,
-			logger,
-		)
+		worker := NewWorker(i, cfg.Deploy.DataDir, deps)
 		engine.workers = append(engine.workers, worker)
 	}
 

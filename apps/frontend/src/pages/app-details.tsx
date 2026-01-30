@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ExternalLink, GitBranch, RefreshCw, RotateCcw } from "lucide-react";
+import {
+  ExternalLink,
+  Folder,
+  GitBranch,
+  RefreshCw,
+  RotateCcw,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -75,7 +81,7 @@ export function AppDetailsPage() {
           latestDeploy && <StatusBadge status={latestDeploy.status} />
         }
         description={
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
             <IconText icon={GitBranch} as="span">
               {app.branch}
             </IconText>
@@ -88,6 +94,11 @@ export function AppDetailsPage() {
               <ExternalLink className="h-4 w-4" />
               {formatRepositoryUrl(app.repositoryUrl)}
             </a>
+            {app.workdir && app.workdir !== "." && (
+              <IconText icon={Folder} as="span">
+                <span className="font-mono text-xs">{app.workdir}</span>
+              </IconText>
+            )}
           </div>
         }
         actions={

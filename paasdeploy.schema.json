@@ -14,6 +14,12 @@
       "maxLength": 63,
       "examples": ["my-app", "api-service"]
     },
+    "workdir": {
+      "type": "string",
+      "description": "Working directory for monorepo apps (relative to repository root)",
+      "default": ".",
+      "examples": [".", "./apps/api", "./packages/backend", "./services/auth"]
+    },
     "build": {
       "type": "object",
       "description": "Build configuration",

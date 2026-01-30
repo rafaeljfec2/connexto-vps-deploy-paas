@@ -91,6 +91,7 @@ paasdeploy/
 - Use `gofmt` for formatting
 - Run `go vet` before committing
 - Write tests for new functionality
+- Use dependency injection via structs (see `WorkerDeps` pattern)
 
 #### Naming Conventions
 
@@ -127,6 +128,34 @@ if !isValid {
 - Prefer functional components with hooks
 - Use React Query for server state
 - Follow the feature-based structure
+- Use `??` instead of `||` for nullish coalescing
+- Never use `any` type - always define proper types
+
+### Linting and Formatting
+
+The frontend uses ESLint and Prettier for code quality:
+
+```bash
+cd apps/frontend
+
+# Check linting issues
+pnpm lint
+
+# Fix auto-fixable issues
+pnpm lint:fix
+
+# Format code
+pnpm format
+
+# Check formatting without changes
+pnpm format:check
+```
+
+ESLint is configured to:
+
+- Remove unused imports automatically
+- Sort imports consistently
+- Integrate with Prettier for formatting
 
 #### Component Structure
 
@@ -184,6 +213,59 @@ export function useCreateApp() {
 // Avoid: Custom CSS unless necessary
 <div style={{ display: 'flex', flexDirection: 'column' }}>
 ```
+
+### Theme Support
+
+When adding new components, ensure they support both light and dark themes:
+
+```tsx
+// Use semantic color variables
+<div className="bg-background text-foreground">
+
+// Use dark: variant for specific overrides
+<div className="border-gray-200 dark:border-gray-700">
+```
+
+### Component Props
+
+Mark component props as readonly (SonarQube S6759):
+
+```tsx
+interface ButtonProps {
+  readonly variant: "primary" | "secondary";
+  readonly onClick: () => void;
+}
+```
+
+## VSCode Configuration
+
+The project includes VSCode configurations for optimal developer experience:
+
+### Debug Configurations
+
+- **Frontend (Chrome/Edge)**: Launch browser with debugger attached
+- **Backend (Go)**: Debug Go API with Delve
+- **Full Stack**: Launch both frontend and backend simultaneously
+
+Access via `Run and Debug` panel or `F5`.
+
+### Tasks
+
+Run common tasks via `Cmd/Ctrl + Shift + P` → `Tasks: Run Task`:
+
+| Task             | Description                   |
+| ---------------- | ----------------------------- |
+| Frontend: Dev    | Start Vite dev server         |
+| Frontend: Lint   | Run ESLint                    |
+| Frontend: Format | Format with Prettier          |
+| Backend: Dev     | Start Go API with hot reload  |
+| Backend: Build   | Build Go binary               |
+| Docker: Up       | Start infrastructure services |
+| Docker: Down     | Stop infrastructure services  |
+
+### Recommended Extensions
+
+Install recommended extensions via `Extensions` → `Show Recommended Extensions`.
 
 ## Git Workflow
 

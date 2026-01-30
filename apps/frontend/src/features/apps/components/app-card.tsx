@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Clock, ExternalLink, GitBranch } from "lucide-react";
+import { Clock, ExternalLink, Folder, GitBranch } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconText } from "@/components/icon-text";
 import { StatusBadge } from "@/components/status-badge";
@@ -31,6 +31,12 @@ export function AppCard({ app, latestDeploy }: AppCardProps) {
               {formatRepositoryUrl(app.repositoryUrl)}
             </span>
           </IconText>
+
+          {app.workdir && app.workdir !== "." && (
+            <IconText icon={Folder}>
+              <span className="truncate font-mono text-xs">{app.workdir}</span>
+            </IconText>
+          )}
 
           {app.lastDeployedAt && (
             <IconText icon={Clock}>
