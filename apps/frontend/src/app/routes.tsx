@@ -1,6 +1,6 @@
-import { Routes, Route } from "react-router-dom";
-import { DashboardPage } from "@/pages/dashboard";
+import { Route, Routes } from "react-router-dom";
 import { AppDetailsPage } from "@/pages/app-details";
+import { DashboardPage } from "@/pages/dashboard";
 import { NewAppPage } from "@/pages/new-app";
 
 export function AppRoutes() {

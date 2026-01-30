@@ -1,11 +1,11 @@
 import { Link } from "react-router-dom";
-import { Plus, Box } from "lucide-react";
+import { Box, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorMessage } from "@/components/error-message";
+import { LoadingGrid } from "@/components/loading-grid";
 import { useApps } from "../hooks/use-apps";
 import { AppCard } from "./app-card";
-import { Button } from "@/components/ui/button";
-import { LoadingGrid } from "@/components/loading-grid";
-import { ErrorMessage } from "@/components/error-message";
-import { EmptyState } from "@/components/empty-state";
 
 export function AppList() {
   const { data: apps, isLoading, error } = useApps();

@@ -1,8 +1,8 @@
-import { GitCommit, Clock } from "lucide-react";
+import { Clock, GitCommit } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { StatusBadge } from "@/components/status-badge";
-import { IconText } from "@/components/icon-text";
 import { ErrorMessage } from "@/components/error-message";
+import { IconText } from "@/components/icon-text";
+import { StatusBadge } from "@/components/status-badge";
 import { formatDate, truncateCommitSha } from "@/lib/utils";
 import type { Deployment } from "@/types";
 

@@ -1,9 +1,9 @@
 import { Clock } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
+import { ErrorMessage } from "@/components/error-message";
+import { LoadingGrid } from "@/components/loading-grid";
 import { useDeploys } from "../hooks/use-deploys";
 import { DeployCard } from "./deploy-card";
-import { LoadingGrid } from "@/components/loading-grid";
-import { ErrorMessage } from "@/components/error-message";
-import { EmptyState } from "@/components/empty-state";
 
 interface DeployTimelineProps {
   readonly appId: string;

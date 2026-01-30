@@ -1,7 +1,7 @@
-import { useEffect, useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { sseClient } from "@/services/sse";
-import type { SSEEvent, App, Deployment } from "@/types";
+import type { App, Deployment, SSEEvent } from "@/types";
 
 export function useSSE() {
   const queryClient = useQueryClient();

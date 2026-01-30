@@ -1,21 +1,21 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { GitBranch, ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { ExternalLink, GitBranch, RefreshCw, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { IconText } from "@/components/icon-text";
+import { PageHeader } from "@/components/page-header";
+import { StatusBadge } from "@/components/status-badge";
 import { useApp } from "@/features/apps/hooks/use-apps";
-import { formatRepositoryUrl } from "@/lib/utils";
+import { DeployTimeline } from "@/features/deploys/components/deploy-timeline";
+import { LogViewer } from "@/features/deploys/components/log-viewer";
 import {
   useDeploys,
   useRedeploy,
   useRollback,
 } from "@/features/deploys/hooks/use-deploys";
-import { DeployTimeline } from "@/features/deploys/components/deploy-timeline";
-import { LogViewer } from "@/features/deploys/components/log-viewer";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { StatusBadge } from "@/components/status-badge";
-import { PageHeader } from "@/components/page-header";
-import { IconText } from "@/components/icon-text";
+import { formatRepositoryUrl } from "@/lib/utils";
 
 export function AppDetailsPage() {
   const { id } = useParams<{ id: string }>();

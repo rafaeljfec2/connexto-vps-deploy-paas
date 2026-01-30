@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Rocket, Plus } from "lucide-react";
+import { Plus, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Header() {

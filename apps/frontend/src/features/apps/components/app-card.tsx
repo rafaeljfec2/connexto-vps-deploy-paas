@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
-import { GitBranch, Clock, ExternalLink } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { StatusBadge } from "@/components/status-badge";
+import { Clock, ExternalLink, GitBranch } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconText } from "@/components/icon-text";
+import { StatusBadge } from "@/components/status-badge";
 import { formatRelativeTime, formatRepositoryUrl } from "@/lib/utils";
 import type { App, Deployment } from "@/types";
 
