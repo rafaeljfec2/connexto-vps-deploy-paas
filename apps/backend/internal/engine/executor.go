@@ -34,6 +34,14 @@ func NewExecutor(workDir string, timeout time.Duration, logger *slog.Logger) *Ex
 }
 
 func (e *Executor) Run(ctx context.Context, name string, args ...string) (*ExecutorResult, error) {
+	return e.run(ctx, true, name, args...)
+}
+
+func (e *Executor) RunQuiet(ctx context.Context, name string, args ...string) (*ExecutorResult, error) {
+	return e.run(ctx, false, name, args...)
+}
+
+func (e *Executor) run(ctx context.Context, logErrors bool, name string, args ...string) (*ExecutorResult, error) {
 	start := time.Now()
 
 	ctx, cancel := context.WithTimeout(ctx, e.timeout)
@@ -69,13 +77,15 @@ func (e *Executor) Run(ctx context.Context, name string, args ...string) (*Execu
 	}
 
 	if err != nil {
-		e.logger.Error("Command failed",
-			"command", name,
-			"args", args,
-			"exitCode", result.ExitCode,
-			"stderr", result.Stderr,
-			"duration", result.Duration,
-		)
+		if logErrors {
+			e.logger.Error("Command failed",
+				"command", name,
+				"args", args,
+				"exitCode", result.ExitCode,
+				"stderr", result.Stderr,
+				"duration", result.Duration,
+			)
+		}
 		return result, fmt.Errorf("command failed with exit code %d: %s", result.ExitCode, result.Stderr)
 	}
 

@@ -214,9 +214,10 @@ func (d *DockerClient) InspectContainer(ctx context.Context, containerName strin
 	d.executor.SetTimeout(30 * time.Second)
 
 	format := "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.State.StartedAt}}"
-	result, err := d.executor.Run(ctx, "docker", "inspect", "--format", format, containerName)
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", "--format", format, containerName)
 	if err != nil {
-		if strings.Contains(result.Stderr, "No such object") || strings.Contains(result.Stderr, "Error: No such") {
+		stderrLower := strings.ToLower(result.Stderr)
+		if strings.Contains(stderrLower, "no such object") || strings.Contains(stderrLower, "no such container") {
 			return &ContainerHealth{
 				Name:   containerName,
 				Status: "not_found",
