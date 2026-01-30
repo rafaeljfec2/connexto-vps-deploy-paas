@@ -1,0 +1,24 @@
+{
+  "$schema": "../../paasdeploy.schema.json",
+  "name": "paasdeploy-frontend",
+  "build": {
+    "type": "dockerfile",
+    "dockerfile": "./Dockerfile",
+    "context": "."
+  },
+  "healthcheck": {
+    "path": "/",
+    "interval": "30s",
+    "timeout": "5s",
+    "retries": 3,
+    "startPeriod": "10s"
+  },
+  "port": 80,
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "resources": {
+    "memory": "128m",
+    "cpu": "0.25"
+  }
+}

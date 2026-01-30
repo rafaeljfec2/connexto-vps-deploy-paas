@@ -19,18 +19,28 @@ const (
 )
 
 type PaasDeployConfig struct {
-	Name   string `json:"name"`
-	Build  struct {
-		Type       string `json:"type"`
-		Dockerfile string `json:"dockerfile"`
-		Context    string `json:"context"`
+	Name  string `json:"name"`
+	Build struct {
+		Type       string            `json:"type"`
+		Dockerfile string            `json:"dockerfile"`
+		Context    string            `json:"context"`
+		Args       map[string]string `json:"args,omitempty"`
+		Target     string            `json:"target,omitempty"`
 	} `json:"build"`
 	Healthcheck struct {
-		Path     string `json:"path"`
-		Interval string `json:"interval"`
-		Timeout  string `json:"timeout"`
+		Path        string `json:"path"`
+		Interval    string `json:"interval"`
+		Timeout     string `json:"timeout"`
+		Retries     int    `json:"retries"`
+		StartPeriod string `json:"startPeriod"`
 	} `json:"healthcheck"`
-	Port int `json:"port"`
+	Port      int               `json:"port"`
+	Env       map[string]string `json:"env,omitempty"`
+	Resources struct {
+		Memory string `json:"memory"`
+		CPU    string `json:"cpu"`
+	} `json:"resources"`
+	Domains []string `json:"domains,omitempty"`
 }
 
 type WorkerDeps struct {
@@ -138,28 +148,32 @@ func (w *Worker) syncGit(ctx context.Context, deploy *domain.Deployment, app *do
 	return nil
 }
 
-func (w *Worker) loadConfig(repoDir string) error {
-	configPath := filepath.Join(repoDir, "paasdeploy.json")
+func (w *Worker) loadConfig(appDir string) error {
+	configPath := filepath.Join(appDir, "paasdeploy.json")
+
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return fmt.Errorf("paasdeploy.json not found in repository - this file is required for deployment")
+	}
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		w.deployConfig = &PaasDeployConfig{
-			Port: defaultAppPort,
-		}
-		w.deployConfig.Build.Type = "dockerfile"
-		w.deployConfig.Build.Dockerfile = "./Dockerfile"
-		w.deployConfig.Build.Context = "."
-		w.deployConfig.Healthcheck.Path = "/health"
-		return nil
+		return fmt.Errorf("failed to read paasdeploy.json: %w", err)
 	}
 
 	var config PaasDeployConfig
 	if err := json.Unmarshal(data, &config); err != nil {
-		return err
+		return fmt.Errorf("invalid paasdeploy.json: %w", err)
+	}
+
+	if config.Name == "" {
+		return fmt.Errorf("paasdeploy.json: 'name' field is required")
 	}
 
 	if config.Port == 0 {
 		config.Port = defaultAppPort
+	}
+	if config.Build.Type == "" {
+		config.Build.Type = "dockerfile"
 	}
 	if config.Build.Dockerfile == "" {
 		config.Build.Dockerfile = "./Dockerfile"
@@ -169,6 +183,29 @@ func (w *Worker) loadConfig(repoDir string) error {
 	}
 	if config.Healthcheck.Path == "" {
 		config.Healthcheck.Path = "/health"
+	}
+	if config.Healthcheck.Interval == "" {
+		config.Healthcheck.Interval = "30s"
+	}
+	if config.Healthcheck.Timeout == "" {
+		config.Healthcheck.Timeout = "5s"
+	}
+	if config.Healthcheck.Retries == 0 {
+		config.Healthcheck.Retries = 3
+	}
+	if config.Healthcheck.StartPeriod == "" {
+		config.Healthcheck.StartPeriod = "10s"
+	}
+	if config.Resources.Memory == "" {
+		config.Resources.Memory = "512m"
+	}
+	if config.Resources.CPU == "" {
+		config.Resources.CPU = "0.5"
+	}
+
+	dockerfilePath := filepath.Join(appDir, config.Build.Dockerfile)
+	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
+		return fmt.Errorf("Dockerfile not found at %s - this file is required for deployment", config.Build.Dockerfile)
 	}
 
 	w.deployConfig = &config
@@ -199,8 +236,14 @@ func (w *Worker) buildDocker(ctx context.Context, deploy *domain.Deployment, app
 	return nil
 }
 
-func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment, app *domain.App, repoDir string) error {
+func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment, app *domain.App, appDir string) error {
 	w.log(deploy.ID, app.ID, "Deploying container...")
+
+	imageTag := w.deps.Docker.GetImageTag(app.Name, deploy.CommitSHA)
+
+	if err := w.generateComposeFile(appDir, app.Name, imageTag); err != nil {
+		return fmt.Errorf("failed to generate docker-compose.yml: %w", err)
+	}
 
 	output := make(chan string, outputChannelBuffer)
 	go func() {
@@ -209,7 +252,7 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 		}
 	}()
 
-	err := w.deps.Docker.ComposeUp(ctx, repoDir, output)
+	err := w.deps.Docker.ComposeUp(ctx, appDir, output)
 	close(output)
 
 	if err != nil {
@@ -218,6 +261,87 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 
 	w.log(deploy.ID, app.ID, "Container deployed successfully")
 	return nil
+}
+
+func (w *Worker) generateComposeFile(appDir, appName, imageTag string) error {
+	cfg := w.deployConfig
+
+	var envVars string
+	if len(cfg.Env) > 0 {
+		envVars = "    environment:\n"
+		for k, v := range cfg.Env {
+			envVars += fmt.Sprintf("      - %s=%s\n", k, v)
+		}
+	}
+
+	var labels string
+	if len(cfg.Domains) > 0 {
+		hosts := ""
+		for i, domain := range cfg.Domains {
+			if i > 0 {
+				hosts += " || "
+			}
+			hosts += fmt.Sprintf("Host(`%s`)", domain)
+		}
+		labels = fmt.Sprintf("    labels:\n"+
+			"      - \"traefik.enable=true\"\n"+
+			"      - \"traefik.http.routers.%s.rule=%s\"\n"+
+			"      - \"traefik.http.routers.%s.tls=true\"\n"+
+			"      - \"traefik.http.routers.%s.tls.certresolver=letsencrypt\"\n"+
+			"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
+			appName, hosts, appName, appName, appName, cfg.Port)
+	} else {
+		labels = fmt.Sprintf("    labels:\n"+
+			"      - \"traefik.enable=true\"\n"+
+			"      - \"traefik.http.routers.%s.rule=Host(`%s.localhost`)\"\n"+
+			"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
+			appName, appName, appName, cfg.Port)
+	}
+
+	composeContent := fmt.Sprintf("version: \"3.8\"\n\n"+
+		"services:\n"+
+		"  %s:\n"+
+		"    image: %s\n"+
+		"    container_name: %s\n"+
+		"    restart: unless-stopped\n"+
+		"    ports:\n"+
+		"      - \"%d\"\n"+
+		"%s"+
+		"%s"+
+		"    healthcheck:\n"+
+		"      test: [\"CMD\", \"wget\", \"-q\", \"--spider\", \"http://localhost:%d%s\"]\n"+
+		"      interval: %s\n"+
+		"      timeout: %s\n"+
+		"      retries: %d\n"+
+		"      start_period: %s\n"+
+		"    deploy:\n"+
+		"      resources:\n"+
+		"        limits:\n"+
+		"          memory: %s\n"+
+		"          cpus: '%s'\n"+
+		"    networks:\n"+
+		"      - paasdeploy\n\n"+
+		"networks:\n"+
+		"  paasdeploy:\n"+
+		"    external: true\n",
+		appName,
+		imageTag,
+		appName,
+		cfg.Port,
+		envVars,
+		labels,
+		cfg.Port,
+		cfg.Healthcheck.Path,
+		cfg.Healthcheck.Interval,
+		cfg.Healthcheck.Timeout,
+		cfg.Healthcheck.Retries,
+		cfg.Healthcheck.StartPeriod,
+		cfg.Resources.Memory,
+		cfg.Resources.CPU,
+	)
+
+	composePath := filepath.Join(appDir, "docker-compose.yml")
+	return os.WriteFile(composePath, []byte(composeContent), 0644)
 }
 
 func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
