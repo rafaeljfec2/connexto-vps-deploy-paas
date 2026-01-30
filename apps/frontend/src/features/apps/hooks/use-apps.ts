@@ -39,6 +39,18 @@ export function useDeleteApp() {
   });
 }
 
+export function usePurgeApp() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: string) => api.apps.purge(id),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+      queryClient.removeQueries({ queryKey: ["app", id] });
+    },
+  });
+}
+
 export function useSetupWebhook() {
   const queryClient = useQueryClient();
 

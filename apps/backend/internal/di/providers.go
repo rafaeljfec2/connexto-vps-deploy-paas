@@ -49,6 +49,7 @@ var WebhookSet = wire.NewSet(
 )
 
 var ServiceSet = wire.NewSet(
+	ProvideAppCleaner,
 	ProvideAppService,
 )
 
@@ -103,13 +104,19 @@ func ProvideWebhookManager(cfg *config.Config, logger *slog.Logger) webhook.Mana
 	return webhook.NewGitHubManager(provider, cfg.GitHub.WebhookURL, cfg.GitHub.WebhookSecret)
 }
 
+func ProvideAppCleaner(cfg *config.Config, logger *slog.Logger) *engine.AppCleaner {
+	return engine.NewAppCleaner(cfg.Deploy.DataDir, logger)
+}
+
 func ProvideAppService(
 	appRepo domain.AppRepository,
 	deploymentRepo domain.DeploymentRepository,
+	envVarRepo domain.EnvVarRepository,
 	webhookManager webhook.Manager,
+	appCleaner *engine.AppCleaner,
 	logger *slog.Logger,
 ) *service.AppService {
-	return service.NewAppService(appRepo, deploymentRepo, webhookManager, logger)
+	return service.NewAppService(appRepo, deploymentRepo, envVarRepo, webhookManager, appCleaner, logger)
 }
 
 func ProvideGitHubWebhookHandler(

@@ -309,3 +309,22 @@ func (r *PostgresAppRepository) UpdateLastDeployedAt(id string, deployedAt time.
 	_, err := r.db.Exec(query, id, deployedAt)
 	return err
 }
+
+func (r *PostgresAppRepository) HardDelete(id string) error {
+	query := `DELETE FROM apps WHERE id = $1`
+	result, err := r.db.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+
+	return nil
+}

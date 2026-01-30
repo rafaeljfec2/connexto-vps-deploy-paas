@@ -5,13 +5,11 @@ import { Input } from "@/components/ui/input";
 import { FormField } from "@/components/form-field";
 import type { StepProps } from "./types";
 
-interface RepositoryStepProps extends StepProps {}
-
 export function RepositoryStep({
   data,
   onUpdate,
   onNext,
-}: Readonly<RepositoryStepProps>) {
+}: Readonly<StepProps>) {
   const isValid =
     data.name.length >= 2 && data.repositoryUrl.includes("github.com");
 

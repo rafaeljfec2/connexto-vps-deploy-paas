@@ -57,4 +57,5 @@ type DeploymentRepository interface {
 	MarkAsRunning(id string) error
 	MarkAsSuccess(id string, imageTag string) error
 	MarkAsFailed(id string, errorMessage string) error
+	DeleteByAppID(appID string) error
 }

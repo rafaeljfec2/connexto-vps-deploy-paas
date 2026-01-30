@@ -60,5 +60,6 @@ type EnvVarRepository interface {
 	Update(id string, input UpdateEnvVarInput) (*EnvVar, error)
 	Delete(id string) error
 	DeleteByAppIDAndKey(appID, key string) error
+	DeleteByAppID(appID string) error
 	BulkUpsert(appID string, vars []CreateEnvVarInput) error
 }

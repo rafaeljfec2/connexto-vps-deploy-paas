@@ -17,14 +17,12 @@ const INITIAL_VAR: EditingEnvVar = {
   isSecret: false,
 };
 
-interface EnvironmentStepProps extends StepProps {}
-
 export function EnvironmentStep({
   data,
   onUpdate,
   onNext,
   onBack,
-}: Readonly<EnvironmentStepProps>) {
+}: Readonly<StepProps>) {
   const [newVar, setNewVar] = useState<EditingEnvVar>(INITIAL_VAR);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [showPasteMode, setShowPasteMode] = useState(false);

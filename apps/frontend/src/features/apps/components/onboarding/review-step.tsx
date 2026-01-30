@@ -37,13 +37,7 @@ function ReviewItem({ icon, label, value, empty }: Readonly<ReviewItemProps>) {
   );
 }
 
-interface ReviewStepProps extends StepProps {}
-
-export function ReviewStep({
-  data,
-  onNext,
-  onBack,
-}: Readonly<ReviewStepProps>) {
+export function ReviewStep({ data, onNext, onBack }: Readonly<StepProps>) {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
 
   const toggleShowSecret = (localId: string) => {

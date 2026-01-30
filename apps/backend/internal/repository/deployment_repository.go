@@ -335,3 +335,9 @@ func (r *PostgresDeploymentRepository) MarkAsFailed(id string, errorMessage stri
 	_, err := r.db.Exec(query, id, now, errorMessage)
 	return err
 }
+
+func (r *PostgresDeploymentRepository) DeleteByAppID(appID string) error {
+	query := `DELETE FROM deployments WHERE app_id = $1`
+	_, err := r.db.Exec(query, appID)
+	return err
+}

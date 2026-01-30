@@ -78,6 +78,17 @@ export const api = {
         throw ApiError.fromResponse(envelope, response.status);
       }
     },
+
+    purge: async (id: string): Promise<void> => {
+      const response = await fetch(`${API_BASE}/apps/${id}?purge=true`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
   },
 
   deployments: {

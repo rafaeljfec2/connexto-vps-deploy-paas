@@ -10,23 +10,33 @@ import (
 	"github.com/paasdeploy/backend/internal/webhook"
 )
 
+type AppCleaner interface {
+	CleanApp(ctx context.Context, appName string) error
+}
+
 type AppService struct {
 	appRepo        domain.AppRepository
 	deploymentRepo domain.DeploymentRepository
+	envVarRepo     domain.EnvVarRepository
 	webhookManager webhook.Manager
+	appCleaner     AppCleaner
 	logger         *slog.Logger
 }
 
 func NewAppService(
 	appRepo domain.AppRepository,
 	deploymentRepo domain.DeploymentRepository,
+	envVarRepo domain.EnvVarRepository,
 	webhookManager webhook.Manager,
+	appCleaner AppCleaner,
 	logger *slog.Logger,
 ) *AppService {
 	return &AppService{
 		appRepo:        appRepo,
 		deploymentRepo: deploymentRepo,
+		envVarRepo:     envVarRepo,
 		webhookManager: webhookManager,
+		appCleaner:     appCleaner,
 		logger:         logger,
 	}
 }
@@ -147,6 +157,67 @@ func (s *AppService) removeWebhookAsync(ctx context.Context, app *domain.App) {
 		"app_name", app.Name,
 		"webhook_id", *app.WebhookID,
 	)
+}
+
+func (s *AppService) PurgeApp(ctx context.Context, id string) error {
+	app, err := s.appRepo.FindByID(id)
+	if err != nil {
+		return err
+	}
+
+	s.logger.Info("starting app purge",
+		"app_id", app.ID,
+		"app_name", app.Name,
+	)
+
+	if s.webhookManager != nil && app.WebhookID != nil {
+		err := s.webhookManager.Remove(ctx, webhook.RemoveInput{
+			RepositoryURL: app.RepositoryURL,
+			WebhookID:     *app.WebhookID,
+		})
+		if err != nil {
+			s.logger.Warn("failed to remove webhook during purge",
+				"app_id", app.ID,
+				"error", err,
+			)
+		}
+	}
+
+	if s.appCleaner != nil {
+		if err := s.appCleaner.CleanApp(ctx, app.Name); err != nil {
+			s.logger.Warn("failed to clean app resources",
+				"app_id", app.ID,
+				"error", err,
+			)
+		}
+	}
+
+	if s.envVarRepo != nil {
+		if err := s.envVarRepo.DeleteByAppID(app.ID); err != nil {
+			s.logger.Warn("failed to delete env vars",
+				"app_id", app.ID,
+				"error", err,
+			)
+		}
+	}
+
+	if err := s.deploymentRepo.DeleteByAppID(app.ID); err != nil {
+		s.logger.Warn("failed to delete deployments",
+			"app_id", app.ID,
+			"error", err,
+		)
+	}
+
+	if err := s.appRepo.HardDelete(app.ID); err != nil {
+		return err
+	}
+
+	s.logger.Info("app purge completed",
+		"app_id", app.ID,
+		"app_name", app.Name,
+	)
+
+	return nil
 }
 
 func (s *AppService) ListDeployments(appID string) ([]domain.Deployment, error) {

@@ -184,6 +184,12 @@ func (r *PostgresEnvVarRepository) DeleteByAppIDAndKey(appID, key string) error 
 	return nil
 }
 
+func (r *PostgresEnvVarRepository) DeleteByAppID(appID string) error {
+	query := `DELETE FROM app_env_vars WHERE app_id = $1`
+	_, err := r.db.Exec(query, appID)
+	return err
+}
+
 func (r *PostgresEnvVarRepository) BulkUpsert(appID string, vars []domain.CreateEnvVarInput) error {
 	tx, err := r.db.Begin()
 	if err != nil {

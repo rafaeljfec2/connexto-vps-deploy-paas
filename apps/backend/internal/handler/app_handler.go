@@ -112,17 +112,27 @@ func (h *AppHandler) GetApp(c *fiber.Ctx) error {
 // DeleteApp godoc
 //
 //	@Summary		Remove uma aplicacao
-//	@Description	Deleta um app e remove o webhook associado
+//	@Description	Deleta um app. Use ?purge=true para remover completamente (containers, imagens, arquivos, banco)
 //	@Tags			apps
-//	@Param			id	path	string	true	"ID do app"
+//	@Param			id		path	string	true	"ID do app"
+//	@Param			purge	query	bool	false	"Se true, remove completamente o app (hard delete)"
 //	@Success		204	"No Content"
 //	@Failure		404	{object}	docs.ErrorInfo
 //	@Router			/apps/{id} [delete]
 func (h *AppHandler) DeleteApp(c *fiber.Ctx) error {
 	id := c.Params("id")
+	purge := c.QueryBool("purge", false)
 
 	ctx := context.Background()
-	if err := h.appService.DeleteApp(ctx, id); err != nil {
+
+	var err error
+	if purge {
+		err = h.appService.PurgeApp(ctx, id)
+	} else {
+		err = h.appService.DeleteApp(ctx, id)
+	}
+
+	if err != nil {
 		return h.handleError(c, err)
 	}
 

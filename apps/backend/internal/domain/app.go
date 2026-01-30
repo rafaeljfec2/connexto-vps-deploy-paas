@@ -53,5 +53,6 @@ type AppRepository interface {
 	Create(input CreateAppInput) (*App, error)
 	Update(id string, input UpdateAppInput) (*App, error)
 	Delete(id string) error
+	HardDelete(id string) error
 	UpdateLastDeployedAt(id string, deployedAt time.Time) error
 }
