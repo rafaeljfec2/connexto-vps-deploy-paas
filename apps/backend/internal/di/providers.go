@@ -131,7 +131,7 @@ func ProvideHealthHandler() *handler.HealthHandler {
 
 func ProvideWebhookManager(cfg *config.Config, logger *slog.Logger) webhook.Manager {
 	if cfg.GitHub.PAT == "" || cfg.GitHub.WebhookURL == "" {
-		logger.Info("webhook management disabled: GITHUB_PAT or GITHUB_WEBHOOK_URL not configured")
+		logger.Info("webhook management disabled: GIT_HUB_PAT or GIT_HUB_WEBHOOK_URL not configured")
 		return webhook.NewNoOpManager()
 	}
 
@@ -277,7 +277,7 @@ func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.Toke
 
 func ProvideOAuthClient(cfg *config.Config, logger *slog.Logger) *github.OAuthClient {
 	if cfg.GitHub.ClientID == "" || cfg.GitHub.ClientSecret == "" {
-		logger.Info("GitHub OAuth not configured: GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET not set")
+		logger.Info("GitHub OAuth not configured: GIT_HUB_CLIENT_ID or GIT_HUB_CLIENT_SECRET not set")
 		return nil
 	}
 
@@ -290,7 +290,7 @@ func ProvideOAuthClient(cfg *config.Config, logger *slog.Logger) *github.OAuthCl
 
 func ProvideGitHubAppClient(cfg *config.Config, logger *slog.Logger) *github.AppClient {
 	if cfg.GitHub.AppID == 0 || len(cfg.GitHub.AppPrivateKey) == 0 {
-		logger.Info("GitHub App not configured: GITHUB_APP_ID or private key not set")
+		logger.Info("GitHub App not configured: GIT_HUB_APP_ID or private key not set")
 		return nil
 	}
 

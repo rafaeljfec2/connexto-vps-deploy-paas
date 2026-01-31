@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+var (
+	serverNameRe    = regexp.MustCompile(`server_name\s+([^;]+);`)
+	listenRe        = regexp.MustCompile(`listen\s+([^;]+);`)
+	locationRe      = regexp.MustCompile(`location\s+(~\s+|~\*\s+|=\s+|)([^\s{]+)\s*\{`)
+	proxyHeaderRe   = regexp.MustCompile(`proxy_set_header\s+(\S+)\s+([^;]+);`)
+	portRe          = regexp.MustCompile(`:(\d+)`)
+)
+
 type NginxSite struct {
 	ConfigFile   string            `json:"configFile"`
 	ServerNames  []string          `json:"serverNames"`
@@ -202,8 +210,7 @@ func extractServerBlocks(content string) []string {
 }
 
 func parseServerNames(block string) []string {
-	re := regexp.MustCompile(`server_name\s+([^;]+);`)
-	match := re.FindStringSubmatch(block)
+	match := serverNameRe.FindStringSubmatch(block)
 	if len(match) < 2 {
 		return nil
 	}
@@ -220,8 +227,7 @@ func parseServerNames(block string) []string {
 
 func parseListenDirectives(block string) []ListenDirective {
 	var directives []ListenDirective
-	re := regexp.MustCompile(`listen\s+([^;]+);`)
-	matches := re.FindAllStringSubmatch(block, -1)
+	matches := listenRe.FindAllStringSubmatch(block, -1)
 
 	for _, match := range matches {
 		if len(match) < 2 {
@@ -266,9 +272,7 @@ func parseListenDirectives(block string) []ListenDirective {
 
 func parseLocations(block string) []NginxLocation {
 	var locations []NginxLocation
-
-	re := regexp.MustCompile(`location\s+(~\s+|~\*\s+|=\s+|)([^\s{]+)\s*\{`)
-	matches := re.FindAllStringSubmatchIndex(block, -1)
+	matches := locationRe.FindAllStringSubmatchIndex(block, -1)
 
 	for _, match := range matches {
 		if len(match) < 6 {
@@ -300,7 +304,6 @@ func parseLocations(block string) []NginxLocation {
 		loc.SendTimeout = parseDirective(locationBlock, "proxy_send_timeout")
 		loc.ConnectTimeout = parseDirective(locationBlock, "proxy_connect_timeout")
 
-		proxyHeaderRe := regexp.MustCompile(`proxy_set_header\s+(\S+)\s+([^;]+);`)
 		headerMatches := proxyHeaderRe.FindAllStringSubmatch(locationBlock, -1)
 		for _, hm := range headerMatches {
 			if len(hm) >= 3 {
@@ -364,8 +367,7 @@ func parseDirective(block, directive string) string {
 }
 
 func extractPort(proxyPass string) int {
-	re := regexp.MustCompile(`:(\d+)`)
-	match := re.FindStringSubmatch(proxyPass)
+	match := portRe.FindStringSubmatch(proxyPass)
 	if len(match) >= 2 {
 		port, err := strconv.Atoi(match[1])
 		if err == nil {

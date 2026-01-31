@@ -1,24 +1,14 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  CheckCircle,
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Code,
   Container,
   Download,
   Globe,
   Lock,
   Play,
-  Radio,
   RefreshCw,
   Server,
-  Shield,
   Square,
-  XCircle,
-  Zap,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -32,96 +22,73 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { api } from "@/services/api";
-import type { MigrationContainer, NginxSite, SSLCertificate } from "@/types";
+  ContainerRow,
+  NginxSiteCard,
+  SSLCertificateRow,
+  useBackupMutation,
+  useMigrationStatus,
+  useStartContainersMutation,
+  useStopContainersMutation,
+  useStopNginxMutation,
+} from "@/features/migration";
 
 export function MigrationPage() {
-  const queryClient = useQueryClient();
   const [selectedContainers, setSelectedContainers] = useState<Set<string>>(
     new Set(),
   );
   const [expandedSites, setExpandedSites] = useState<Set<number>>(new Set());
 
-  const {
-    data: status,
-    isLoading,
-    refetch,
-  } = useQuery({
-    queryKey: ["migration-status"],
-    queryFn: () => api.migration.status(),
-    refetchInterval: 10000,
-  });
-
-  const backupMutation = useMutation({
-    mutationFn: () => api.migration.backup(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["migration-status"] });
-    },
-  });
-
-  const stopContainersMutation = useMutation({
-    mutationFn: (ids: readonly string[]) => api.migration.stopContainers(ids),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["migration-status"] });
-      setSelectedContainers(new Set());
-    },
-  });
-
-  const startContainersMutation = useMutation({
-    mutationFn: (ids: readonly string[]) => api.migration.startContainers(ids),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["migration-status"] });
-      setSelectedContainers(new Set());
-    },
-  });
-
-  const stopNginxMutation = useMutation({
-    mutationFn: () => api.migration.stopNginx(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["migration-status"] });
-    },
-  });
+  const { data: status, isLoading, refetch } = useMigrationStatus();
+  const backupMutation = useBackupMutation();
+  const stopContainersMutation = useStopContainersMutation();
+  const startContainersMutation = useStartContainersMutation();
+  const stopNginxMutation = useStopNginxMutation();
 
   const toggleSiteExpanded = (index: number) => {
-    const newExpanded = new Set(expandedSites);
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index);
-    } else {
-      newExpanded.add(index);
-    }
-    setExpandedSites(newExpanded);
+    setExpandedSites((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
   };
 
   const toggleContainer = (id: string) => {
-    const newSelected = new Set(selectedContainers);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedContainers(newSelected);
+    setSelectedContainers((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
   };
 
   const toggleAllContainers = () => {
     if (!status) return;
     const containers = status.containers ?? [];
-    if (selectedContainers.size === containers.length) {
-      setSelectedContainers(new Set());
-    } else {
-      setSelectedContainers(new Set(containers.map((c) => c.id)));
-    }
+    setSelectedContainers((prev) => {
+      if (prev.size === containers.length) {
+        return new Set();
+      }
+      return new Set(containers.map((c) => c.id));
+    });
+  };
+
+  const handleStopContainers = () => {
+    stopContainersMutation.mutate([...selectedContainers], {
+      onSuccess: () => setSelectedContainers(new Set()),
+    });
+  };
+
+  const handleStartContainers = () => {
+    startContainersMutation.mutate([...selectedContainers], {
+      onSuccess: () => setSelectedContainers(new Set()),
+    });
   };
 
   if (isLoading) {
@@ -173,69 +140,15 @@ export function MigrationPage() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Server className="h-5 w-5" />
-            Proxy Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Current Proxy</p>
-              <div className="flex items-center gap-2">
-                <Badge variant={status.proxy.running ? "default" : "secondary"}>
-                  {status.proxy.type.toUpperCase()}
-                </Badge>
-                {status.proxy.version && (
-                  <span className="text-sm text-muted-foreground">
-                    v{status.proxy.version}
-                  </span>
-                )}
-                <Badge variant={status.proxy.running ? "default" : "outline"}>
-                  {status.proxy.running ? "Running" : "Stopped"}
-                </Badge>
-              </div>
-            </div>
-            <div className="space-y-1 text-right">
-              <p className="text-sm font-medium">Traefik</p>
-              <Badge variant={status.traefikReady ? "default" : "outline"}>
-                {status.traefikReady ? "Ready" : "Not Running"}
-              </Badge>
-            </div>
-          </div>
-
-          {status.proxy.type === "nginx" && status.proxy.running && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => backupMutation.mutate()}
-                disabled={backupMutation.isPending}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                {backupMutation.isPending
-                  ? "Creating Backup..."
-                  : "Create Backup"}
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => stopNginxMutation.mutate()}
-                disabled={stopNginxMutation.isPending}
-              >
-                <Square className="h-4 w-4 mr-2" />
-                {stopNginxMutation.isPending ? "Stopping..." : "Stop Nginx"}
-              </Button>
-            </div>
-          )}
-
-          {status.lastBackupPath && (
-            <p className="text-sm text-muted-foreground">
-              Last backup: {status.lastBackupPath}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <ProxyStatusCard
+        proxy={status.proxy}
+        traefikReady={status.traefikReady}
+        lastBackupPath={status.lastBackupPath}
+        onBackup={() => backupMutation.mutate()}
+        onStopNginx={() => stopNginxMutation.mutate()}
+        isBackingUp={backupMutation.isPending}
+        isStoppingNginx={stopNginxMutation.isPending}
+      />
 
       <Card>
         <CardHeader>
@@ -313,9 +226,7 @@ export function MigrationPage() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() =>
-                      stopContainersMutation.mutate([...selectedContainers])
-                    }
+                    onClick={handleStopContainers}
                     disabled={stopContainersMutation.isPending}
                   >
                     <Square className="h-4 w-4 mr-2" />
@@ -324,9 +235,7 @@ export function MigrationPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() =>
-                      startContainersMutation.mutate([...selectedContainers])
-                    }
+                    onClick={handleStartContainers}
                     disabled={startContainersMutation.isPending}
                   >
                     <Play className="h-4 w-4 mr-2" />
@@ -364,268 +273,82 @@ export function MigrationPage() {
   );
 }
 
-interface NginxSiteCardProps {
-  readonly site: NginxSite;
-  readonly index: number;
-  readonly expanded: boolean;
-  readonly onToggle: () => void;
-  readonly certificates: readonly SSLCertificate[];
+interface ProxyStatusCardProps {
+  readonly proxy: { type: string; running: boolean; version?: string };
+  readonly traefikReady: boolean;
+  readonly lastBackupPath?: string;
+  readonly onBackup: () => void;
+  readonly onStopNginx: () => void;
+  readonly isBackingUp: boolean;
+  readonly isStoppingNginx: boolean;
 }
 
-function NginxSiteCard({
-  site,
-  index,
-  expanded,
-  onToggle,
-  certificates,
-}: NginxSiteCardProps) {
-  const [traefikPreview, setTraefikPreview] = useState<string | null>(null);
-
-  const loadTraefikPreview = async () => {
-    const preview = await api.migration.getTraefikConfig(index);
-    setTraefikPreview(preview.yaml);
-  };
-
-  const cert = certificates.find((c) => site.serverNames.includes(c.domain));
-  const uniquePorts = [
-    ...new Set(site.locations.map((l) => l.proxyPort).filter(Boolean)),
-  ];
-
+function ProxyStatusCard({
+  proxy,
+  traefikReady,
+  lastBackupPath,
+  onBackup,
+  onStopNginx,
+  isBackingUp,
+  isStoppingNginx,
+}: ProxyStatusCardProps) {
   return (
-    <Collapsible open={expanded} onOpenChange={onToggle}>
-      <div className="border rounded-lg">
-        <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-muted/50">
-          <div className="flex items-center gap-3">
-            {expanded ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-            <Globe className="h-5 w-5 text-blue-500" />
-            <div className="text-left">
-              <p className="font-medium">{site.serverNames[0]}</p>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                {site.sslEnabled && (
-                  <Badge variant="outline" className="text-green-600">
-                    <Lock className="h-3 w-3 mr-1" />
-                    SSL
-                  </Badge>
-                )}
-                <span>Locations: {site.locations.length}</span>
-                {uniquePorts.length > 0 && (
-                  <span>Ports: {uniquePorts.join(", ")}</span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {site.hasSSE && (
-              <Badge variant="secondary">
-                <Radio className="h-3 w-3 mr-1" />
-                SSE
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Server className="h-5 w-5" />
+          Proxy Status
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Current Proxy</p>
+            <div className="flex items-center gap-2">
+              <Badge variant={proxy.running ? "default" : "secondary"}>
+                {proxy.type.toUpperCase()}
               </Badge>
-            )}
-            {site.hasWebSocket && (
-              <Badge variant="secondary">
-                <Zap className="h-3 w-3 mr-1" />
-                WebSocket
+              {proxy.version && (
+                <span className="text-sm text-muted-foreground">
+                  v{proxy.version}
+                </span>
+              )}
+              <Badge variant={proxy.running ? "default" : "outline"}>
+                {proxy.running ? "Running" : "Stopped"}
               </Badge>
-            )}
-          </div>
-        </CollapsibleTrigger>
-
-        <CollapsibleContent>
-          <div className="px-4 pb-4 space-y-4 border-t">
-            {cert && (
-              <div className="pt-4">
-                <h4 className="text-sm font-medium mb-2">SSL Certificate</h4>
-                <div className="text-sm space-y-1 text-muted-foreground">
-                  <p>Provider: {cert.provider}</p>
-                  <p>
-                    Expires: {new Date(cert.expiresAt).toLocaleDateString()}(
-                    {cert.daysUntilExpiry} days)
-                  </p>
-                  {cert.autoRenew && (
-                    <Badge variant="outline">Auto-renew</Badge>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <h4 className="text-sm font-medium mb-2">Locations</h4>
-              <div className="space-y-2">
-                {site.locations.map((loc, i) => (
-                  <div key={i} className="text-sm p-2 bg-muted rounded">
-                    <div className="flex items-center justify-between">
-                      <code className="text-blue-600">{loc.path}</code>
-                      {loc.proxyPort && (
-                        <span className="text-muted-foreground">
-                          :{loc.proxyPort}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-2 mt-1">
-                      {loc.hasSSE && (
-                        <Badge variant="secondary" className="text-xs">
-                          SSE
-                        </Badge>
-                      )}
-                      {loc.hasWebSocket && (
-                        <Badge variant="secondary" className="text-xs">
-                          WebSocket
-                        </Badge>
-                      )}
-                      {loc.isRegex && (
-                        <Badge variant="outline" className="text-xs">
-                          Regex
-                        </Badge>
-                      )}
-                    </div>
-                    {loc.sseConfig && (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        <p>
-                          Buffering: {loc.sseConfig.bufferingOff ? "off" : "on"}
-                        </p>
-                        {loc.sseConfig.readTimeout && (
-                          <p>Read Timeout: {loc.sseConfig.readTimeout}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Code className="h-4 w-4 mr-2" />
-                    View Raw Config
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-3xl">
-                  <DialogHeader>
-                    <DialogTitle>
-                      Nginx Configuration - {site.serverNames[0]}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <ScrollArea className="h-[500px]">
-                    <pre className="text-sm p-4 bg-muted rounded">
-                      {site.rawConfig}
-                    </pre>
-                  </ScrollArea>
-                </DialogContent>
-              </Dialog>
-
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={loadTraefikPreview}
-                  >
-                    <Shield className="h-4 w-4 mr-2" />
-                    View Traefik Config
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-3xl">
-                  <DialogHeader>
-                    <DialogTitle>
-                      Traefik Labels - {site.serverNames[0]}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <ScrollArea className="h-[500px]">
-                    <pre className="text-sm p-4 bg-muted rounded">
-                      {traefikPreview ?? "Loading..."}
-                    </pre>
-                  </ScrollArea>
-                </DialogContent>
-              </Dialog>
             </div>
           </div>
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
-  );
-}
-
-interface ContainerRowProps {
-  readonly container: MigrationContainer;
-  readonly selected: boolean;
-  readonly onToggle: () => void;
-}
-
-function ContainerRow({ container, selected, onToggle }: ContainerRowProps) {
-  const isRunning = container.state === "running";
-
-  return (
-    <div className="flex items-center gap-4 p-3 border rounded-lg hover:bg-muted/50">
-      <Checkbox checked={selected} onCheckedChange={onToggle} />
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{container.name}</span>
-          <Badge variant={isRunning ? "default" : "secondary"}>
-            {isRunning ? (
-              <CheckCircle className="h-3 w-3 mr-1" />
-            ) : (
-              <XCircle className="h-3 w-3 mr-1" />
-            )}
-            {container.state}
-          </Badge>
+          <div className="space-y-1 text-right">
+            <p className="text-sm font-medium">Traefik</p>
+            <Badge variant={traefikReady ? "default" : "outline"}>
+              {traefikReady ? "Ready" : "Not Running"}
+            </Badge>
+          </div>
         </div>
-        <div className="text-sm text-muted-foreground flex gap-4">
-          <span>{container.image}</span>
-          {container.ports && container.ports.length > 0 && (
-            <span>Ports: {container.ports.join(", ")}</span>
-          )}
-          {container.uptime && (
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {container.uptime}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
-interface SSLCertificateRowProps {
-  readonly certificate: SSLCertificate;
-}
+        {proxy.type === "nginx" && proxy.running && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onBackup} disabled={isBackingUp}>
+              <Download className="h-4 w-4 mr-2" />
+              {isBackingUp ? "Creating Backup..." : "Create Backup"}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={onStopNginx}
+              disabled={isStoppingNginx}
+            >
+              <Square className="h-4 w-4 mr-2" />
+              {isStoppingNginx ? "Stopping..." : "Stop Nginx"}
+            </Button>
+          </div>
+        )}
 
-function SSLCertificateRow({ certificate }: SSLCertificateRowProps) {
-  const isExpiringSoon = certificate.daysUntilExpiry <= 30;
-  const isExpired = certificate.isExpired;
-
-  return (
-    <div className="flex items-center justify-between p-3 border rounded-lg">
-      <div className="flex items-center gap-3">
-        <Lock
-          className={`h-5 w-5 ${isExpired ? "text-red-500" : isExpiringSoon ? "text-yellow-500" : "text-green-500"}`}
-        />
-        <div>
-          <p className="font-medium">{certificate.domain}</p>
+        {lastBackupPath && (
           <p className="text-sm text-muted-foreground">
-            Provider: {certificate.provider}
-            {certificate.autoRenew && " • Auto-renew enabled"}
+            Last backup: {lastBackupPath}
           </p>
-        </div>
-      </div>
-      <div className="text-right">
-        <Badge
-          variant={
-            isExpired ? "destructive" : isExpiringSoon ? "outline" : "secondary"
-          }
-        >
-          {isExpired ? "Expired" : `${certificate.daysUntilExpiry} days left`}
-        </Badge>
-        <p className="text-xs text-muted-foreground mt-1">
-          {new Date(certificate.expiresAt).toLocaleDateString()}
-        </p>
-      </div>
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

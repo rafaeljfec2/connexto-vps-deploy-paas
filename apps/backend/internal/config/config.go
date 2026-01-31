@@ -113,19 +113,19 @@ func Load() *Config {
 			Registry: getEnv("DOCKER_REGISTRY", ""),
 		},
 		GitHub: GitHubConfig{
-			PAT:           getEnv("GITHUB_PAT", ""),
-			WebhookSecret: getEnv("GITHUB_WEBHOOK_SECRET", ""),
-			WebhookURL:    getEnv("GITHUB_WEBHOOK_URL", ""),
+			PAT:           getEnv("GIT_HUB_PAT", ""),
+			WebhookSecret: getEnv("GIT_HUB_WEBHOOK_SECRET", ""),
+			WebhookURL:    getEnv("GIT_HUB_WEBHOOK_URL", ""),
 
-			ClientID:     getEnv("GITHUB_CLIENT_ID", ""),
-			ClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
-			CallbackURL:  getEnv("GITHUB_OAUTH_CALLBACK_URL", ""),
+			ClientID:     getEnv("GIT_HUB_CLIENT_ID", ""),
+			ClientSecret: getEnv("GIT_HUB_CLIENT_SECRET", ""),
+			CallbackURL:  getEnv("GIT_HUB_OAUTH_CALLBACK_URL", ""),
 
-			AppID:         int64(getEnvInt("GITHUB_APP_ID", 0)),
-			AppName:       getEnv("GITHUB_APP_NAME", DefaultAppName),
+			AppID:         int64(getEnvInt("GIT_HUB_APP_ID", 0)),
+			AppName:       getEnv("GIT_HUB_APP_NAME", DefaultAppName),
 			AppPrivateKey: loadPrivateKey(),
-			AppInstallURL: getEnv("GITHUB_APP_INSTALL_URL", ""),
-			AppSetupURL:   getEnv("GITHUB_APP_SETUP_URL", ""),
+			AppInstallURL: getEnv("GIT_HUB_APP_INSTALL_URL", ""),
+			AppSetupURL:   getEnv("GIT_HUB_APP_SETUP_URL", ""),
 		},
 		Auth: AuthConfig{
 			TokenEncryptionKey: getEnv("TOKEN_ENCRYPTION_KEY", ""),
@@ -145,13 +145,13 @@ func Load() *Config {
 
 func loadPrivateKey() []byte {
 	// Try loading from base64 first
-	if keyBase64 := getEnv("GITHUB_APP_PRIVATE_KEY_BASE64", ""); keyBase64 != "" {
+	if keyBase64 := getEnv("GIT_HUB_APP_PRIVATE_KEY_BASE64", ""); keyBase64 != "" {
 		// Don't decode here, let the app_client handle it
 		return []byte(keyBase64)
 	}
 
 	// Try loading from file
-	if keyPath := getEnv("GITHUB_APP_PRIVATE_KEY_PATH", ""); keyPath != "" {
+	if keyPath := getEnv("GIT_HUB_APP_PRIVATE_KEY_PATH", ""); keyPath != "" {
 		expandedPath := expandPath(keyPath)
 		data, err := os.ReadFile(expandedPath)
 		if err == nil {
