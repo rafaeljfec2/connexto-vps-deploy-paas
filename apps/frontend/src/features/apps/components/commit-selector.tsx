@@ -22,23 +22,20 @@ function CommitItem({
   readonly onDeploy: (sha: string) => void;
   readonly disabled?: boolean;
 }) {
-  const firstLine = (commit.message.split("\n")[0] ?? "").slice(0, 50);
-  const hasMore = commit.message.length > 50 || commit.message.includes("\n");
-
   return (
     <div
       className={cn(
-        "p-2 rounded-md border border-transparent",
+        "p-2.5 rounded-md border border-transparent",
         "hover:bg-muted/50 hover:border-muted-foreground/20 transition-colors",
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <GitCommit className="h-3 w-3 text-muted-foreground shrink-0" />
-          <code className="text-[11px] font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">
+        <div className="flex items-center gap-2 min-w-0">
+          <GitCommit className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          <code className="text-xs font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">
             {commit.sha.slice(0, 7)}
           </code>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(commit.date), {
               addSuffix: true,
               locale: ptBR,
@@ -53,23 +50,22 @@ function CommitItem({
             className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted"
             title="View on GitHub"
           >
-            <ExternalLink className="h-3 w-3" />
+            <ExternalLink className="h-3.5 w-3.5" />
           </a>
           <Button
             size="sm"
             variant="ghost"
             onClick={() => onDeploy(commit.sha)}
             disabled={disabled}
-            className="h-5 px-1.5 text-[10px]"
+            className="h-6 px-2 text-xs"
           >
-            <Rocket className="h-2.5 w-2.5 mr-0.5" />
+            <Rocket className="h-3 w-3 mr-1" />
             Deploy
           </Button>
         </div>
       </div>
-      <p className="text-[11px] mt-1 truncate text-muted-foreground pl-4">
-        {firstLine}
-        {hasMore && "..."}
+      <p className="text-xs mt-1.5 text-muted-foreground pl-5 whitespace-pre-wrap break-words">
+        {commit.message}
       </p>
     </div>
   );
