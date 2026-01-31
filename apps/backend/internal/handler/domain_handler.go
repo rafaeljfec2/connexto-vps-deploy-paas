@@ -41,9 +41,11 @@ func NewDomainHandler(cfg DomainHandlerConfig) *DomainHandler {
 }
 
 func (h *DomainHandler) Register(app fiber.Router) {
-	app.Get("/apps/:id/domains", h.ListDomains)
-	app.Post("/apps/:id/domains", h.AddDomain)
-	app.Delete("/apps/:id/domains/:domainId", h.RemoveDomain)
+	v1 := app.Group(APIPrefix)
+	apps := v1.Group("/apps")
+	apps.Get("/:id/domains", h.ListDomains)
+	apps.Post("/:id/domains", h.AddDomain)
+	apps.Delete("/:id/domains/:domainId", h.RemoveDomain)
 }
 
 type DomainResponse struct {
@@ -232,10 +234,30 @@ func (h *DomainHandler) RemoveDomain(c *fiber.Ctx) error {
 
 func extractRootDomain(domain string) string {
 	parts := strings.Split(domain, ".")
-	if len(parts) >= 2 {
-		return parts[len(parts)-2] + "." + parts[len(parts)-1]
+	n := len(parts)
+
+	if n < 2 {
+		return domain
 	}
-	return domain
+
+	secondLevelTLDs := map[string]bool{
+		"com.br": true, "net.br": true, "org.br": true, "gov.br": true, "edu.br": true,
+		"co.uk": true, "org.uk": true, "gov.uk": true, "ac.uk": true,
+		"com.au": true, "net.au": true, "org.au": true,
+		"co.nz": true, "net.nz": true, "org.nz": true,
+		"co.jp": true, "ne.jp": true, "or.jp": true,
+		"com.mx": true, "org.mx": true, "gob.mx": true,
+		"com.ar": true, "org.ar": true, "gov.ar": true,
+	}
+
+	if n >= 3 {
+		possibleTLD := parts[n-2] + "." + parts[n-1]
+		if secondLevelTLDs[possibleTLD] {
+			return parts[n-3] + "." + possibleTLD
+		}
+	}
+
+	return parts[n-2] + "." + parts[n-1]
 }
 
 func isValidDomain(domain string) bool {

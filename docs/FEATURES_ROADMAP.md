@@ -1,5 +1,30 @@
 # FlowDeploy - Estudo de Features
 
+## Comparativo com Coolify
+
+| Feature                                | Coolify | FlowDeploy | Status             |
+| -------------------------------------- | ------- | ---------- | ------------------ |
+| Deploy de aplicacoes Docker            | ✅      | ✅         | Implementado       |
+| Push to Deploy (Git)                   | ✅      | ✅         | Implementado       |
+| Integracao GitHub                      | ✅      | ✅         | Implementado       |
+| SSL Automatico (Traefik/Let's Encrypt) | ✅      | ✅         | Implementado       |
+| Variaveis de Ambiente                  | ✅      | ✅         | Implementado       |
+| Logs em tempo real                     | ✅      | ✅         | Implementado (SSE) |
+| Monitoramento (CPU/RAM/Disk)           | ✅      | ✅         | Implementado (SSE) |
+| Health Checks                          | ✅      | ✅         | Implementado       |
+| Rollback                               | ✅      | ✅         | Implementado       |
+| DNS Automatico (Cloudflare)            | ❌      | ✅         | Implementado       |
+| Notificacoes (Discord/Slack/Email)     | ✅      | ❌         | Planejado          |
+| Backups automaticos de DB              | ✅      | ❌         | Planejado          |
+| Terminal web (real-time)               | ✅      | ❌         | Planejado          |
+| One-click services (Postgres, Redis)   | ✅      | ❌         | Planejado          |
+| Pull Request Deployments               | ✅      | ❌         | Planejado          |
+| Multi-servidor                         | ✅      | ❌         | Futuro             |
+| API Publica                            | ✅      | ❌         | Futuro             |
+| CLI Tool                               | ✅      | ❌         | Futuro             |
+
+---
+
 ## Estado Atual do Sistema
 
 O FlowDeploy ja possui:
@@ -11,6 +36,8 @@ O FlowDeploy ja possui:
 - Environment variables com suporte a secrets
 - Health checks configuraveis
 - Container control (start/stop/restart)
+- **DNS Automatico via Cloudflare** (registro A direto para IP do servidor)
+- **Autenticacao via GitHub OAuth + GitHub App**
 
 ---
 
@@ -169,26 +196,27 @@ Exemplo:
 
 ---
 
-#### 8. Custom Domains Management
+#### 8. Custom Domains Management ✅ IMPLEMENTADO
 
 **Persona:** DevOps  
 **Valor:** Gerenciar dominios proprios com SSL automatico
 
 ```
-Fluxo:
-1. Usuario adiciona dominio
-2. Sistema mostra DNS records necessarios
-3. Valida DNS propagation
-4. Let's Encrypt gera certificado
-5. Traefik atualiza config
+Fluxo Implementado:
+1. Usuario conecta conta Cloudflare (API Token)
+2. Usuario adiciona dominio customizado
+3. Sistema cria registro A automaticamente no Cloudflare
+4. Cloudflare Proxy ativo (SSL automatico)
+5. Traefik atualiza config no proximo deploy
 ```
 
-**Implementacao:**
+**Implementacao Atual:**
 
-- Tabela `custom_domains` (app_id, domain, verified, ssl_status, verified_at)
-- Job de verificacao DNS
-- Integracao com Let's Encrypt/ACME
-- UI com status de verificacao
+- Tabela `cloudflare_connections` (user_id, access_token_encrypted, account_id)
+- Tabela `custom_domains` (app_id, domain, zone_id, dns_record_id, record_type)
+- Cloudflare API Client para criar/deletar registros DNS
+- Suporte a TLDs compostos (.com.br, .co.uk, etc.)
+- UI para conectar Cloudflare e gerenciar dominios
 
 ---
 
@@ -330,43 +358,53 @@ flowchart TB
 
 ## Matriz de Prioridade
 
-| Feature             | Esforco | Impacto | ROI   |
-| ------------------- | ------- | ------- | ----- |
-| Notificacoes        | Medio   | Alto    | Alto  |
-| Metricas Historicas | Medio   | Alto    | Alto  |
-| Activity Log        | Baixo   | Medio   | Alto  |
-| Preview Deployments | Alto    | Alto    | Medio |
-| Terminal Web        | Medio   | Alto    | Alto  |
-| Build Config        | Baixo   | Medio   | Alto  |
-| Scheduled Tasks     | Medio   | Medio   | Medio |
-| Custom Domains      | Alto    | Alto    | Medio |
-| Resource Limits UI  | Baixo   | Medio   | Alto  |
-| Multi-Environment   | Alto    | Alto    | Baixo |
-| Database Provision  | Alto    | Medio   | Baixo |
-| Feature Flags       | Medio   | Baixo   | Baixo |
+| Feature             | Esforco | Impacto | ROI   | Status    |
+| ------------------- | ------- | ------- | ----- | --------- |
+| Custom Domains      | Alto    | Alto    | Alto  | ✅ Feito  |
+| Notificacoes        | Medio   | Alto    | Alto  | Proximo   |
+| Preview Deployments | Alto    | Alto    | Alto  | Proximo   |
+| Metricas Historicas | Medio   | Alto    | Alto  | Planejado |
+| Activity Log        | Baixo   | Medio   | Alto  | Planejado |
+| Terminal Web        | Medio   | Alto    | Alto  | Planejado |
+| Database Provision  | Alto    | Alto    | Alto  | Planejado |
+| Build Config        | Baixo   | Medio   | Alto  | Planejado |
+| Scheduled Tasks     | Medio   | Medio   | Medio | Futuro    |
+| Resource Limits UI  | Baixo   | Medio   | Alto  | Futuro    |
+| Multi-Environment   | Alto    | Alto    | Baixo | Futuro    |
+| Feature Flags       | Medio   | Baixo   | Baixo | Futuro    |
 
 ---
 
-## Recomendacao de Implementacao
+## Recomendacao de Implementacao (MVP)
 
-**Fase 1 (Quick Wins):**
+**Fase 1 - Proximas Features:**
 
-1. Activity Log - baixo esforco, alta rastreabilidade
-2. Resource Limits UI - ja existe no backend, so precisa UI
-3. Build Config avancada - baixo esforco, valor imediato
+1. **Notificacoes** - Discord/Slack quando deploy falha/sucede
+2. **Preview Deployments** - URLs temporarias para PRs
+3. **One-click Databases** - Postgres, Redis como servico
 
-**Fase 2 (Core Features):**
+**Fase 2 - Developer Experience:**
 
-4. Sistema de Notificacoes - Slack/Discord primeiro
-5. Metricas Historicas - essencial para operacoes
+4. Terminal Web - debug sem SSH
+5. Activity Log - auditoria de acoes
+6. Metricas Historicas - graficos de CPU/RAM
 
-**Fase 3 (Developer Experience):**
+**Fase 3 - Enterprise:**
 
-6. Terminal Web - diferencial competitivo
-7. Scheduled Tasks - muito solicitado por devs
-8. Preview Deployments - melhora workflow de PR
+7. Multi-Environment (staging/production)
+8. API Publica + CLI Tool
+9. Backups automaticos S3
 
-**Fase 4 (Enterprise):**
+---
 
-9. Custom Domains com SSL
-10. Multi-Environment
+## Features Concluidas
+
+- [x] Deploy automatizado via GitHub
+- [x] Monitoramento real-time (SSE)
+- [x] Logs streaming
+- [x] Rollback
+- [x] Environment variables
+- [x] Health checks
+- [x] Container control
+- [x] DNS Automatico (Cloudflare)
+- [x] Autenticacao GitHub OAuth + App
