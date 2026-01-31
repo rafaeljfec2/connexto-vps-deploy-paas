@@ -345,8 +345,11 @@ export function AppDetailsPage() {
           </span>
         }
       >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Tabs defaultValue="history" className="w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
+          <Tabs
+            defaultValue="history"
+            className="w-full min-w-0 overflow-hidden"
+          >
             <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="history" className="gap-2">
                 <History className="h-4 w-4" />
@@ -371,7 +374,7 @@ export function AppDetailsPage() {
               />
             </TabsContent>
           </Tabs>
-          <div className="space-y-4">
+          <div className="space-y-4 min-w-0 overflow-hidden">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <FileText className="h-4 w-4" />
               Deploy Logs

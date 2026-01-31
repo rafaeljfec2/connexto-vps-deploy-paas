@@ -31,7 +31,7 @@ export function DeployCard({ deployment, onClick }: DeployCardProps) {
             </div>
 
             {deployment.commitMessage && (
-              <p className="text-sm text-muted-foreground truncate">
+              <p className="text-sm text-muted-foreground truncate max-w-[300px]">
                 {deployment.commitMessage}
               </p>
             )}

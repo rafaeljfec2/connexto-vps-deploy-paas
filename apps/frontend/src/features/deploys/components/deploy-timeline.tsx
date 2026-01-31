@@ -33,8 +33,8 @@ export function DeployTimeline({ appId, onSelectDeploy }: DeployTimelineProps) {
   }
 
   return (
-    <ScrollArea className="h-[320px]">
-      <div className="space-y-3 pr-3">
+    <ScrollArea className="h-[450px] w-full">
+      <div className="space-y-3 pr-3 max-w-full">
         {deployments.map((deployment) => (
           <DeployCard
             key={deployment.id}

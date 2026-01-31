@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ExternalLink, GitCommit, Loader2, Rocket, User } from "lucide-react";
+import { ExternalLink, GitCommit, Loader2, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -28,25 +28,21 @@ function CommitItem({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg border border-transparent",
+        "flex items-center gap-2 p-3 rounded-lg border border-transparent overflow-hidden",
         "hover:bg-muted/50 hover:border-muted-foreground/20 transition-colors",
       )}
     >
       <GitCommit className="h-4 w-4 text-muted-foreground shrink-0" />
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 overflow-hidden">
         <div className="flex items-center gap-2 flex-wrap">
-          <code className="text-xs font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+          <code className="text-xs font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
             {commit.sha.slice(0, 7)}
           </code>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground truncate">
             {formatDistanceToNow(new Date(commit.date), {
               addSuffix: true,
               locale: ptBR,
             })}
-          </span>
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <User className="h-3 w-3" />
-            {commit.author}
           </span>
         </div>
         <p className="text-sm mt-1 truncate">
@@ -114,7 +110,7 @@ export function CommitSelectorInline({
       )}
 
       {commits && commits.length > 0 && (
-        <ScrollArea className="h-[320px]">
+        <ScrollArea className="h-[450px]">
           <div className="space-y-1 pr-2">
             {commits.map((commit) => (
               <CommitItem
