@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/joho/godotenv"
 
 	"github.com/paasdeploy/backend/internal/database"
@@ -25,53 +26,81 @@ func main() {
 
 	app.Logger.Info("Starting FlowDeploy API", "version", di.Version)
 
+	runMigrations(app)
+	go handleEngineEvents(app)
+	startEngine(app)
+	registerHandlers(app)
+	registerProtectedRoutes(app)
+	startServer(app)
+	waitForShutdown(app)
+}
+
+func runMigrations(app *di.Application) {
 	migrationsPath := getMigrationsPath()
 	if err := database.RunMigrations(app.DB, migrationsPath, app.Logger); err != nil {
 		app.Logger.Error("Failed to run migrations", "error", err)
 		os.Exit(1)
 	}
+}
 
-	go func() {
-		for event := range app.Engine.Events() {
-			switch event.Type {
-			case engine.EventTypeRunning:
-				app.SSEHandler.EmitDeployRunning(event.DeployID, event.AppID)
-			case engine.EventTypeSuccess:
-				app.SSEHandler.EmitDeploySuccess(event.DeployID, event.AppID)
-			case engine.EventTypeFailed:
-				app.SSEHandler.EmitDeployFailed(event.DeployID, event.AppID, event.Message)
-			case engine.EventTypeLog:
-				app.SSEHandler.EmitLog(event.DeployID, event.AppID, event.Message)
-			case engine.EventTypeHealth:
-				if event.Health != nil {
-					app.SSEHandler.EmitHealth(event.AppID, handler.SSEHealthStatus{
-						Status:    event.Health.Status,
-						Health:    event.Health.Health,
-						StartedAt: event.Health.StartedAt,
-						Uptime:    event.Health.Uptime,
-					})
-				}
-			case engine.EventTypeStats:
-				if event.Stats != nil {
-					app.SSEHandler.EmitStats(event.AppID, handler.SSEContainerStats{
-						CPUPercent:    event.Stats.CPUPercent,
-						MemoryUsage:   event.Stats.MemoryUsage,
-						MemoryLimit:   event.Stats.MemoryLimit,
-						MemoryPercent: event.Stats.MemoryPercent,
-						NetworkRx:     event.Stats.NetworkRx,
-						NetworkTx:     event.Stats.NetworkTx,
-						PIDs:          event.Stats.PIDs,
-					})
-				}
-			}
-		}
-	}()
+func handleEngineEvents(app *di.Application) {
+	for event := range app.Engine.Events() {
+		processEvent(app, event)
+	}
+}
 
+func processEvent(app *di.Application, event engine.DeployEvent) {
+	switch event.Type {
+	case engine.EventTypeRunning:
+		app.SSEHandler.EmitDeployRunning(event.DeployID, event.AppID)
+	case engine.EventTypeSuccess:
+		app.SSEHandler.EmitDeploySuccess(event.DeployID, event.AppID)
+	case engine.EventTypeFailed:
+		app.SSEHandler.EmitDeployFailed(event.DeployID, event.AppID, event.Message)
+	case engine.EventTypeLog:
+		app.SSEHandler.EmitLog(event.DeployID, event.AppID, event.Message)
+	case engine.EventTypeHealth:
+		emitHealthEvent(app, event)
+	case engine.EventTypeStats:
+		emitStatsEvent(app, event)
+	}
+}
+
+func emitHealthEvent(app *di.Application, event engine.DeployEvent) {
+	if event.Health == nil {
+		return
+	}
+	app.SSEHandler.EmitHealth(event.AppID, handler.SSEHealthStatus{
+		Status:    event.Health.Status,
+		Health:    event.Health.Health,
+		StartedAt: event.Health.StartedAt,
+		Uptime:    event.Health.Uptime,
+	})
+}
+
+func emitStatsEvent(app *di.Application, event engine.DeployEvent) {
+	if event.Stats == nil {
+		return
+	}
+	app.SSEHandler.EmitStats(event.AppID, handler.SSEContainerStats{
+		CPUPercent:    event.Stats.CPUPercent,
+		MemoryUsage:   event.Stats.MemoryUsage,
+		MemoryLimit:   event.Stats.MemoryLimit,
+		MemoryPercent: event.Stats.MemoryPercent,
+		NetworkRx:     event.Stats.NetworkRx,
+		NetworkTx:     event.Stats.NetworkTx,
+		PIDs:          event.Stats.PIDs,
+	})
+}
+
+func startEngine(app *di.Application) {
 	if err := app.Engine.Start(); err != nil {
 		app.Logger.Error("Failed to start deploy engine", "error", err)
 		os.Exit(1)
 	}
+}
 
+func registerHandlers(app *di.Application) {
 	app.HealthHandler.Register(app.Server.App())
 	app.SwaggerHandler.Register(app.Server.App())
 
@@ -93,32 +122,53 @@ func main() {
 	app.ContainerHealthHandler.Register(app.Server.App())
 	app.AppAdminHandler.Register(app.Server.App())
 	app.WebhookHandler.Register(app.Server.App())
+}
 
-	if app.AuthHandler != nil && app.AuthMiddleware != nil {
-		authRequired := app.Server.App().Group("")
-		authRequired.Use(app.AuthMiddleware.Require())
-		app.AuthHandler.RegisterProtected(authRequired)
-		if app.GitHubHandler != nil {
-			app.GitHubHandler.RegisterProtected(authRequired)
-		}
-		if app.CloudflareAuthHandler != nil {
-			app.CloudflareAuthHandler.Register(authRequired)
-		}
-		if app.DomainHandler != nil {
-			app.DomainHandler.Register(authRequired)
-		}
-		if app.MigrationHandler != nil {
-			app.MigrationHandler.Register(authRequired)
-		}
+func registerProtectedRoutes(app *di.Application) {
+	if app.AuthHandler == nil || app.AuthMiddleware == nil {
+		return
 	}
 
+	authRequired := app.Server.App().Group("")
+	authRequired.Use(app.AuthMiddleware.Require())
+	app.AuthHandler.RegisterProtected(authRequired)
+
+	registerOptionalProtectedHandler(app.GitHubHandler, authRequired)
+	registerOptionalProtectedHandler(app.CloudflareAuthHandler, authRequired)
+	registerOptionalProtectedHandler(app.DomainHandler, authRequired)
+	registerOptionalProtectedHandler(app.MigrationHandler, authRequired)
+}
+
+type protectedRegistrar interface {
+	Register(router fiber.Router)
+}
+
+type gitHubProtectedRegistrar interface {
+	RegisterProtected(router fiber.Router)
+}
+
+func registerOptionalProtectedHandler(h any, router fiber.Router) {
+	if h == nil {
+		return
+	}
+	if registrar, ok := h.(protectedRegistrar); ok {
+		registrar.Register(router)
+	}
+	if registrar, ok := h.(gitHubProtectedRegistrar); ok {
+		registrar.RegisterProtected(router)
+	}
+}
+
+func startServer(app *di.Application) {
 	go func() {
 		if err := app.Server.Start(); err != nil {
 			app.Logger.Error("Server error", "error", err)
 			os.Exit(1)
 		}
 	}()
+}
 
+func waitForShutdown(app *di.Application) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

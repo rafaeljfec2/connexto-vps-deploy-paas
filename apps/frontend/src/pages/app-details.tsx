@@ -66,6 +66,94 @@ import {
 } from "@/features/deploys/hooks/use-deploys";
 import { useAppHealth } from "@/hooks/use-sse";
 import { cn, formatRepositoryUrl } from "@/lib/utils";
+import type { App, Deployment } from "@/types";
+
+type SectionKey =
+  | "deployments"
+  | "containerLogs"
+  | "metrics"
+  | "envVars"
+  | "health"
+  | "config"
+  | "webhook"
+  | "domains";
+
+function useExpandedSections() {
+  const [expandedSections, setExpandedSections] = useState<
+    Record<SectionKey, boolean>
+  >({
+    deployments: false,
+    containerLogs: false,
+    metrics: false,
+    envVars: false,
+    health: false,
+    config: false,
+    webhook: false,
+    domains: false,
+  });
+
+  const toggleSection = (section: SectionKey) => {
+    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const allExpanded = Object.values(expandedSections).every(Boolean);
+
+  const toggleAllSections = () => {
+    const newState = !allExpanded;
+    setExpandedSections({
+      deployments: newState,
+      containerLogs: newState,
+      metrics: newState,
+      envVars: newState,
+      health: newState,
+      config: newState,
+      webhook: newState,
+      domains: newState,
+    });
+  };
+
+  return { expandedSections, toggleSection, allExpanded, toggleAllSections };
+}
+
+function useAppActions(id: string | undefined) {
+  const redeploy = useRedeploy();
+  const rollback = useRollback();
+  const setupWebhook = useSetupWebhook();
+  const removeWebhook = useRemoveWebhook();
+  const restartContainer = useRestartContainer();
+  const stopContainer = useStopContainer();
+  const startContainer = useStartContainer();
+
+  const handleRedeploy = (sha?: string) => {
+    if (id) redeploy.mutate({ appId: id, commitSha: sha });
+  };
+
+  const handleRollback = () => {
+    if (id) rollback.mutate(id);
+  };
+
+  const handleSetupWebhook = () => {
+    if (id) setupWebhook.mutate(id);
+  };
+
+  const handleRemoveWebhook = () => {
+    if (id) removeWebhook.mutate(id);
+  };
+
+  return {
+    redeploy,
+    rollback,
+    setupWebhook,
+    removeWebhook,
+    restartContainer,
+    stopContainer,
+    startContainer,
+    handleRedeploy,
+    handleRollback,
+    handleSetupWebhook,
+    handleRemoveWebhook,
+  };
+}
 
 interface CollapsibleSectionProps {
   readonly title: string;
@@ -115,7 +203,7 @@ function CollapsibleSection({
         {actions && (
           <div
             className="flex items-center gap-2"
-            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             {actions}
           </div>
@@ -140,6 +228,602 @@ function getHealthColor(health: string): string {
   return "text-yellow-500";
 }
 
+interface DeploymentsSectionProps {
+  readonly app: App;
+  readonly deployments: readonly Deployment[] | undefined;
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+  readonly actions: ReturnType<typeof useAppActions>;
+  readonly selectedDeploy: Deployment | undefined;
+  readonly onSelectDeploy: (id: string | null) => void;
+}
+
+function DeploymentsSection({
+  app,
+  deployments,
+  expanded,
+  onToggle,
+  actions,
+  selectedDeploy,
+  onSelectDeploy,
+}: DeploymentsSectionProps) {
+  const successfulDeploys =
+    deployments?.filter((d) => d.status === "success").length ?? 0;
+  const totalDeploys = deployments?.length ?? 0;
+  const latestDeploy = deployments?.[0];
+
+  return (
+    <CollapsibleSection
+      title="Deployments"
+      icon={Rocket}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={
+        <span>
+          {totalDeploys} deploys ({successfulDeploys} successful)
+          {latestDeploy && (
+            <>
+              {" "}
+              • Latest: <StatusBadge status={latestDeploy.status} size="sm" />
+            </>
+          )}
+        </span>
+      }
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
+        <Tabs defaultValue="history" className="w-full min-w-0 overflow-hidden">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="history" className="gap-2">
+              <History className="h-4 w-4" />
+              Deploy History
+            </TabsTrigger>
+            <TabsTrigger value="commits" className="gap-2">
+              <GitCommit className="h-4 w-4" />
+              Commits
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="history" className="mt-0">
+            <DeployTimeline appId={app.id} onSelectDeploy={onSelectDeploy} />
+          </TabsContent>
+          <TabsContent value="commits" className="mt-0">
+            <CommitSelectorInline
+              appId={app.id}
+              onSelect={actions.handleRedeploy}
+              disabled={actions.redeploy.isPending}
+            />
+          </TabsContent>
+        </Tabs>
+        <div className="space-y-4 min-w-0 overflow-hidden">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <FileText className="h-4 w-4" />
+            Deploy Logs
+            {selectedDeploy && (
+              <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                {selectedDeploy.commitSha.slice(0, 7)}
+              </span>
+            )}
+          </div>
+          <LogViewer
+            logs={selectedDeploy?.logs ?? null}
+            title={
+              selectedDeploy
+                ? `Logs (${selectedDeploy.commitSha.slice(0, 7)})`
+                : "Logs"
+            }
+          />
+        </div>
+      </div>
+    </CollapsibleSection>
+  );
+}
+
+interface ContainerLogsSectionProps {
+  readonly appId: string;
+  readonly appName: string;
+  readonly health: ReturnType<typeof useAppHealth>["data"];
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+}
+
+function ContainerLogsSection({
+  appId,
+  appName,
+  health,
+  expanded,
+  onToggle,
+}: ContainerLogsSectionProps) {
+  return (
+    <CollapsibleSection
+      title="Container Logs"
+      icon={Terminal}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={
+        health?.status === "running" ? (
+          <span className="text-green-500">Container running</span>
+        ) : (
+          <span className="text-muted-foreground">
+            Container {health?.status ?? "unknown"}
+          </span>
+        )
+      }
+    >
+      <ContainerLogsViewer appId={appId} appName={appName} />
+    </CollapsibleSection>
+  );
+}
+
+interface ResourceUsageSectionProps {
+  readonly appId: string;
+  readonly containerStats: ReturnType<typeof useContainerStats>["data"];
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+}
+
+function ResourceUsageSection({
+  appId,
+  containerStats,
+  expanded,
+  onToggle,
+}: ResourceUsageSectionProps) {
+  return (
+    <CollapsibleSection
+      title="Resource Usage"
+      icon={Activity}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={
+        containerStats && containerStats.cpuPercent > 0 ? (
+          <span>
+            CPU: {containerStats.cpuPercent.toFixed(1)}% • Memory:{" "}
+            {formatBytes(containerStats.memoryUsage)} /{" "}
+            {formatBytes(containerStats.memoryLimit)}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">No metrics available</span>
+        )
+      }
+    >
+      <ContainerMetrics appId={appId} embedded />
+    </CollapsibleSection>
+  );
+}
+
+interface EnvVarsSectionProps {
+  readonly appId: string;
+  readonly envVarsCount: number;
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+}
+
+function EnvVarsSection({
+  appId,
+  envVarsCount,
+  expanded,
+  onToggle,
+}: EnvVarsSectionProps) {
+  return (
+    <CollapsibleSection
+      title="Environment Variables"
+      icon={Key}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={
+        <span>
+          {envVarsCount} variable{envVarsCount === 1 ? "" : "s"} configured
+        </span>
+      }
+    >
+      <EnvVarsManager appId={appId} embedded />
+    </CollapsibleSection>
+  );
+}
+
+interface ContainerHealthSectionProps {
+  readonly appId: string;
+  readonly health: ReturnType<typeof useAppHealth>["data"];
+  readonly actions: ReturnType<typeof useAppActions>;
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+}
+
+function ContainerHealthSection({
+  appId,
+  health,
+  actions,
+  expanded,
+  onToggle,
+}: ContainerHealthSectionProps) {
+  return (
+    <CollapsibleSection
+      title="Container Health"
+      icon={HeartPulse}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={
+        <div className="flex items-center gap-2">
+          {health?.status === "running" ? (
+            <>
+              <span className={getHealthColor(health.health)}>
+                {health.health}
+              </span>
+              {health.uptime && (
+                <span className="text-muted-foreground">
+                  • Uptime: {health.uptime}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-muted-foreground">
+              {health?.status ?? "unknown"}
+            </span>
+          )}
+        </div>
+      }
+      actions={
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => actions.restartContainer.mutate(appId)}
+            disabled={
+              actions.restartContainer.isPending ||
+              health?.status === "not_found"
+            }
+          >
+            <RefreshCw
+              className={`h-4 w-4 mr-1 ${actions.restartContainer.isPending ? "animate-spin" : ""}`}
+            />
+            Restart
+          </Button>
+          {health?.status === "running" ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => actions.stopContainer.mutate(appId)}
+              disabled={actions.stopContainer.isPending}
+            >
+              <Square className="h-4 w-4 mr-1" />
+              Stop
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => actions.startContainer.mutate(appId)}
+              disabled={
+                actions.startContainer.isPending ||
+                health?.status === "not_found"
+              }
+            >
+              <Play className="h-4 w-4 mr-1" />
+              Start
+            </Button>
+          )}
+        </>
+      }
+    >
+      <HealthDetail health={health} />
+    </CollapsibleSection>
+  );
+}
+
+interface DeploymentConfigSectionProps {
+  readonly appConfig: ReturnType<typeof useAppConfig>["data"];
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+}
+
+function DeploymentConfigSection({
+  appConfig,
+  expanded,
+  onToggle,
+}: DeploymentConfigSectionProps) {
+  if (!appConfig) return null;
+
+  const portDisplay =
+    appConfig.hostPort === appConfig.port
+      ? appConfig.port
+      : `${appConfig.hostPort}:${appConfig.port}`;
+
+  return (
+    <CollapsibleSection
+      title="Deployment Config"
+      icon={Settings}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={
+        <span>
+          Port {portDisplay} • {appConfig.resources.memory} RAM •{" "}
+          {appConfig.resources.cpu} CPU
+        </span>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <Network className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">Port:</span>
+            <span className="font-mono">{portDisplay}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <HeartPulse className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">Health Check:</span>
+            <span className="font-mono">{appConfig.healthcheck.path}</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="ml-6">
+              Interval: {appConfig.healthcheck.interval} | Timeout:{" "}
+              {appConfig.healthcheck.timeout} | Retries:{" "}
+              {appConfig.healthcheck.retries}
+            </span>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm">
+            <HardDrive className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">Memory:</span>
+            <span className="font-mono">{appConfig.resources.memory}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Cpu className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">CPU:</span>
+            <span className="font-mono">{appConfig.resources.cpu}</span>
+          </div>
+          {appConfig.domains && appConfig.domains.length > 0 && (
+            <div className="flex items-start gap-2 text-sm">
+              <Globe className="h-4 w-4 text-muted-foreground mt-0.5" />
+              <div>
+                <span className="font-medium">Domains:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {appConfig.domains.map((domain) => (
+                    <span
+                      key={domain}
+                      className="px-2 py-0.5 bg-muted rounded text-xs font-mono"
+                    >
+                      {domain}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </CollapsibleSection>
+  );
+}
+
+interface WebhookSectionProps {
+  readonly webhookId: number | null;
+  readonly webhookStatus: ReturnType<typeof useWebhookStatus>["data"];
+  readonly actions: ReturnType<typeof useAppActions>;
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+}
+
+function WebhookSection({
+  webhookId,
+  webhookStatus,
+  actions,
+  expanded,
+  onToggle,
+}: WebhookSectionProps) {
+  const isConfigured = Boolean(webhookId);
+
+  return (
+    <CollapsibleSection
+      title="GitHub Webhook"
+      icon={Link2}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={
+        isConfigured ? (
+          <span className="text-green-500 flex items-center gap-1">
+            <CheckCircle className="h-3 w-3" />
+            Configured
+            {webhookStatus?.active === false && (
+              <span className="text-yellow-500 ml-1">(inactive)</span>
+            )}
+          </span>
+        ) : (
+          <span className="text-muted-foreground flex items-center gap-1">
+            <XCircle className="h-3 w-3" />
+            Not configured
+          </span>
+        )
+      }
+      actions={
+        isConfigured ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={actions.handleRemoveWebhook}
+            disabled={actions.removeWebhook.isPending}
+          >
+            <Link2Off className="h-4 w-4 mr-1" />
+            Remove
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={actions.handleSetupWebhook}
+            disabled={actions.setupWebhook.isPending}
+          >
+            <Link2 className="h-4 w-4 mr-1" />
+            Setup
+          </Button>
+        )
+      }
+    >
+      <div className="flex items-center gap-3">
+        {isConfigured ? (
+          <>
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            <div>
+              <p className="font-medium">Webhook configured</p>
+              <p className="text-sm text-muted-foreground">
+                Auto-deploy enabled for push events
+                {webhookStatus?.active === false && (
+                  <span className="text-yellow-500 ml-2">(inactive)</span>
+                )}
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <XCircle className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <p className="font-medium">Webhook not configured</p>
+              <p className="text-sm text-muted-foreground">
+                Configure to enable auto-deploy on push
+              </p>
+            </div>
+          </>
+        )}
+      </div>
+    </CollapsibleSection>
+  );
+}
+
+interface DomainsSectionProps {
+  readonly appId: string;
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+}
+
+function DomainsSection({ appId, expanded, onToggle }: DomainsSectionProps) {
+  return (
+    <CollapsibleSection
+      title="Custom Domains"
+      icon={Globe}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={<span className="text-muted-foreground">Cloudflare DNS</span>}
+    >
+      <DomainManager appId={appId} />
+    </CollapsibleSection>
+  );
+}
+
+function AppDetailsLoading() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-8 w-48" />
+      <div className="grid gap-4">
+        <Skeleton className="h-16" />
+        <Skeleton className="h-16" />
+        <Skeleton className="h-16" />
+      </div>
+    </div>
+  );
+}
+
+function AppNotFound() {
+  return (
+    <div className="text-center py-12">
+      <p className="text-destructive">Application not found</p>
+      <Button asChild variant="link">
+        <Link to="/">Go back to dashboard</Link>
+      </Button>
+    </div>
+  );
+}
+
+interface HeaderActionsProps {
+  readonly allExpanded: boolean;
+  readonly toggleAllSections: () => void;
+  readonly appUrl: { url: string } | undefined;
+  readonly app: {
+    id: string;
+    name: string;
+    repositoryUrl: string;
+    branch: string;
+    workdir: string;
+    webhookId: number | null;
+  };
+  readonly actions: ReturnType<typeof useAppActions>;
+  readonly hasSuccessfulDeploy: boolean;
+}
+
+function AppDescription({ app }: { readonly app: App }) {
+  const showWorkdir = app.workdir && app.workdir !== ".";
+  return (
+    <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+      <IconText icon={GitBranch} as="span">
+        {app.branch}
+      </IconText>
+      <a
+        href={app.repositoryUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-1 hover:text-foreground"
+      >
+        <ExternalLink className="h-4 w-4" />
+        {formatRepositoryUrl(app.repositoryUrl)}
+      </a>
+      {showWorkdir && (
+        <IconText icon={Folder} as="span">
+          <span className="font-mono text-xs">{app.workdir}</span>
+        </IconText>
+      )}
+    </div>
+  );
+}
+
+function HeaderActions({
+  allExpanded,
+  toggleAllSections,
+  appUrl,
+  app,
+  actions,
+  hasSuccessfulDeploy,
+}: HeaderActionsProps) {
+  return (
+    <>
+      <Button variant="outline" onClick={toggleAllSections}>
+        {allExpanded ? (
+          <>
+            <ChevronsDownUp className="h-4 w-4 mr-2" />
+            Collapse All
+          </>
+        ) : (
+          <>
+            <ChevronsUpDown className="h-4 w-4 mr-2" />
+            Expand All
+          </>
+        )}
+      </Button>
+      {appUrl?.url && (
+        <Button variant="outline" asChild>
+          <a href={appUrl.url} target="_blank" rel="noopener noreferrer">
+            <Globe className="h-4 w-4 mr-2" />
+            Open App
+          </a>
+        </Button>
+      )}
+      <AppSettingsDialog app={app} />
+      <Button
+        variant="outline"
+        onClick={actions.handleRollback}
+        disabled={actions.rollback.isPending || !hasSuccessfulDeploy}
+      >
+        <RotateCcw className="h-4 w-4 mr-2" />
+        Rollback
+      </Button>
+      <Button
+        onClick={() => actions.handleRedeploy()}
+        disabled={actions.redeploy.isPending}
+      >
+        <RefreshCw
+          className={`h-4 w-4 mr-2 ${actions.redeploy.isPending ? "animate-spin" : ""}`}
+        />
+        Redeploy
+      </Button>
+    </>
+  );
+}
+
 export function AppDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const { data: app, isLoading: appLoading } = useApp(id ?? "");
@@ -150,106 +834,24 @@ export function AppDetailsPage() {
   const { data: appConfig } = useAppConfig(id);
   const { data: envVars } = useEnvVars(id ?? "");
   const { data: containerStats } = useContainerStats(id);
-  const redeploy = useRedeploy();
-  const rollback = useRollback();
-  const setupWebhook = useSetupWebhook();
-  const removeWebhook = useRemoveWebhook();
-  const restartContainer = useRestartContainer();
-  const stopContainer = useStopContainer();
-  const startContainer = useStartContainer();
+
+  const { expandedSections, toggleSection, allExpanded, toggleAllSections } =
+    useExpandedSections();
+  const actions = useAppActions(id);
 
   const [selectedDeployId, setSelectedDeployId] = useState<string | null>(null);
-
-  const [expandedSections, setExpandedSections] = useState<
-    Record<string, boolean>
-  >({
-    deployments: false,
-    containerLogs: false,
-    metrics: false,
-    envVars: false,
-    health: false,
-    config: false,
-    webhook: false,
-    domains: false,
-  });
-
-  const toggleSection = (section: string) => {
-    setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
-
-  const allExpanded = Object.values(expandedSections).every(Boolean);
-
-  const toggleAllSections = () => {
-    const newState = !allExpanded;
-    setExpandedSections({
-      deployments: newState,
-      containerLogs: newState,
-      metrics: newState,
-      envVars: newState,
-      health: newState,
-      config: newState,
-      webhook: newState,
-      domains: newState,
-    });
-  };
 
   const latestDeploy = deployments?.[0];
   const selectedDeploy = selectedDeployId
     ? deployments?.find((d) => d.id === selectedDeployId)
     : latestDeploy;
 
-  const handleRedeploy = (sha?: string) => {
-    if (id) {
-      redeploy.mutate({ appId: id, commitSha: sha });
-    }
-  };
+  if (appLoading) return <AppDetailsLoading />;
+  if (!app) return <AppNotFound />;
 
-  const handleRollback = () => {
-    if (id) {
-      rollback.mutate(id);
-    }
-  };
-
-  const handleSetupWebhook = () => {
-    if (id) {
-      setupWebhook.mutate(id);
-    }
-  };
-
-  const handleRemoveWebhook = () => {
-    if (id) {
-      removeWebhook.mutate(id);
-    }
-  };
-
-  if (appLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid gap-4">
-          <Skeleton className="h-16" />
-          <Skeleton className="h-16" />
-          <Skeleton className="h-16" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!app) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-destructive">Application not found</p>
-        <Button asChild variant="link">
-          <Link to="/">Go back to dashboard</Link>
-        </Button>
-      </div>
-    );
-  }
-
-  const successfulDeploys = deployments?.filter(
-    (d) => d.status === "success",
-  ).length;
-  const totalDeploys = deployments?.length ?? 0;
+  const successfulDeploys =
+    deployments?.filter((d) => d.status === "success").length ?? 0;
+  const hasSuccessfulDeploy = successfulDeploys > 0;
 
   return (
     <div className="space-y-4">
@@ -262,420 +864,78 @@ export function AppDetailsPage() {
             {latestDeploy && <StatusBadge status={latestDeploy.status} />}
           </div>
         }
-        description={
-          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-            <IconText icon={GitBranch} as="span">
-              {app.branch}
-            </IconText>
-            <a
-              href={app.repositoryUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 hover:text-foreground"
-            >
-              <ExternalLink className="h-4 w-4" />
-              {formatRepositoryUrl(app.repositoryUrl)}
-            </a>
-            {app.workdir && app.workdir !== "." && (
-              <IconText icon={Folder} as="span">
-                <span className="font-mono text-xs">{app.workdir}</span>
-              </IconText>
-            )}
-          </div>
-        }
+        description={<AppDescription app={app} />}
         actions={
-          <>
-            <Button variant="outline" onClick={toggleAllSections}>
-              {allExpanded ? (
-                <>
-                  <ChevronsDownUp className="h-4 w-4 mr-2" />
-                  Collapse All
-                </>
-              ) : (
-                <>
-                  <ChevronsUpDown className="h-4 w-4 mr-2" />
-                  Expand All
-                </>
-              )}
-            </Button>
-            {appUrl?.url && (
-              <Button variant="outline" asChild>
-                <a href={appUrl.url} target="_blank" rel="noopener noreferrer">
-                  <Globe className="h-4 w-4 mr-2" />
-                  Open App
-                </a>
-              </Button>
-            )}
-            <AppSettingsDialog app={app} />
-            <Button
-              variant="outline"
-              onClick={handleRollback}
-              disabled={
-                rollback.isPending ||
-                !deployments?.some((d) => d.status === "success")
-              }
-            >
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Rollback
-            </Button>
-            <Button
-              onClick={() => handleRedeploy()}
-              disabled={redeploy.isPending}
-            >
-              <RefreshCw
-                className={`h-4 w-4 mr-2 ${redeploy.isPending ? "animate-spin" : ""}`}
-              />
-              Redeploy
-            </Button>
-          </>
+          <HeaderActions
+            allExpanded={allExpanded}
+            toggleAllSections={toggleAllSections}
+            appUrl={appUrl}
+            app={app}
+            actions={actions}
+            hasSuccessfulDeploy={hasSuccessfulDeploy}
+          />
         }
       />
 
-      <CollapsibleSection
-        title="Deployments"
-        icon={Rocket}
+      <DeploymentsSection
+        app={app}
+        deployments={deployments}
         expanded={expandedSections.deployments ?? false}
         onToggle={() => toggleSection("deployments")}
-        summary={
-          <span>
-            {totalDeploys} deploys ({successfulDeploys} successful)
-            {latestDeploy && (
-              <>
-                {" "}
-                • Latest: <StatusBadge status={latestDeploy.status} size="sm" />
-              </>
-            )}
-          </span>
-        }
-      >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
-          <Tabs
-            defaultValue="history"
-            className="w-full min-w-0 overflow-hidden"
-          >
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="history" className="gap-2">
-                <History className="h-4 w-4" />
-                Deploy History
-              </TabsTrigger>
-              <TabsTrigger value="commits" className="gap-2">
-                <GitCommit className="h-4 w-4" />
-                Commits
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="history" className="mt-0">
-              <DeployTimeline
-                appId={app.id}
-                onSelectDeploy={setSelectedDeployId}
-              />
-            </TabsContent>
-            <TabsContent value="commits" className="mt-0">
-              <CommitSelectorInline
-                appId={app.id}
-                onSelect={handleRedeploy}
-                disabled={redeploy.isPending}
-              />
-            </TabsContent>
-          </Tabs>
-          <div className="space-y-4 min-w-0 overflow-hidden">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <FileText className="h-4 w-4" />
-              Deploy Logs
-              {selectedDeploy && (
-                <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                  {selectedDeploy.commitSha.slice(0, 7)}
-                </span>
-              )}
-            </div>
-            <LogViewer
-              logs={selectedDeploy?.logs ?? null}
-              title={
-                selectedDeploy
-                  ? `Logs (${selectedDeploy.commitSha.slice(0, 7)})`
-                  : "Logs"
-              }
-            />
-          </div>
-        </div>
-      </CollapsibleSection>
+        actions={actions}
+        selectedDeploy={selectedDeploy}
+        onSelectDeploy={setSelectedDeployId}
+      />
 
-      <CollapsibleSection
-        title="Container Logs"
-        icon={Terminal}
+      <ContainerLogsSection
+        appId={app.id}
+        appName={app.name}
+        health={health}
         expanded={expandedSections.containerLogs ?? false}
         onToggle={() => toggleSection("containerLogs")}
-        summary={
-          health?.status === "running" ? (
-            <span className="text-green-500">Container running</span>
-          ) : (
-            <span className="text-muted-foreground">
-              Container {health?.status ?? "unknown"}
-            </span>
-          )
-        }
-      >
-        <ContainerLogsViewer appId={app.id} appName={app.name} />
-      </CollapsibleSection>
+      />
 
-      <CollapsibleSection
-        title="Resource Usage"
-        icon={Activity}
+      <ResourceUsageSection
+        appId={app.id}
+        containerStats={containerStats}
         expanded={expandedSections.metrics ?? false}
         onToggle={() => toggleSection("metrics")}
-        summary={
-          containerStats && containerStats.cpuPercent > 0 ? (
-            <span>
-              CPU: {containerStats.cpuPercent.toFixed(1)}% • Memory:{" "}
-              {formatBytes(containerStats.memoryUsage)} /{" "}
-              {formatBytes(containerStats.memoryLimit)}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">No metrics available</span>
-          )
-        }
-      >
-        {id && <ContainerMetrics appId={id} embedded />}
-      </CollapsibleSection>
+      />
 
-      <CollapsibleSection
-        title="Environment Variables"
-        icon={Key}
+      <EnvVarsSection
+        appId={app.id}
+        envVarsCount={envVars?.length ?? 0}
         expanded={expandedSections.envVars ?? false}
         onToggle={() => toggleSection("envVars")}
-        summary={
-          <span>
-            {envVars?.length ?? 0} variable
-            {envVars?.length === 1 ? "" : "s"} configured
-          </span>
-        }
-      >
-        <EnvVarsManager appId={app.id} embedded />
-      </CollapsibleSection>
+      />
 
-      <CollapsibleSection
-        title="Container Health"
-        icon={HeartPulse}
+      <ContainerHealthSection
+        appId={app.id}
+        health={health}
+        actions={actions}
         expanded={expandedSections.health ?? false}
         onToggle={() => toggleSection("health")}
-        summary={
-          <div className="flex items-center gap-2">
-            {health?.status === "running" ? (
-              <>
-                <span className={getHealthColor(health.health)}>
-                  {health.health}
-                </span>
-                {health.uptime && (
-                  <span className="text-muted-foreground">
-                    • Uptime: {health.uptime}
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="text-muted-foreground">
-                {health?.status ?? "unknown"}
-              </span>
-            )}
-          </div>
-        }
-        actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => id && restartContainer.mutate(id)}
-              disabled={
-                restartContainer.isPending || health?.status === "not_found"
-              }
-            >
-              <RefreshCw
-                className={`h-4 w-4 mr-1 ${restartContainer.isPending ? "animate-spin" : ""}`}
-              />
-              Restart
-            </Button>
-            {health?.status === "running" ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => id && stopContainer.mutate(id)}
-                disabled={stopContainer.isPending}
-              >
-                <Square className="h-4 w-4 mr-1" />
-                Stop
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => id && startContainer.mutate(id)}
-                disabled={
-                  startContainer.isPending || health?.status === "not_found"
-                }
-              >
-                <Play className="h-4 w-4 mr-1" />
-                Start
-              </Button>
-            )}
-          </>
-        }
-      >
-        <HealthDetail health={health} />
-      </CollapsibleSection>
+      />
 
-      {appConfig && (
-        <CollapsibleSection
-          title="Deployment Config"
-          icon={Settings}
-          expanded={expandedSections.config ?? false}
-          onToggle={() => toggleSection("config")}
-          summary={
-            <span>
-              Port{" "}
-              {appConfig.hostPort === appConfig.port
-                ? appConfig.port
-                : `${appConfig.hostPort}:${appConfig.port}`}{" "}
-              • {appConfig.resources.memory} RAM • {appConfig.resources.cpu} CPU
-            </span>
-          }
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <Network className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Port:</span>
-                <span className="font-mono">
-                  {appConfig.hostPort === appConfig.port
-                    ? appConfig.port
-                    : `${appConfig.hostPort}:${appConfig.port}`}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <HeartPulse className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Health Check:</span>
-                <span className="font-mono">{appConfig.healthcheck.path}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="ml-6">
-                  Interval: {appConfig.healthcheck.interval} | Timeout:{" "}
-                  {appConfig.healthcheck.timeout} | Retries:{" "}
-                  {appConfig.healthcheck.retries}
-                </span>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <HardDrive className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">Memory:</span>
-                <span className="font-mono">{appConfig.resources.memory}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Cpu className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">CPU:</span>
-                <span className="font-mono">{appConfig.resources.cpu}</span>
-              </div>
-              {appConfig.domains && appConfig.domains.length > 0 && (
-                <div className="flex items-start gap-2 text-sm">
-                  <Globe className="h-4 w-4 text-muted-foreground mt-0.5" />
-                  <div>
-                    <span className="font-medium">Domains:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {appConfig.domains.map((domain) => (
-                        <span
-                          key={domain}
-                          className="px-2 py-0.5 bg-muted rounded text-xs font-mono"
-                        >
-                          {domain}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </CollapsibleSection>
-      )}
+      <DeploymentConfigSection
+        appConfig={appConfig}
+        expanded={expandedSections.config ?? false}
+        onToggle={() => toggleSection("config")}
+      />
 
-      <CollapsibleSection
-        title="GitHub Webhook"
-        icon={Link2}
+      <WebhookSection
+        webhookId={app.webhookId}
+        webhookStatus={webhookStatus}
+        actions={actions}
         expanded={expandedSections.webhook ?? false}
         onToggle={() => toggleSection("webhook")}
-        summary={
-          app.webhookId ? (
-            <span className="text-green-500 flex items-center gap-1">
-              <CheckCircle className="h-3 w-3" />
-              Configured
-              {webhookStatus?.active === false && (
-                <span className="text-yellow-500 ml-1">(inactive)</span>
-              )}
-            </span>
-          ) : (
-            <span className="text-muted-foreground flex items-center gap-1">
-              <XCircle className="h-3 w-3" />
-              Not configured
-            </span>
-          )
-        }
-        actions={
-          app.webhookId ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRemoveWebhook}
-              disabled={removeWebhook.isPending}
-            >
-              <Link2Off className="h-4 w-4 mr-1" />
-              Remove
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              onClick={handleSetupWebhook}
-              disabled={setupWebhook.isPending}
-            >
-              <Link2 className="h-4 w-4 mr-1" />
-              Setup
-            </Button>
-          )
-        }
-      >
-        <div className="flex items-center gap-3">
-          {app.webhookId ? (
-            <>
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <div>
-                <p className="font-medium">Webhook configured</p>
-                <p className="text-sm text-muted-foreground">
-                  Auto-deploy enabled for push events
-                  {webhookStatus?.active === false && (
-                    <span className="text-yellow-500 ml-2">(inactive)</span>
-                  )}
-                </p>
-              </div>
-            </>
-          ) : (
-            <>
-              <XCircle className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="font-medium">Webhook not configured</p>
-                <p className="text-sm text-muted-foreground">
-                  Configure to enable auto-deploy on push
-                </p>
-              </div>
-            </>
-          )}
-        </div>
-      </CollapsibleSection>
+      />
 
-      <CollapsibleSection
-        title="Custom Domains"
-        icon={Globe}
+      <DomainsSection
+        appId={app.id}
         expanded={expandedSections.domains ?? false}
         onToggle={() => toggleSection("domains")}
-        summary={<span className="text-muted-foreground">Cloudflare DNS</span>}
-      >
-        <DomainManager appId={app.id} />
-      </CollapsibleSection>
+      />
     </div>
   );
 }

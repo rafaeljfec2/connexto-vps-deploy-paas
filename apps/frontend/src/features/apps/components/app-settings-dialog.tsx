@@ -12,10 +12,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useUpdateApp } from "@/features/apps/hooks/use-apps";
-import type { App } from "@/types";
 
 interface AppSettingsDialogProps {
-  readonly app: App;
+  readonly app: {
+    readonly id: string;
+    readonly name: string;
+    readonly branch: string;
+    readonly workdir: string;
+  };
 }
 
 export function AppSettingsDialog({ app }: AppSettingsDialogProps) {

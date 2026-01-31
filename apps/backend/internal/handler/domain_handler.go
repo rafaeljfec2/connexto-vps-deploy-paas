@@ -271,18 +271,32 @@ func isValidDomain(domain string) bool {
 
 	parts := strings.Split(domain, ".")
 	for _, part := range parts {
-		if len(part) == 0 || len(part) > 63 {
+		if !isValidDomainPart(part) {
 			return false
-		}
-		if part[0] == '-' || part[len(part)-1] == '-' {
-			return false
-		}
-		for _, c := range part {
-			if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-') {
-				return false
-			}
 		}
 	}
 
 	return true
+}
+
+func isValidDomainPart(part string) bool {
+	if len(part) == 0 || len(part) > 63 {
+		return false
+	}
+
+	if part[0] == '-' || part[len(part)-1] == '-' {
+		return false
+	}
+
+	for _, c := range part {
+		if !isValidDomainChar(c) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func isValidDomainChar(c rune) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-'
 }

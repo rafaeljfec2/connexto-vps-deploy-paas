@@ -218,41 +218,59 @@ func (s *MigrationService) parseUptime(status string) string {
 func (s *MigrationService) generateWarnings(status *MigrationStatus) []string {
 	var warnings []string
 
-	for _, cert := range status.SSLCertificates {
+	warnings = append(warnings, s.generateCertWarnings(status.SSLCertificates)...)
+	warnings = append(warnings, s.generateSiteWarnings(status.NginxSites)...)
+
+	return warnings
+}
+
+func (s *MigrationService) generateCertWarnings(certs []SSLCertificate) []string {
+	var warnings []string
+	for _, cert := range certs {
 		if cert.DaysUntilExpiry <= 7 {
 			warnings = append(warnings, fmt.Sprintf(
 				"Certificate for %s expires in %d days",
 				cert.Domain, cert.DaysUntilExpiry))
 		}
 	}
+	return warnings
+}
 
-	for _, site := range status.NginxSites {
-		if site.Root != "" && len(site.Locations) == 0 {
-			warnings = append(warnings, fmt.Sprintf(
-				"%s: Static site needs separate container",
-				site.ServerNames[0]))
-		}
+func (s *MigrationService) generateSiteWarnings(sites []NginxSite) []string {
+	var warnings []string
+	for _, site := range sites {
+		warnings = append(warnings, s.checkSiteWarnings(site)...)
+	}
+	return warnings
+}
 
-		if site.HasSSE {
-			warnings = append(warnings, fmt.Sprintf(
-				"%s: Has SSE config - verify flushinterval after migration",
-				site.ServerNames[0]))
-		}
+func (s *MigrationService) checkSiteWarnings(site NginxSite) []string {
+	var warnings []string
+	serverName := site.ServerNames[0]
 
-		portCount := make(map[int]bool)
-		for _, loc := range site.Locations {
-			if loc.ProxyPort > 0 {
-				portCount[loc.ProxyPort] = true
-			}
-		}
-		if len(portCount) > 1 {
-			warnings = append(warnings, fmt.Sprintf(
-				"%s: Multiple backends detected (%d ports) - will create separate apps",
-				site.ServerNames[0], len(portCount)))
-		}
+	if site.Root != "" && len(site.Locations) == 0 {
+		warnings = append(warnings, fmt.Sprintf("%s: Static site needs separate container", serverName))
+	}
+
+	if site.HasSSE {
+		warnings = append(warnings, fmt.Sprintf("%s: Has SSE config - verify flushinterval after migration", serverName))
+	}
+
+	if portCount := countUniquePorts(site.Locations); portCount > 1 {
+		warnings = append(warnings, fmt.Sprintf("%s: Multiple backends detected (%d ports) - will create separate apps", serverName, portCount))
 	}
 
 	return warnings
+}
+
+func countUniquePorts(locations []NginxLocation) int {
+	ports := make(map[int]bool)
+	for _, loc := range locations {
+		if loc.ProxyPort > 0 {
+			ports[loc.ProxyPort] = true
+		}
+	}
+	return len(ports)
 }
 
 func (s *MigrationService) CreateBackup(ctx context.Context) (*BackupResult, error) {

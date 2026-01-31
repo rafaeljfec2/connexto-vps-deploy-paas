@@ -9,7 +9,10 @@ import (
 	"github.com/paasdeploy/backend/internal/github"
 )
 
-const providerGitHub = "github"
+const (
+	providerGitHub       = "github"
+	errParseRepoURL      = "parse repository URL: %w"
+)
 
 var _ Manager = (*GitHubManager)(nil)
 
@@ -30,7 +33,7 @@ func NewGitHubManager(provider github.Provider, webhookURL, webhookSecret string
 func (m *GitHubManager) Setup(ctx context.Context, input SetupInput) (*SetupResult, error) {
 	owner, repo, err := parseGitHubURL(input.RepositoryURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse repository URL: %w", err)
+		return nil, fmt.Errorf(errParseRepoURL, err)
 	}
 
 	targetURL := input.TargetURL
@@ -65,7 +68,7 @@ func (m *GitHubManager) Setup(ctx context.Context, input SetupInput) (*SetupResu
 func (m *GitHubManager) Remove(ctx context.Context, input RemoveInput) error {
 	owner, repo, err := parseGitHubURL(input.RepositoryURL)
 	if err != nil {
-		return fmt.Errorf("parse repository URL: %w", err)
+		return fmt.Errorf(errParseRepoURL, err)
 	}
 
 	if err := m.provider.DeleteWebhook(ctx, owner, repo, input.WebhookID); err != nil {
@@ -78,7 +81,7 @@ func (m *GitHubManager) Remove(ctx context.Context, input RemoveInput) error {
 func (m *GitHubManager) Status(ctx context.Context, repoURL string, webhookID int64) (*Status, error) {
 	owner, repo, err := parseGitHubURL(repoURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse repository URL: %w", err)
+		return nil, fmt.Errorf(errParseRepoURL, err)
 	}
 
 	webhook, err := m.provider.GetWebhook(ctx, owner, repo, webhookID)
@@ -104,7 +107,7 @@ func (m *GitHubManager) Status(ctx context.Context, repoURL string, webhookID in
 func (m *GitHubManager) ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]github.CommitInfo, error) {
 	owner, repo, err := parseGitHubURL(repoURL)
 	if err != nil {
-		return nil, fmt.Errorf("parse repository URL: %w", err)
+		return nil, fmt.Errorf(errParseRepoURL, err)
 	}
 
 	commits, err := m.provider.ListCommits(ctx, owner, repo, branch, perPage)
