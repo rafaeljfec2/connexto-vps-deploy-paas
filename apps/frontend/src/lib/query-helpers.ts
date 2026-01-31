@@ -4,18 +4,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-export const REFETCH_INTERVALS = {
-  FAST: 5000,
-  NORMAL: 10000,
-  SLOW: 30000,
-} as const;
-
-export const STALE_TIMES = {
-  SHORT: 30 * 1000,
-  NORMAL: 60 * 1000,
-  LONG: 5 * 60 * 1000,
-} as const;
-
 export const QUERY_KEYS = {
   apps: () => ["apps"] as const,
   app: (id: string) => ["app", id] as const,

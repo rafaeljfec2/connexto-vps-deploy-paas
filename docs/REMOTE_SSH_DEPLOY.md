@@ -1,525 +1,979 @@
-# Implementacao de Deploy Remoto via SSH
+# Arquitetura de Deploy Remoto com Agent
 
 ## Visao Geral
 
-Esta feature permite que o FlowDeploy faca deploy de aplicacoes em servidores remotos via SSH, ao inves de apenas no servidor local onde o FlowDeploy esta rodando.
+O FlowDeploy suporta deploy de aplicacoes em servidores remotos atraves de um **Agent leve** instalado em cada servidor. Esta arquitetura oferece maior seguranca, confiabilidade e visibilidade centralizada.
 
-### Arquitetura
+## Por que Agent ao inves de SSH Direto?
+
+| Aspecto     | SSH Direto                    | Agent                              |
+| ----------- | ----------------------------- | ---------------------------------- |
+| Seguranca   | Chaves SSH no banco           | Token de autenticacao              |
+| Conexao     | Inbound (requer porta aberta) | Outbound (agent conecta ao server) |
+| Firewall    | Precisa abrir porta 22        | Nenhuma porta a abrir              |
+| Logs        | Dificil de coletar            | Streaming em tempo real            |
+| Status      | Sem visibilidade              | Heartbeat continuo                 |
+| Atualizacao | Manual                        | Auto-update                        |
+
+## Arquitetura
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    FlowDeploy (Servidor Cloud)                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │ Frontend │  │ Backend  │  │PostgreSQL│  │ Traefik  │        │
-│  │  React   │  │   Go     │  │          │  │          │        │
-│  └────┬─────┘  └────┬─────┘  └──────────┘  └──────────┘        │
-│       │             │                                           │
-└───────┼─────────────┼───────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      FlowDeploy Server (Cloud)                          │
+│                                                                         │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐               │
+│  │ Frontend │  │ Backend  │  │PostgreSQL│  │ Traefik  │               │
+│  │  React   │  │   Go     │  │          │  │          │               │
+│  └────┬─────┘  └────┬─────┘  └──────────┘  └──────────┘               │
+│       │             │                                                   │
+│       │             │ WebSocket/HTTPS                                   │
+│       │             │ (conexao de SAIDA do agent)                       │
+└───────┼─────────────┼───────────────────────────────────────────────────┘
         │             │
-        │             │ SSH
         │             ▼
-┌───────┼─────────────────────────────────────────────────────────┐
-│       │        Servidor Remoto 1                                │
-│       │   ┌──────────┐  ┌──────────┐  ┌──────────┐             │
-│       │   │ Docker   │  │  App A   │  │  App B   │             │
-│       │   │ Engine   │  │          │  │          │             │
-│       │   └──────────┘  └──────────┘  └──────────┘             │
-└───────┼─────────────────────────────────────────────────────────┘
+┌───────┼─────────────────────────────────────────────────────────────────┐
+│       │            Servidor Remoto 1 (Sao Paulo)                        │
+│       │                                                                 │
+│       │   ┌────────────────┐                                           │
+│       │   │  FlowDeploy    │◄──── Conexao WebSocket para o Server      │
+│       │   │    Agent       │                                           │
+│       │   └───────┬────────┘                                           │
+│       │           │                                                     │
+│       │           ▼                                                     │
+│       │   ┌──────────┐  ┌──────────┐  ┌──────────┐                    │
+│       │   │ Docker   │  │  App A   │  │  App B   │                    │
+│       │   │ Engine   │  │          │  │          │                    │
+│       │   └──────────┘  └──────────┘  └──────────┘                    │
+└───────┼─────────────────────────────────────────────────────────────────┘
         │             │
-        │             │ SSH
         │             ▼
-┌───────┼─────────────────────────────────────────────────────────┐
-│       │        Servidor Remoto 2                                │
-│       │   ┌──────────┐  ┌──────────┐                           │
-│       │   │ Docker   │  │  App C   │                           │
-│       │   │ Engine   │  │          │                           │
-│       │   └──────────┘  └──────────┘                           │
-└─────────────────────────────────────────────────────────────────┘
+┌───────┼─────────────────────────────────────────────────────────────────┐
+│       │            Servidor Remoto 2 (Frankfurt)                        │
+│       │                                                                 │
+│       │   ┌────────────────┐                                           │
+│       │   │  FlowDeploy    │◄──── Conexao WebSocket para o Server      │
+│       │   │    Agent       │                                           │
+│       │   └───────┬────────┘                                           │
+│       │           │                                                     │
+│       │           ▼                                                     │
+│       │   ┌──────────┐  ┌──────────┐                                   │
+│       │   │ Docker   │  │  App C   │                                   │
+│       │   │ Engine   │  │          │                                   │
+│       │   └──────────┘  └──────────┘                                   │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Mudancas no Banco de Dados
+## Componentes
 
-### Migration 000006
+### 1. FlowDeploy Server (Backend)
 
-**Arquivo:** `apps/backend/migrations/000006_add_ssh_target.up.sql`
+Responsabilidades:
+
+- Gerenciar registro de agents
+- Enviar comandos de deploy para agents
+- Receber logs e metricas em tempo real
+- Armazenar estado dos servidores e apps
+
+### 2. FlowDeploy Agent
+
+Binario Go leve (~10MB) que roda em cada servidor remoto.
+
+Responsabilidades:
+
+- Manter conexao WebSocket com o server
+- Executar comandos de deploy (git, docker)
+- Enviar logs em tempo real
+- Reportar metricas (CPU, memoria, containers)
+- Executar health checks locais
+
+## Banco de Dados
+
+### Migration 000006 - Servidores
 
 ```sql
--- Tabela para armazenar chaves SSH
-CREATE TABLE ssh_keys (
+-- Tabela de servidores (hosts remotos)
+CREATE TABLE servers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL UNIQUE,
-    private_key TEXT NOT NULL,
-    public_key TEXT,
-    fingerprint VARCHAR(100),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    name VARCHAR(255) NOT NULL,
+    hostname VARCHAR(255) NOT NULL,
+    ip_address VARCHAR(45),
+    agent_token VARCHAR(64) NOT NULL UNIQUE,
+    agent_version VARCHAR(20),
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    last_heartbeat_at TIMESTAMPTZ,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_ssh_keys_name ON ssh_keys(name);
+CREATE TYPE server_status AS ENUM ('pending', 'online', 'offline', 'error');
 
--- Adicionar campos SSH na tabela apps
+CREATE INDEX idx_servers_status ON servers(status);
+CREATE INDEX idx_servers_agent_token ON servers(agent_token);
+
+-- Adicionar referencia de servidor na tabela apps
+ALTER TABLE apps ADD COLUMN server_id UUID REFERENCES servers(id) ON DELETE SET NULL;
 ALTER TABLE apps ADD COLUMN deploy_mode VARCHAR(20) NOT NULL DEFAULT 'local';
-ALTER TABLE apps ADD COLUMN ssh_host VARCHAR(255);
-ALTER TABLE apps ADD COLUMN ssh_port INTEGER DEFAULT 22;
-ALTER TABLE apps ADD COLUMN ssh_user VARCHAR(100) DEFAULT 'root';
-ALTER TABLE apps ADD COLUMN ssh_key_id UUID REFERENCES ssh_keys(id) ON DELETE SET NULL;
 
+CREATE INDEX idx_apps_server_id ON apps(server_id);
 CREATE INDEX idx_apps_deploy_mode ON apps(deploy_mode);
 ```
 
-**Arquivo:** `apps/backend/migrations/000006_add_ssh_target.down.sql`
+### Migration 000006 - Down
 
 ```sql
-ALTER TABLE apps DROP COLUMN IF EXISTS ssh_key_id;
-ALTER TABLE apps DROP COLUMN IF EXISTS ssh_user;
-ALTER TABLE apps DROP COLUMN IF EXISTS ssh_port;
-ALTER TABLE apps DROP COLUMN IF EXISTS ssh_host;
 ALTER TABLE apps DROP COLUMN IF EXISTS deploy_mode;
+ALTER TABLE apps DROP COLUMN IF EXISTS server_id;
 
-DROP TABLE IF EXISTS ssh_keys;
+DROP INDEX IF EXISTS idx_servers_agent_token;
+DROP INDEX IF EXISTS idx_servers_status;
+DROP TABLE IF EXISTS servers;
+DROP TYPE IF EXISTS server_status;
 ```
 
-## Mudancas no Backend (Go)
+## Domain Layer
 
-### 1. Domain Layer
+### Server Domain
 
-**Novo arquivo:** `apps/backend/internal/domain/ssh_key.go`
+**Arquivo:** `apps/backend/internal/domain/server.go`
 
 ```go
 package domain
 
-import "time"
+import (
+    "encoding/json"
+    "time"
+)
 
-type SSHKey struct {
-    ID          string    `json:"id"`
-    Name        string    `json:"name"`
-    PrivateKey  string    `json:"-"`
-    PublicKey   *string   `json:"publicKey,omitempty"`
-    Fingerprint *string   `json:"fingerprint,omitempty"`
-    CreatedAt   time.Time `json:"createdAt"`
+type ServerStatus string
+
+const (
+    ServerStatusPending ServerStatus = "pending"
+    ServerStatusOnline  ServerStatus = "online"
+    ServerStatusOffline ServerStatus = "offline"
+    ServerStatusError   ServerStatus = "error"
+)
+
+type Server struct {
+    ID              string          `json:"id"`
+    Name            string          `json:"name"`
+    Hostname        string          `json:"hostname"`
+    IPAddress       *string         `json:"ipAddress,omitempty"`
+    AgentToken      string          `json:"-"`
+    AgentVersion    *string         `json:"agentVersion,omitempty"`
+    Status          ServerStatus    `json:"status"`
+    LastHeartbeatAt *time.Time      `json:"lastHeartbeatAt,omitempty"`
+    Metadata        json.RawMessage `json:"metadata,omitempty"`
+    CreatedAt       time.Time       `json:"createdAt"`
+    UpdatedAt       time.Time       `json:"updatedAt"`
 }
 
-type CreateSSHKeyInput struct {
-    Name       string `json:"name"`
-    PrivateKey string `json:"privateKey"`
+type ServerMetadata struct {
+    OS           string `json:"os,omitempty"`
+    Architecture string `json:"arch,omitempty"`
+    CPUCores     int    `json:"cpuCores,omitempty"`
+    MemoryMB     int    `json:"memoryMb,omitempty"`
+    DockerVersion string `json:"dockerVersion,omitempty"`
+}
+
+type CreateServerInput struct {
+    Name     string `json:"name" validate:"required,min=2,max=63"`
+    Hostname string `json:"hostname" validate:"required"`
+}
+
+type ServerWithToken struct {
+    Server
+    AgentToken string `json:"agentToken"`
 }
 ```
 
-**Modificar:** `apps/backend/internal/domain/app.go`
+### App Domain (Atualizado)
 
-Adicionar campos:
+**Arquivo:** `apps/backend/internal/domain/app.go`
 
 ```go
-type App struct {
-    // ... campos existentes ...
-    DeployMode string  `json:"deployMode"`
-    SSHHost    *string `json:"sshHost,omitempty"`
-    SSHPort    *int    `json:"sshPort,omitempty"`
-    SSHUser    *string `json:"sshUser,omitempty"`
-    SSHKeyID   *string `json:"sshKeyId,omitempty"`
-}
-
 type DeployMode string
 
 const (
-    DeployModeLocal DeployMode = "local"
-    DeployModeSSH   DeployMode = "ssh"
+    DeployModeLocal  DeployMode = "local"
+    DeployModeRemote DeployMode = "remote"
 )
+
+type App struct {
+    ID             string          `json:"id"`
+    Name           string          `json:"name"`
+    RepositoryURL  string          `json:"repositoryUrl"`
+    Branch         string          `json:"branch"`
+    Workdir        string          `json:"workdir"`
+    Runtime        *string         `json:"runtime,omitempty"`
+    Config         json.RawMessage `json:"config"`
+    Status         AppStatus       `json:"status"`
+    WebhookID      *int64          `json:"webhookId,omitempty"`
+    DeployMode     DeployMode      `json:"deployMode"`
+    ServerID       *string         `json:"serverId,omitempty"`
+    LastDeployedAt *time.Time      `json:"lastDeployedAt,omitempty"`
+    CreatedAt      time.Time       `json:"createdAt"`
+    UpdatedAt      time.Time       `json:"updatedAt"`
+}
 ```
 
-### 2. Repository Layer
+## Agent Implementation
 
-**Novo arquivo:** `apps/backend/internal/repository/ssh_key_repository.go`
+### Agent Main
+
+**Arquivo:** `apps/agent/cmd/agent/main.go`
 
 ```go
-package repository
+package main
 
 import (
     "context"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "your-project/internal/domain"
+    "flag"
+    "log/slog"
+    "os"
+    "os/signal"
+    "syscall"
+
+    "flowdeploy/agent/internal/agent"
 )
 
-type SSHKeyRepository struct {
-    db *pgxpool.Pool
-}
+func main() {
+    var (
+        serverURL  = flag.String("server", "", "FlowDeploy server URL (required)")
+        token      = flag.String("token", "", "Agent token (required)")
+        dataDir    = flag.String("data-dir", "/opt/flowdeploy", "Data directory")
+    )
+    flag.Parse()
 
-func NewSSHKeyRepository(db *pgxpool.Pool) *SSHKeyRepository {
-    return &SSHKeyRepository{db: db}
-}
+    if *serverURL == "" || *token == "" {
+        slog.Error("server and token are required")
+        os.Exit(1)
+    }
 
-func (r *SSHKeyRepository) Create(ctx context.Context, input domain.CreateSSHKeyInput) (*domain.SSHKey, error) {
-    // INSERT INTO ssh_keys (name, private_key, public_key, fingerprint)
-    // VALUES ($1, $2, $3, $4)
-    // RETURNING ...
-}
+    cfg := agent.Config{
+        ServerURL: *serverURL,
+        Token:     *token,
+        DataDir:   *dataDir,
+    }
 
-func (r *SSHKeyRepository) GetByID(ctx context.Context, id string) (*domain.SSHKey, error) {
-    // SELECT * FROM ssh_keys WHERE id = $1
-}
+    a, err := agent.New(cfg)
+    if err != nil {
+        slog.Error("failed to create agent", "error", err)
+        os.Exit(1)
+    }
 
-func (r *SSHKeyRepository) List(ctx context.Context) ([]domain.SSHKey, error) {
-    // SELECT id, name, public_key, fingerprint, created_at FROM ssh_keys
-    // Nota: NAO retornar private_key na listagem
-}
+    ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+    defer cancel()
 
-func (r *SSHKeyRepository) Delete(ctx context.Context, id string) error {
-    // DELETE FROM ssh_keys WHERE id = $1
+    if err := a.Run(ctx); err != nil {
+        slog.Error("agent error", "error", err)
+        os.Exit(1)
+    }
 }
 ```
 
-**Modificar:** `apps/backend/internal/repository/app_repository.go`
+### Agent Core
 
-Atualizar queries para incluir novos campos:
-
-```go
-// Create - adicionar campos SSH
-INSERT INTO apps (name, repository_url, branch, workdir, config, deploy_mode, ssh_host, ssh_port, ssh_user, ssh_key_id, status, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', NOW(), NOW())
-
-// GetByID - incluir campos SSH no SELECT
-SELECT id, name, repository_url, branch, workdir, runtime, config, status,
-       webhook_id, deploy_mode, ssh_host, ssh_port, ssh_user, ssh_key_id,
-       last_deployed_at, created_at, updated_at
-FROM apps WHERE id = $1 AND status != 'deleted'
-```
-
-### 3. Engine Layer
-
-**Novo arquivo:** `apps/backend/internal/engine/ssh_executor.go`
+**Arquivo:** `apps/agent/internal/agent/agent.go`
 
 ```go
-package engine
+package agent
 
 import (
     "context"
+    "encoding/json"
     "fmt"
-    "io"
+    "log/slog"
+    "net/http"
+    "os"
+    "os/exec"
+    "runtime"
+    "sync"
     "time"
 
-    "github.com/pkg/sftp"
-    "golang.org/x/crypto/ssh"
+    "github.com/gorilla/websocket"
 )
 
-type SSHExecutor struct {
-    client *ssh.Client
-    host   string
-    port   int
-    user   string
+type Config struct {
+    ServerURL string
+    Token     string
+    DataDir   string
 }
 
-type SSHConfig struct {
-    Host       string
-    Port       int
-    User       string
-    PrivateKey string
-    Timeout    time.Duration
+type Agent struct {
+    cfg    Config
+    conn   *websocket.Conn
+    mu     sync.Mutex
+    logger *slog.Logger
 }
 
-func NewSSHExecutor(cfg SSHConfig) (*SSHExecutor, error) {
-    signer, err := ssh.ParsePrivateKey([]byte(cfg.PrivateKey))
-    if err != nil {
-        return nil, fmt.Errorf("failed to parse private key: %w", err)
+type Message struct {
+    Type    string          `json:"type"`
+    ID      string          `json:"id,omitempty"`
+    Payload json.RawMessage `json:"payload,omitempty"`
+}
+
+type DeployCommand struct {
+    AppID         string            `json:"appId"`
+    DeploymentID  string            `json:"deploymentId"`
+    RepositoryURL string            `json:"repositoryUrl"`
+    Branch        string            `json:"branch"`
+    Workdir       string            `json:"workdir"`
+    CommitSHA     string            `json:"commitSha,omitempty"`
+    EnvVars       map[string]string `json:"envVars,omitempty"`
+}
+
+func New(cfg Config) (*Agent, error) {
+    if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
+        return nil, fmt.Errorf("failed to create data dir: %w", err)
     }
 
-    config := &ssh.ClientConfig{
-        User: cfg.User,
-        Auth: []ssh.AuthMethod{
-            ssh.PublicKeys(signer),
-        },
-        HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: implementar verificacao
-        Timeout:         cfg.Timeout,
-    }
-
-    addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-    client, err := ssh.Dial("tcp", addr, config)
-    if err != nil {
-        return nil, fmt.Errorf("failed to connect to %s: %w", addr, err)
-    }
-
-    return &SSHExecutor{
-        client: client,
-        host:   cfg.Host,
-        port:   cfg.Port,
-        user:   cfg.User,
+    return &Agent{
+        cfg:    cfg,
+        logger: slog.Default(),
     }, nil
 }
 
-func (e *SSHExecutor) Run(ctx context.Context, cmd string) (string, error) {
-    session, err := e.client.NewSession()
-    if err != nil {
-        return "", fmt.Errorf("failed to create session: %w", err)
-    }
-    defer session.Close()
+func (a *Agent) Run(ctx context.Context) error {
+    for {
+        select {
+        case <-ctx.Done():
+            return nil
+        default:
+        }
 
-    output, err := session.CombinedOutput(cmd)
-    if err != nil {
-        return string(output), fmt.Errorf("command failed: %w, output: %s", err, output)
-    }
+        if err := a.connect(ctx); err != nil {
+            a.logger.Error("connection failed", "error", err)
+            time.Sleep(5 * time.Second)
+            continue
+        }
 
-    return string(output), nil
+        if err := a.listen(ctx); err != nil {
+            a.logger.Error("listen error", "error", err)
+        }
+
+        time.Sleep(time.Second)
+    }
 }
 
-func (e *SSHExecutor) RunWithOutput(ctx context.Context, cmd string, stdout, stderr io.Writer) error {
-    session, err := e.client.NewSession()
+func (a *Agent) connect(ctx context.Context) error {
+    wsURL := fmt.Sprintf("%s/agent/ws", a.cfg.ServerURL)
+
+    header := http.Header{}
+    header.Set("Authorization", "Bearer "+a.cfg.Token)
+
+    conn, _, err := websocket.DefaultDialer.DialContext(ctx, wsURL, header)
     if err != nil {
-        return fmt.Errorf("failed to create session: %w", err)
+        return fmt.Errorf("websocket dial failed: %w", err)
     }
-    defer session.Close()
 
-    session.Stdout = stdout
-    session.Stderr = stderr
+    a.mu.Lock()
+    a.conn = conn
+    a.mu.Unlock()
 
-    return session.Run(cmd)
+    // Enviar info do sistema
+    if err := a.sendSystemInfo(); err != nil {
+        return fmt.Errorf("failed to send system info: %w", err)
+    }
+
+    a.logger.Info("connected to server")
+    return nil
 }
 
-func (e *SSHExecutor) Upload(localPath, remotePath string) error {
-    sftpClient, err := sftp.NewClient(e.client)
+func (a *Agent) listen(ctx context.Context) error {
+    // Heartbeat goroutine
+    go a.heartbeat(ctx)
+
+    for {
+        select {
+        case <-ctx.Done():
+            return nil
+        default:
+        }
+
+        _, data, err := a.conn.ReadMessage()
+        if err != nil {
+            return fmt.Errorf("read message failed: %w", err)
+        }
+
+        var msg Message
+        if err := json.Unmarshal(data, &msg); err != nil {
+            a.logger.Error("failed to unmarshal message", "error", err)
+            continue
+        }
+
+        go a.handleMessage(ctx, msg)
+    }
+}
+
+func (a *Agent) handleMessage(ctx context.Context, msg Message) {
+    switch msg.Type {
+    case "deploy":
+        var cmd DeployCommand
+        if err := json.Unmarshal(msg.Payload, &cmd); err != nil {
+            a.logger.Error("failed to unmarshal deploy command", "error", err)
+            return
+        }
+        a.handleDeploy(ctx, msg.ID, cmd)
+
+    case "logs":
+        a.handleLogs(ctx, msg)
+
+    case "exec":
+        a.handleExec(ctx, msg)
+
+    default:
+        a.logger.Warn("unknown message type", "type", msg.Type)
+    }
+}
+
+func (a *Agent) handleDeploy(ctx context.Context, msgID string, cmd DeployCommand) {
+    a.logger.Info("starting deploy", "appId", cmd.AppID, "deploymentId", cmd.DeploymentID)
+
+    appDir := fmt.Sprintf("%s/apps/%s", a.cfg.DataDir, cmd.AppID)
+    repoDir := fmt.Sprintf("%s/repo", appDir)
+
+    // 1. Git clone/pull
+    a.sendLog(cmd.DeploymentID, "info", "Syncing repository...")
+    if err := a.syncRepo(ctx, cmd, repoDir); err != nil {
+        a.sendDeployResult(msgID, cmd.DeploymentID, false, err.Error())
+        return
+    }
+
+    // 2. Docker build
+    a.sendLog(cmd.DeploymentID, "info", "Building Docker image...")
+    imageName := fmt.Sprintf("flowdeploy-%s:latest", cmd.AppID)
+    if err := a.dockerBuild(ctx, cmd, repoDir, imageName); err != nil {
+        a.sendDeployResult(msgID, cmd.DeploymentID, false, err.Error())
+        return
+    }
+
+    // 3. Docker run
+    a.sendLog(cmd.DeploymentID, "info", "Starting container...")
+    if err := a.dockerRun(ctx, cmd, imageName); err != nil {
+        a.sendDeployResult(msgID, cmd.DeploymentID, false, err.Error())
+        return
+    }
+
+    a.sendLog(cmd.DeploymentID, "info", "Deploy completed successfully")
+    a.sendDeployResult(msgID, cmd.DeploymentID, true, "")
+}
+
+func (a *Agent) syncRepo(ctx context.Context, cmd DeployCommand, repoDir string) error {
+    if _, err := os.Stat(repoDir + "/.git"); os.IsNotExist(err) {
+        // Clone
+        args := []string{"clone", "--branch", cmd.Branch, "--single-branch", cmd.RepositoryURL, repoDir}
+        return a.runCommand(ctx, cmd.DeploymentID, "git", args...)
+    }
+
+    // Fetch and checkout
+    if err := a.runCommand(ctx, cmd.DeploymentID, "git", "-C", repoDir, "fetch", "origin"); err != nil {
+        return err
+    }
+
+    ref := cmd.CommitSHA
+    if ref == "" {
+        ref = "origin/" + cmd.Branch
+    }
+
+    return a.runCommand(ctx, cmd.DeploymentID, "git", "-C", repoDir, "checkout", ref)
+}
+
+func (a *Agent) dockerBuild(ctx context.Context, cmd DeployCommand, repoDir, imageName string) error {
+    buildContext := repoDir
+    if cmd.Workdir != "" && cmd.Workdir != "." {
+        buildContext = fmt.Sprintf("%s/%s", repoDir, cmd.Workdir)
+    }
+
+    args := []string{"build", "-t", imageName, buildContext}
+    return a.runCommand(ctx, cmd.DeploymentID, "docker", args...)
+}
+
+func (a *Agent) dockerRun(ctx context.Context, cmd DeployCommand, imageName string) error {
+    containerName := fmt.Sprintf("flowdeploy-%s", cmd.AppID)
+
+    // Parar container existente
+    _ = a.runCommand(ctx, cmd.DeploymentID, "docker", "stop", containerName)
+    _ = a.runCommand(ctx, cmd.DeploymentID, "docker", "rm", containerName)
+
+    args := []string{"run", "-d", "--name", containerName, "--restart", "unless-stopped"}
+
+    // Adicionar env vars
+    for k, v := range cmd.EnvVars {
+        args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+    }
+
+    args = append(args, imageName)
+    return a.runCommand(ctx, cmd.DeploymentID, "docker", args...)
+}
+
+func (a *Agent) runCommand(ctx context.Context, deploymentID, name string, args ...string) error {
+    cmd := exec.CommandContext(ctx, name, args...)
+
+    output, err := cmd.CombinedOutput()
+
+    // Enviar output como log
+    if len(output) > 0 {
+        a.sendLog(deploymentID, "output", string(output))
+    }
+
     if err != nil {
-        return fmt.Errorf("failed to create SFTP client: %w", err)
+        return fmt.Errorf("%s failed: %w", name, err)
     }
-    defer sftpClient.Close()
 
-    // Implementar upload de arquivo
-    // ...
+    return nil
 }
 
-func (e *SSHExecutor) Close() error {
-    return e.client.Close()
+func (a *Agent) sendLog(deploymentID, level, message string) {
+    a.send(Message{
+        Type: "log",
+        Payload: mustMarshal(map[string]string{
+            "deploymentId": deploymentID,
+            "level":        level,
+            "message":      message,
+            "timestamp":    time.Now().Format(time.RFC3339),
+        }),
+    })
 }
 
-func (e *SSHExecutor) TestConnection() error {
-    _, err := e.Run(context.Background(), "echo 'connection test'")
-    return err
+func (a *Agent) sendDeployResult(msgID, deploymentID string, success bool, errorMsg string) {
+    a.send(Message{
+        Type: "deploy_result",
+        ID:   msgID,
+        Payload: mustMarshal(map[string]interface{}{
+            "deploymentId": deploymentID,
+            "success":      success,
+            "error":        errorMsg,
+        }),
+    })
+}
+
+func (a *Agent) sendSystemInfo() error {
+    info := map[string]interface{}{
+        "os":           runtime.GOOS,
+        "arch":         runtime.GOARCH,
+        "cpuCores":     runtime.NumCPU(),
+        "agentVersion": "1.0.0",
+    }
+
+    // Get Docker version
+    if output, err := exec.Command("docker", "version", "--format", "{{.Server.Version}}").Output(); err == nil {
+        info["dockerVersion"] = string(output)
+    }
+
+    return a.send(Message{
+        Type:    "system_info",
+        Payload: mustMarshal(info),
+    })
+}
+
+func (a *Agent) heartbeat(ctx context.Context) {
+    ticker := time.NewTicker(30 * time.Second)
+    defer ticker.Stop()
+
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case <-ticker.C:
+            a.send(Message{Type: "heartbeat"})
+        }
+    }
+}
+
+func (a *Agent) send(msg Message) error {
+    a.mu.Lock()
+    defer a.mu.Unlock()
+
+    if a.conn == nil {
+        return fmt.Errorf("not connected")
+    }
+
+    return a.conn.WriteJSON(msg)
+}
+
+func mustMarshal(v interface{}) json.RawMessage {
+    data, _ := json.Marshal(v)
+    return data
 }
 ```
 
-**Modificar:** `apps/backend/internal/engine/worker.go`
+## Backend - Agent Hub
+
+**Arquivo:** `apps/backend/internal/agent/hub.go`
 
 ```go
-func (w *Worker) Run(ctx context.Context, deployment *domain.Deployment, app *domain.App) error {
-    // Determinar modo de deploy
-    if app.DeployMode == string(domain.DeployModeSSH) {
-        return w.runRemoteDeploy(ctx, deployment, app)
-    }
-    return w.runLocalDeploy(ctx, deployment, app)
+package agent
+
+import (
+    "context"
+    "encoding/json"
+    "log/slog"
+    "net/http"
+    "sync"
+    "time"
+
+    "github.com/gorilla/websocket"
+    "flowdeploy/internal/domain"
+    "flowdeploy/internal/repository"
+)
+
+var upgrader = websocket.Upgrader{
+    CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func (w *Worker) runRemoteDeploy(ctx context.Context, deployment *domain.Deployment, app *domain.App) error {
-    // 1. Criar conexao SSH
-    sshKey, err := w.sshKeyRepo.GetByID(ctx, *app.SSHKeyID)
-    if err != nil {
-        return fmt.Errorf("failed to get SSH key: %w", err)
-    }
-
-    executor, err := NewSSHExecutor(SSHConfig{
-        Host:       *app.SSHHost,
-        Port:       *app.SSHPort,
-        User:       *app.SSHUser,
-        PrivateKey: sshKey.PrivateKey,
-        Timeout:    30 * time.Second,
-    })
-    if err != nil {
-        return fmt.Errorf("failed to connect via SSH: %w", err)
-    }
-    defer executor.Close()
-
-    // 2. Criar diretorio no servidor remoto
-    dataDir := fmt.Sprintf("/opt/paasdeploy/apps/%s", app.ID)
-    if _, err := executor.Run(ctx, fmt.Sprintf("mkdir -p %s", dataDir)); err != nil {
-        return fmt.Errorf("failed to create data dir: %w", err)
-    }
-
-    // 3. Clonar/atualizar repositorio
-    if err := w.syncGitRemote(ctx, executor, app, dataDir); err != nil {
-        return err
-    }
-
-    // 4. Carregar configuracao
-    config, err := w.loadConfigRemote(ctx, executor, app, dataDir)
-    if err != nil {
-        return err
-    }
-
-    // 5. Build Docker
-    if err := w.buildDockerRemote(ctx, executor, app, config, dataDir); err != nil {
-        return err
-    }
-
-    // 6. Deploy container
-    if err := w.deployContainerRemote(ctx, executor, app, config, dataDir); err != nil {
-        return err
-    }
-
-    // 7. Health check (via HTTP para o IP do servidor remoto)
-    if err := w.healthCheckRemote(ctx, app, config); err != nil {
-        return err
-    }
-
-    return nil
+type Hub struct {
+    serverRepo *repository.ServerRepository
+    agents     map[string]*AgentConn
+    mu         sync.RWMutex
+    logger     *slog.Logger
 }
 
-func (w *Worker) syncGitRemote(ctx context.Context, executor *SSHExecutor, app *domain.App, dataDir string) error {
-    repoDir := fmt.Sprintf("%s/repo", dataDir)
+type AgentConn struct {
+    ServerID string
+    Conn     *websocket.Conn
+    Send     chan []byte
+}
 
-    // Verificar se repo ja existe
-    _, err := executor.Run(ctx, fmt.Sprintf("test -d %s/.git", repoDir))
-    if err != nil {
-        // Clone
-        cmd := fmt.Sprintf("git clone --branch %s %s %s", app.Branch, app.RepositoryURL, repoDir)
-        if _, err := executor.Run(ctx, cmd); err != nil {
-            return fmt.Errorf("git clone failed: %w", err)
-        }
-    } else {
-        // Pull
-        cmd := fmt.Sprintf("cd %s && git fetch origin && git checkout %s && git pull origin %s", repoDir, app.Branch, app.Branch)
-        if _, err := executor.Run(ctx, cmd); err != nil {
-            return fmt.Errorf("git pull failed: %w", err)
-        }
+type Message struct {
+    Type    string          `json:"type"`
+    ID      string          `json:"id,omitempty"`
+    Payload json.RawMessage `json:"payload,omitempty"`
+}
+
+func NewHub(serverRepo *repository.ServerRepository) *Hub {
+    return &Hub{
+        serverRepo: serverRepo,
+        agents:     make(map[string]*AgentConn),
+        logger:     slog.Default(),
+    }
+}
+
+func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
+    // Extrair token do header
+    token := r.Header.Get("Authorization")
+    if token == "" {
+        http.Error(w, "unauthorized", http.StatusUnauthorized)
+        return
     }
 
-    return nil
+    // Remover "Bearer " prefix
+    if len(token) > 7 && token[:7] == "Bearer " {
+        token = token[7:]
+    }
+
+    // Buscar servidor pelo token
+    server, err := h.serverRepo.GetByToken(r.Context(), token)
+    if err != nil {
+        http.Error(w, "invalid token", http.StatusUnauthorized)
+        return
+    }
+
+    // Upgrade para WebSocket
+    conn, err := upgrader.Upgrade(w, r, nil)
+    if err != nil {
+        h.logger.Error("websocket upgrade failed", "error", err)
+        return
+    }
+
+    agent := &AgentConn{
+        ServerID: server.ID,
+        Conn:     conn,
+        Send:     make(chan []byte, 256),
+    }
+
+    h.register(agent)
+    defer h.unregister(agent)
+
+    // Atualizar status do servidor
+    _ = h.serverRepo.UpdateStatus(r.Context(), server.ID, domain.ServerStatusOnline)
+
+    go h.writePump(agent)
+    h.readPump(r.Context(), agent)
+}
+
+func (h *Hub) register(agent *AgentConn) {
+    h.mu.Lock()
+    defer h.mu.Unlock()
+
+    // Fechar conexao anterior se existir
+    if old, ok := h.agents[agent.ServerID]; ok {
+        old.Conn.Close()
+    }
+
+    h.agents[agent.ServerID] = agent
+    h.logger.Info("agent connected", "serverId", agent.ServerID)
+}
+
+func (h *Hub) unregister(agent *AgentConn) {
+    h.mu.Lock()
+    defer h.mu.Unlock()
+
+    if current, ok := h.agents[agent.ServerID]; ok && current == agent {
+        delete(h.agents, agent.ServerID)
+        close(agent.Send)
+        agent.Conn.Close()
+
+        // Atualizar status para offline
+        ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+        defer cancel()
+        _ = h.serverRepo.UpdateStatus(ctx, agent.ServerID, domain.ServerStatusOffline)
+
+        h.logger.Info("agent disconnected", "serverId", agent.ServerID)
+    }
+}
+
+func (h *Hub) readPump(ctx context.Context, agent *AgentConn) {
+    defer agent.Conn.Close()
+
+    for {
+        _, data, err := agent.Conn.ReadMessage()
+        if err != nil {
+            return
+        }
+
+        var msg Message
+        if err := json.Unmarshal(data, &msg); err != nil {
+            continue
+        }
+
+        h.handleMessage(ctx, agent.ServerID, msg)
+    }
+}
+
+func (h *Hub) writePump(agent *AgentConn) {
+    for data := range agent.Send {
+        if err := agent.Conn.WriteMessage(websocket.TextMessage, data); err != nil {
+            return
+        }
+    }
+}
+
+func (h *Hub) handleMessage(ctx context.Context, serverID string, msg Message) {
+    switch msg.Type {
+    case "heartbeat":
+        _ = h.serverRepo.UpdateHeartbeat(ctx, serverID)
+
+    case "system_info":
+        var info domain.ServerMetadata
+        _ = json.Unmarshal(msg.Payload, &info)
+        _ = h.serverRepo.UpdateMetadata(ctx, serverID, info)
+
+    case "log":
+        // Encaminhar log para SSE
+        h.logger.Debug("deploy log", "serverId", serverID, "payload", string(msg.Payload))
+
+    case "deploy_result":
+        // Processar resultado do deploy
+        h.logger.Info("deploy result", "serverId", serverID, "payload", string(msg.Payload))
+    }
+}
+
+func (h *Hub) SendToServer(serverID string, msg Message) error {
+    h.mu.RLock()
+    agent, ok := h.agents[serverID]
+    h.mu.RUnlock()
+
+    if !ok {
+        return fmt.Errorf("server not connected: %s", serverID)
+    }
+
+    data, err := json.Marshal(msg)
+    if err != nil {
+        return err
+    }
+
+    select {
+    case agent.Send <- data:
+        return nil
+    default:
+        return fmt.Errorf("send buffer full")
+    }
+}
+
+func (h *Hub) IsServerOnline(serverID string) bool {
+    h.mu.RLock()
+    defer h.mu.RUnlock()
+    _, ok := h.agents[serverID]
+    return ok
 }
 ```
 
-### 4. Handler Layer
+## API Endpoints
 
-**Novo arquivo:** `apps/backend/internal/handler/ssh_key_handler.go`
+### Server Handler
+
+**Arquivo:** `apps/backend/internal/handler/server_handler.go`
 
 ```go
 package handler
 
 import (
+    "crypto/rand"
+    "encoding/hex"
     "net/http"
-    "your-project/internal/domain"
-    "your-project/internal/repository"
-    "your-project/internal/response"
 
     "github.com/go-chi/chi/v5"
+    "flowdeploy/internal/domain"
+    "flowdeploy/internal/repository"
+    "flowdeploy/internal/response"
+    "flowdeploy/internal/agent"
 )
 
-type SSHKeyHandler struct {
-    repo *repository.SSHKeyRepository
+type ServerHandler struct {
+    repo *repository.ServerRepository
+    hub  *agent.Hub
 }
 
-func NewSSHKeyHandler(repo *repository.SSHKeyRepository) *SSHKeyHandler {
-    return &SSHKeyHandler{repo: repo}
-}
-
-// POST /api/ssh-keys
-func (h *SSHKeyHandler) Create(w http.ResponseWriter, r *http.Request) {
-    var input domain.CreateSSHKeyInput
+// POST /api/servers - Criar servidor e gerar token
+func (h *ServerHandler) Create(w http.ResponseWriter, r *http.Request) {
+    var input domain.CreateServerInput
     if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
         response.Error(w, http.StatusBadRequest, "invalid request body")
         return
     }
 
-    // Validar e extrair fingerprint da chave
-    // ...
+    // Gerar token unico
+    token := generateToken()
 
-    key, err := h.repo.Create(r.Context(), input)
+    server, err := h.repo.Create(r.Context(), input, token)
     if err != nil {
-        response.Error(w, http.StatusInternalServerError, "failed to create SSH key")
+        response.Error(w, http.StatusInternalServerError, "failed to create server")
         return
     }
 
-    response.JSON(w, http.StatusCreated, key)
+    // Retornar servidor com token (unica vez que o token e exposto)
+    result := domain.ServerWithToken{
+        Server:     *server,
+        AgentToken: token,
+    }
+
+    response.JSON(w, http.StatusCreated, result)
 }
 
-// GET /api/ssh-keys
-func (h *SSHKeyHandler) List(w http.ResponseWriter, r *http.Request) {
-    keys, err := h.repo.List(r.Context())
+// GET /api/servers - Listar servidores
+func (h *ServerHandler) List(w http.ResponseWriter, r *http.Request) {
+    servers, err := h.repo.List(r.Context())
     if err != nil {
-        response.Error(w, http.StatusInternalServerError, "failed to list SSH keys")
+        response.Error(w, http.StatusInternalServerError, "failed to list servers")
         return
     }
 
-    response.JSON(w, http.StatusOK, keys)
+    // Adicionar status online/offline baseado no hub
+    for i := range servers {
+        if h.hub.IsServerOnline(servers[i].ID) {
+            servers[i].Status = domain.ServerStatusOnline
+        }
+    }
+
+    response.JSON(w, http.StatusOK, servers)
 }
 
-// DELETE /api/ssh-keys/:id
-func (h *SSHKeyHandler) Delete(w http.ResponseWriter, r *http.Request) {
+// GET /api/servers/:id - Detalhes do servidor
+func (h *ServerHandler) Get(w http.ResponseWriter, r *http.Request) {
+    id := chi.URLParam(r, "id")
+
+    server, err := h.repo.GetByID(r.Context(), id)
+    if err != nil {
+        response.Error(w, http.StatusNotFound, "server not found")
+        return
+    }
+
+    if h.hub.IsServerOnline(server.ID) {
+        server.Status = domain.ServerStatusOnline
+    }
+
+    response.JSON(w, http.StatusOK, server)
+}
+
+// DELETE /api/servers/:id - Remover servidor
+func (h *ServerHandler) Delete(w http.ResponseWriter, r *http.Request) {
     id := chi.URLParam(r, "id")
 
     if err := h.repo.Delete(r.Context(), id); err != nil {
-        response.Error(w, http.StatusInternalServerError, "failed to delete SSH key")
+        response.Error(w, http.StatusInternalServerError, "failed to delete server")
         return
     }
 
     w.WriteHeader(http.StatusNoContent)
 }
 
-// POST /api/ssh-keys/:id/test
-func (h *SSHKeyHandler) TestConnection(w http.ResponseWriter, r *http.Request) {
+// POST /api/servers/:id/regenerate-token - Gerar novo token
+func (h *ServerHandler) RegenerateToken(w http.ResponseWriter, r *http.Request) {
     id := chi.URLParam(r, "id")
 
-    var input struct {
-        Host string `json:"host"`
-        Port int    `json:"port"`
-        User string `json:"user"`
-    }
-    if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-        response.Error(w, http.StatusBadRequest, "invalid request body")
+    newToken := generateToken()
+
+    if err := h.repo.UpdateToken(r.Context(), id, newToken); err != nil {
+        response.Error(w, http.StatusInternalServerError, "failed to regenerate token")
         return
     }
 
-    key, err := h.repo.GetByID(r.Context(), id)
-    if err != nil {
-        response.Error(w, http.StatusNotFound, "SSH key not found")
-        return
-    }
-
-    executor, err := engine.NewSSHExecutor(engine.SSHConfig{
-        Host:       input.Host,
-        Port:       input.Port,
-        User:       input.User,
-        PrivateKey: key.PrivateKey,
-        Timeout:    10 * time.Second,
+    response.JSON(w, http.StatusOK, map[string]string{
+        "token": newToken,
     })
-    if err != nil {
-        response.JSON(w, http.StatusOK, map[string]interface{}{
-            "success": false,
-            "error":   err.Error(),
-        })
-        return
-    }
-    defer executor.Close()
+}
 
-    if err := executor.TestConnection(); err != nil {
-        response.JSON(w, http.StatusOK, map[string]interface{}{
-            "success": false,
-            "error":   err.Error(),
-        })
-        return
-    }
-
-    response.JSON(w, http.StatusOK, map[string]interface{}{
-        "success": true,
-    })
+func generateToken() string {
+    b := make([]byte, 32)
+    rand.Read(b)
+    return hex.EncodeToString(b)
 }
 ```
 
-### 5. Server Routes
+### Routes
 
 **Modificar:** `apps/backend/internal/server/server.go`
 
 ```go
-// Adicionar rotas SSH
-r.Route("/ssh-keys", func(r chi.Router) {
-    r.Get("/", sshKeyHandler.List)
-    r.Post("/", sshKeyHandler.Create)
-    r.Delete("/{id}", sshKeyHandler.Delete)
-    r.Post("/{id}/test", sshKeyHandler.TestConnection)
+// Adicionar rotas de servidores
+r.Route("/servers", func(r chi.Router) {
+    r.Get("/", serverHandler.List)
+    r.Post("/", serverHandler.Create)
+    r.Get("/{id}", serverHandler.Get)
+    r.Delete("/{id}", serverHandler.Delete)
+    r.Post("/{id}/regenerate-token", serverHandler.RegenerateToken)
 })
+
+// WebSocket para agents
+r.Get("/agent/ws", agentHub.HandleWebSocket)
 ```
 
-## Mudancas no Frontend (React)
+## Frontend
 
-### 1. Tipos
-
-**Modificar:** `apps/frontend/src/features/apps/types.ts`
+### Types
 
 ```typescript
-export type DeployMode = "local" | "ssh";
+export type ServerStatus = "pending" | "online" | "offline" | "error";
+
+export interface Server {
+  id: string;
+  name: string;
+  hostname: string;
+  ipAddress?: string;
+  agentVersion?: string;
+  status: ServerStatus;
+  lastHeartbeatAt?: string;
+  metadata?: {
+    os?: string;
+    arch?: string;
+    cpuCores?: number;
+    memoryMb?: number;
+    dockerVersion?: string;
+  };
+  createdAt: string;
+}
+
+export interface ServerWithToken extends Server {
+  agentToken: string;
+}
+
+export interface CreateServerInput {
+  name: string;
+  hostname: string;
+}
+
+export type DeployMode = "local" | "remote";
 
 export interface CreateAppInput {
   name: string;
@@ -527,264 +981,207 @@ export interface CreateAppInput {
   branch?: string;
   workdir?: string;
   deployMode?: DeployMode;
-  sshHost?: string;
-  sshPort?: number;
-  sshUser?: string;
-  sshKeyId?: string;
-}
-
-export interface SSHKey {
-  id: string;
-  name: string;
-  publicKey?: string;
-  fingerprint?: string;
-  createdAt: string;
-}
-
-export interface CreateSSHKeyInput {
-  name: string;
-  privateKey: string;
-}
-
-export interface TestSSHConnectionInput {
-  host: string;
-  port: number;
-  user: string;
-}
-
-export interface TestSSHConnectionResult {
-  success: boolean;
-  error?: string;
+  serverId?: string;
 }
 ```
 
-### 2. API Service
-
-**Modificar:** `apps/frontend/src/services/api.ts`
+### API Service
 
 ```typescript
-export const api = {
-  // ... existentes ...
+servers: {
+  list: (): Promise<readonly Server[]> =>
+    fetchApiList<Server>(`${API_BASE}/servers`),
 
-  sshKeys: {
-    list: (): Promise<readonly SSHKey[]> =>
-      fetchApiList<SSHKey>(`${API_BASE}/ssh-keys`),
+  create: (input: CreateServerInput): Promise<ServerWithToken> =>
+    fetchApi<ServerWithToken>(`${API_BASE}/servers`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
 
-    create: (input: CreateSSHKeyInput): Promise<SSHKey> =>
-      fetchApi<SSHKey>(`${API_BASE}/ssh-keys`, {
-        method: "POST",
-        body: JSON.stringify(input),
-      }),
+  get: (id: string): Promise<Server> =>
+    fetchApi<Server>(`${API_BASE}/servers/${id}`),
 
-    delete: (id: string): Promise<void> =>
-      fetchApi<void>(`${API_BASE}/ssh-keys/${id}`, {
-        method: "DELETE",
-      }),
+  delete: (id: string): Promise<void> =>
+    fetchApi<void>(`${API_BASE}/servers/${id}`, {
+      method: 'DELETE',
+    }),
 
-    testConnection: (
-      id: string,
-      input: TestSSHConnectionInput,
-    ): Promise<TestSSHConnectionResult> =>
-      fetchApi<TestSSHConnectionResult>(`${API_BASE}/ssh-keys/${id}/test`, {
-        method: "POST",
-        body: JSON.stringify(input),
-      }),
-  },
-};
-```
-
-### 3. Hooks
-
-**Novo arquivo:** `apps/frontend/src/features/ssh-keys/hooks/use-ssh-keys.ts`
-
-```typescript
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/services/api";
-import type { CreateSSHKeyInput, TestSSHConnectionInput } from "../types";
-
-export function useSSHKeys() {
-  return useQuery({
-    queryKey: ["ssh-keys"],
-    queryFn: () => api.sshKeys.list(),
-  });
-}
-
-export function useCreateSSHKey() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (input: CreateSSHKeyInput) => api.sshKeys.create(input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ssh-keys"] });
-    },
-  });
-}
-
-export function useDeleteSSHKey() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (id: string) => api.sshKeys.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ssh-keys"] });
-    },
-  });
-}
-
-export function useTestSSHConnection() {
-  return useMutation({
-    mutationFn: ({
-      keyId,
-      input,
-    }: {
-      keyId: string;
-      input: TestSSHConnectionInput;
-    }) => api.sshKeys.testConnection(keyId, input),
-  });
+  regenerateToken: (id: string): Promise<{ token: string }> =>
+    fetchApi<{ token: string }>(`${API_BASE}/servers/${id}/regenerate-token`, {
+      method: 'POST',
+    }),
 }
 ```
 
-### 4. Componentes
+## Fluxo de Setup de Servidor
 
-**Modificar:** `apps/frontend/src/features/apps/components/app-form.tsx`
+```
+1. Usuario acessa FlowDeploy Dashboard
+2. Usuario vai em "Servidores" > "Adicionar Servidor"
+3. Usuario informa nome e hostname
+4. Sistema gera token unico e exibe comando de instalacao:
 
-Adicionar secao de configuracao SSH apos os campos de repositorio:
+   curl -fsSL https://flowdeploy.io/install.sh | sh -s -- \
+     --server https://sua-instancia.flowdeploy.io \
+     --token abc123xyz...
 
-```tsx
-// Estado adicional
-const [deployMode, setDeployMode] = useState<DeployMode>("local");
-const [sshHost, setSSHHost] = useState("");
-const [sshPort, setSSHPort] = useState(22);
-const [sshUser, setSSHUser] = useState("root");
-const [sshKeyId, setSSHKeyId] = useState("");
-
-// Buscar chaves SSH
-const { data: sshKeys } = useSSHKeys();
-const testConnection = useTestSSHConnection();
-
-// Componente de configuracao SSH
-{
-  deployMode === "ssh" && (
-    <div className="space-y-4 border-l-2 border-blue-500 pl-4">
-      <div>
-        <Label htmlFor="sshKey">Chave SSH</Label>
-        <Select value={sshKeyId} onValueChange={setSSHKeyId}>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecione uma chave SSH" />
-          </SelectTrigger>
-          <SelectContent>
-            {sshKeys?.map((key) => (
-              <SelectItem key={key.id} value={key.id}>
-                {key.name} ({key.fingerprint})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="sshHost">Host (IP ou Dominio)</Label>
-          <Input
-            id="sshHost"
-            value={sshHost}
-            onChange={(e) => setSSHHost(e.target.value)}
-            placeholder="192.168.1.100"
-          />
-        </div>
-        <div>
-          <Label htmlFor="sshPort">Porta</Label>
-          <Input
-            id="sshPort"
-            type="number"
-            value={sshPort}
-            onChange={(e) => setSSHPort(Number(e.target.value))}
-          />
-        </div>
-      </div>
-
-      <div>
-        <Label htmlFor="sshUser">Usuario</Label>
-        <Input
-          id="sshUser"
-          value={sshUser}
-          onChange={(e) => setSSHUser(e.target.value)}
-          placeholder="root"
-        />
-      </div>
-
-      <Button
-        type="button"
-        variant="outline"
-        onClick={handleTestConnection}
-        disabled={!sshKeyId || !sshHost}
-      >
-        Testar Conexao
-      </Button>
-    </div>
-  );
-}
+5. Usuario executa comando no servidor remoto
+6. Agent conecta ao FlowDeploy Server via WebSocket
+7. Servidor aparece como "Online" no dashboard
 ```
 
 ## Fluxo de Deploy Remoto
 
 ```
-1. Usuario cria app com deployMode = "ssh"
-2. Usuario configura: host, porta, usuario, chave SSH
-3. Usuario testa conexao
-4. Usuario inicia deploy
-5. Worker:
-   a. Conecta via SSH ao servidor remoto
-   b. Cria diretorio /opt/paasdeploy/apps/{appId}
-   c. Clona repositorio no servidor remoto
-   d. Le paasdeploy.json do servidor remoto
-   e. Executa docker build no servidor remoto
-   f. Executa docker compose up no servidor remoto
-   g. Faz health check via HTTP para o IP do servidor remoto
-6. Deploy concluido
+1. Usuario cria app com deployMode = "remote" e seleciona servidor
+2. Usuario inicia deploy
+3. Backend envia comando de deploy via WebSocket para o agent
+4. Agent executa:
+   a. git clone/pull
+   b. docker build
+   c. docker run
+5. Agent envia logs em tempo real via WebSocket
+6. Agent envia resultado final (success/failure)
+7. Backend atualiza status do deployment
+8. Frontend recebe atualizacao via SSE
 ```
 
-## Consideracoes de Seguranca
+## Instalacao do Agent
 
-1. **Armazenamento de Chaves:** Chaves privadas devem ser criptografadas no banco (AES-256-GCM)
-2. **Validacao de Host:** Validar formato de IP/dominio antes de conectar
-3. **Timeout:** Timeout de conexao SSH de 30 segundos
-4. **Logs:** NUNCA logar chaves privadas
-5. **Permissoes:** Usuario SSH deve ter permissoes minimas necessarias
-6. **Host Key:** Implementar verificacao de host key para producao
+### Script de Instalacao
 
-## Pre-requisitos no Servidor Remoto
-
-O servidor de destino precisa ter instalado:
-
-- Docker Engine 24+
-- Docker Compose v2
-- Git
-- Usuario com acesso SSH e permissoes para Docker
-
-Comandos para preparar o servidor:
+**Arquivo:** `apps/agent/install.sh`
 
 ```bash
-# Instalar Docker
-curl -fsSL https://get.docker.com | sh
+#!/bin/bash
+set -e
 
-# Adicionar usuario ao grupo docker
-sudo usermod -aG docker $USER
+FLOWDEPLOY_SERVER=""
+FLOWDEPLOY_TOKEN=""
+INSTALL_DIR="/opt/flowdeploy"
+SERVICE_NAME="flowdeploy-agent"
 
-# Instalar Git
-sudo apt-get install -y git
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --server) FLOWDEPLOY_SERVER="$2"; shift 2 ;;
+        --token) FLOWDEPLOY_TOKEN="$2"; shift 2 ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
+    esac
+done
 
-# Criar diretorio para apps
-sudo mkdir -p /opt/paasdeploy/apps
-sudo chown -R $USER:$USER /opt/paasdeploy
+if [[ -z "$FLOWDEPLOY_SERVER" || -z "$FLOWDEPLOY_TOKEN" ]]; then
+    echo "Usage: install.sh --server <url> --token <token>"
+    exit 1
+fi
+
+echo "Installing FlowDeploy Agent..."
+
+# Criar diretorio
+sudo mkdir -p "$INSTALL_DIR"
+
+# Detectar arquitetura
+ARCH=$(uname -m)
+case $ARCH in
+    x86_64) ARCH="amd64" ;;
+    aarch64) ARCH="arm64" ;;
+    *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+esac
+
+# Download do binario
+DOWNLOAD_URL="${FLOWDEPLOY_SERVER}/downloads/agent-linux-${ARCH}"
+sudo curl -fsSL "$DOWNLOAD_URL" -o "$INSTALL_DIR/flowdeploy-agent"
+sudo chmod +x "$INSTALL_DIR/flowdeploy-agent"
+
+# Criar arquivo de configuracao
+sudo tee "$INSTALL_DIR/config.env" > /dev/null <<EOF
+FLOWDEPLOY_SERVER=$FLOWDEPLOY_SERVER
+FLOWDEPLOY_TOKEN=$FLOWDEPLOY_TOKEN
+EOF
+sudo chmod 600 "$INSTALL_DIR/config.env"
+
+# Criar systemd service
+sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" > /dev/null <<EOF
+[Unit]
+Description=FlowDeploy Agent
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=$INSTALL_DIR/config.env
+ExecStart=$INSTALL_DIR/flowdeploy-agent --server \$FLOWDEPLOY_SERVER --token \$FLOWDEPLOY_TOKEN
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Iniciar servico
+sudo systemctl daemon-reload
+sudo systemctl enable "$SERVICE_NAME"
+sudo systemctl start "$SERVICE_NAME"
+
+echo "FlowDeploy Agent installed successfully!"
+echo "Check status: sudo systemctl status $SERVICE_NAME"
+```
+
+## Pre-requisitos do Servidor Remoto
+
+- Linux (Ubuntu 20.04+, Debian 11+, CentOS 8+)
+- Docker Engine 20+
+- Git
+- Acesso a internet (outbound) para conectar ao FlowDeploy Server
+
+## Estrutura de Arquivos
+
+```
+apps/
+├── agent/
+│   ├── cmd/
+│   │   └── agent/
+│   │       └── main.go
+│   ├── internal/
+│   │   └── agent/
+│   │       └── agent.go
+│   ├── install.sh
+│   ├── Dockerfile
+│   └── go.mod
+├── backend/
+│   ├── internal/
+│   │   ├── agent/
+│   │   │   └── hub.go
+│   │   ├── domain/
+│   │   │   └── server.go
+│   │   ├── handler/
+│   │   │   └── server_handler.go
+│   │   └── repository/
+│   │       └── server_repository.go
+│   └── migrations/
+│       ├── 000006_add_servers.up.sql
+│       └── 000006_add_servers.down.sql
+└── frontend/
+    └── src/
+        └── features/
+            └── servers/
+                ├── components/
+                │   ├── server-list.tsx
+                │   ├── server-card.tsx
+                │   └── add-server-dialog.tsx
+                ├── hooks/
+                │   └── use-servers.ts
+                └── types.ts
 ```
 
 ## Proximos Passos
 
-1. Implementar migration e modelos
-2. Implementar SSHExecutor
-3. Modificar Worker para suportar deploy remoto
-4. Implementar handlers e rotas
-5. Implementar interface no frontend
-6. Testes de integracao
-7. Documentacao de uso
+1. Criar migration para tabela servers
+2. Implementar domain e repository de Server
+3. Implementar Agent Hub (WebSocket server)
+4. Implementar handlers de Server
+5. Criar projeto do Agent (Go)
+6. Implementar comunicacao WebSocket
+7. Criar script de instalacao
+8. Implementar frontend (servidores)
+9. Integrar deploy remoto no worker
+10. Testes de integracao

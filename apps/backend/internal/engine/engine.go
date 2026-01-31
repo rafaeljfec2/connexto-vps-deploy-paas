@@ -17,6 +17,7 @@ type Engine struct {
 	dispatcher    *Dispatcher
 	notifier      *ChannelNotifier
 	healthMonitor *HealthMonitor
+	statsMonitor  *StatsMonitor
 	docker        *DockerClient
 	workers       []*Worker
 	logger        *slog.Logger
@@ -36,6 +37,7 @@ func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRep
 	dispatcher := NewDispatcher(queue, locker, logger)
 	docker := NewDockerClient(cfg.Deploy.DataDir, cfg.Docker.Registry, logger)
 	healthMonitor := NewHealthMonitor(docker, appRepo, notifier, logger)
+	statsMonitor := NewStatsMonitor(docker, appRepo, notifier, logger)
 
 	engine := &Engine{
 		cfg:           cfg,
@@ -43,6 +45,7 @@ func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRep
 		dispatcher:    dispatcher,
 		notifier:      notifier,
 		healthMonitor: healthMonitor,
+		statsMonitor:  statsMonitor,
 		docker:        docker,
 		logger:        logger.With("component", "engine"),
 		ctx:           ctx,
@@ -79,6 +82,7 @@ func (e *Engine) Start() error {
 	e.logger.Info("Starting deploy engine", "workers", len(e.workers))
 
 	e.healthMonitor.Start(e.ctx)
+	e.statsMonitor.Start(e.ctx)
 
 	for _, worker := range e.workers {
 		e.wg.Add(1)
@@ -99,6 +103,7 @@ func (e *Engine) Stop() {
 
 	e.logger.Info("Stopping deploy engine...")
 	e.healthMonitor.Stop()
+	e.statsMonitor.Stop()
 	e.cancel()
 	e.wg.Wait()
 	e.notifier.Close()

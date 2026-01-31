@@ -18,12 +18,6 @@ export const API_ROUTES = {
   },
 } as const;
 
-export const REFETCH_INTERVALS = {
-  FAST: 5000,
-  NORMAL: 10000,
-  SLOW: 30000,
-} as const;
-
 export const STALE_TIMES = {
   SHORT: 30 * 1000,
   NORMAL: 60 * 1000,

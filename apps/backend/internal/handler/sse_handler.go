@@ -24,13 +24,24 @@ type SSEHealthStatus struct {
 	Uptime    string `json:"uptime,omitempty"`
 }
 
+type SSEContainerStats struct {
+	CPUPercent    float64 `json:"cpuPercent"`
+	MemoryUsage   int64   `json:"memoryUsage"`
+	MemoryLimit   int64   `json:"memoryLimit"`
+	MemoryPercent float64 `json:"memoryPercent"`
+	NetworkRx     int64   `json:"networkRx"`
+	NetworkTx     int64   `json:"networkTx"`
+	PIDs          int     `json:"pids"`
+}
+
 type SSEEvent struct {
-	Type      string           `json:"type"`
-	DeployID  string           `json:"deployId,omitempty"`
-	AppID     string           `json:"appId,omitempty"`
-	Message   string           `json:"message,omitempty"`
-	Health    *SSEHealthStatus `json:"health,omitempty"`
-	Timestamp time.Time        `json:"timestamp"`
+	Type      string             `json:"type"`
+	DeployID  string             `json:"deployId,omitempty"`
+	AppID     string             `json:"appId,omitempty"`
+	Message   string             `json:"message,omitempty"`
+	Health    *SSEHealthStatus   `json:"health,omitempty"`
+	Stats     *SSEContainerStats `json:"stats,omitempty"`
+	Timestamp time.Time          `json:"timestamp"`
 }
 
 type SSEHandler struct {
@@ -80,6 +91,8 @@ func (h *SSEHandler) Stream(c *fiber.Ctx) error {
 				eventType = "log"
 			case "HEALTH":
 				eventType = "health"
+			case "STATS":
+				eventType = "stats"
 			}
 
 			fmt.Fprintf(w, "event: %s\n", eventType)
@@ -176,6 +189,14 @@ func (h *SSEHandler) EmitHealth(appID string, health SSEHealthStatus) {
 	})
 }
 
+func (h *SSEHandler) EmitStats(appID string, stats SSEContainerStats) {
+	h.Emit(SSEEvent{
+		Type:  "STATS",
+		AppID: appID,
+		Stats: &stats,
+	})
+}
+
 func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 	h.bufMu.RLock()
 	events := make([]SSEEvent, len(h.eventBuf))
@@ -194,6 +215,8 @@ func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 			eventType = "log"
 		case "HEALTH":
 			eventType = "health"
+		case "STATS":
+			eventType = "stats"
 		}
 
 		fmt.Fprintf(w, "event: %s\n", eventType)

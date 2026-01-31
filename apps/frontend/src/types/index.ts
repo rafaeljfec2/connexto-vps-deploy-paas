@@ -54,11 +54,12 @@ export interface HealthStatus {
 }
 
 export interface SSEEvent {
-  readonly type: "RUNNING" | "SUCCESS" | "FAILED" | "LOG" | "HEALTH";
+  readonly type: "RUNNING" | "SUCCESS" | "FAILED" | "LOG" | "HEALTH" | "STATS";
   readonly deployId?: string;
   readonly appId: string;
   readonly message?: string;
   readonly health?: HealthStatus;
+  readonly stats?: ContainerStats;
   readonly timestamp: string;
 }
 

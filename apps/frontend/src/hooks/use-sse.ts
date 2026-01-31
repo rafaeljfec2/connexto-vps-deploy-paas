@@ -2,7 +2,13 @@ import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import { sseClient } from "@/services/sse";
-import type { App, Deployment, HealthStatus, SSEEvent } from "@/types";
+import type {
+  App,
+  ContainerStats,
+  Deployment,
+  HealthStatus,
+  SSEEvent,
+} from "@/types";
 
 export function useSSE() {
   const queryClient = useQueryClient();
@@ -59,6 +65,15 @@ export function useSSE() {
             queryClient.setQueryData<HealthStatus>(
               ["app-health", event.appId],
               event.health,
+            );
+          }
+          break;
+
+        case "STATS":
+          if (event.stats) {
+            queryClient.setQueryData<ContainerStats>(
+              ["containerStats", event.appId],
+              event.stats,
             );
           }
           break;

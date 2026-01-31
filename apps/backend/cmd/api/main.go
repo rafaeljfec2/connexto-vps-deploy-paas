@@ -51,6 +51,18 @@ func main() {
 						Uptime:    event.Health.Uptime,
 					})
 				}
+			case engine.EventTypeStats:
+				if event.Stats != nil {
+					app.SSEHandler.EmitStats(event.AppID, handler.SSEContainerStats{
+						CPUPercent:    event.Stats.CPUPercent,
+						MemoryUsage:   event.Stats.MemoryUsage,
+						MemoryLimit:   event.Stats.MemoryLimit,
+						MemoryPercent: event.Stats.MemoryPercent,
+						NetworkRx:     event.Stats.NetworkRx,
+						NetworkTx:     event.Stats.NetworkTx,
+						PIDs:          event.Stats.PIDs,
+					})
+				}
 			}
 		}
 	}()

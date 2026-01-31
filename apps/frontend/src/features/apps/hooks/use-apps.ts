@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DEFAULTS, REFETCH_INTERVALS, STALE_TIMES } from "@/constants/routes";
+import { DEFAULTS, STALE_TIMES } from "@/constants/routes";
 import { api } from "@/services/api";
 import type { CreateAppInput, UpdateAppInput } from "@/types";
 
@@ -165,7 +165,6 @@ export function useContainerStats(appId: string | undefined) {
     queryKey: ["containerStats", appId],
     queryFn: () => api.container.stats(appId!),
     enabled: !!appId,
-    refetchInterval: REFETCH_INTERVALS.SLOW,
   });
 }
 

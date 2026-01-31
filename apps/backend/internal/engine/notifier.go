@@ -12,6 +12,7 @@ const (
 	EventTypeFailed  EventType = "FAILED"
 	EventTypeLog     EventType = "LOG"
 	EventTypeHealth  EventType = "HEALTH"
+	EventTypeStats   EventType = "STATS"
 )
 
 type HealthStatus struct {
@@ -21,12 +22,23 @@ type HealthStatus struct {
 	Uptime    string `json:"uptime,omitempty"`
 }
 
+type StatsData struct {
+	CPUPercent    float64 `json:"cpuPercent"`
+	MemoryUsage   int64   `json:"memoryUsage"`
+	MemoryLimit   int64   `json:"memoryLimit"`
+	MemoryPercent float64 `json:"memoryPercent"`
+	NetworkRx     int64   `json:"networkRx"`
+	NetworkTx     int64   `json:"networkTx"`
+	PIDs          int     `json:"pids"`
+}
+
 type DeployEvent struct {
 	Type      EventType     `json:"type"`
 	DeployID  string        `json:"deployId"`
 	AppID     string        `json:"appId"`
 	Message   string        `json:"message,omitempty"`
 	Health    *HealthStatus `json:"health,omitempty"`
+	Stats     *StatsData    `json:"stats,omitempty"`
 	Timestamp time.Time     `json:"timestamp"`
 }
 
@@ -36,6 +48,7 @@ type Notifier interface {
 	EmitDeployFailed(deployID, appID, message string)
 	EmitLog(deployID, appID, message string)
 	EmitHealth(appID string, health HealthStatus)
+	EmitStats(appID string, stats StatsData)
 }
 
 type ChannelNotifier struct {
@@ -99,6 +112,14 @@ func (n *ChannelNotifier) EmitHealth(appID string, health HealthStatus) {
 		Type:   EventTypeHealth,
 		AppID:  appID,
 		Health: &health,
+	})
+}
+
+func (n *ChannelNotifier) EmitStats(appID string, stats StatsData) {
+	n.emit(DeployEvent{
+		Type:  EventTypeStats,
+		AppID: appID,
+		Stats: &stats,
 	})
 }
 
