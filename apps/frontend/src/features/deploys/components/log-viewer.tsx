@@ -175,6 +175,7 @@ interface LogLineProps {
   readonly line: ParsedLogLine;
   readonly searchTerm?: string;
   readonly isCurrentMatch?: boolean;
+  readonly compact?: boolean;
 }
 
 function highlightText(text: string, searchTerm: string): React.ReactNode {
@@ -203,7 +204,7 @@ function highlightText(text: string, searchTerm: string): React.ReactNode {
   });
 }
 
-function LogLine({ line, searchTerm, isCurrentMatch }: LogLineProps) {
+function LogLine({ line, searchTerm, isCurrentMatch, compact }: LogLineProps) {
   if (line.isEmpty) {
     return null;
   }
@@ -211,18 +212,34 @@ function LogLine({ line, searchTerm, isCurrentMatch }: LogLineProps) {
   return (
     <div
       className={cn(
-        "flex group hover:bg-white/5 transition-colors py-0.5",
+        "flex group hover:bg-white/5 transition-colors",
+        compact ? "py-px" : "py-0.5",
         isCurrentMatch && "bg-yellow-500/20 ring-1 ring-yellow-500/50",
       )}
       data-line-number={line.lineNumber}
     >
-      <span className="select-none text-muted-foreground/40 w-8 text-right mr-3 shrink-0 text-xs leading-5 tabular-nums">
+      <span
+        className={cn(
+          "select-none text-muted-foreground/40 text-right mr-2 shrink-0 tabular-nums",
+          compact ? "w-6 text-[10px] leading-4" : "w-8 text-xs leading-5 mr-3",
+        )}
+      >
         {line.lineNumber}
       </span>
 
-      <div className="flex items-start gap-2 min-w-0 flex-1">
+      <div
+        className={cn(
+          "flex items-start min-w-0 flex-1",
+          compact ? "gap-1.5" : "gap-2",
+        )}
+      >
         {line.timestamp && (
-          <span className="text-slate-500 shrink-0 font-medium text-xs leading-5 tabular-nums">
+          <span
+            className={cn(
+              "text-slate-500 shrink-0 font-medium tabular-nums",
+              compact ? "text-[10px] leading-4" : "text-xs leading-5",
+            )}
+          >
             {line.timestamp}
           </span>
         )}
@@ -230,7 +247,8 @@ function LogLine({ line, searchTerm, isCurrentMatch }: LogLineProps) {
         {line.prefix && (
           <span
             className={cn(
-              "shrink-0 text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded leading-none",
+              "shrink-0 font-semibold uppercase tracking-wider rounded leading-none",
+              compact ? "text-[8px] px-1 py-px" : "text-[10px] px-1.5 py-0.5",
               line.prefix === "build" &&
                 "bg-violet-500/20 text-violet-400 border border-violet-500/30",
               line.prefix === "deploy" &&
@@ -242,14 +260,20 @@ function LogLine({ line, searchTerm, isCurrentMatch }: LogLineProps) {
         )}
 
         {line.step && (
-          <span className="shrink-0 text-xs font-mono text-amber-400/80 leading-5">
+          <span
+            className={cn(
+              "shrink-0 font-mono text-amber-400/80",
+              compact ? "text-[10px] leading-4" : "text-xs leading-5",
+            )}
+          >
             {line.step}
           </span>
         )}
 
         <span
           className={cn(
-            "whitespace-pre-wrap break-all text-sm leading-5 min-w-0",
+            "whitespace-pre-wrap break-all min-w-0",
+            compact ? "text-xs leading-4" : "text-sm leading-5",
             line.type === "error" && "text-red-400 font-medium",
             line.type === "success" && "text-emerald-400",
             line.type === "warning" && "text-yellow-400",
@@ -272,6 +296,7 @@ interface LogContentProps {
   readonly searchTerm?: string;
   readonly currentMatchIndex?: number;
   readonly matchingLineNumbers?: readonly number[];
+  readonly compact?: boolean;
 }
 
 function LogContent({
@@ -281,6 +306,7 @@ function LogContent({
   searchTerm,
   currentMatchIndex,
   matchingLineNumbers = [],
+  compact = false,
 }: LogContentProps) {
   const visibleLines = lines.filter((line) => !line.isEmpty);
   const currentMatchLine =
@@ -296,13 +322,14 @@ function LogContent({
         className,
       )}
     >
-      <div className="p-3 font-mono space-y-0">
+      <div className={cn("font-mono space-y-0", compact ? "p-2" : "p-3")}>
         {visibleLines.map((line) => (
           <LogLine
             key={line.lineNumber}
             line={line}
             searchTerm={searchTerm}
             isCurrentMatch={line.lineNumber === currentMatchLine}
+            compact={compact}
           />
         ))}
       </div>
@@ -616,6 +643,7 @@ export function LogViewer({
             searchTerm={filters.search}
             currentMatchIndex={currentMatchIndex}
             matchingLineNumbers={matchingLineNumbers}
+            compact
           />
         </div>
       </div>
