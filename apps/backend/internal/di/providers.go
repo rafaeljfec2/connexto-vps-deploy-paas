@@ -92,6 +92,7 @@ var HandlerSet = wire.NewSet(
 	ProvideAppAdminHandler,
 	ProvideCloudflareAuthHandler,
 	ProvideDomainHandler,
+	ProvideMigrationHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -256,6 +257,7 @@ type Application struct {
 	AuthMiddleware          *middleware.AuthMiddleware
 	CloudflareAuthHandler   *handler.CloudflareAuthHandler
 	DomainHandler           *handler.DomainHandler
+	MigrationHandler        *handler.MigrationHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -406,4 +408,8 @@ func ProvideDomainHandler(
 		ServerIP:       cfg.Cloudflare.ServerIP,
 		Logger:         logger,
 	})
+}
+
+func ProvideMigrationHandler(logger *slog.Logger) *handler.MigrationHandler {
+	return handler.NewMigrationHandler(logger)
 }

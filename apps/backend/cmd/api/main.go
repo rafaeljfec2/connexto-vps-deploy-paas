@@ -107,6 +107,9 @@ func main() {
 		if app.DomainHandler != nil {
 			app.DomainHandler.Register(authRequired)
 		}
+		if app.MigrationHandler != nil {
+			app.MigrationHandler.Register(authRequired)
+		}
 	}
 
 	go func() {

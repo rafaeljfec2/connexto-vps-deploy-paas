@@ -59,6 +59,7 @@ func InitializeApplication() (*Application, func(), error) {
 	postgresCloudflareConnectionRepository := repository.NewPostgresCloudflareConnectionRepository(db)
 	cloudflareAuthHandler := ProvideCloudflareAuthHandler(config, postgresCloudflareConnectionRepository, tokenEncryptor, logger)
 	domainHandler := ProvideDomainHandler(config, postgresAppRepository, postgresCustomDomainRepository, postgresCloudflareConnectionRepository, tokenEncryptor, logger)
+	migrationHandler := ProvideMigrationHandler(logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -78,6 +79,7 @@ func InitializeApplication() (*Application, func(), error) {
 		AuthMiddleware:         authMiddleware,
 		CloudflareAuthHandler:  cloudflareAuthHandler,
 		DomainHandler:          domainHandler,
+		MigrationHandler:       migrationHandler,
 	}
 	return application, func() {
 		cleanup()

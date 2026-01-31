@@ -166,3 +166,127 @@ export interface CustomDomain {
   readonly status: string;
   readonly createdAt: string;
 }
+
+export interface ProxyStatus {
+  readonly type: string;
+  readonly running: boolean;
+  readonly version?: string;
+  readonly pid?: number;
+}
+
+export interface ListenDirective {
+  readonly port: number;
+  readonly ssl: boolean;
+  readonly http2: boolean;
+  readonly defaultServer: boolean;
+  readonly address?: string;
+}
+
+export interface SSEConfig {
+  readonly bufferingOff: boolean;
+  readonly cacheOff: boolean;
+  readonly readTimeout?: string;
+  readonly sendTimeout?: string;
+  readonly chunkedEncoding?: string;
+  readonly xAccelBuffering?: string;
+}
+
+export interface NginxLocation {
+  readonly path: string;
+  readonly isRegex: boolean;
+  readonly proxyPass?: string;
+  readonly proxyPort?: number;
+  readonly root?: string;
+  readonly tryFiles?: string;
+  readonly headers?: Record<string, string>;
+  readonly proxyHeaders?: Record<string, string>;
+  readonly hasWebSocket: boolean;
+  readonly hasSSE: boolean;
+  readonly sseConfig?: SSEConfig;
+  readonly proxyBuffering?: string;
+  readonly proxyCache?: string;
+  readonly readTimeout?: string;
+  readonly sendTimeout?: string;
+  readonly connectTimeout?: string;
+}
+
+export interface NginxSite {
+  readonly configFile: string;
+  readonly serverNames: readonly string[];
+  readonly listen: readonly ListenDirective[];
+  readonly root?: string;
+  readonly locations: readonly NginxLocation[];
+  readonly sslEnabled: boolean;
+  readonly sslCertPath?: string;
+  readonly sslKeyPath?: string;
+  readonly sslProvider?: string;
+  readonly headers?: Record<string, string>;
+  readonly hasWebSocket: boolean;
+  readonly hasSSE: boolean;
+  readonly rawConfig: string;
+}
+
+export interface SSLCertificate {
+  readonly domain: string;
+  readonly provider: string;
+  readonly certPath: string;
+  readonly keyPath: string;
+  readonly chainPath?: string;
+  readonly fullChainPath?: string;
+  readonly expiresAt: string;
+  readonly daysUntilExpiry: number;
+  readonly isExpired: boolean;
+  readonly autoRenew: boolean;
+  readonly renewalConfig?: string;
+  readonly issuer?: string;
+  readonly subject?: string;
+}
+
+export interface MigrationContainer {
+  readonly id: string;
+  readonly name: string;
+  readonly image: string;
+  readonly status: string;
+  readonly state: string;
+  readonly ports: readonly string[];
+  readonly created: string;
+  readonly uptime: string;
+  readonly networks?: readonly string[];
+}
+
+export interface MigrationStatus {
+  readonly proxy: ProxyStatus;
+  readonly nginxSites: readonly NginxSite[];
+  readonly sslCertificates: readonly SSLCertificate[];
+  readonly containers: readonly MigrationContainer[];
+  readonly traefikReady: boolean;
+  readonly migrationNeeded: boolean;
+  readonly warnings: readonly string[];
+  readonly lastBackupPath?: string;
+  readonly lastBackupTime?: string;
+}
+
+export interface BackupResult {
+  readonly path: string;
+  readonly createdAt: string;
+  readonly files: readonly string[];
+  readonly size: number;
+}
+
+export interface TraefikConfig {
+  readonly serviceName: string;
+  readonly domain: string;
+  readonly port: number;
+  readonly pathPrefix?: string;
+  readonly priority?: number;
+  readonly labels: Record<string, string>;
+  readonly hasSSE: boolean;
+  readonly hasWebSocket: boolean;
+  readonly middlewares?: readonly string[];
+}
+
+export interface TraefikPreview {
+  readonly site: readonly string[];
+  readonly configs: readonly TraefikConfig[];
+  readonly yaml: string;
+}

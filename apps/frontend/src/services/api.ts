@@ -4,6 +4,7 @@ import type {
   App,
   AppConfig,
   AppURL,
+  BackupResult,
   BulkEnvVarInput,
   CloudflareStatus,
   CommitInfo,
@@ -16,6 +17,8 @@ import type {
   Deployment,
   EnvVar,
   HealthStatus,
+  MigrationStatus,
+  TraefikPreview,
   UpdateAppInput,
   WebhookSetupResult,
   WebhookStatus,
@@ -334,5 +337,47 @@ export const api = {
         throw ApiError.fromResponse(envelope, response.status);
       }
     },
+  },
+
+  migration: {
+    status: (): Promise<MigrationStatus> =>
+      fetchApi<MigrationStatus>(`${API_BASE}/migration/status`),
+
+    backup: (): Promise<BackupResult> =>
+      fetchApi<BackupResult>(`${API_BASE}/migration/backup`, {
+        method: "POST",
+      }),
+
+    stopContainers: (
+      containerIds: readonly string[],
+    ): Promise<{ message: string; stopped: readonly string[] }> =>
+      fetchApi<{ message: string; stopped: readonly string[] }>(
+        `${API_BASE}/migration/containers/stop`,
+        {
+          method: "POST",
+          body: JSON.stringify({ containerIds }),
+        },
+      ),
+
+    startContainers: (
+      containerIds: readonly string[],
+    ): Promise<{ message: string; started: readonly string[] }> =>
+      fetchApi<{ message: string; started: readonly string[] }>(
+        `${API_BASE}/migration/containers/start`,
+        {
+          method: "POST",
+          body: JSON.stringify({ containerIds }),
+        },
+      ),
+
+    stopNginx: (): Promise<{ message: string }> =>
+      fetchApi<{ message: string }>(`${API_BASE}/migration/proxy/stop-nginx`, {
+        method: "POST",
+      }),
+
+    getTraefikConfig: (siteIndex: number): Promise<TraefikPreview> =>
+      fetchApi<TraefikPreview>(
+        `${API_BASE}/migration/sites/${siteIndex}/traefik`,
+      ),
   },
 };

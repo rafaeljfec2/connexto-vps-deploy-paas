@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import { AppDetailsPage } from "@/pages/app-details";
 import { DashboardPage } from "@/pages/dashboard";
 import { LoginPage } from "@/pages/login";
+import { MigrationPage } from "@/pages/migration";
 import { NewAppPage } from "@/pages/new-app";
 import { SettingsPage } from "@/pages/settings";
 import { ProtectedRoute } from "@/components/protected-route";
@@ -39,6 +40,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings/migration"
+        element={
+          <ProtectedRoute>
+            <MigrationPage />
           </ProtectedRoute>
         }
       />
