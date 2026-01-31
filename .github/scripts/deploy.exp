@@ -1,5 +1,5 @@
 #!/usr/bin/expect -f
-set timeout 300
+set timeout 600
 
 set user [string trim $env(SERVER_USER)]
 set password [string trim $env(SERVER_PASSWORD)]
@@ -36,7 +36,7 @@ set traefik_network [string trim $env(TRAEFIK_NETWORK)]
 puts "🚀 Starting deployment to $host:$port"
 puts "📦 Image: $registry/$image:latest"
 
-spawn ssh -o StrictHostKeyChecking=no -p $port $user@$host
+spawn ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -p $port $user@$host
 
 expect {
   "yes/no" { send "yes\r"; exp_continue }
@@ -62,7 +62,7 @@ expect "$ "
 send "docker rm $container_name 2>/dev/null || true\r"
 expect "$ "
 
-send "echo '$password' | sudo -S mkdir -p /opt/flowdeploy\r"
+send "echo '$password' | sudo -S mkdir -p /opt/flowdeploy 2>/dev/null\r"
 expect "$ "
 
 send "echo '$github_app_private_key_base64' | base64 -d | sudo tee /opt/flowdeploy/github-app-private-key.pem > /dev/null\r"
@@ -71,65 +71,67 @@ expect "$ "
 send "sudo chmod 600 /opt/flowdeploy/github-app-private-key.pem\r"
 expect "$ "
 
-# Create a deploy script on the server to avoid quoting issues
-send "cat > /tmp/deploy-container.sh << 'DEPLOY_SCRIPT'\r"
-send "#!/bin/bash\r"
-send "docker run -d \\\\\r"
-send "  --name $container_name \\\\\r"
-send "  --network $traefik_network \\\\\r"
-send "  --restart unless-stopped \\\\\r"
-send "  -p 9005:8080 \\\\\r"
-send "  -v /var/run/docker.sock:/var/run/docker.sock \\\\\r"
-send "  -v /opt/flowdeploy:/opt/flowdeploy \\\\\r"
-send "  -v flowdeploy-data:/data/apps \\\\\r"
-send "  -e APP_ENV=$app_env \\\\\r"
-send "  -e HOST=0.0.0.0 \\\\\r"
-send "  -e PORT=8080 \\\\\r"
-send "  -e LOG_LEVEL=$log_level \\\\\r"
-send "  -e DATABASE_URL='$database_url' \\\\\r"
-send "  -e DEPLOY_DATA_DIR=/data/apps \\\\\r"
-send "  -e DEPLOY_WORKERS=$deploy_workers \\\\\r"
-send "  -e DEPLOY_TIMEOUT=$deploy_timeout \\\\\r"
-send "  -e HEALTH_CHECK_TIMEOUT=$health_check_timeout \\\\\r"
-send "  -e HEALTH_CHECK_RETRIES=$health_check_retries \\\\\r"
-send "  -e DOCKER_HOST=unix:///var/run/docker.sock \\\\\r"
-send "  -e GIT_HUB_WEBHOOK_SECRET='$github_webhook_secret' \\\\\r"
-send "  -e GIT_HUB_WEBHOOK_URL='$github_webhook_url' \\\\\r"
-send "  -e GIT_HUB_CLIENT_ID='$github_client_id' \\\\\r"
-send "  -e GIT_HUB_CLIENT_SECRET='$github_client_secret' \\\\\r"
-send "  -e GIT_HUB_OAUTH_CALLBACK_URL='$github_oauth_callback_url' \\\\\r"
-send "  -e GIT_HUB_APP_ID='$github_app_id' \\\\\r"
-send "  -e GIT_HUB_APP_PRIVATE_KEY_PATH=/opt/flowdeploy/github-app-private-key.pem \\\\\r"
-send "  -e GIT_HUB_APP_INSTALL_URL='$github_app_install_url' \\\\\r"
-send "  -e TOKEN_ENCRYPTION_KEY='$token_encryption_key' \\\\\r"
-send "  -e FRONTEND_URL='$frontend_url' \\\\\r"
-if {[string length $cloudflare_server_ip] > 0} {
-  send "  -e CLOUDFLARE_SERVER_IP='$cloudflare_server_ip' \\\\\r"
-}
-send "  --label traefik.enable=true \\\\\r"
-send "  --label 'traefik.http.routers.$container_name.rule=Host(\`$api_domain\`)' \\\\\r"
-send "  --label traefik.http.routers.$container_name.entrypoints=websecure \\\\\r"
-send "  --label traefik.http.routers.$container_name.tls=true \\\\\r"
-send "  --label traefik.http.routers.$container_name.tls.certresolver=letsencrypt \\\\\r"
-send "  --label traefik.http.services.$container_name.loadbalancer.server.port=8080 \\\\\r"
-send "  --label 'traefik.http.routers.$container_name-http.rule=Host(\`$api_domain\`)' \\\\\r"
-send "  --label traefik.http.routers.$container_name-http.entrypoints=web \\\\\r"
-send "  --label traefik.http.routers.$container_name-http.middlewares=redirect-to-https \\\\\r"
-send "  --label traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https \\\\\r"
-send "  $registry/$image:latest\r"
-send "DEPLOY_SCRIPT\r"
+# Set domain variable on server to avoid backtick issues
+send "export DOMAIN='$api_domain'\r"
 expect "$ "
 
-send "chmod +x /tmp/deploy-container.sh && /tmp/deploy-container.sh\r"
-expect -re {([0-9a-f]{64}|[0-9a-f]{12})}
-puts "✅ Container started"
+# Build docker command parts
+set envs "-e APP_ENV=$app_env -e HOST=0.0.0.0 -e PORT=8080 -e LOG_LEVEL=$log_level"
+set envs "$envs -e DEPLOY_DATA_DIR=/data/apps -e DEPLOY_WORKERS=$deploy_workers"
+set envs "$envs -e DEPLOY_TIMEOUT=$deploy_timeout -e HEALTH_CHECK_TIMEOUT=$health_check_timeout"
+set envs "$envs -e HEALTH_CHECK_RETRIES=$health_check_retries -e DOCKER_HOST=unix:///var/run/docker.sock"
+set envs "$envs -e GIT_HUB_APP_ID='$github_app_id'"
+set envs "$envs -e GIT_HUB_APP_PRIVATE_KEY_PATH=/opt/flowdeploy/github-app-private-key.pem"
+
+# Run first part of docker command
+send "docker run -d --name $container_name --network $traefik_network --restart unless-stopped -p 9005:8080 -v /var/run/docker.sock:/var/run/docker.sock -v /opt/flowdeploy:/opt/flowdeploy -v flowdeploy-data:/data/apps $envs"
+
+# Add DATABASE_URL separately (may contain special chars)
+send " -e DATABASE_URL='$database_url'"
+
+# Add GitHub secrets
+send " -e GIT_HUB_WEBHOOK_SECRET='$github_webhook_secret'"
+send " -e GIT_HUB_WEBHOOK_URL='$github_webhook_url'"
+send " -e GIT_HUB_CLIENT_ID='$github_client_id'"
+send " -e GIT_HUB_CLIENT_SECRET='$github_client_secret'"
+send " -e GIT_HUB_OAUTH_CALLBACK_URL='$github_oauth_callback_url'"
+send " -e GIT_HUB_APP_INSTALL_URL='$github_app_install_url'"
+send " -e TOKEN_ENCRYPTION_KEY='$token_encryption_key'"
+send " -e FRONTEND_URL='$frontend_url'"
+
+if {[string length $cloudflare_server_ip] > 0} {
+  send " -e CLOUDFLARE_SERVER_IP='$cloudflare_server_ip'"
+}
+
+# Add Traefik labels (using shell variable for domain to avoid backtick issues)
+send " --label traefik.enable=true"
+send " --label traefik.http.routers.$container_name.entrypoints=websecure"
+send " --label traefik.http.routers.$container_name.tls=true"
+send " --label traefik.http.routers.$container_name.tls.certresolver=letsencrypt"
+send " --label traefik.http.services.$container_name.loadbalancer.server.port=8080"
+send " --label traefik.http.routers.$container_name-http.entrypoints=web"
+send " --label traefik.http.routers.$container_name-http.middlewares=redirect-to-https"
+send " --label traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+# Use escaped backticks for Host rule
+send " --label \"traefik.http.routers.$container_name.rule=Host(\\\\\\`$api_domain\\\\\\`)\""
+send " --label \"traefik.http.routers.$container_name-http.rule=Host(\\\\\\`$api_domain\\\\\\`)\""
+
+# Add image and execute
+send " $registry/$image:latest\r"
+
+expect {
+  -re {([0-9a-f]{64})} { puts "✅ Container started" }
+  -re {([0-9a-f]{12})} { puts "✅ Container started" }
+  "Error" { puts "❌ Container failed to start"; exit 1 }
+  timeout { puts "❌ Timeout waiting for container"; exit 1 }
+}
 expect "$ "
 
 send "docker ps --filter name=$container_name --format '{{.Status}}'\r"
 expect "$ "
 
-send "rm /tmp/deploy-container.sh\r"
-expect "$ "
-
 send "exit\r"
 expect eof
+
+puts "🎉 Deployment completed successfully!"
