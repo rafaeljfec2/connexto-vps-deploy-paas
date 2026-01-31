@@ -50,6 +50,10 @@ var RepositorySet = wire.NewSet(
 	wire.Bind(new(domain.SessionRepository), new(*repository.PostgresSessionRepository)),
 	repository.NewPostgresInstallationRepository,
 	wire.Bind(new(domain.InstallationRepository), new(*repository.PostgresInstallationRepository)),
+	repository.NewPostgresCloudflareConnectionRepository,
+	wire.Bind(new(domain.CloudflareConnectionRepository), new(*repository.PostgresCloudflareConnectionRepository)),
+	repository.NewPostgresCustomDomainRepository,
+	wire.Bind(new(domain.CustomDomainRepository), new(*repository.PostgresCustomDomainRepository)),
 )
 
 var AuthSet = wire.NewSet(
@@ -86,6 +90,8 @@ var HandlerSet = wire.NewSet(
 	handler.NewEnvVarHandler,
 	handler.NewContainerHealthHandler,
 	ProvideAppAdminHandler,
+	ProvideCloudflareAuthHandler,
+	ProvideDomainHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -232,22 +238,24 @@ func ProvideServerConfig(cfg *config.Config) server.Config {
 }
 
 type Application struct {
-	Config                 *config.Config
-	Logger                 *slog.Logger
-	DB                     *sql.DB
-	Engine                 *engine.Engine
-	Server                 *server.Server
-	HealthHandler          *handler.HealthHandler
-	AppHandler             *handler.AppHandler
-	SSEHandler             *handler.SSEHandler
-	SwaggerHandler         *handler.SwaggerHandler
-	EnvVarHandler          *handler.EnvVarHandler
-	ContainerHealthHandler *handler.ContainerHealthHandler
-	AppAdminHandler        *handler.AppAdminHandler
-	WebhookHandler         *github.WebhookHandler
-	AuthHandler            *handler.AuthHandler
-	GitHubHandler          *handler.GitHubHandler
-	AuthMiddleware         *middleware.AuthMiddleware
+	Config                  *config.Config
+	Logger                  *slog.Logger
+	DB                      *sql.DB
+	Engine                  *engine.Engine
+	Server                  *server.Server
+	HealthHandler           *handler.HealthHandler
+	AppHandler              *handler.AppHandler
+	SSEHandler              *handler.SSEHandler
+	SwaggerHandler          *handler.SwaggerHandler
+	EnvVarHandler           *handler.EnvVarHandler
+	ContainerHealthHandler  *handler.ContainerHealthHandler
+	AppAdminHandler         *handler.AppAdminHandler
+	WebhookHandler          *github.WebhookHandler
+	AuthHandler             *handler.AuthHandler
+	GitHubHandler           *handler.GitHubHandler
+	AuthMiddleware          *middleware.AuthMiddleware
+	CloudflareAuthHandler   *handler.CloudflareAuthHandler
+	DomainHandler           *handler.DomainHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -351,5 +359,51 @@ func ProvideGitHubHandler(
 		WebhookSecret:    cfg.GitHub.WebhookSecret,
 		AppInstallURL:    cfg.GitHub.AppInstallURL,
 		SetupURL:         cfg.GitHub.AppSetupURL,
+	})
+}
+
+func ProvideCloudflareAuthHandler(
+	cfg *config.Config,
+	connectionRepo domain.CloudflareConnectionRepository,
+	tokenEncryptor *crypto.TokenEncryptor,
+	logger *slog.Logger,
+) *handler.CloudflareAuthHandler {
+	if tokenEncryptor == nil {
+		logger.Info("CloudflareAuthHandler not created: token encryptor not available")
+		return nil
+	}
+
+	return handler.NewCloudflareAuthHandler(handler.CloudflareAuthHandlerConfig{
+		ClientID:       cfg.Cloudflare.ClientID,
+		ClientSecret:   cfg.Cloudflare.ClientSecret,
+		CallbackURL:    cfg.Cloudflare.CallbackURL,
+		ConnectionRepo: connectionRepo,
+		TokenEncryptor: tokenEncryptor,
+		Logger:         logger,
+		FrontendURL:    cfg.Auth.FrontendURL,
+		SecureCookie:   cfg.Auth.SecureCookie,
+	})
+}
+
+func ProvideDomainHandler(
+	cfg *config.Config,
+	appRepo domain.AppRepository,
+	domainRepo domain.CustomDomainRepository,
+	connectionRepo domain.CloudflareConnectionRepository,
+	tokenEncryptor *crypto.TokenEncryptor,
+	logger *slog.Logger,
+) *handler.DomainHandler {
+	if tokenEncryptor == nil {
+		logger.Info("DomainHandler not created: token encryptor not available")
+		return nil
+	}
+
+	return handler.NewDomainHandler(handler.DomainHandlerConfig{
+		AppRepo:        appRepo,
+		DomainRepo:     domainRepo,
+		ConnectionRepo: connectionRepo,
+		TokenEncryptor: tokenEncryptor,
+		ServerIP:       cfg.Cloudflare.ServerIP,
+		Logger:         logger,
 	})
 }

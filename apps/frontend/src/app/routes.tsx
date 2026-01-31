@@ -3,6 +3,7 @@ import { AppDetailsPage } from "@/pages/app-details";
 import { DashboardPage } from "@/pages/dashboard";
 import { LoginPage } from "@/pages/login";
 import { NewAppPage } from "@/pages/new-app";
+import { SettingsPage } from "@/pages/settings";
 import { ProtectedRoute } from "@/components/protected-route";
 
 export function AppRoutes() {
@@ -30,6 +31,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <AppDetailsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
           </ProtectedRoute>
         }
       />

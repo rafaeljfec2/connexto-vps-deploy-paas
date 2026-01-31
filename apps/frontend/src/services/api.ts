@@ -5,12 +5,14 @@ import type {
   AppConfig,
   AppURL,
   BulkEnvVarInput,
+  CloudflareStatus,
   CommitInfo,
   ContainerActionResult,
   ContainerLogs,
   ContainerStats,
   CreateAppInput,
   CreateEnvVarInput,
+  CustomDomain,
   Deployment,
   EnvVar,
   HealthStatus,
@@ -281,6 +283,51 @@ export const api = {
       const response = await fetch(`${API_BASE}/apps/${appId}/env/${varId}`, {
         method: "DELETE",
       });
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+  },
+
+  cloudflare: {
+    status: (): Promise<CloudflareStatus> =>
+      fetchApi<CloudflareStatus>("/auth/cloudflare/status"),
+
+    connect: (apiToken: string): Promise<CloudflareStatus> =>
+      fetchApi<CloudflareStatus>("/auth/cloudflare/connect", {
+        method: "POST",
+        body: JSON.stringify({ apiToken }),
+      }),
+
+    disconnect: async (): Promise<void> => {
+      const response = await fetch("/auth/cloudflare/disconnect", {
+        method: "POST",
+      });
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+  },
+
+  domains: {
+    list: (appId: string): Promise<readonly CustomDomain[]> =>
+      fetchApiList<CustomDomain>(`${API_BASE}/apps/${appId}/domains`),
+
+    add: (appId: string, domain: string): Promise<CustomDomain> =>
+      fetchApi<CustomDomain>(`${API_BASE}/apps/${appId}/domains`, {
+        method: "POST",
+        body: JSON.stringify({ domain }),
+      }),
+
+    remove: async (appId: string, domainId: string): Promise<void> => {
+      const response = await fetch(
+        `${API_BASE}/apps/${appId}/domains/${domainId}`,
+        { method: "DELETE" },
+      );
 
       if (!response.ok && response.status !== 204) {
         const envelope: ApiEnvelope<null> = await response.json();

@@ -28,7 +28,7 @@ type Engine struct {
 	mu            sync.Mutex
 }
 
-func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRepo domain.EnvVarRepository, logger *slog.Logger) *Engine {
+func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRepo domain.EnvVarRepository, customDomainRepo domain.CustomDomainRepository, logger *slog.Logger) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	queue := NewQueue(db)
@@ -53,13 +53,14 @@ func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRep
 	}
 
 	deps := WorkerDeps{
-		Git:        NewGitClient(cfg.Deploy.DataDir, logger),
-		Docker:     docker,
-		Health:     NewHealthChecker(cfg.Deploy.HealthCheckTimeout, cfg.Deploy.HealthCheckRetries, 5*time.Second, logger),
-		Notifier:   notifier,
-		Dispatcher: dispatcher,
-		EnvVarRepo: envVarRepo,
-		Logger:     logger,
+		Git:              NewGitClient(cfg.Deploy.DataDir, logger),
+		Docker:           docker,
+		Health:           NewHealthChecker(cfg.Deploy.HealthCheckTimeout, cfg.Deploy.HealthCheckRetries, 5*time.Second, logger),
+		Notifier:         notifier,
+		Dispatcher:       dispatcher,
+		EnvVarRepo:       envVarRepo,
+		CustomDomainRepo: customDomainRepo,
+		Logger:           logger,
 	}
 
 	for i := 0; i < cfg.Deploy.Workers; i++ {

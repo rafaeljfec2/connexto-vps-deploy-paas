@@ -101,6 +101,12 @@ func main() {
 		if app.GitHubHandler != nil {
 			app.GitHubHandler.RegisterProtected(authRequired)
 		}
+		if app.CloudflareAuthHandler != nil {
+			app.CloudflareAuthHandler.Register(authRequired)
+		}
+		if app.DomainHandler != nil {
+			app.DomainHandler.Register(authRequired)
+		}
 	}
 
 	go func() {

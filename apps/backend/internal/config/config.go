@@ -23,12 +23,13 @@ const (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	Deploy   DeployConfig
-	Docker   DockerConfig
-	GitHub   GitHubConfig
-	Auth     AuthConfig
+	Server     ServerConfig
+	Database   DatabaseConfig
+	Deploy     DeployConfig
+	Docker     DockerConfig
+	GitHub     GitHubConfig
+	Auth       AuthConfig
+	Cloudflare CloudflareConfig
 }
 
 type ServerConfig struct {
@@ -82,6 +83,13 @@ type AuthConfig struct {
 	FrontendURL        string
 }
 
+type CloudflareConfig struct {
+	ClientID     string
+	ClientSecret string
+	CallbackURL  string
+	ServerIP     string
+}
+
 func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
@@ -125,6 +133,12 @@ func Load() *Config {
 			SessionMaxAge:      time.Duration(getEnvInt("SESSION_MAX_AGE", DefaultSessionMaxAgeSec)) * time.Second,
 			SecureCookie:       getEnv("SESSION_SECURE", "false") == "true",
 			FrontendURL:        getEnv("FRONTEND_URL", DefaultFrontendURL),
+		},
+		Cloudflare: CloudflareConfig{
+			ClientID:     getEnv("CLOUDFLARE_CLIENT_ID", ""),
+			ClientSecret: getEnv("CLOUDFLARE_CLIENT_SECRET", ""),
+			CallbackURL:  getEnv("CLOUDFLARE_CALLBACK_URL", ""),
+			ServerIP:     getEnv("CLOUDFLARE_SERVER_IP", ""),
 		},
 	}
 }

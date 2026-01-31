@@ -46,13 +46,14 @@ type PaasDeployConfig struct {
 }
 
 type WorkerDeps struct {
-	Git        *GitClient
-	Docker     *DockerClient
-	Health     *HealthChecker
-	Notifier   Notifier
-	Dispatcher *Dispatcher
-	EnvVarRepo domain.EnvVarRepository
-	Logger     *slog.Logger
+	Git              *GitClient
+	Docker           *DockerClient
+	Health           *HealthChecker
+	Notifier         Notifier
+	Dispatcher       *Dispatcher
+	EnvVarRepo       domain.EnvVarRepository
+	CustomDomainRepo domain.CustomDomainRepository
+	Logger           *slog.Logger
 }
 
 type Worker struct {
@@ -278,7 +279,7 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 
 	imageTag := w.deps.Docker.GetImageTag(app.Name, deploy.CommitSHA)
 
-	if err := w.generateComposeFile(appDir, app.Name, imageTag); err != nil {
+	if err := w.generateComposeFile(ctx, appDir, app.Name, app.ID, imageTag); err != nil {
 		return fmt.Errorf("failed to generate docker-compose.yml: %w", err)
 	}
 
@@ -300,11 +301,23 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 	return nil
 }
 
-func (w *Worker) generateComposeFile(appDir, appName, imageTag string) error {
+func (w *Worker) generateComposeFile(ctx context.Context, appDir, appName, appID, imageTag string) error {
 	cfg := w.deployConfig
 
+	allDomains := make([]string, len(cfg.Domains))
+	copy(allDomains, cfg.Domains)
+
+	if w.deps.CustomDomainRepo != nil {
+		customDomains, err := w.deps.CustomDomainRepo.FindByAppID(ctx, appID)
+		if err == nil {
+			for _, d := range customDomains {
+				allDomains = append(allDomains, d.Domain)
+			}
+		}
+	}
+
 	envVars := w.buildEnvVarsYAML(cfg)
-	labels := buildLabelsYAML(appName, cfg.Domains, cfg.Port)
+	labels := buildLabelsYAML(appName, allDomains, cfg.Port)
 	portMapping := buildPortMapping(cfg.HostPort, cfg.Port)
 
 	composeContent := fmt.Sprintf("services:\n"+

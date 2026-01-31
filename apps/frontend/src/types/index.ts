@@ -151,3 +151,18 @@ export interface CommitInfo {
   readonly date: string;
   readonly url: string;
 }
+
+export interface CloudflareStatus {
+  readonly connected: boolean;
+  readonly email?: string;
+  readonly accountId?: string;
+}
+
+export interface CustomDomain {
+  readonly id: string;
+  readonly appId: string;
+  readonly domain: string;
+  readonly recordType: string;
+  readonly status: string;
+  readonly createdAt: string;
+}

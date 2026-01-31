@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
-import { LogOut, Plus, Rocket, User } from "lucide-react";
+import { LogOut, Plus, Rocket, Settings, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,6 +74,12 @@ export function Header() {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to={ROUTES.SETTINGS} role="menuitem">
+                      <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={logout}
                     className="cursor-pointer"

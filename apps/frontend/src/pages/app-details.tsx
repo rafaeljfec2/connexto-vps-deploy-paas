@@ -42,6 +42,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { AppSettingsDialog } from "@/features/apps/components/app-settings-dialog";
 import { CommitSelectorInline } from "@/features/apps/components/commit-selector";
+import { DomainManager } from "@/features/apps/components/domain-manager";
 import { EnvVarsManager } from "@/features/apps/components/env-vars-manager";
 import {
   useApp,
@@ -169,6 +170,7 @@ export function AppDetailsPage() {
     health: false,
     config: false,
     webhook: false,
+    domains: false,
   });
 
   const toggleSection = (section: string) => {
@@ -187,6 +189,7 @@ export function AppDetailsPage() {
       health: newState,
       config: newState,
       webhook: newState,
+      domains: newState,
     });
   };
 
@@ -662,6 +665,16 @@ export function AppDetailsPage() {
             </>
           )}
         </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Custom Domains"
+        icon={Globe}
+        expanded={expandedSections.domains ?? false}
+        onToggle={() => toggleSection("domains")}
+        summary={<span className="text-muted-foreground">Cloudflare DNS</span>}
+      >
+        <DomainManager appId={app.id} />
       </CollapsibleSection>
     </div>
   );

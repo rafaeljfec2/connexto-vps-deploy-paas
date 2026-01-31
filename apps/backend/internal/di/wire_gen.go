@@ -31,7 +31,8 @@ func InitializeApplication() (*Application, func(), error) {
 	}
 	postgresAppRepository := repository.NewPostgresAppRepository(db)
 	postgresEnvVarRepository := repository.NewPostgresEnvVarRepository(db)
-	engineEngine := engine.New(config, db, postgresAppRepository, postgresEnvVarRepository, logger)
+	postgresCustomDomainRepository := repository.NewPostgresCustomDomainRepository(db)
+	engineEngine := engine.New(config, db, postgresAppRepository, postgresEnvVarRepository, postgresCustomDomainRepository, logger)
 	serverConfig := ProvideServerConfig(config)
 	serverServer := server.New(serverConfig, logger)
 	healthHandler := ProvideHealthHandler()
@@ -55,6 +56,9 @@ func InitializeApplication() (*Application, func(), error) {
 	postgresInstallationRepository := repository.NewPostgresInstallationRepository(db)
 	gitHubHandler := ProvideGitHubHandler(config, appClient, postgresInstallationRepository, postgresUserRepository, logger)
 	authMiddleware := ProvideAuthMiddleware(config, postgresSessionRepository, postgresUserRepository, logger)
+	postgresCloudflareConnectionRepository := repository.NewPostgresCloudflareConnectionRepository(db)
+	cloudflareAuthHandler := ProvideCloudflareAuthHandler(config, postgresCloudflareConnectionRepository, tokenEncryptor, logger)
+	domainHandler := ProvideDomainHandler(config, postgresAppRepository, postgresCustomDomainRepository, postgresCloudflareConnectionRepository, tokenEncryptor, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -72,6 +76,8 @@ func InitializeApplication() (*Application, func(), error) {
 		AuthHandler:            authHandler,
 		GitHubHandler:          gitHubHandler,
 		AuthMiddleware:         authMiddleware,
+		CloudflareAuthHandler:  cloudflareAuthHandler,
+		DomainHandler:          domainHandler,
 	}
 	return application, func() {
 		cleanup()

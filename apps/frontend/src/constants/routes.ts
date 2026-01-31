@@ -2,6 +2,7 @@ export const ROUTES = {
   HOME: "/",
   LOGIN: "/login",
   NEW_APP: "/apps/new",
+  SETTINGS: "/settings",
   APP_DETAIL: (id: string) => `/apps/${id}`,
 } as const;
 
