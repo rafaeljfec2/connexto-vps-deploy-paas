@@ -69,7 +69,7 @@ expect "$ "
 send "echo '$github_app_private_key_base64' | base64 -d | sudo tee /opt/flowdeploy/github-app-private-key.pem > /dev/null\r"
 expect "$ "
 
-send "sudo chmod 600 /opt/flowdeploy/github-app-private-key.pem\r"
+send "sudo chmod 644 /opt/flowdeploy/github-app-private-key.pem\r"
 expect "$ "
 
 # Create Traefik labels file to avoid backtick escaping issues
