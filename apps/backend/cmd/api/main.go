@@ -61,13 +61,35 @@ func main() {
 	}
 
 	app.HealthHandler.Register(app.Server.App())
+	app.SwaggerHandler.Register(app.Server.App())
+
+	if app.AuthHandler != nil {
+		app.AuthHandler.Register(app.Server.App())
+	}
+
+	if app.GitHubHandler != nil {
+		app.GitHubHandler.Register(app.Server.App())
+	}
+
+	if app.AuthMiddleware != nil {
+		app.Server.App().Use(app.AuthMiddleware.Optional())
+	}
+
 	app.AppHandler.Register(app.Server.App())
 	app.EnvVarHandler.Register(app.Server.App())
 	app.SSEHandler.Register(app.Server.App())
 	app.ContainerHealthHandler.Register(app.Server.App())
 	app.AppAdminHandler.Register(app.Server.App())
 	app.WebhookHandler.Register(app.Server.App())
-	app.SwaggerHandler.Register(app.Server.App())
+
+	if app.AuthHandler != nil && app.AuthMiddleware != nil {
+		authRequired := app.Server.App().Group("")
+		authRequired.Use(app.AuthMiddleware.Require())
+		app.AuthHandler.RegisterProtected(authRequired)
+		if app.GitHubHandler != nil {
+			app.GitHubHandler.RegisterProtected(authRequired)
+		}
+	}
 
 	go func() {
 		if err := app.Server.Start(); err != nil {

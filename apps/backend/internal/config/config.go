@@ -15,6 +15,7 @@ type Config struct {
 	Deploy   DeployConfig
 	Docker   DockerConfig
 	GitHub   GitHubConfig
+	Auth     AuthConfig
 }
 
 type ServerConfig struct {
@@ -42,9 +43,30 @@ type DockerConfig struct {
 }
 
 type GitHubConfig struct {
+	// PAT for Phase 1 (personal access token)
 	PAT           string
 	WebhookSecret string
 	WebhookURL    string
+
+	// OAuth (for user authentication)
+	ClientID     string
+	ClientSecret string
+	CallbackURL  string
+
+	// GitHub App (for repository access)
+	AppID            int64
+	AppName          string
+	AppPrivateKey    []byte
+	AppInstallURL    string
+	AppSetupURL      string
+}
+
+type AuthConfig struct {
+	TokenEncryptionKey string
+	SessionCookieName  string
+	SessionMaxAge      time.Duration
+	SecureCookie       bool
+	FrontendURL        string
 }
 
 func Load() *Config {
@@ -73,8 +95,44 @@ func Load() *Config {
 			PAT:           getEnv("GITHUB_PAT", ""),
 			WebhookSecret: getEnv("GITHUB_WEBHOOK_SECRET", ""),
 			WebhookURL:    getEnv("GITHUB_WEBHOOK_URL", ""),
+
+			ClientID:     getEnv("GITHUB_CLIENT_ID", ""),
+			ClientSecret: getEnv("GITHUB_CLIENT_SECRET", ""),
+			CallbackURL:  getEnv("GITHUB_OAUTH_CALLBACK_URL", ""),
+
+			AppID:         int64(getEnvInt("GITHUB_APP_ID", 0)),
+			AppName:       getEnv("GITHUB_APP_NAME", "FlowDeploy"),
+			AppPrivateKey: loadPrivateKey(),
+			AppInstallURL: getEnv("GITHUB_APP_INSTALL_URL", ""),
+			AppSetupURL:   getEnv("GITHUB_APP_SETUP_URL", ""),
+		},
+		Auth: AuthConfig{
+			TokenEncryptionKey: getEnv("TOKEN_ENCRYPTION_KEY", ""),
+			SessionCookieName:  getEnv("SESSION_COOKIE_NAME", "flowdeploy_session"),
+			SessionMaxAge:      time.Duration(getEnvInt("SESSION_MAX_AGE", 604800)) * time.Second,
+			SecureCookie:       getEnv("SESSION_SECURE", "false") == "true",
+			FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
 		},
 	}
+}
+
+func loadPrivateKey() []byte {
+	// Try loading from base64 first
+	if keyBase64 := getEnv("GITHUB_APP_PRIVATE_KEY_BASE64", ""); keyBase64 != "" {
+		// Don't decode here, let the app_client handle it
+		return []byte(keyBase64)
+	}
+
+	// Try loading from file
+	if keyPath := getEnv("GITHUB_APP_PRIVATE_KEY_PATH", ""); keyPath != "" {
+		expandedPath := expandPath(keyPath)
+		data, err := os.ReadFile(expandedPath)
+		if err == nil {
+			return data
+		}
+	}
+
+	return nil
 }
 
 func defaultDataDir() string {

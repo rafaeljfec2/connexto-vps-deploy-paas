@@ -1,8 +1,12 @@
+import { useState } from "react";
 import { FolderGit2, GitBranch, Link } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormField } from "@/components/form-field";
+import type { GitHubRepository } from "@/services/api";
+import { RepoSelector } from "../repo-selector";
 import type { StepProps } from "./types";
 
 export function RepositoryStep({
@@ -10,13 +14,39 @@ export function RepositoryStep({
   onUpdate,
   onNext,
 }: Readonly<StepProps>) {
+  const [mode, setMode] = useState<"github" | "manual">("github");
+  const [selectedRepo, setSelectedRepo] = useState<string | undefined>(
+    undefined,
+  );
+
   const isValid =
-    data.name.length >= 2 && data.repositoryUrl.includes("github.com");
+    data.name.length >= 2 &&
+    (data.repositoryUrl.includes("github.com") ||
+      data.repositoryUrl.includes("git@github.com"));
 
   const handleNameChange = (value: string) => {
     onUpdate({
       name: value.toLowerCase().replaceAll(/[^a-z0-9-]/g, "-"),
     });
+  };
+
+  const handleRepoSelect = (repo: GitHubRepository | null) => {
+    if (repo) {
+      setSelectedRepo(repo.fullName);
+      const appName = repo.name.toLowerCase().replaceAll(/[^a-z0-9-]/g, "-");
+      onUpdate({
+        repositoryUrl: repo.cloneUrl,
+        name: appName,
+        branch: repo.defaultBranch,
+      });
+    } else {
+      setSelectedRepo(undefined);
+      onUpdate({
+        repositoryUrl: "",
+        name: "",
+        branch: "main",
+      });
+    }
   };
 
   return (
@@ -28,10 +58,41 @@ export function RepositoryStep({
             <h3 className="font-semibold">Connect your repository</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            Link a GitHub repository to enable automatic deployments on every
-            push.
+            Select a GitHub repository or enter the URL manually.
           </p>
         </div>
+
+        <Tabs
+          value={mode}
+          onValueChange={(v) => setMode(v as "github" | "manual")}
+        >
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="github">From GitHub</TabsTrigger>
+            <TabsTrigger value="manual">Manual URL</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="github" className="space-y-4 mt-4">
+            <FormField label="Select Repository" htmlFor="repo-select" required>
+              <RepoSelector value={selectedRepo} onSelect={handleRepoSelect} />
+            </FormField>
+          </TabsContent>
+
+          <TabsContent value="manual" className="space-y-4 mt-4">
+            <FormField label="Repository URL" htmlFor="repository" required>
+              <div className="relative">
+                <Link className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="repository"
+                  placeholder="https://github.com/owner/repo"
+                  value={data.repositoryUrl}
+                  onChange={(e) => onUpdate({ repositoryUrl: e.target.value })}
+                  className="pl-10"
+                  required
+                />
+              </div>
+            </FormField>
+          </TabsContent>
+        </Tabs>
 
         <FormField
           label="Application Name"
@@ -48,20 +109,6 @@ export function RepositoryStep({
             minLength={2}
             maxLength={63}
           />
-        </FormField>
-
-        <FormField label="Repository URL" htmlFor="repository" required>
-          <div className="relative">
-            <Link className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              id="repository"
-              placeholder="https://github.com/owner/repo"
-              value={data.repositoryUrl}
-              onChange={(e) => onUpdate({ repositoryUrl: e.target.value })}
-              className="pl-10"
-              required
-            />
-          </div>
         </FormField>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

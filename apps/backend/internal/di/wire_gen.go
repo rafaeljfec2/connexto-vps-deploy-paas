@@ -46,6 +46,15 @@ func InitializeApplication() (*Application, func(), error) {
 	containerHealthHandler := handler.NewContainerHealthHandler(postgresAppRepository, engineEngine)
 	appAdminHandler := ProvideAppAdminHandler(postgresAppRepository, engineEngine, config)
 	webhookHandler := ProvideGitHubWebhookHandler(config, postgresAppRepository, postgresDeploymentRepository, logger)
+	oAuthClient := ProvideOAuthClient(config, logger)
+	postgresUserRepository := repository.NewPostgresUserRepository(db)
+	postgresSessionRepository := repository.NewPostgresSessionRepository(db)
+	tokenEncryptor := ProvideTokenEncryptor(config, logger)
+	authHandler := ProvideAuthHandler(config, oAuthClient, postgresUserRepository, postgresSessionRepository, tokenEncryptor, logger)
+	appClient := ProvideGitHubAppClient(config, logger)
+	postgresInstallationRepository := repository.NewPostgresInstallationRepository(db)
+	gitHubHandler := ProvideGitHubHandler(config, appClient, postgresInstallationRepository, postgresUserRepository, logger)
+	authMiddleware := ProvideAuthMiddleware(config, postgresSessionRepository, postgresUserRepository, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -60,6 +69,9 @@ func InitializeApplication() (*Application, func(), error) {
 		ContainerHealthHandler: containerHealthHandler,
 		AppAdminHandler:        appAdminHandler,
 		WebhookHandler:         webhookHandler,
+		AuthHandler:            authHandler,
+		GitHubHandler:          gitHubHandler,
+		AuthMiddleware:         authMiddleware,
 	}
 	return application, func() {
 		cleanup()

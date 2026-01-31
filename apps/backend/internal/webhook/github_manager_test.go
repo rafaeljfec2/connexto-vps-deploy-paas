@@ -13,6 +13,7 @@ type mockProvider struct {
 	deleteWebhookFunc func(ctx context.Context, owner, repo string, webhookID int64) error
 	getWebhookFunc    func(ctx context.Context, owner, repo string, webhookID int64) (*github.Webhook, error)
 	listWebhooksFunc  func(ctx context.Context, owner, repo string) ([]github.Webhook, error)
+	listCommitsFunc   func(ctx context.Context, owner, repo, branch string, perPage int) ([]github.CommitInfo, error)
 }
 
 func (m *mockProvider) CreateWebhook(ctx context.Context, owner, repo string, config github.WebhookConfig) (*github.Webhook, error) {
@@ -41,6 +42,13 @@ func (m *mockProvider) ListWebhooks(ctx context.Context, owner, repo string) ([]
 		return m.listWebhooksFunc(ctx, owner, repo)
 	}
 	return []github.Webhook{}, nil
+}
+
+func (m *mockProvider) ListCommits(ctx context.Context, owner, repo, branch string, perPage int) ([]github.CommitInfo, error) {
+	if m.listCommitsFunc != nil {
+		return m.listCommitsFunc(ctx, owner, repo, branch, perPage)
+	}
+	return []github.CommitInfo{}, nil
 }
 
 func TestGitHubManagerSetup(t *testing.T) {

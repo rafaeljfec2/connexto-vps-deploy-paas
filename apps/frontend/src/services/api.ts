@@ -1,3 +1,4 @@
+import type { User } from "@/contexts/auth-context";
 import type {
   ApiEnvelope,
   App,
@@ -20,6 +21,37 @@ import type {
 import { ApiError, isApiError } from "@/types";
 
 const API_BASE = "/paas-deploy/v1";
+
+export interface GitHubInstallation {
+  readonly id: string;
+  readonly installationId: number;
+  readonly accountType: string;
+  readonly accountLogin: string;
+  readonly repositorySelection: string;
+}
+
+export interface GitHubRepository {
+  readonly id: number;
+  readonly name: string;
+  readonly fullName: string;
+  readonly private: boolean;
+  readonly description: string;
+  readonly htmlUrl: string;
+  readonly cloneUrl: string;
+  readonly defaultBranch: string;
+  readonly language: string;
+  readonly owner: {
+    readonly login: string;
+    readonly avatarUrl: string;
+    readonly type: string;
+  };
+}
+
+export interface ReposResponse {
+  readonly repositories: readonly GitHubRepository[];
+  readonly needInstall: boolean;
+  readonly installMessage?: string;
+}
 
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -65,6 +97,37 @@ async function fetchApiList<T>(
 }
 
 export const api = {
+  auth: {
+    me: (): Promise<User> => fetchApi<User>("/auth/me"),
+
+    logout: async (): Promise<void> => {
+      const response = await fetch("/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+  },
+
+  github: {
+    installations: (): Promise<readonly GitHubInstallation[]> =>
+      fetchApiList<GitHubInstallation>("/api/github/installations"),
+
+    repos: (installationId?: string): Promise<ReposResponse> => {
+      const url = installationId
+        ? `/api/github/repos?installation_id=${installationId}`
+        : "/api/github/repos";
+      return fetchApi<ReposResponse>(url);
+    },
+
+    repo: (owner: string, repo: string): Promise<GitHubRepository> =>
+      fetchApi<GitHubRepository>(`/api/github/repos/${owner}/${repo}`),
+  },
+
   apps: {
     list: (): Promise<readonly App[]> => fetchApiList<App>(`${API_BASE}/apps`),
 
