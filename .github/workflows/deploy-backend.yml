@@ -45,7 +45,7 @@ jobs:
   validate-environment:
     needs: lint
     runs-on: ubuntu-latest
-    environment: production
+    environment: Prod
     steps:
       - name: Validate required variables
         run: |
@@ -132,7 +132,7 @@ jobs:
   build-and-push:
     needs: validate-environment
     runs-on: ubuntu-latest
-    environment: production
+    environment: Prod
     permissions:
       contents: write
       packages: write
@@ -187,7 +187,7 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: production
+    environment: Prod
     steps:
       - name: Install dependencies
         run: |
