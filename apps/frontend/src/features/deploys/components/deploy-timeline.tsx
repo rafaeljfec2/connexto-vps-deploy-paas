@@ -1,4 +1,5 @@
 import { Clock } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorMessage } from "@/components/error-message";
 import { LoadingGrid } from "@/components/loading-grid";
@@ -32,16 +33,18 @@ export function DeployTimeline({ appId, onSelectDeploy }: DeployTimelineProps) {
   }
 
   return (
-    <div className="space-y-4">
-      {deployments.map((deployment) => (
-        <DeployCard
-          key={deployment.id}
-          deployment={deployment}
-          onClick={
-            onSelectDeploy ? () => onSelectDeploy(deployment.id) : undefined
-          }
-        />
-      ))}
-    </div>
+    <ScrollArea className="h-[320px]">
+      <div className="space-y-3 pr-3">
+        {deployments.map((deployment) => (
+          <DeployCard
+            key={deployment.id}
+            deployment={deployment}
+            onClick={
+              onSelectDeploy ? () => onSelectDeploy(deployment.id) : undefined
+            }
+          />
+        ))}
+      </div>
+    </ScrollArea>
   );
 }
