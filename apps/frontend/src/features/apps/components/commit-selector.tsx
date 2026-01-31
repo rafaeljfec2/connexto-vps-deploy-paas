@@ -22,55 +22,55 @@ function CommitItem({
   readonly onDeploy: (sha: string) => void;
   readonly disabled?: boolean;
 }) {
-  const firstLine = (commit.message.split("\n")[0] ?? "").slice(0, 72);
-  const hasMore = commit.message.length > 72 || commit.message.includes("\n");
+  const firstLine = (commit.message.split("\n")[0] ?? "").slice(0, 50);
+  const hasMore = commit.message.length > 50 || commit.message.includes("\n");
 
   return (
     <div
       className={cn(
-        "flex items-center gap-2 p-3 rounded-lg border border-transparent overflow-hidden",
+        "p-2 rounded-md border border-transparent",
         "hover:bg-muted/50 hover:border-muted-foreground/20 transition-colors",
       )}
     >
-      <GitCommit className="h-4 w-4 text-muted-foreground shrink-0" />
-      <div className="flex-1 min-w-0 overflow-hidden">
-        <div className="flex items-center gap-2 flex-wrap">
-          <code className="text-xs font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <GitCommit className="h-3 w-3 text-muted-foreground shrink-0" />
+          <code className="text-[11px] font-mono text-primary bg-primary/10 px-1 py-0.5 rounded">
             {commit.sha.slice(0, 7)}
           </code>
-          <span className="text-xs text-muted-foreground truncate">
+          <span className="text-[11px] text-muted-foreground">
             {formatDistanceToNow(new Date(commit.date), {
               addSuffix: true,
               locale: ptBR,
             })}
           </span>
         </div>
-        <p className="text-sm mt-1 truncate">
-          {firstLine}
-          {hasMore && "..."}
-        </p>
+        <div className="flex items-center shrink-0">
+          <a
+            href={commit.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted"
+            title="View on GitHub"
+          >
+            <ExternalLink className="h-3 w-3" />
+          </a>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onDeploy(commit.sha)}
+            disabled={disabled}
+            className="h-5 px-1.5 text-[10px]"
+          >
+            <Rocket className="h-2.5 w-2.5 mr-0.5" />
+            Deploy
+          </Button>
+        </div>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <a
-          href={commit.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-muted-foreground hover:text-foreground p-1.5 rounded hover:bg-muted"
-          title="View on GitHub"
-        >
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => onDeploy(commit.sha)}
-          disabled={disabled}
-          className="h-7 px-2"
-        >
-          <Rocket className="h-3.5 w-3.5 mr-1" />
-          Deploy
-        </Button>
-      </div>
+      <p className="text-[11px] mt-1 truncate text-muted-foreground pl-4">
+        {firstLine}
+        {hasMore && "..."}
+      </p>
     </div>
   );
 }
@@ -110,8 +110,8 @@ export function CommitSelectorInline({
       )}
 
       {commits && commits.length > 0 && (
-        <ScrollArea className="h-[450px]">
-          <div className="space-y-1 pr-2">
+        <ScrollArea className="h-[450px] w-full">
+          <div className="space-y-1 pr-3 max-w-full">
             {commits.map((commit) => (
               <CommitItem
                 key={commit.sha}
