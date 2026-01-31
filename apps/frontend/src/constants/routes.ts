@@ -6,16 +6,18 @@ export const ROUTES = {
   APP_DETAIL: (id: string) => `/apps/${id}`,
 } as const;
 
+const API_URL = import.meta.env.VITE_API_URL ?? "";
+
 export const API_ROUTES = {
   AUTH: {
-    GITHUB: "/auth/github",
-    ME: "/auth/me",
-    LOGOUT: "/auth/logout",
+    GITHUB: `${API_URL}/auth/github`,
+    ME: `${API_URL}/auth/me`,
+    LOGOUT: `${API_URL}/auth/logout`,
   },
   GITHUB: {
-    INSTALL: "/api/github/install",
-    REPOS: "/api/github/repos",
-    INSTALLATIONS: "/api/github/installations",
+    INSTALL: `${API_URL}/api/github/install`,
+    REPOS: `${API_URL}/api/github/repos`,
+    INSTALLATIONS: `${API_URL}/api/github/installations`,
   },
 } as const;
 

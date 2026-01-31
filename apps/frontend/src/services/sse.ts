@@ -2,6 +2,8 @@ import type { SSEEvent } from "@/types";
 
 type SSECallback = (event: SSEEvent) => void;
 
+const API_URL = import.meta.env.VITE_API_URL ?? "";
+
 class SSEClient {
   private eventSource: EventSource | null = null;
   private readonly callbacks: Set<SSECallback> = new Set();
@@ -9,7 +11,7 @@ class SSEClient {
   private readonly maxReconnectAttempts = 10;
   private reconnectTimeout: NodeJS.Timeout | null = null;
 
-  connect(url: string = "/events/deploys"): void {
+  connect(url: string = `${API_URL}/events/deploys`): void {
     if (this.eventSource?.readyState === EventSource.OPEN) {
       return;
     }

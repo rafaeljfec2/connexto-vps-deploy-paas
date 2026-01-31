@@ -25,7 +25,8 @@ import type {
 } from "@/types";
 import { ApiError, isApiError } from "@/types";
 
-const API_BASE = "/paas-deploy/v1";
+const API_URL = import.meta.env.VITE_API_URL ?? "";
+const API_BASE = `${API_URL}/paas-deploy/v1`;
 
 export interface GitHubInstallation {
   readonly id: string;
@@ -103,10 +104,10 @@ async function fetchApiList<T>(
 
 export const api = {
   auth: {
-    me: (): Promise<User> => fetchApi<User>("/auth/me"),
+    me: (): Promise<User> => fetchApi<User>(`${API_URL}/auth/me`),
 
     logout: async (): Promise<void> => {
-      const response = await fetch("/auth/logout", {
+      const response = await fetch(`${API_URL}/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
@@ -120,17 +121,19 @@ export const api = {
 
   github: {
     installations: (): Promise<readonly GitHubInstallation[]> =>
-      fetchApiList<GitHubInstallation>("/api/github/installations"),
+      fetchApiList<GitHubInstallation>(`${API_URL}/api/github/installations`),
 
     repos: (installationId?: string): Promise<ReposResponse> => {
       const url = installationId
-        ? `/api/github/repos?installation_id=${installationId}`
-        : "/api/github/repos";
+        ? `${API_URL}/api/github/repos?installation_id=${installationId}`
+        : `${API_URL}/api/github/repos`;
       return fetchApi<ReposResponse>(url);
     },
 
     repo: (owner: string, repo: string): Promise<GitHubRepository> =>
-      fetchApi<GitHubRepository>(`/api/github/repos/${owner}/${repo}`),
+      fetchApi<GitHubRepository>(
+        `${API_URL}/api/github/repos/${owner}/${repo}`,
+      ),
   },
 
   apps: {
@@ -296,16 +299,16 @@ export const api = {
 
   cloudflare: {
     status: (): Promise<CloudflareStatus> =>
-      fetchApi<CloudflareStatus>("/auth/cloudflare/status"),
+      fetchApi<CloudflareStatus>(`${API_URL}/auth/cloudflare/status`),
 
     connect: (apiToken: string): Promise<CloudflareStatus> =>
-      fetchApi<CloudflareStatus>("/auth/cloudflare/connect", {
+      fetchApi<CloudflareStatus>(`${API_URL}/auth/cloudflare/connect`, {
         method: "POST",
         body: JSON.stringify({ apiToken }),
       }),
 
     disconnect: async (): Promise<void> => {
-      const response = await fetch("/auth/cloudflare/disconnect", {
+      const response = await fetch(`${API_URL}/auth/cloudflare/disconnect`, {
         method: "POST",
       });
 
