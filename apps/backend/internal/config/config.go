@@ -9,6 +9,19 @@ import (
 	"time"
 )
 
+const (
+	DefaultPort               = 8080
+	DefaultDeployWorkers      = 2
+	DefaultDeployTimeoutSec   = 600
+	DefaultHealthTimeoutSec   = 60
+	DefaultHealthRetries      = 3
+	DefaultSessionMaxAgeSec   = 604800
+	DefaultDockerHost         = "unix:///var/run/docker.sock"
+	DefaultFrontendURL        = "http://localhost:3000"
+	DefaultSessionCookieName  = "flowdeploy_session"
+	DefaultAppName            = "FlowDeploy"
+)
+
 type Config struct {
 	Server   ServerConfig
 	Database DatabaseConfig
@@ -74,7 +87,7 @@ func Load() *Config {
 		Server: ServerConfig{
 			Env:      getEnv("APP_ENV", "development"),
 			Host:     getEnv("HOST", "0.0.0.0"),
-			Port:     getEnvInt("PORT", 8080),
+			Port:     getEnvInt("PORT", DefaultPort),
 			LogLevel: getEnv("LOG_LEVEL", "info"),
 		},
 		Database: DatabaseConfig{
@@ -82,13 +95,13 @@ func Load() *Config {
 		},
 		Deploy: DeployConfig{
 			DataDir:            getEnvPath("DEPLOY_DATA_DIR", defaultDataDir()),
-			Workers:            getEnvInt("DEPLOY_WORKERS", 2),
-			Timeout:            time.Duration(getEnvInt("DEPLOY_TIMEOUT", 600)) * time.Second,
-			HealthCheckTimeout: time.Duration(getEnvInt("HEALTH_CHECK_TIMEOUT", 60)) * time.Second,
-			HealthCheckRetries: getEnvInt("HEALTH_CHECK_RETRIES", 3),
+			Workers:            getEnvInt("DEPLOY_WORKERS", DefaultDeployWorkers),
+			Timeout:            time.Duration(getEnvInt("DEPLOY_TIMEOUT", DefaultDeployTimeoutSec)) * time.Second,
+			HealthCheckTimeout: time.Duration(getEnvInt("HEALTH_CHECK_TIMEOUT", DefaultHealthTimeoutSec)) * time.Second,
+			HealthCheckRetries: getEnvInt("HEALTH_CHECK_RETRIES", DefaultHealthRetries),
 		},
 		Docker: DockerConfig{
-			Host:     getEnv("DOCKER_HOST", "unix:///var/run/docker.sock"),
+			Host:     getEnv("DOCKER_HOST", DefaultDockerHost),
 			Registry: getEnv("DOCKER_REGISTRY", ""),
 		},
 		GitHub: GitHubConfig{
@@ -101,17 +114,17 @@ func Load() *Config {
 			CallbackURL:  getEnv("GITHUB_OAUTH_CALLBACK_URL", ""),
 
 			AppID:         int64(getEnvInt("GITHUB_APP_ID", 0)),
-			AppName:       getEnv("GITHUB_APP_NAME", "FlowDeploy"),
+			AppName:       getEnv("GITHUB_APP_NAME", DefaultAppName),
 			AppPrivateKey: loadPrivateKey(),
 			AppInstallURL: getEnv("GITHUB_APP_INSTALL_URL", ""),
 			AppSetupURL:   getEnv("GITHUB_APP_SETUP_URL", ""),
 		},
 		Auth: AuthConfig{
 			TokenEncryptionKey: getEnv("TOKEN_ENCRYPTION_KEY", ""),
-			SessionCookieName:  getEnv("SESSION_COOKIE_NAME", "flowdeploy_session"),
-			SessionMaxAge:      time.Duration(getEnvInt("SESSION_MAX_AGE", 604800)) * time.Second,
+			SessionCookieName:  getEnv("SESSION_COOKIE_NAME", DefaultSessionCookieName),
+			SessionMaxAge:      time.Duration(getEnvInt("SESSION_MAX_AGE", DefaultSessionMaxAgeSec)) * time.Second,
 			SecureCookie:       getEnv("SESSION_SECURE", "false") == "true",
-			FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
+			FrontendURL:        getEnv("FRONTEND_URL", DefaultFrontendURL),
 		},
 	}
 }

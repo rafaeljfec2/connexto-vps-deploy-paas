@@ -19,7 +19,7 @@ func NewEnvVarHandler(envVarRepo domain.EnvVarRepository, appRepo domain.AppRepo
 }
 
 func (h *EnvVarHandler) Register(app *fiber.App) {
-	v1 := app.Group("/paas-deploy/v1")
+	v1 := app.Group(APIPrefix)
 	apps := v1.Group("/apps")
 
 	apps.Get("/:id/env", h.ListEnvVars)
@@ -32,12 +32,8 @@ func (h *EnvVarHandler) Register(app *fiber.App) {
 func (h *EnvVarHandler) ListEnvVars(c *fiber.Ctx) error {
 	appID := c.Params("id")
 
-	_, err := h.appRepo.FindByID(appID)
-	if err != nil {
-		if err == domain.ErrNotFound {
-			return response.NotFound(c, "App not found")
-		}
-		return response.InternalError(c)
+	if err := EnsureAppExists(c, h.appRepo, appID); err != nil {
+		return err
 	}
 
 	vars, err := h.envVarRepo.FindByAppID(appID)
@@ -45,32 +41,23 @@ func (h *EnvVarHandler) ListEnvVars(c *fiber.Ctx) error {
 		return response.InternalError(c)
 	}
 
-	responses := make([]domain.EnvVarResponse, len(vars))
-	for i, v := range vars {
-		responses[i] = v.ToResponse()
-	}
-
-	return response.OK(c, responses)
+	return response.OK(c, ToEnvVarResponses(vars))
 }
 
 func (h *EnvVarHandler) CreateEnvVar(c *fiber.Ctx) error {
 	appID := c.Params("id")
 
-	_, err := h.appRepo.FindByID(appID)
-	if err != nil {
-		if err == domain.ErrNotFound {
-			return response.NotFound(c, "App not found")
-		}
-		return response.InternalError(c)
+	if err := EnsureAppExists(c, h.appRepo, appID); err != nil {
+		return err
 	}
 
 	var input domain.CreateEnvVarInput
 	if err := c.BodyParser(&input); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
 	if input.Key == "" {
-		return response.BadRequest(c, "Key is required")
+		return response.BadRequest(c, MsgKeyRequired)
 	}
 
 	envVar, err := h.envVarRepo.Create(appID, input)
@@ -84,26 +71,22 @@ func (h *EnvVarHandler) CreateEnvVar(c *fiber.Ctx) error {
 func (h *EnvVarHandler) BulkUpsertEnvVars(c *fiber.Ctx) error {
 	appID := c.Params("id")
 
-	_, err := h.appRepo.FindByID(appID)
-	if err != nil {
-		if err == domain.ErrNotFound {
-			return response.NotFound(c, "App not found")
-		}
-		return response.InternalError(c)
+	if err := EnsureAppExists(c, h.appRepo, appID); err != nil {
+		return err
 	}
 
 	var input domain.BulkEnvVarInput
 	if err := c.BodyParser(&input); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
 	if len(input.Vars) == 0 {
-		return response.BadRequest(c, "At least one variable is required")
+		return response.BadRequest(c, MsgAtLeastOneVariable)
 	}
 
 	for _, v := range input.Vars {
 		if v.Key == "" {
-			return response.BadRequest(c, "All variables must have a key")
+			return response.BadRequest(c, MsgAllVarsMustHaveKey)
 		}
 	}
 
@@ -116,12 +99,7 @@ func (h *EnvVarHandler) BulkUpsertEnvVars(c *fiber.Ctx) error {
 		return response.InternalError(c)
 	}
 
-	responses := make([]domain.EnvVarResponse, len(vars))
-	for i, v := range vars {
-		responses[i] = v.ToResponse()
-	}
-
-	return response.OK(c, responses)
+	return response.OK(c, ToEnvVarResponses(vars))
 }
 
 func (h *EnvVarHandler) UpdateEnvVar(c *fiber.Ctx) error {
@@ -129,15 +107,12 @@ func (h *EnvVarHandler) UpdateEnvVar(c *fiber.Ctx) error {
 
 	var input domain.UpdateEnvVarInput
 	if err := c.BodyParser(&input); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
 	envVar, err := h.envVarRepo.Update(varID, input)
 	if err != nil {
-		if err == domain.ErrNotFound {
-			return response.NotFound(c, "Environment variable not found")
-		}
-		return response.InternalError(c)
+		return HandleNotFoundOrInternal(c, err, MsgEnvVarNotFound)
 	}
 
 	return response.OK(c, envVar.ToResponse())
@@ -147,11 +122,8 @@ func (h *EnvVarHandler) DeleteEnvVar(c *fiber.Ctx) error {
 	varID := c.Params("varId")
 
 	if err := h.envVarRepo.Delete(varID); err != nil {
-		if err == domain.ErrNotFound {
-			return response.NotFound(c, "Environment variable not found")
-		}
-		return response.InternalError(c)
+		return HandleNotFoundOrInternal(c, err, MsgEnvVarNotFound)
 	}
 
-	return response.OK(c, map[string]string{"message": "Environment variable deleted"})
+	return response.OK(c, map[string]string{"message": MsgEnvVarDeleted})
 }

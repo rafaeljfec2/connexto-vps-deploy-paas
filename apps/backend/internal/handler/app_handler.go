@@ -1,9 +1,6 @@
 package handler
 
 import (
-	"context"
-	"errors"
-
 	"github.com/gofiber/fiber/v2"
 	_ "github.com/paasdeploy/backend/internal/docs"
 	"github.com/paasdeploy/backend/internal/domain"
@@ -15,7 +12,6 @@ type AppHandler struct {
 	appService *service.AppService
 }
 
-// RedeployInput representa o input para redeploy
 type RedeployInput struct {
 	CommitSHA string `json:"commitSha,omitempty" example:"abc123def"`
 }
@@ -27,7 +23,7 @@ func NewAppHandler(appService *service.AppService) *AppHandler {
 }
 
 func (h *AppHandler) Register(app *fiber.App) {
-	v1 := app.Group("/paas-deploy/v1")
+	v1 := app.Group(APIPrefix)
 
 	apps := v1.Group("/apps")
 	apps.Get("/", h.ListApps)
@@ -77,11 +73,10 @@ func (h *AppHandler) ListApps(c *fiber.Ctx) error {
 func (h *AppHandler) CreateApp(c *fiber.Ctx) error {
 	var input domain.CreateAppInput
 	if err := c.BodyParser(&input); err != nil {
-		return response.BadRequest(c, "invalid request body")
+		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
-	ctx := context.Background()
-	app, err := h.appService.CreateApp(ctx, input)
+	app, err := h.appService.CreateApp(c.Context(), input)
 	if err != nil {
 		return h.handleError(c, err)
 	}
@@ -124,13 +119,11 @@ func (h *AppHandler) DeleteApp(c *fiber.Ctx) error {
 	id := c.Params("id")
 	purge := c.QueryBool("purge", false)
 
-	ctx := context.Background()
-
 	var err error
 	if purge {
-		err = h.appService.PurgeApp(ctx, id)
+		err = h.appService.PurgeApp(c.Context(), id)
 	} else {
-		err = h.appService.DeleteApp(ctx, id)
+		err = h.appService.DeleteApp(c.Context(), id)
 	}
 
 	if err != nil {
@@ -225,8 +218,7 @@ func (h *AppHandler) TriggerRollback(c *fiber.Ctx) error {
 func (h *AppHandler) SetupWebhook(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	ctx := context.Background()
-	result, err := h.appService.SetupWebhook(ctx, id)
+	result, err := h.appService.SetupWebhook(c.Context(), id)
 	if err != nil {
 		return h.handleError(c, err)
 	}
@@ -246,8 +238,7 @@ func (h *AppHandler) SetupWebhook(c *fiber.Ctx) error {
 func (h *AppHandler) RemoveWebhook(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	ctx := context.Background()
-	if err := h.appService.RemoveWebhook(ctx, id); err != nil {
+	if err := h.appService.RemoveWebhook(c.Context(), id); err != nil {
 		return h.handleError(c, err)
 	}
 
@@ -267,8 +258,7 @@ func (h *AppHandler) RemoveWebhook(c *fiber.Ctx) error {
 func (h *AppHandler) GetWebhookStatus(c *fiber.Ctx) error {
 	id := c.Params("id")
 
-	ctx := context.Background()
-	status, err := h.appService.GetWebhookStatus(ctx, id)
+	status, err := h.appService.GetWebhookStatus(c.Context(), id)
 	if err != nil {
 		return h.handleError(c, err)
 	}
@@ -291,8 +281,7 @@ func (h *AppHandler) ListCommits(c *fiber.Ctx) error {
 	id := c.Params("id")
 	limit := c.QueryInt("limit", 20)
 
-	ctx := context.Background()
-	commits, err := h.appService.ListCommits(ctx, id, limit)
+	commits, err := h.appService.ListCommits(c.Context(), id, limit)
 	if err != nil {
 		return h.handleError(c, err)
 	}
@@ -301,20 +290,5 @@ func (h *AppHandler) ListCommits(c *fiber.Ctx) error {
 }
 
 func (h *AppHandler) handleError(c *fiber.Ctx, err error) error {
-	switch {
-	case errors.Is(err, domain.ErrNotFound):
-		return response.NotFound(c, err.Error())
-	case errors.Is(err, domain.ErrAlreadyExists):
-		return response.Conflict(c, err.Error())
-	case errors.Is(err, domain.ErrInvalidInput):
-		return response.BadRequest(c, err.Error())
-	case errors.Is(err, domain.ErrDeployInProgress):
-		return response.Conflict(c, err.Error())
-	case errors.Is(err, domain.ErrNoDeployAvailable):
-		return response.NotFound(c, err.Error())
-	case errors.Is(err, domain.ErrWebhookNotConfigured):
-		return response.BadRequest(c, err.Error())
-	default:
-		return response.InternalError(c)
-	}
+	return HandleDomainError(c, err)
 }

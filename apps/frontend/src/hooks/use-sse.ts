@@ -87,7 +87,6 @@ export function useAppHealth(appId: string | undefined) {
       return api.apps.health(appId);
     },
     enabled: !!appId,
-    staleTime: 30 * 1000,
-    refetchInterval: 60 * 1000,
+    staleTime: 60 * 1000,
   });
 }

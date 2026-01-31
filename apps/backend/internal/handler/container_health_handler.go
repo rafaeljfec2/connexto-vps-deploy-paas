@@ -35,7 +35,7 @@ func NewContainerHealthHandler(appRepo domain.AppRepository, eng *engine.Engine)
 }
 
 func (h *ContainerHealthHandler) Register(app *fiber.App) {
-	v1 := app.Group("/paas-deploy/v1")
+	v1 := app.Group(APIPrefix)
 	v1.Get("/apps/:id/health", h.GetAppHealth)
 	v1.Get("/apps/:id/container/logs", h.GetContainerLogs)
 	v1.Get("/apps/:id/container/stats", h.GetContainerStats)
@@ -46,11 +46,10 @@ func (h *ContainerHealthHandler) GetAppHealth(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, "app not found")
+		return response.NotFound(c, MsgAppNotFound)
 	}
 
-	ctx := context.Background()
-	health := h.engine.GetAppHealth(ctx, app.Name)
+	health := h.engine.GetAppHealth(c.Context(), app.Name)
 
 	if health == nil {
 		return response.OK(c, ContainerHealthResponse{
@@ -85,16 +84,14 @@ func (h *ContainerHealthHandler) GetContainerLogs(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, "app not found")
+		return response.NotFound(c, MsgAppNotFound)
 	}
-
-	ctx := context.Background()
 
 	if follow {
-		return h.streamContainerLogs(c, ctx, app.Name)
+		return h.streamContainerLogs(c, c.Context(), app.Name)
 	}
 
-	logs, err := h.engine.ContainerLogs(ctx, app.Name, tail)
+	logs, err := h.engine.ContainerLogs(c.Context(), app.Name, tail)
 	if err != nil {
 		return response.OK(c, ContainerLogsResponse{Logs: ""})
 	}
@@ -159,11 +156,10 @@ func (h *ContainerHealthHandler) GetContainerStats(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, "app not found")
+		return response.NotFound(c, MsgAppNotFound)
 	}
 
-	ctx := context.Background()
-	stats, err := h.engine.ContainerStats(ctx, app.Name)
+	stats, err := h.engine.ContainerStats(c.Context(), app.Name)
 	if err != nil {
 		return response.OK(c, ContainerStatsResponse{})
 	}

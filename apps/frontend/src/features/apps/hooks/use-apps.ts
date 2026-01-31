@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DEFAULTS, REFETCH_INTERVALS, STALE_TIMES } from "@/constants/routes";
 import { api } from "@/services/api";
 import type { CreateAppInput, UpdateAppInput } from "@/types";
 
@@ -147,7 +148,10 @@ export function useStartContainer() {
   });
 }
 
-export function useContainerLogs(appId: string | undefined, tail = 100) {
+export function useContainerLogs(
+  appId: string | undefined,
+  tail = DEFAULTS.LOGS_TAIL,
+) {
   return useQuery({
     queryKey: ["containerLogs", appId, tail],
     queryFn: () => api.container.logs(appId!, tail),
@@ -161,15 +165,18 @@ export function useContainerStats(appId: string | undefined) {
     queryKey: ["containerStats", appId],
     queryFn: () => api.container.stats(appId!),
     enabled: !!appId,
-    refetchInterval: 5000,
+    refetchInterval: REFETCH_INTERVALS.SLOW,
   });
 }
 
-export function useCommits(appId: string | undefined, limit = 20) {
+export function useCommits(
+  appId: string | undefined,
+  limit = DEFAULTS.COMMITS_LIMIT,
+) {
   return useQuery({
     queryKey: ["commits", appId, limit],
     queryFn: () => api.apps.commits(appId!, limit),
     enabled: !!appId,
-    staleTime: 60000,
+    staleTime: STALE_TIMES.NORMAL,
   });
 }

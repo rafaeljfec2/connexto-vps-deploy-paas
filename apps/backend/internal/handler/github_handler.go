@@ -17,7 +17,6 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 )
 
-const errNotAuthenticated = "not authenticated"
 
 type GitHubHandler struct {
 	appClient        *github.AppClient
@@ -66,7 +65,7 @@ func (h *GitHubHandler) RegisterProtected(app fiber.Router) {
 func (h *GitHubHandler) requireAuth(c *fiber.Ctx) (*domain.User, error) {
 	user := GetUserFromContext(c)
 	if user == nil {
-		return nil, response.Unauthorized(c, errNotAuthenticated)
+		return nil, response.Unauthorized(c, MsgNotAuthenticated)
 	}
 	return user, nil
 }
@@ -133,7 +132,7 @@ func (h *GitHubHandler) needInstallResponse() ReposResponse {
 	return ReposResponse{
 		Repositories:   []RepositoryResponse{},
 		NeedInstall:    true,
-		InstallMessage: "Please install the GitHub App to access your repositories",
+		InstallMessage: MsgInstallGitHubApp,
 	}
 }
 
@@ -212,7 +211,7 @@ func (h *GitHubHandler) GetRepository(c *fiber.Ctx) error {
 	repo := c.Params("repo")
 
 	if owner == "" || repo == "" {
-		return response.BadRequest(c, "owner and repo are required")
+		return response.BadRequest(c, MsgOwnerRepoRequired)
 	}
 
 	result, err := h.findInstallation(c, user.ID, "")
@@ -222,7 +221,7 @@ func (h *GitHubHandler) GetRepository(c *fiber.Ctx) error {
 	}
 
 	if result.needInstall {
-		return response.NotFound(c, "no GitHub App installation found")
+		return response.NotFound(c, MsgNoGitHubInstallation)
 	}
 
 	if h.appClient == nil {

@@ -17,3 +17,20 @@ export const API_ROUTES = {
     INSTALLATIONS: "/api/github/installations",
   },
 } as const;
+
+export const REFETCH_INTERVALS = {
+  FAST: 5000,
+  NORMAL: 10000,
+  SLOW: 30000,
+} as const;
+
+export const STALE_TIMES = {
+  SHORT: 30 * 1000,
+  NORMAL: 60 * 1000,
+  LONG: 5 * 60 * 1000,
+} as const;
+
+export const DEFAULTS = {
+  COMMITS_LIMIT: 20 as number,
+  LOGS_TAIL: 100 as number,
+};

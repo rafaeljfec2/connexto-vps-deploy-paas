@@ -3,10 +3,13 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/paasdeploy/backend/internal/domain"
 )
+
+const appSelectColumns = `id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at`
 
 type PostgresAppRepository struct {
 	db *sql.DB
@@ -16,13 +19,56 @@ func NewPostgresAppRepository(db *sql.DB) *PostgresAppRepository {
 	return &PostgresAppRepository{db: db}
 }
 
+type appScanFields struct {
+	app            domain.App
+	webhookID      sql.NullInt64
+	lastDeployedAt sql.NullTime
+	runtime        sql.NullString
+}
+
+func (f *appScanFields) scanDest() []any {
+	return []any{
+		&f.app.ID,
+		&f.app.Name,
+		&f.app.RepositoryURL,
+		&f.app.Branch,
+		&f.app.Workdir,
+		&f.runtime,
+		&f.app.Config,
+		&f.app.Status,
+		&f.webhookID,
+		&f.lastDeployedAt,
+		&f.app.CreatedAt,
+		&f.app.UpdatedAt,
+	}
+}
+
+func (f *appScanFields) toApp() *domain.App {
+	if f.webhookID.Valid {
+		f.app.WebhookID = &f.webhookID.Int64
+	}
+	if f.lastDeployedAt.Valid {
+		f.app.LastDeployedAt = &f.lastDeployedAt.Time
+	}
+	if f.runtime.Valid {
+		f.app.Runtime = &f.runtime.String
+	}
+	return &f.app
+}
+
+func (r *PostgresAppRepository) scanApp(row *sql.Row) (*domain.App, error) {
+	var f appScanFields
+	if err := row.Scan(f.scanDest()...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return f.toApp(), nil
+}
+
 func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
-	query := `
-		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
-		FROM apps
-		WHERE status != 'deleted'
-		ORDER BY created_at DESC
-	`
+	query := `SELECT ` + appSelectColumns + ` FROM apps WHERE status != 'deleted' ORDER BY created_at DESC`
 
 	rows, err := r.db.Query(query)
 	if err != nil {
@@ -32,181 +78,33 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 
 	var apps []domain.App
 	for rows.Next() {
-		var app domain.App
-		var lastDeployedAt sql.NullTime
-		var webhookID sql.NullInt64
-		var runtime sql.NullString
-
-		err := rows.Scan(
-			&app.ID,
-			&app.Name,
-			&app.RepositoryURL,
-			&app.Branch,
-			&app.Workdir,
-			&runtime,
-			&app.Config,
-			&app.Status,
-			&webhookID,
-			&lastDeployedAt,
-			&app.CreatedAt,
-			&app.UpdatedAt,
-		)
-		if err != nil {
+		var f appScanFields
+		if err := rows.Scan(f.scanDest()...); err != nil {
 			return nil, err
 		}
+		apps = append(apps, *f.toApp())
+	}
 
-		if webhookID.Valid {
-			app.WebhookID = &webhookID.Int64
-		}
-		if lastDeployedAt.Valid {
-			app.LastDeployedAt = &lastDeployedAt.Time
-		}
-		if runtime.Valid {
-			app.Runtime = &runtime.String
-		}
-
-		apps = append(apps, app)
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return apps, nil
 }
 
 func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
-	query := `
-		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
-		FROM apps
-		WHERE id = $1 AND status != 'deleted'
-	`
-
-	var app domain.App
-	var lastDeployedAt sql.NullTime
-	var webhookID sql.NullInt64
-	var runtime sql.NullString
-
-	err := r.db.QueryRow(query, id).Scan(
-		&app.ID,
-		&app.Name,
-		&app.RepositoryURL,
-		&app.Branch,
-		&app.Workdir,
-		&runtime,
-		&app.Config,
-		&app.Status,
-		&webhookID,
-		&lastDeployedAt,
-		&app.CreatedAt,
-		&app.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if webhookID.Valid {
-		app.WebhookID = &webhookID.Int64
-	}
-	if lastDeployedAt.Valid {
-		app.LastDeployedAt = &lastDeployedAt.Time
-	}
-	if runtime.Valid {
-		app.Runtime = &runtime.String
-	}
-
-	return &app, nil
+	query := `SELECT ` + appSelectColumns + ` FROM apps WHERE id = $1 AND status != 'deleted'`
+	return r.scanApp(r.db.QueryRow(query, id))
 }
 
 func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
-	query := `
-		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
-		FROM apps
-		WHERE name = $1 AND status != 'deleted'
-	`
-
-	var app domain.App
-	var lastDeployedAt sql.NullTime
-	var webhookID sql.NullInt64
-	var runtime sql.NullString
-
-	err := r.db.QueryRow(query, name).Scan(
-		&app.ID,
-		&app.Name,
-		&app.RepositoryURL,
-		&app.Branch,
-		&app.Workdir,
-		&runtime,
-		&app.Config,
-		&app.Status,
-		&webhookID,
-		&lastDeployedAt,
-		&app.CreatedAt,
-		&app.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if webhookID.Valid {
-		app.WebhookID = &webhookID.Int64
-	}
-	if lastDeployedAt.Valid {
-		app.LastDeployedAt = &lastDeployedAt.Time
-	}
-	if runtime.Valid {
-		app.Runtime = &runtime.String
-	}
-
-	return &app, nil
+	query := `SELECT ` + appSelectColumns + ` FROM apps WHERE name = $1 AND status != 'deleted'`
+	return r.scanApp(r.db.QueryRow(query, name))
 }
 
 func (r *PostgresAppRepository) FindByRepoURL(repoURL string) (*domain.App, error) {
-	query := `
-		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
-		FROM apps
-		WHERE repository_url = $1 AND status != 'deleted'
-	`
-
-	var app domain.App
-	var lastDeployedAt sql.NullTime
-	var webhookID sql.NullInt64
-	var runtime sql.NullString
-
-	err := r.db.QueryRow(query, repoURL).Scan(
-		&app.ID,
-		&app.Name,
-		&app.RepositoryURL,
-		&app.Branch,
-		&app.Workdir,
-		&runtime,
-		&app.Config,
-		&app.Status,
-		&webhookID,
-		&lastDeployedAt,
-		&app.CreatedAt,
-		&app.UpdatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if webhookID.Valid {
-		app.WebhookID = &webhookID.Int64
-	}
-	if lastDeployedAt.Valid {
-		app.LastDeployedAt = &lastDeployedAt.Time
-	}
-	if runtime.Valid {
-		app.Runtime = &runtime.String
-	}
-
-	return &app, nil
+	query := `SELECT ` + appSelectColumns + ` FROM apps WHERE repository_url = $1 AND status != 'deleted'`
+	return r.scanApp(r.db.QueryRow(query, repoURL))
 }
 
 func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App, error) {
@@ -228,43 +126,15 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 	query := `
 		INSERT INTO apps (name, repository_url, branch, workdir, config, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
-		RETURNING id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at
-	`
+		RETURNING ` + appSelectColumns
 
-	var app domain.App
-	var lastDeployedAt sql.NullTime
-	var webhookID sql.NullInt64
-	var runtime sql.NullString
+	row := r.db.QueryRow(query, input.Name, input.RepositoryURL, branch, workdir, config)
 
-	err := r.db.QueryRow(query, input.Name, input.RepositoryURL, branch, workdir, config).Scan(
-		&app.ID,
-		&app.Name,
-		&app.RepositoryURL,
-		&app.Branch,
-		&app.Workdir,
-		&runtime,
-		&app.Config,
-		&app.Status,
-		&webhookID,
-		&lastDeployedAt,
-		&app.CreatedAt,
-		&app.UpdatedAt,
-	)
-	if err != nil {
+	var f appScanFields
+	if err := row.Scan(f.scanDest()...); err != nil {
 		return nil, err
 	}
-
-	if webhookID.Valid {
-		app.WebhookID = &webhookID.Int64
-	}
-	if lastDeployedAt.Valid {
-		app.LastDeployedAt = &lastDeployedAt.Time
-	}
-	if runtime.Valid {
-		app.Runtime = &runtime.String
-	}
-
-	return &app, nil
+	return f.toApp(), nil
 }
 
 func (r *PostgresAppRepository) Update(id string, input domain.UpdateAppInput) (*domain.App, error) {

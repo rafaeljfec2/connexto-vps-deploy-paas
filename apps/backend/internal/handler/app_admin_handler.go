@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,8 +11,6 @@ import (
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/response"
 )
-
-const errAppNotFound = "app not found"
 
 type AppAdminHandler struct {
 	appRepo domain.AppRepository
@@ -30,7 +27,7 @@ func NewAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, dataDi
 }
 
 func (h *AppAdminHandler) Register(app *fiber.App) {
-	v1 := app.Group("/paas-deploy/v1")
+	v1 := app.Group(APIPrefix)
 
 	apps := v1.Group("/apps")
 	apps.Get("/:id/url", h.GetAppURL)
@@ -52,7 +49,7 @@ func (h *AppAdminHandler) GetAppURL(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, errAppNotFound)
+		return response.NotFound(c, MsgAppNotFound)
 	}
 
 	config, err := h.readAppConfig(app.ID, app.Workdir)
@@ -106,7 +103,7 @@ func (h *AppAdminHandler) GetAppConfig(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, errAppNotFound)
+		return response.NotFound(c, MsgAppNotFound)
 	}
 
 	config, err := h.readAppConfig(app.ID, app.Workdir)
@@ -143,11 +140,10 @@ func (h *AppAdminHandler) RestartContainer(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, errAppNotFound)
+		return response.NotFound(c, MsgAppNotFound)
 	}
 
-	ctx := context.Background()
-	if err := h.engine.RestartContainer(ctx, app.Name); err != nil {
+	if err := h.engine.RestartContainer(c.Context(), app.Name); err != nil {
 		return response.OK(c, ContainerActionResponse{
 			Success: false,
 			Message: err.Error(),
@@ -165,11 +161,10 @@ func (h *AppAdminHandler) StopContainer(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, errAppNotFound)
+		return response.NotFound(c, MsgAppNotFound)
 	}
 
-	ctx := context.Background()
-	if err := h.engine.StopContainer(ctx, app.Name); err != nil {
+	if err := h.engine.StopContainer(c.Context(), app.Name); err != nil {
 		return response.OK(c, ContainerActionResponse{
 			Success: false,
 			Message: err.Error(),
@@ -187,11 +182,10 @@ func (h *AppAdminHandler) StartContainer(c *fiber.Ctx) error {
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, errAppNotFound)
+		return response.NotFound(c, MsgAppNotFound)
 	}
 
-	ctx := context.Background()
-	if err := h.engine.StartContainer(ctx, app.Name); err != nil {
+	if err := h.engine.StartContainer(c.Context(), app.Name); err != nil {
 		return response.OK(c, ContainerActionResponse{
 			Success: false,
 			Message: err.Error(),
@@ -214,12 +208,12 @@ func (h *AppAdminHandler) UpdateApp(c *fiber.Ctx) error {
 
 	var input UpdateAppInput
 	if err := c.BodyParser(&input); err != nil {
-		return response.BadRequest(c, "invalid request body")
+		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
-		return response.NotFound(c, errAppNotFound)
+		return response.NotFound(c, MsgAppNotFound)
 	}
 
 	updateInput := domain.UpdateAppInput{}

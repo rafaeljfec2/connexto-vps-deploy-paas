@@ -6,7 +6,6 @@ export function useDeploys(appId: string) {
     queryKey: ["deployments", appId],
     queryFn: () => api.deployments.list(appId),
     enabled: !!appId,
-    refetchInterval: 5000,
   });
 }
 

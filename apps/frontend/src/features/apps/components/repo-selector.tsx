@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { STALE_TIMES } from "@/constants/routes";
 import {
   Check,
   ChevronsUpDown,
@@ -121,7 +122,7 @@ export function RepoSelector({
     queryKey: ["github", "repos", installationId],
     queryFn: () => api.github.repos(installationId),
     refetchOnWindowFocus: true,
-    staleTime: 30 * 1000,
+    staleTime: STALE_TIMES.SHORT,
   });
 
   const filteredRepos = useMemo(
