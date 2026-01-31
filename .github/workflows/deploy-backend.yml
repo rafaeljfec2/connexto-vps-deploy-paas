@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - "apps/backend/**"
+      - ".github/scripts/deploy.exp"
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
 
