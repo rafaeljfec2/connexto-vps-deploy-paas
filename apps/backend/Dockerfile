@@ -24,26 +24,22 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
 # Stage 2: Production
 FROM alpine:3.19 AS production
 
-# Install runtime dependencies
+# Install runtime dependencies, create user and directories
 RUN apk add --no-cache \
     ca-certificates \
     git \
     docker-cli \
     docker-cli-compose \
-    tzdata
-
-# Create non-root user
-RUN addgroup -S paasdeploy && adduser -S paasdeploy -G paasdeploy
-
-# Create data directory
-RUN mkdir -p /data/apps && chown -R paasdeploy:paasdeploy /data
+    tzdata && \
+    addgroup -S paasdeploy && \
+    adduser -S paasdeploy -G paasdeploy && \
+    mkdir -p /data/apps && \
+    chown -R paasdeploy:paasdeploy /data
 
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binary and migrations from builder
 COPY --from=builder /app/api /app/api
-
-# Copy migrations
 COPY --from=builder /app/migrations /app/migrations
 
 # Set ownership
