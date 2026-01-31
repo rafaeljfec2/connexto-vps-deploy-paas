@@ -102,13 +102,16 @@ if {[string length $cloudflare_server_ip] > 0} {
   set docker_cmd "$docker_cmd -e CLOUDFLARE_SERVER_IP='$cloudflare_server_ip'"
 }
 
+set backtick [format %c 96]
+set host_rule "Host(${backtick}${api_domain}${backtick})"
+
 set docker_cmd "$docker_cmd --label traefik.enable=true"
-set docker_cmd "$docker_cmd --label \"traefik.http.routers.$container_name.rule=Host(\\\`$api_domain\\\`)\""
+set docker_cmd "$docker_cmd --label 'traefik.http.routers.$container_name.rule=$host_rule'"
 set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name.entrypoints=websecure"
 set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name.tls=true"
 set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name.tls.certresolver=letsencrypt"
 set docker_cmd "$docker_cmd --label traefik.http.services.$container_name.loadbalancer.server.port=8080"
-set docker_cmd "$docker_cmd --label \"traefik.http.routers.$container_name-http.rule=Host(\\\`$api_domain\\\`)\""
+set docker_cmd "$docker_cmd --label 'traefik.http.routers.$container_name-http.rule=$host_rule'"
 set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name-http.entrypoints=web"
 set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name-http.middlewares=redirect-to-https"
 set docker_cmd "$docker_cmd --label traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
