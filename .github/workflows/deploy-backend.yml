@@ -7,8 +7,8 @@ on:
       - main
     paths:
       - "apps/backend/**"
-      - ".github/scripts/deploy.exp"
       - ".github/workflows/deploy-backend.yml"
+      - ".github/scripts/**"
   workflow_dispatch:
 
 permissions:
@@ -52,75 +52,32 @@ jobs:
         run: |
           echo "🔍 Validating environment variables..."
 
-          # Required variables (must be set)
-          required_vars=(
-            "SERVER_USER"
-            "SERVER_HOST"
-            "APP_ENV"
-            "DATABASE_URL"
-            "GIT_HUB_WEBHOOK_SECRET"
-            "GIT_HUB_CLIENT_ID"
-            "GIT_HUB_CLIENT_SECRET"
-            "GIT_HUB_APP_ID"
-            "GIT_HUB_APP_PRIVATE_KEY_BASE64"
-            "TOKEN_ENCRYPTION_KEY"
-            "FRONTEND_URL"
-          )
-
-          # Optional variables (have defaults)
-          optional_vars=(
-            "SERVER_PORT"
-            "GHCR_USER"
-            "PORT"
-            "LOG_LEVEL"
-            "DEPLOY_WORKERS"
-            "DEPLOY_TIMEOUT"
-            "HEALTH_CHECK_TIMEOUT"
-            "HEALTH_CHECK_RETRIES"
-            "CLOUDFLARE_SERVER_IP"
-          )
-
           missing_vars=()
-          for var in "${required_vars[@]}"; do
-            if [ -z "${!var}" ]; then
-              missing_vars+=("$var")
-            fi
-          done
+
+          [ -z "$SERVER_USER" ] && missing_vars+=("SERVER_USER")
+          [ -z "$SERVER_HOST" ] && missing_vars+=("SERVER_HOST")
+          [ -z "$APP_ENV" ] && missing_vars+=("APP_ENV")
+          [ -z "$DATABASE_URL" ] && missing_vars+=("DATABASE_URL")
+          [ -z "$GIT_HUB_WEBHOOK_SECRET" ] && missing_vars+=("GIT_HUB_WEBHOOK_SECRET")
+          [ -z "$GIT_HUB_CLIENT_ID" ] && missing_vars+=("GIT_HUB_CLIENT_ID")
+          [ -z "$GIT_HUB_CLIENT_SECRET" ] && missing_vars+=("GIT_HUB_CLIENT_SECRET")
+          [ -z "$GIT_HUB_APP_ID" ] && missing_vars+=("GIT_HUB_APP_ID")
+          [ -z "$GIT_HUB_APP_PRIVATE_KEY_BASE64" ] && missing_vars+=("GIT_HUB_APP_PRIVATE_KEY_BASE64")
+          [ -z "$TOKEN_ENCRYPTION_KEY" ] && missing_vars+=("TOKEN_ENCRYPTION_KEY")
+          [ -z "$FRONTEND_URL" ] && missing_vars+=("FRONTEND_URL")
 
           if [ ${#missing_vars[@]} -gt 0 ]; then
             echo "❌ Missing required variables:"
             printf '  - %s\n' "${missing_vars[@]}"
-            echo ""
-            echo "📋 Configure these in GitHub Settings > Environments > Production:"
-            echo "   - Variables: APP_ENV, SERVER_USER, SERVER_HOST, FRONTEND_URL"
-            echo "   - Secrets: DATABASE_URL, GIT_HUB_WEBHOOK_SECRET, GIT_HUB_CLIENT_ID, GIT_HUB_CLIENT_SECRET"
-            echo "              GIT_HUB_APP_ID, GIT_HUB_APP_PRIVATE_KEY_BASE64, TOKEN_ENCRYPTION_KEY"
             exit 1
           fi
 
           echo "✅ All required variables are set"
-          echo ""
-          echo "📋 Optional variables (using defaults if not set):"
-          for var in "${optional_vars[@]}"; do
-            if [ -z "${!var}" ]; then
-              echo "   ⚠️  $var: using default"
-            else
-              echo "   ✅ $var: set"
-            fi
-          done
         env:
           SERVER_USER: ${{ vars.SERVER_USER }}
           SERVER_HOST: ${{ vars.SERVER_HOST }}
-          SERVER_PORT: ${{ vars.SERVER_PORT }}
-          GHCR_USER: ${{ vars.GHCR_USER }}
           APP_ENV: ${{ vars.APP_ENV }}
-          PORT: ${{ vars.PORT }}
-          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DEPLOY_WORKERS: ${{ vars.DEPLOY_WORKERS }}
-          DEPLOY_TIMEOUT: ${{ vars.DEPLOY_TIMEOUT }}
-          HEALTH_CHECK_TIMEOUT: ${{ vars.HEALTH_CHECK_TIMEOUT }}
-          HEALTH_CHECK_RETRIES: ${{ vars.HEALTH_CHECK_RETRIES }}
           GIT_HUB_WEBHOOK_SECRET: ${{ secrets.GIT_HUB_WEBHOOK_SECRET }}
           GIT_HUB_CLIENT_ID: ${{ secrets.GIT_HUB_CLIENT_ID }}
           GIT_HUB_CLIENT_SECRET: ${{ secrets.GIT_HUB_CLIENT_SECRET }}
@@ -128,7 +85,6 @@ jobs:
           GIT_HUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.GIT_HUB_APP_PRIVATE_KEY_BASE64 }}
           TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
           FRONTEND_URL: ${{ vars.FRONTEND_URL }}
-          CLOUDFLARE_SERVER_IP: ${{ vars.CLOUDFLARE_SERVER_IP }}
 
   build-and-push:
     needs: validate-environment
@@ -150,11 +106,9 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
-      - name: Get version from go.mod
+      - name: Get version
         id: get-version
-        working-directory: apps/backend
         run: |
-          VERSION=$(grep -E '^module' go.mod | head -1 | awk '{print $2}' | rev | cut -d'/' -f1 | rev)
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
           echo "📦 Version: ${SHORT_SHA}"
@@ -190,97 +144,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: Prod
     steps:
-      - name: Install dependencies
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install expect
         run: |
           sudo apt-get update
           sudo apt-get install -y expect
 
-      - name: Prepare Traefik setup script
-        run: |
-          cat > setup-traefik.exp << 'TRAEFIK_SCRIPT'
-          #!/usr/bin/expect -f
-          set timeout 300
-
-          set user $env(SERVER_USER)
-          set password $env(SERVER_PASSWORD)
-          set host $env(SERVER_HOST)
-          set port $env(SERVER_PORT)
-          set traefik_network $env(TRAEFIK_NETWORK)
-          set letsencrypt_email $env(LETSENCRYPT_EMAIL)
-
-          puts "🔧 Setting up Traefik on $host..."
-
-          spawn ssh -o StrictHostKeyChecking=no -p $port $user@$host
-
-          expect {
-            "yes/no" { send "yes\r"; exp_continue }
-            "password:" { send "$password\r" }
-            timeout { puts "❌ Connection timeout"; exit 1 }
-          }
-
-          expect "$ "
-
-          # Create traefik network
-          send "docker network create $traefik_network 2>/dev/null || true\r"
-          expect "$ "
-
-          # Create traefik directories
-          send "mkdir -p /opt/traefik/config /opt/traefik/letsencrypt\r"
-          expect "$ "
-
-          # Create traefik static config
-          send "cat > /opt/traefik/traefik.yml << 'TRAEFIK_CONFIG'\r"
-          send "api:\r"
-          send "  dashboard: true\r"
-          send "  insecure: false\r"
-          send "\r"
-          send "entryPoints:\r"
-          send "  web:\r"
-          send "    address: \":80\"\r"
-          send "  websecure:\r"
-          send "    address: \":443\"\r"
-          send "\r"
-          send "providers:\r"
-          send "  docker:\r"
-          send "    endpoint: \"unix:///var/run/docker.sock\"\r"
-          send "    exposedByDefault: false\r"
-          send "    network: $traefik_network\r"
-          send "\r"
-          send "certificatesResolvers:\r"
-          send "  letsencrypt:\r"
-          send "    acme:\r"
-          send "      email: $letsencrypt_email\r"
-          send "      storage: /letsencrypt/acme.json\r"
-          send "      httpChallenge:\r"
-          send "        entryPoint: web\r"
-          send "\r"
-          send "log:\r"
-          send "  level: INFO\r"
-          send "TRAEFIK_CONFIG\r"
-          expect "$ "
-
-          # Check if traefik is running
-          send "docker ps --filter name=traefik --format '{{.Names}}' | grep -q traefik && echo 'TRAEFIK_RUNNING' || echo 'TRAEFIK_NOT_RUNNING'\r"
-          expect {
-            "TRAEFIK_RUNNING" {
-              puts "✅ Traefik is already running"
-            }
-            "TRAEFIK_NOT_RUNNING" {
-              puts "🚀 Starting Traefik..."
-              expect "$ "
-              send "docker run -d --name traefik --network $traefik_network --restart unless-stopped -p 80:80 -p 443:443 -v /var/run/docker.sock:/var/run/docker.sock:ro -v /opt/traefik/traefik.yml:/etc/traefik/traefik.yml:ro -v /opt/traefik/letsencrypt:/letsencrypt traefik:v3.2\r"
-            }
-          }
-          expect "$ "
-
-          send "exit\r"
-          expect eof
-          TRAEFIK_SCRIPT
-
-          chmod +x setup-traefik.exp
-
       - name: Setup Traefik
-        run: ./setup-traefik.exp
+        run: |
+          chmod +x .github/scripts/setup-traefik.exp
+          .github/scripts/setup-traefik.exp
         env:
           SERVER_USER: ${{ vars.SERVER_USER }}
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
@@ -289,172 +164,20 @@ jobs:
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
           LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'admin@connexto.com.br' }}
 
-      - name: Prepare deployment script
+      - name: Deploy container
         run: |
-          cat > deploy.exp << 'DEPLOY_SCRIPT'
-          #!/usr/bin/expect -f
-          set timeout 300
-
-          # Server connection
-          set user $env(SERVER_USER)
-          set password $env(SERVER_PASSWORD)
-          set host $env(SERVER_HOST)
-          set port $env(SERVER_PORT)
-
-          # Docker
-          set registry $env(REGISTRY)
-          set image $env(IMAGE_NAME)
-          set ghcr_user $env(GHCR_USER)
-          set ghcr_pat $env(GHCR_PAT)
-          set container_name $env(CONTAINER_NAME)
-
-          # App Environment
-          set app_env $env(APP_ENV)
-          set app_port $env(PORT)
-          set log_level $env(LOG_LEVEL)
-          set database_url $env(DATABASE_URL)
-          set deploy_data_dir $env(DEPLOY_DATA_DIR)
-          set deploy_workers $env(DEPLOY_WORKERS)
-          set deploy_timeout $env(DEPLOY_TIMEOUT)
-          set health_check_timeout $env(HEALTH_CHECK_TIMEOUT)
-          set health_check_retries $env(HEALTH_CHECK_RETRIES)
-          set github_webhook_secret $env(GITHUB_WEBHOOK_SECRET)
-          set github_webhook_url $env(GITHUB_WEBHOOK_URL)
-          set github_client_id $env(GITHUB_CLIENT_ID)
-          set github_client_secret $env(GITHUB_CLIENT_SECRET)
-          set github_oauth_callback_url $env(GITHUB_OAUTH_CALLBACK_URL)
-          set github_app_id $env(GITHUB_APP_ID)
-          set github_app_private_key_base64 $env(GITHUB_APP_PRIVATE_KEY_BASE64)
-          set github_app_install_url $env(GITHUB_APP_INSTALL_URL)
-          set token_encryption_key $env(TOKEN_ENCRYPTION_KEY)
-          set frontend_url $env(FRONTEND_URL)
-          set cloudflare_server_ip $env(CLOUDFLARE_SERVER_IP)
-          set api_domain $env(API_DOMAIN)
-          set traefik_network $env(TRAEFIK_NETWORK)
-          set letsencrypt_email $env(LETSENCRYPT_EMAIL)
-
-          puts "🚀 Starting deployment to $host:$port"
-          puts "📦 Image: $registry/$image:latest"
-
-          spawn ssh -o StrictHostKeyChecking=no -p $port $user@$host
-
-          expect {
-            "yes/no" {
-              send "yes\r"
-              exp_continue
-            }
-            "password:" {
-              send "$password\r"
-            }
-            timeout {
-              puts "❌ Connection timeout"
-              exit 1
-            }
-          }
-
-          expect "$ "
-
-          # Login to registry
-          send "docker login $registry -u $ghcr_user -p $ghcr_pat\r"
-          expect "Login Succeeded"
-          expect "$ "
-
-          # Update image
-          send "docker pull $registry/$image:latest\r"
-          expect "$ "
-
-          # Ensure traefik network exists
-          send "docker network create $traefik_network 2>/dev/null || true\r"
-          expect "$ "
-
-          # Stop old container
-          send "docker stop $container_name 2>/dev/null || true\r"
-          expect "$ "
-          send "docker rm $container_name 2>/dev/null || true\r"
-          expect "$ "
-
-          # Create private key file from base64
-          send "mkdir -p /opt/flowdeploy && echo '$github_app_private_key_base64' | base64 -d > /opt/flowdeploy/github-app-private-key.pem\r"
-          expect "$ "
-
-          # Build docker run command with environment variables and Traefik labels
-          set docker_cmd "docker run -d --name $container_name --network $traefik_network --restart unless-stopped"
-          set docker_cmd "$docker_cmd -p 9005:8080"
-          set docker_cmd "$docker_cmd -v /var/run/docker.sock:/var/run/docker.sock"
-          set docker_cmd "$docker_cmd -v /opt/flowdeploy:/opt/flowdeploy"
-          set docker_cmd "$docker_cmd -v flowdeploy-data:/data/apps"
-          set docker_cmd "$docker_cmd -e APP_ENV=$app_env"
-          set docker_cmd "$docker_cmd -e HOST=0.0.0.0"
-          set docker_cmd "$docker_cmd -e PORT=8080"
-          set docker_cmd "$docker_cmd -e LOG_LEVEL=$log_level"
-          set docker_cmd "$docker_cmd -e DATABASE_URL='$database_url'"
-          set docker_cmd "$docker_cmd -e DEPLOY_DATA_DIR=/data/apps"
-          set docker_cmd "$docker_cmd -e DEPLOY_WORKERS=$deploy_workers"
-          set docker_cmd "$docker_cmd -e DEPLOY_TIMEOUT=$deploy_timeout"
-          set docker_cmd "$docker_cmd -e HEALTH_CHECK_TIMEOUT=$health_check_timeout"
-          set docker_cmd "$docker_cmd -e HEALTH_CHECK_RETRIES=$health_check_retries"
-          set docker_cmd "$docker_cmd -e DOCKER_HOST=unix:///var/run/docker.sock"
-          set docker_cmd "$docker_cmd -e GIT_HUB_WEBHOOK_SECRET='$github_webhook_secret'"
-          set docker_cmd "$docker_cmd -e GIT_HUB_WEBHOOK_URL='$github_webhook_url'"
-          set docker_cmd "$docker_cmd -e GIT_HUB_CLIENT_ID='$github_client_id'"
-          set docker_cmd "$docker_cmd -e GIT_HUB_CLIENT_SECRET='$github_client_secret'"
-          set docker_cmd "$docker_cmd -e GIT_HUB_OAUTH_CALLBACK_URL='$github_oauth_callback_url'"
-          set docker_cmd "$docker_cmd -e GIT_HUB_APP_ID='$github_app_id'"
-          set docker_cmd "$docker_cmd -e GIT_HUB_APP_PRIVATE_KEY_PATH=/opt/flowdeploy/github-app-private-key.pem"
-          set docker_cmd "$docker_cmd -e GIT_HUB_APP_INSTALL_URL='$github_app_install_url'"
-          set docker_cmd "$docker_cmd -e TOKEN_ENCRYPTION_KEY='$token_encryption_key'"
-          set docker_cmd "$docker_cmd -e FRONTEND_URL='$frontend_url'"
-
-          if {[string length $cloudflare_server_ip] > 0} {
-            set docker_cmd "$docker_cmd -e CLOUDFLARE_SERVER_IP='$cloudflare_server_ip'"
-          }
-
-          # Traefik labels for HTTPS routing
-          set docker_cmd "$docker_cmd --label traefik.enable=true"
-          set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name.rule=Host(\\`$api_domain\\`)"
-          set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name.entrypoints=websecure"
-          set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name.tls=true"
-          set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name.tls.certresolver=letsencrypt"
-          set docker_cmd "$docker_cmd --label traefik.http.services.$container_name.loadbalancer.server.port=8080"
-          # HTTP to HTTPS redirect
-          set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name-http.rule=Host(\\`$api_domain\\`)"
-          set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name-http.entrypoints=web"
-          set docker_cmd "$docker_cmd --label traefik.http.routers.$container_name-http.middlewares=redirect-to-https"
-          set docker_cmd "$docker_cmd --label traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-
-          set docker_cmd "$docker_cmd $registry/$image:latest"
-
-          send "$docker_cmd\r"
-
-          expect -re {([0-9a-f]{64}|[0-9a-f]{12})}
-          puts "✅ Container started"
-          expect "$ "
-
-          # Verify container is running
-          send "docker ps --filter name=$container_name --format '{{.Status}}'\r"
-          expect "$ "
-
-          send "exit\r"
-          expect eof
-          DEPLOY_SCRIPT
-
-          chmod +x deploy.exp
-
-      - name: Execute deployment
-        run: ./deploy.exp
+          chmod +x .github/scripts/deploy.exp
+          .github/scripts/deploy.exp
         env:
-          # Server
           SERVER_USER: ${{ vars.SERVER_USER }}
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
           SERVER_HOST: ${{ vars.SERVER_HOST }}
           SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
-          # Docker Registry
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
           GHCR_USER: ${{ vars.GHCR_USER || github.repository_owner }}
           GHCR_PAT: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
-          # App Configuration
           APP_ENV: ${{ vars.APP_ENV || 'production' }}
           PORT: ${{ vars.PORT || '8080' }}
           LOG_LEVEL: ${{ vars.LOG_LEVEL || 'info' }}
@@ -464,7 +187,6 @@ jobs:
           DEPLOY_TIMEOUT: ${{ vars.DEPLOY_TIMEOUT || '600' }}
           HEALTH_CHECK_TIMEOUT: ${{ vars.HEALTH_CHECK_TIMEOUT || '60' }}
           HEALTH_CHECK_RETRIES: ${{ vars.HEALTH_CHECK_RETRIES || '3' }}
-          # GitHub Integration (secrets use GIT_HUB_ prefix)
           GITHUB_WEBHOOK_SECRET: ${{ secrets.GIT_HUB_WEBHOOK_SECRET }}
           GITHUB_WEBHOOK_URL: ${{ vars.GIT_HUB_WEBHOOK_URL || format('https://{0}/paas-deploy/v1/webhooks/github', env.API_DOMAIN) }}
           GITHUB_CLIENT_ID: ${{ secrets.GIT_HUB_CLIENT_ID }}
@@ -473,28 +195,17 @@ jobs:
           GITHUB_APP_ID: ${{ secrets.GIT_HUB_APP_ID }}
           GITHUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.GIT_HUB_APP_PRIVATE_KEY_BASE64 }}
           GITHUB_APP_INSTALL_URL: ${{ vars.GIT_HUB_APP_INSTALL_URL || 'https://github.com/apps/flowdeployapp/installations/new' }}
-          # Auth & Security
           TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
           FRONTEND_URL: ${{ vars.FRONTEND_URL }}
-          # Cloudflare (optional)
           CLOUDFLARE_SERVER_IP: ${{ vars.CLOUDFLARE_SERVER_IP || '' }}
-          # Domain & Traefik
           API_DOMAIN: ${{ env.API_DOMAIN }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
           LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'admin@connexto.com.br' }}
 
       - name: Verify deployment
         run: |
-          echo "🔍 Deployment completed. Please verify the application is running correctly."
+          echo "🔍 Deployment completed!"
           echo "📋 Container: ${{ env.CONTAINER_NAME }}"
           echo "📦 Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           echo "🌐 API URL: https://${{ env.API_DOMAIN }}"
-          echo "🔌 Direct access: http://${{ vars.SERVER_HOST }}:9005"
-          echo "🔒 SSL: Let's Encrypt (automatic via Traefik)"
-          echo ""
-          echo "📝 Remember to configure DNS:"
-          echo "   - A record: ${{ env.API_DOMAIN }} -> ${{ vars.SERVER_HOST }}"
-          echo ""
-          echo "📝 GitHub App callback URLs to update:"
-          echo "   - OAuth Callback: https://${{ env.API_DOMAIN }}/auth/github/callback"
-          echo "   - Webhook URL: https://${{ env.API_DOMAIN }}/paas-deploy/v1/webhooks/github"
+          echo "🔌 Direct: http://${{ vars.SERVER_HOST }}:9005"
