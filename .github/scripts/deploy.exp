@@ -73,8 +73,6 @@ expect "$ "
 
 # Create a deploy script on the server to avoid quoting issues
 send "cat > /tmp/deploy-container.sh << 'DEPLOY_SCRIPT'\r"
-expect "$ "
-
 send "#!/bin/bash\r"
 send "docker run -d \\\\\r"
 send "  --name $container_name \\\\\r"
