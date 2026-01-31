@@ -187,6 +187,7 @@ jobs:
           DEPLOY_TIMEOUT: ${{ vars.DEPLOY_TIMEOUT || '600' }}
           HEALTH_CHECK_TIMEOUT: ${{ vars.HEALTH_CHECK_TIMEOUT || '60' }}
           HEALTH_CHECK_RETRIES: ${{ vars.HEALTH_CHECK_RETRIES || '3' }}
+          GITHUB_PAT: ${{ secrets.GIT_HUB_PAT }}
           GITHUB_WEBHOOK_SECRET: ${{ secrets.GIT_HUB_WEBHOOK_SECRET }}
           GITHUB_WEBHOOK_URL: ${{ vars.GIT_HUB_WEBHOOK_URL || format('https://{0}/paas-deploy/v1/webhooks/github', env.API_DOMAIN) }}
           GITHUB_CLIENT_ID: ${{ secrets.GIT_HUB_CLIENT_ID }}

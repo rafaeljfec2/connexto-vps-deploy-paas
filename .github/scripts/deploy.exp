@@ -19,6 +19,7 @@ set deploy_workers [string trim $env(DEPLOY_WORKERS)]
 set deploy_timeout [string trim $env(DEPLOY_TIMEOUT)]
 set health_check_timeout [string trim $env(HEALTH_CHECK_TIMEOUT)]
 set health_check_retries [string trim $env(HEALTH_CHECK_RETRIES)]
+set github_pat $env(GITHUB_PAT)
 set github_webhook_secret $env(GITHUB_WEBHOOK_SECRET)
 set github_webhook_url $env(GITHUB_WEBHOOK_URL)
 set github_client_id $env(GITHUB_CLIENT_ID)
@@ -113,6 +114,7 @@ append cmd " -e DEPLOY_TIMEOUT=$deploy_timeout"
 append cmd " -e HEALTH_CHECK_TIMEOUT=$health_check_timeout"
 append cmd " -e HEALTH_CHECK_RETRIES=$health_check_retries"
 append cmd " -e DOCKER_HOST=unix:///var/run/docker.sock"
+append cmd " -e 'GIT_HUB_PAT=$github_pat'"
 append cmd " -e 'GIT_HUB_WEBHOOK_SECRET=$github_webhook_secret'"
 append cmd " -e 'GIT_HUB_WEBHOOK_URL=$github_webhook_url'"
 append cmd " -e 'GIT_HUB_CLIENT_ID=$github_client_id'"
