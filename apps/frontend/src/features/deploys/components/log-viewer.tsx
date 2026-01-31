@@ -612,7 +612,7 @@ export function LogViewer({
           <LogContent
             lines={filteredLines}
             scrollRef={scrollRef}
-            className="h-[400px] border border-slate-800 bg-slate-950"
+            className="h-[450px] border border-slate-800 bg-slate-950"
             searchTerm={filters.search}
             currentMatchIndex={currentMatchIndex}
             matchingLineNumbers={matchingLineNumbers}
