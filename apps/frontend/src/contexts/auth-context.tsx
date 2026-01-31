@@ -6,6 +6,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { API_ROUTES, ROUTES } from "@/constants/routes";
 import { api } from "@/services/api";
 
 export interface User {
@@ -53,7 +54,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [fetchUser]);
 
   const login = useCallback(() => {
-    window.location.href = "/auth/github";
+    window.location.href = API_ROUTES.AUTH.GITHUB;
   }, []);
 
   const logout = useCallback(async () => {
@@ -61,7 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await api.auth.logout();
     } finally {
       setUser(null);
-      window.location.href = "/login";
+      window.location.href = ROUTES.LOGIN;
     }
   }, []);
 

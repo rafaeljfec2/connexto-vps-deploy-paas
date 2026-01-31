@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
 import { LogOut, Plus, Rocket, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,23 +17,32 @@ import { ThemeToggle } from "@/components/theme-toggle";
 export function Header() {
   const { user, isAuthenticated, logout } = useAuth();
 
+  const displayName = user?.name ?? user?.githubLogin ?? "User";
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-lg">
-          <Rocket className="h-6 w-6" />
-          <span>FlowDeploy</span>
+        <Link
+          to={ROUTES.HOME}
+          className="flex items-center gap-2 font-semibold text-lg"
+          aria-label="FlowDeploy - Go to home"
+        >
+          <Rocket className="h-6 w-6" aria-hidden="true" />
+          <span className="hidden sm:inline">FlowDeploy</span>
         </Link>
 
-        <nav className="ml-auto flex items-center gap-2">
+        <nav
+          className="ml-auto flex items-center gap-2"
+          aria-label="Main navigation"
+        >
           <ThemeToggle />
 
           {isAuthenticated && user ? (
             <>
-              <Button asChild variant="outline">
-                <Link to="/apps/new">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New App
+              <Button asChild variant="outline" size="sm">
+                <Link to={ROUTES.NEW_APP} aria-label="Create new application">
+                  <Plus className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                  <span className="hidden sm:inline">New App</span>
                 </Link>
               </Button>
 
@@ -41,14 +51,13 @@ export function Header() {
                   <Button
                     variant="ghost"
                     className="relative h-8 w-8 rounded-full"
+                    aria-label={`${displayName}'s account menu`}
+                    aria-haspopup="menu"
                   >
                     <Avatar className="h-8 w-8">
-                      <AvatarImage
-                        src={user.avatarUrl}
-                        alt={user.name ?? user.githubLogin}
-                      />
+                      <AvatarImage src={user.avatarUrl} alt="" />
                       <AvatarFallback>
-                        <User className="h-4 w-4" />
+                        <User className="h-4 w-4" aria-hidden="true" />
                       </AvatarFallback>
                     </Avatar>
                   </Button>
@@ -56,17 +65,21 @@ export function Header() {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {user.name ?? user.githubLogin}
+                      <p className="text-sm font-medium leading-none truncate">
+                        {displayName}
                       </p>
-                      <p className="text-xs leading-none text-muted-foreground">
+                      <p className="text-xs leading-none text-muted-foreground truncate">
                         @{user.githubLogin}
                       </p>
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={logout} className="cursor-pointer">
-                    <LogOut className="mr-2 h-4 w-4" />
+                  <DropdownMenuItem
+                    onClick={logout}
+                    className="cursor-pointer"
+                    role="menuitem"
+                  >
+                    <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
                     Sign out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -74,7 +87,9 @@ export function Header() {
             </>
           ) : (
             <Button asChild>
-              <Link to="/login">Sign in</Link>
+              <Link to={ROUTES.LOGIN} aria-label="Sign in to your account">
+                Sign in
+              </Link>
             </Button>
           )}
         </nav>

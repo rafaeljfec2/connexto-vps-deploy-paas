@@ -5,38 +5,35 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FormField } from "@/components/form-field";
+import { isValidGitHubUrl, sanitizeAppName } from "@/lib/utils";
 import type { GitHubRepository } from "@/services/api";
 import { RepoSelector } from "../repo-selector";
 import type { StepProps } from "./types";
+
+type RepositoryMode = "github" | "manual";
 
 export function RepositoryStep({
   data,
   onUpdate,
   onNext,
 }: Readonly<StepProps>) {
-  const [mode, setMode] = useState<"github" | "manual">("github");
+  const [mode, setMode] = useState<RepositoryMode>("github");
   const [selectedRepo, setSelectedRepo] = useState<string | undefined>(
     undefined,
   );
 
-  const isValid =
-    data.name.length >= 2 &&
-    (data.repositoryUrl.includes("github.com") ||
-      data.repositoryUrl.includes("git@github.com"));
+  const isValid = data.name.length >= 2 && isValidGitHubUrl(data.repositoryUrl);
 
   const handleNameChange = (value: string) => {
-    onUpdate({
-      name: value.toLowerCase().replaceAll(/[^a-z0-9-]/g, "-"),
-    });
+    onUpdate({ name: sanitizeAppName(value) });
   };
 
   const handleRepoSelect = (repo: GitHubRepository | null) => {
     if (repo) {
       setSelectedRepo(repo.fullName);
-      const appName = repo.name.toLowerCase().replaceAll(/[^a-z0-9-]/g, "-");
       onUpdate({
         repositoryUrl: repo.cloneUrl,
-        name: appName,
+        name: sanitizeAppName(repo.name),
         branch: repo.defaultBranch,
       });
     } else {

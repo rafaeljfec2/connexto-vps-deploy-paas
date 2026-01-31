@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -61,6 +62,26 @@ func (h *AuthHandler) RegisterProtected(app fiber.Router) {
 	app.Post("/auth/logout", h.Logout)
 }
 
+func (h *AuthHandler) setCookie(c *fiber.Ctx, name, value string, maxAge int) {
+	c.Cookie(&fiber.Cookie{
+		Name:     name,
+		Value:    value,
+		HTTPOnly: true,
+		Secure:   h.secureCookie,
+		SameSite: "Lax",
+		MaxAge:   maxAge,
+		Path:     "/",
+	})
+}
+
+func (h *AuthHandler) clearCookie(c *fiber.Ctx, name string) {
+	h.setCookie(c, name, "", -1)
+}
+
+func (h *AuthHandler) redirectWithError(c *fiber.Ctx, errorCode string) error {
+	return c.Redirect(h.frontendURL+"/login?error="+errorCode, fiber.StatusTemporaryRedirect)
+}
+
 func (h *AuthHandler) InitiateOAuth(c *fiber.Ctx) error {
 	state, err := crypto.GenerateState()
 	if err != nil {
@@ -68,91 +89,74 @@ func (h *AuthHandler) InitiateOAuth(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "failed to initiate OAuth")
 	}
 
-	c.Cookie(&fiber.Cookie{
-		Name:     "oauth_state",
-		Value:    state,
-		HTTPOnly: true,
-		Secure:   h.secureCookie,
-		SameSite: "Lax",
-		MaxAge:   600,
-		Path:     "/",
-	})
+	h.setCookie(c, "oauth_state", state, 600)
 
 	authURL := h.oauthClient.GetAuthorizationURL(state)
 	return c.Redirect(authURL, fiber.StatusTemporaryRedirect)
 }
 
-func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
-	code := c.Query("code")
-	state := c.Query("state")
-	errorParam := c.Query("error")
-
-	if errorParam != "" {
+func (h *AuthHandler) validateCallback(c *fiber.Ctx) (string, error) {
+	if errorParam := c.Query("error"); errorParam != "" {
 		errorDesc := c.Query("error_description")
 		h.logger.Warn("OAuth error from GitHub", "error", errorParam, "description", errorDesc)
-		return c.Redirect(h.frontendURL+"/login?error="+errorParam, fiber.StatusTemporaryRedirect)
+		return "", errors.New(errorParam)
 	}
 
+	code := c.Query("code")
 	if code == "" {
-		return c.Redirect(h.frontendURL+"/login?error=no_code", fiber.StatusTemporaryRedirect)
+		return "", errors.New("no_code")
 	}
 
+	state := c.Query("state")
 	storedState := c.Cookies("oauth_state")
 	if state != storedState {
 		h.logger.Warn("Invalid OAuth state", "expected", storedState, "got", state)
-		return c.Redirect(h.frontendURL+"/login?error=invalid_state", fiber.StatusTemporaryRedirect)
+		return "", errors.New("invalid_state")
 	}
 
-	c.Cookie(&fiber.Cookie{
-		Name:   "oauth_state",
-		Value:  "",
-		MaxAge: -1,
-		Path:   "/",
-	})
+	return code, nil
+}
 
-	ctx := c.Context()
+type tokenData struct {
+	accessTokenEncrypted  string
+	refreshTokenEncrypted string
+	expiresAt             *time.Time
+}
 
+func (h *AuthHandler) exchangeAndEncryptTokens(ctx context.Context, code string) (*github.TokenResponse, *tokenData, error) {
 	tokenResp, err := h.oauthClient.ExchangeCodeForToken(ctx, code)
 	if err != nil {
-		h.logger.Error("failed to exchange code for token", "error", err)
-		return c.Redirect(h.frontendURL+"/login?error=token_exchange_failed", fiber.StatusTemporaryRedirect)
-	}
-
-	ghUser, err := h.oauthClient.GetUser(ctx, tokenResp.AccessToken)
-	if err != nil {
-		h.logger.Error("failed to get GitHub user", "error", err)
-		return c.Redirect(h.frontendURL+"/login?error=user_fetch_failed", fiber.StatusTemporaryRedirect)
-	}
-
-	email := ghUser.Email
-	if email == "" {
-		email, _ = h.oauthClient.GetPrimaryEmail(ctx, tokenResp.AccessToken)
+		return nil, nil, err
 	}
 
 	encryptedToken, err := h.tokenEncryptor.Encrypt(tokenResp.AccessToken)
 	if err != nil {
-		h.logger.Error("failed to encrypt access token", "error", err)
-		return c.Redirect(h.frontendURL+"/login?error=encryption_failed", fiber.StatusTemporaryRedirect)
+		return nil, nil, err
 	}
 
-	var encryptedRefresh string
+	data := &tokenData{accessTokenEncrypted: encryptedToken}
+
 	if tokenResp.RefreshToken != "" {
-		encryptedRefresh, err = h.tokenEncryptor.Encrypt(tokenResp.RefreshToken)
+		encryptedRefresh, err := h.tokenEncryptor.Encrypt(tokenResp.RefreshToken)
 		if err != nil {
 			h.logger.Error("failed to encrypt refresh token", "error", err)
+		} else {
+			data.refreshTokenEncrypted = encryptedRefresh
 		}
 	}
 
-	var tokenExpiresAt *time.Time
 	if tokenResp.ExpiresIn > 0 {
 		t := time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
-		tokenExpiresAt = &t
+		data.expiresAt = &t
 	}
 
+	return tokenResp, data, nil
+}
+
+func (h *AuthHandler) upsertUser(ctx context.Context, ghUser *github.GitHubUser, email string, tokens *tokenData) (*domain.User, error) {
 	user, err := h.userRepo.FindByGitHubID(ctx, ghUser.ID)
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
-		h.logger.Error("failed to find user", "error", err)
-		return c.Redirect(h.frontendURL+"/login?error=database_error", fiber.StatusTemporaryRedirect)
+		return nil, err
 	}
 
 	if user == nil {
@@ -162,13 +166,12 @@ func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
 			Name:                  ghUser.Name,
 			Email:                 email,
 			AvatarURL:             ghUser.AvatarURL,
-			AccessTokenEncrypted:  encryptedToken,
-			RefreshTokenEncrypted: encryptedRefresh,
-			TokenExpiresAt:        tokenExpiresAt,
+			AccessTokenEncrypted:  tokens.accessTokenEncrypted,
+			RefreshTokenEncrypted: tokens.refreshTokenEncrypted,
+			TokenExpiresAt:        tokens.expiresAt,
 		})
 		if err != nil {
-			h.logger.Error("failed to create user", "error", err)
-			return c.Redirect(h.frontendURL+"/login?error=user_creation_failed", fiber.StatusTemporaryRedirect)
+			return nil, err
 		}
 		h.logger.Info("new user created", "user_id", user.ID, "github_login", ghUser.Login)
 	} else {
@@ -177,47 +180,80 @@ func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
 			Name:                  &ghUser.Name,
 			Email:                 &email,
 			AvatarURL:             &ghUser.AvatarURL,
-			AccessTokenEncrypted:  &encryptedToken,
-			RefreshTokenEncrypted: &encryptedRefresh,
-			TokenExpiresAt:        tokenExpiresAt,
+			AccessTokenEncrypted:  &tokens.accessTokenEncrypted,
+			RefreshTokenEncrypted: &tokens.refreshTokenEncrypted,
+			TokenExpiresAt:        tokens.expiresAt,
 		})
 		if err != nil {
-			h.logger.Error("failed to update user", "error", err)
-			return c.Redirect(h.frontendURL+"/login?error=user_update_failed", fiber.StatusTemporaryRedirect)
+			return nil, err
 		}
 		h.logger.Info("user updated", "user_id", user.ID, "github_login", ghUser.Login)
 	}
 
+	return user, nil
+}
+
+func (h *AuthHandler) createSession(c *fiber.Ctx, userID string) error {
 	sessionToken, err := crypto.GenerateSessionToken()
 	if err != nil {
-		h.logger.Error("failed to generate session token", "error", err)
-		return c.Redirect(h.frontendURL+"/login?error=session_error", fiber.StatusTemporaryRedirect)
+		return err
 	}
 
 	tokenHash := crypto.HashSessionToken(sessionToken)
 	expiresAt := time.Now().Add(h.sessionMaxAge)
 
-	_, err = h.sessionRepo.Create(ctx, domain.CreateSessionInput{
-		UserID:    user.ID,
+	_, err = h.sessionRepo.Create(c.Context(), domain.CreateSessionInput{
+		UserID:    userID,
 		TokenHash: tokenHash,
 		IPAddress: c.IP(),
 		UserAgent: c.Get("User-Agent"),
 		ExpiresAt: expiresAt,
 	})
 	if err != nil {
-		h.logger.Error("failed to create session", "error", err)
-		return c.Redirect(h.frontendURL+"/login?error=session_error", fiber.StatusTemporaryRedirect)
+		return err
 	}
 
-	c.Cookie(&fiber.Cookie{
-		Name:     h.sessionCookieName,
-		Value:    sessionToken,
-		HTTPOnly: true,
-		Secure:   h.secureCookie,
-		SameSite: "Lax",
-		MaxAge:   int(h.sessionMaxAge.Seconds()),
-		Path:     "/",
-	})
+	h.setCookie(c, h.sessionCookieName, sessionToken, int(h.sessionMaxAge.Seconds()))
+	return nil
+}
+
+func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
+	code, err := h.validateCallback(c)
+	if err != nil {
+		return h.redirectWithError(c, err.Error())
+	}
+
+	h.clearCookie(c, "oauth_state")
+
+	ctx := c.Context()
+
+	tokenResp, tokens, err := h.exchangeAndEncryptTokens(ctx, code)
+	if err != nil {
+		h.logger.Error("failed to exchange/encrypt tokens", "error", err)
+		return h.redirectWithError(c, "token_exchange_failed")
+	}
+
+	ghUser, err := h.oauthClient.GetUser(ctx, tokenResp.AccessToken)
+	if err != nil {
+		h.logger.Error("failed to get GitHub user", "error", err)
+		return h.redirectWithError(c, "user_fetch_failed")
+	}
+
+	email := ghUser.Email
+	if email == "" {
+		email, _ = h.oauthClient.GetPrimaryEmail(ctx, tokenResp.AccessToken)
+	}
+
+	user, err := h.upsertUser(ctx, ghUser, email, tokens)
+	if err != nil {
+		h.logger.Error("failed to upsert user", "error", err)
+		return h.redirectWithError(c, "database_error")
+	}
+
+	if err := h.createSession(c, user.ID); err != nil {
+		h.logger.Error("failed to create session", "error", err)
+		return h.redirectWithError(c, "session_error")
+	}
 
 	return c.Redirect(h.frontendURL+"/?login=success", fiber.StatusTemporaryRedirect)
 }
@@ -245,19 +281,13 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		tokenHash := crypto.HashSessionToken(sessionToken)
 		session, err := h.sessionRepo.FindByTokenHash(c.Context(), tokenHash)
 		if err == nil && session != nil {
-			_ = h.sessionRepo.Delete(c.Context(), session.ID)
+			if delErr := h.sessionRepo.Delete(c.Context(), session.ID); delErr != nil {
+				h.logger.Warn("failed to delete session", "error", delErr)
+			}
 		}
 	}
 
-	c.Cookie(&fiber.Cookie{
-		Name:     h.sessionCookieName,
-		Value:    "",
-		MaxAge:   -1,
-		Path:     "/",
-		HTTPOnly: true,
-		Secure:   h.secureCookie,
-		SameSite: "Lax",
-	})
+	h.clearCookie(c, h.sessionCookieName)
 
 	return response.OK(c, map[string]string{"message": "logged out"})
 }

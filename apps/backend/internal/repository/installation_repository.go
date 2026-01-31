@@ -9,6 +9,12 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
+const installationSelectColumns = `id, installation_id, account_type, account_id, account_login,
+	repository_selection, permissions, suspended_at, created_at, updated_at`
+
+const installationSelectColumnsWithPrefix = `gi.id, gi.installation_id, gi.account_type, gi.account_id, gi.account_login,
+	gi.repository_selection, gi.permissions, gi.suspended_at, gi.created_at, gi.updated_at`
+
 type PostgresInstallationRepository struct {
 	db *sql.DB
 }
@@ -17,88 +23,74 @@ func NewPostgresInstallationRepository(db *sql.DB) *PostgresInstallationReposito
 	return &PostgresInstallationRepository{db: db}
 }
 
-func (r *PostgresInstallationRepository) FindByID(ctx context.Context, id string) (*domain.Installation, error) {
-	query := `
-		SELECT id, installation_id, account_type, account_id, account_login,
-		       repository_selection, permissions, suspended_at, created_at, updated_at
-		FROM github_installations
-		WHERE id = $1
-	`
+type installationScanFields struct {
+	inst            domain.Installation
+	repoSelection   sql.NullString
+	permissionsJSON []byte
+	suspendedAt     sql.NullTime
+}
 
+func (f *installationScanFields) scanDest() []any {
+	return []any{
+		&f.inst.ID,
+		&f.inst.InstallationID,
+		&f.inst.AccountType,
+		&f.inst.AccountID,
+		&f.inst.AccountLogin,
+		&f.repoSelection,
+		&f.permissionsJSON,
+		&f.suspendedAt,
+		&f.inst.CreatedAt,
+		&f.inst.UpdatedAt,
+	}
+}
+
+func (f *installationScanFields) toInstallation() (*domain.Installation, error) {
+	f.inst.RepositorySelection = fromNullString(f.repoSelection)
+	f.inst.SuspendedAt = fromNullTime(f.suspendedAt)
+
+	if len(f.permissionsJSON) > 0 {
+		if err := json.Unmarshal(f.permissionsJSON, &f.inst.Permissions); err != nil {
+			return nil, err
+		}
+	} else {
+		f.inst.Permissions = make(map[string]string)
+	}
+
+	return &f.inst, nil
+}
+
+func (r *PostgresInstallationRepository) scanInstallation(row *sql.Row) (*domain.Installation, error) {
+	var f installationScanFields
+	if err := row.Scan(f.scanDest()...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return f.toInstallation()
+}
+
+func (r *PostgresInstallationRepository) FindByID(ctx context.Context, id string) (*domain.Installation, error) {
+	query := `SELECT ` + installationSelectColumns + ` FROM github_installations WHERE id = $1`
 	return r.scanInstallation(r.db.QueryRowContext(ctx, query, id))
 }
 
 func (r *PostgresInstallationRepository) FindByInstallationID(ctx context.Context, installationID int64) (*domain.Installation, error) {
-	query := `
-		SELECT id, installation_id, account_type, account_id, account_login,
-		       repository_selection, permissions, suspended_at, created_at, updated_at
-		FROM github_installations
-		WHERE installation_id = $1
-	`
-
+	query := `SELECT ` + installationSelectColumns + ` FROM github_installations WHERE installation_id = $1`
 	return r.scanInstallation(r.db.QueryRowContext(ctx, query, installationID))
 }
 
 func (r *PostgresInstallationRepository) FindByAccountLogin(ctx context.Context, accountLogin string) (*domain.Installation, error) {
-	query := `
-		SELECT id, installation_id, account_type, account_id, account_login,
-		       repository_selection, permissions, suspended_at, created_at, updated_at
-		FROM github_installations
-		WHERE account_login = $1
-	`
-
+	query := `SELECT ` + installationSelectColumns + ` FROM github_installations WHERE account_login = $1`
 	return r.scanInstallation(r.db.QueryRowContext(ctx, query, accountLogin))
-}
-
-func (r *PostgresInstallationRepository) scanInstallation(row *sql.Row) (*domain.Installation, error) {
-	var inst domain.Installation
-	var repoSelection sql.NullString
-	var permissionsJSON []byte
-	var suspendedAt sql.NullTime
-
-	err := row.Scan(
-		&inst.ID,
-		&inst.InstallationID,
-		&inst.AccountType,
-		&inst.AccountID,
-		&inst.AccountLogin,
-		&repoSelection,
-		&permissionsJSON,
-		&suspendedAt,
-		&inst.CreatedAt,
-		&inst.UpdatedAt,
-	)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	inst.RepositorySelection = repoSelection.String
-	if suspendedAt.Valid {
-		inst.SuspendedAt = &suspendedAt.Time
-	}
-
-	if len(permissionsJSON) > 0 {
-		if err := json.Unmarshal(permissionsJSON, &inst.Permissions); err != nil {
-			return nil, err
-		}
-	} else {
-		inst.Permissions = make(map[string]string)
-	}
-
-	return &inst, nil
 }
 
 func (r *PostgresInstallationRepository) Create(ctx context.Context, input domain.CreateInstallationInput) (*domain.Installation, error) {
 	query := `
 		INSERT INTO github_installations (installation_id, account_type, account_id, account_login, repository_selection, permissions)
 		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, installation_id, account_type, account_id, account_login,
-		          repository_selection, permissions, suspended_at, created_at, updated_at
-	`
+		RETURNING ` + installationSelectColumns
 
 	permissionsJSON, err := json.Marshal(input.Permissions)
 	if err != nil {
@@ -110,49 +102,20 @@ func (r *PostgresInstallationRepository) Create(ctx context.Context, input domai
 		repoSelection = "selected"
 	}
 
-	var inst domain.Installation
-	var repoSelectionOut sql.NullString
-	var permissionsOut []byte
-	var suspendedAt sql.NullTime
-
-	err = r.db.QueryRowContext(ctx, query,
+	row := r.db.QueryRowContext(ctx, query,
 		input.InstallationID,
 		input.AccountType,
 		input.AccountID,
 		input.AccountLogin,
 		repoSelection,
 		permissionsJSON,
-	).Scan(
-		&inst.ID,
-		&inst.InstallationID,
-		&inst.AccountType,
-		&inst.AccountID,
-		&inst.AccountLogin,
-		&repoSelectionOut,
-		&permissionsOut,
-		&suspendedAt,
-		&inst.CreatedAt,
-		&inst.UpdatedAt,
 	)
 
-	if err != nil {
+	var f installationScanFields
+	if err := row.Scan(f.scanDest()...); err != nil {
 		return nil, err
 	}
-
-	inst.RepositorySelection = repoSelectionOut.String
-	if suspendedAt.Valid {
-		inst.SuspendedAt = &suspendedAt.Time
-	}
-
-	if len(permissionsOut) > 0 {
-		if err := json.Unmarshal(permissionsOut, &inst.Permissions); err != nil {
-			return nil, err
-		}
-	} else {
-		inst.Permissions = make(map[string]string)
-	}
-
-	return &inst, nil
+	return f.toInstallation()
 }
 
 func (r *PostgresInstallationRepository) Update(ctx context.Context, id string, input domain.UpdateInstallationInput) (*domain.Installation, error) {
@@ -163,14 +126,7 @@ func (r *PostgresInstallationRepository) Update(ctx context.Context, id string, 
 			suspended_at = $4,
 			updated_at = NOW()
 		WHERE id = $1
-		RETURNING id, installation_id, account_type, account_id, account_login,
-		          repository_selection, permissions, suspended_at, created_at, updated_at
-	`
-
-	var repoSelNull sql.NullString
-	if input.RepositorySelection != nil {
-		repoSelNull = sql.NullString{String: *input.RepositorySelection, Valid: true}
-	}
+		RETURNING ` + installationSelectColumns
 
 	var permissionsJSON []byte
 	if input.Permissions != nil {
@@ -181,55 +137,14 @@ func (r *PostgresInstallationRepository) Update(ctx context.Context, id string, 
 		}
 	}
 
-	var suspendedAtNull sql.NullTime
-	if input.SuspendedAt != nil {
-		suspendedAtNull = sql.NullTime{Time: *input.SuspendedAt, Valid: true}
-	}
-
-	var inst domain.Installation
-	var repoSelection sql.NullString
-	var permissionsOut []byte
-	var suspendedAt sql.NullTime
-
-	err := r.db.QueryRowContext(ctx, query,
+	row := r.db.QueryRowContext(ctx, query,
 		id,
-		repoSelNull,
+		toNullString(input.RepositorySelection),
 		permissionsJSON,
-		suspendedAtNull,
-	).Scan(
-		&inst.ID,
-		&inst.InstallationID,
-		&inst.AccountType,
-		&inst.AccountID,
-		&inst.AccountLogin,
-		&repoSelection,
-		&permissionsOut,
-		&suspendedAt,
-		&inst.CreatedAt,
-		&inst.UpdatedAt,
+		toNullTime(input.SuspendedAt),
 	)
 
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	inst.RepositorySelection = repoSelection.String
-	if suspendedAt.Valid {
-		inst.SuspendedAt = &suspendedAt.Time
-	}
-
-	if len(permissionsOut) > 0 {
-		if err := json.Unmarshal(permissionsOut, &inst.Permissions); err != nil {
-			return nil, err
-		}
-	} else {
-		inst.Permissions = make(map[string]string)
-	}
-
-	return &inst, nil
+	return r.scanInstallation(row)
 }
 
 func (r *PostgresInstallationRepository) Delete(ctx context.Context, id string) error {
@@ -258,22 +173,19 @@ func (r *PostgresInstallationRepository) LinkUserToInstallation(ctx context.Cont
 		VALUES ($1, $2, $3)
 		ON CONFLICT (user_id, installation_id) DO UPDATE SET is_default = $3
 	`
-
 	_, err := r.db.ExecContext(ctx, query, userID, installationID, isDefault)
 	return err
 }
 
 func (r *PostgresInstallationRepository) UnlinkUserFromInstallation(ctx context.Context, userID, installationID string) error {
 	query := `DELETE FROM user_installations WHERE user_id = $1 AND installation_id = $2`
-
 	_, err := r.db.ExecContext(ctx, query, userID, installationID)
 	return err
 }
 
 func (r *PostgresInstallationRepository) FindUserInstallations(ctx context.Context, userID string) ([]domain.Installation, error) {
 	query := `
-		SELECT gi.id, gi.installation_id, gi.account_type, gi.account_id, gi.account_login,
-		       gi.repository_selection, gi.permissions, gi.suspended_at, gi.created_at, gi.updated_at
+		SELECT ` + installationSelectColumnsWithPrefix + `
 		FROM github_installations gi
 		INNER JOIN user_installations ui ON gi.id = ui.installation_id
 		WHERE ui.user_id = $1
@@ -288,41 +200,15 @@ func (r *PostgresInstallationRepository) FindUserInstallations(ctx context.Conte
 
 	var installations []domain.Installation
 	for rows.Next() {
-		var inst domain.Installation
-		var repoSelection sql.NullString
-		var permissionsJSON []byte
-		var suspendedAt sql.NullTime
-
-		err := rows.Scan(
-			&inst.ID,
-			&inst.InstallationID,
-			&inst.AccountType,
-			&inst.AccountID,
-			&inst.AccountLogin,
-			&repoSelection,
-			&permissionsJSON,
-			&suspendedAt,
-			&inst.CreatedAt,
-			&inst.UpdatedAt,
-		)
+		var f installationScanFields
+		if err := rows.Scan(f.scanDest()...); err != nil {
+			return nil, err
+		}
+		inst, err := f.toInstallation()
 		if err != nil {
 			return nil, err
 		}
-
-		inst.RepositorySelection = repoSelection.String
-		if suspendedAt.Valid {
-			inst.SuspendedAt = &suspendedAt.Time
-		}
-
-		if len(permissionsJSON) > 0 {
-			if err := json.Unmarshal(permissionsJSON, &inst.Permissions); err != nil {
-				return nil, err
-			}
-		} else {
-			inst.Permissions = make(map[string]string)
-		}
-
-		installations = append(installations, inst)
+		installations = append(installations, *inst)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -334,53 +220,13 @@ func (r *PostgresInstallationRepository) FindUserInstallations(ctx context.Conte
 
 func (r *PostgresInstallationRepository) FindDefaultInstallation(ctx context.Context, userID string) (*domain.Installation, error) {
 	query := `
-		SELECT gi.id, gi.installation_id, gi.account_type, gi.account_id, gi.account_login,
-		       gi.repository_selection, gi.permissions, gi.suspended_at, gi.created_at, gi.updated_at
+		SELECT ` + installationSelectColumnsWithPrefix + `
 		FROM github_installations gi
 		INNER JOIN user_installations ui ON gi.id = ui.installation_id
 		WHERE ui.user_id = $1 AND ui.is_default = true
 		LIMIT 1
 	`
-
-	var inst domain.Installation
-	var repoSelection sql.NullString
-	var permissionsJSON []byte
-	var suspendedAt sql.NullTime
-
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&inst.ID,
-		&inst.InstallationID,
-		&inst.AccountType,
-		&inst.AccountID,
-		&inst.AccountLogin,
-		&repoSelection,
-		&permissionsJSON,
-		&suspendedAt,
-		&inst.CreatedAt,
-		&inst.UpdatedAt,
-	)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	inst.RepositorySelection = repoSelection.String
-	if suspendedAt.Valid {
-		inst.SuspendedAt = &suspendedAt.Time
-	}
-
-	if len(permissionsJSON) > 0 {
-		if err := json.Unmarshal(permissionsJSON, &inst.Permissions); err != nil {
-			return nil, err
-		}
-	} else {
-		inst.Permissions = make(map[string]string)
-	}
-
-	return &inst, nil
+	return r.scanInstallation(r.db.QueryRowContext(ctx, query, userID))
 }
 
 func (r *PostgresInstallationRepository) SetDefaultInstallation(ctx context.Context, userID, installationID string) error {
@@ -388,21 +234,27 @@ func (r *PostgresInstallationRepository) SetDefaultInstallation(ctx context.Cont
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
 
-	// Remove default from all user installations
-	_, err = tx.ExecContext(ctx, `UPDATE user_installations SET is_default = false WHERE user_id = $1`, userID)
-	if err != nil {
+	committed := false
+	defer func() {
+		if !committed {
+			tx.Rollback()
+		}
+	}()
+
+	if _, err = tx.ExecContext(ctx, `UPDATE user_installations SET is_default = false WHERE user_id = $1`, userID); err != nil {
 		return err
 	}
 
-	// Set new default
-	_, err = tx.ExecContext(ctx, `UPDATE user_installations SET is_default = true WHERE user_id = $1 AND installation_id = $2`, userID, installationID)
-	if err != nil {
+	if _, err = tx.ExecContext(ctx, `UPDATE user_installations SET is_default = true WHERE user_id = $1 AND installation_id = $2`, userID, installationID); err != nil {
 		return err
 	}
 
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 var _ domain.InstallationRepository = (*PostgresInstallationRepository)(nil)

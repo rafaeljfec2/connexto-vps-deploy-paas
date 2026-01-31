@@ -1,4 +1,5 @@
 import { GitHubLogoIcon } from "@radix-ui/react-icons";
+import { API_ROUTES } from "@/constants/routes";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,14 +15,14 @@ interface GitHubConnectProps {
 
 export function GitHubConnect({ message }: GitHubConnectProps) {
   const handleInstall = () => {
-    window.open("/api/github/install", "_blank", "noopener,noreferrer");
+    window.open(API_ROUTES.GITHUB.INSTALL, "_blank", "noopener,noreferrer");
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <GitHubLogoIcon className="h-5 w-5" />
+          <GitHubLogoIcon className="h-5 w-5" aria-hidden="true" />
           Connect GitHub
         </CardTitle>
         <CardDescription>
@@ -30,8 +31,12 @@ export function GitHubConnect({ message }: GitHubConnectProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button onClick={handleInstall} className="w-full">
-          <GitHubLogoIcon className="mr-2 h-4 w-4" />
+        <Button
+          onClick={handleInstall}
+          className="w-full"
+          aria-label="Install GitHub App to connect your repositories"
+        >
+          <GitHubLogoIcon className="mr-2 h-4 w-4" aria-hidden="true" />
           Install GitHub App
         </Button>
       </CardContent>

@@ -17,9 +17,7 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 )
 
-const (
-	errNotAuthenticated = "not authenticated"
-)
+const errNotAuthenticated = "not authenticated"
 
 type GitHubHandler struct {
 	appClient        *github.AppClient
@@ -65,14 +63,88 @@ func (h *GitHubHandler) RegisterProtected(app fiber.Router) {
 	gh.Get("/repos/:owner/:repo", h.GetRepository)
 }
 
+func (h *GitHubHandler) requireAuth(c *fiber.Ctx) (*domain.User, error) {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return nil, response.Unauthorized(c, errNotAuthenticated)
+	}
+	return user, nil
+}
+
+type installationResult struct {
+	installation *domain.Installation
+	needInstall  bool
+}
+
+func (h *GitHubHandler) findInstallation(c *fiber.Ctx, userID, installationIDParam string) (*installationResult, error) {
+	if installationIDParam != "" {
+		inst, err := h.installationRepo.FindByID(c.Context(), installationIDParam)
+		if err != nil {
+			return nil, err
+		}
+		return &installationResult{installation: inst}, nil
+	}
+
+	inst, err := h.installationRepo.FindDefaultInstallation(c.Context(), userID)
+	if errors.Is(err, domain.ErrNotFound) {
+		installations, listErr := h.installationRepo.FindUserInstallations(c.Context(), userID)
+		if listErr != nil {
+			return nil, listErr
+		}
+		if len(installations) == 0 {
+			return &installationResult{needInstall: true}, nil
+		}
+		return &installationResult{installation: &installations[0]}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &installationResult{installation: inst}, nil
+}
+
+func convertRepo(repo github.AppRepository) RepositoryResponse {
+	return RepositoryResponse{
+		ID:            repo.ID,
+		Name:          repo.Name,
+		FullName:      repo.FullName,
+		Private:       repo.Private,
+		Description:   repo.Description,
+		HTMLURL:       repo.HTMLURL,
+		CloneURL:      repo.CloneURL,
+		DefaultBranch: repo.DefaultBranch,
+		Language:      repo.Language,
+		Owner: OwnerResponse{
+			Login:     repo.Owner.Login,
+			AvatarURL: repo.Owner.AvatarURL,
+			Type:      repo.Owner.Type,
+		},
+	}
+}
+
+func convertRepos(repos []github.AppRepository) []RepositoryResponse {
+	resp := make([]RepositoryResponse, len(repos))
+	for i, repo := range repos {
+		resp[i] = convertRepo(repo)
+	}
+	return resp
+}
+
+func (h *GitHubHandler) needInstallResponse() ReposResponse {
+	return ReposResponse{
+		Repositories:   []RepositoryResponse{},
+		NeedInstall:    true,
+		InstallMessage: "Please install the GitHub App to access your repositories",
+	}
+}
+
 func (h *GitHubHandler) RedirectToInstall(c *fiber.Ctx) error {
 	return c.Redirect(h.appInstallURL, fiber.StatusTemporaryRedirect)
 }
 
 func (h *GitHubHandler) ListInstallations(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, errNotAuthenticated)
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
 	}
 
 	installations, err := h.installationRepo.FindUserInstallations(c.Context(), user.ID)
@@ -95,64 +167,13 @@ func (h *GitHubHandler) ListInstallations(c *fiber.Ctx) error {
 	return response.OK(c, resp)
 }
 
-func (h *GitHubHandler) needInstallResponse() ReposResponse {
-	return ReposResponse{
-		Repositories:   []RepositoryResponse{},
-		NeedInstall:    true,
-		InstallMessage: "Please install the GitHub App to access your repositories",
-	}
-}
-
-func (h *GitHubHandler) findInstallation(c *fiber.Ctx, userID, installationIDParam string) (*domain.Installation, bool, error) {
-	if installationIDParam != "" {
-		inst, err := h.installationRepo.FindByID(c.Context(), installationIDParam)
-		return inst, false, err
-	}
-
-	inst, err := h.installationRepo.FindDefaultInstallation(c.Context(), userID)
-	if errors.Is(err, domain.ErrNotFound) {
-		installations, listErr := h.installationRepo.FindUserInstallations(c.Context(), userID)
-		if listErr != nil {
-			return nil, false, listErr
-		}
-		if len(installations) == 0 {
-			return nil, true, nil
-		}
-		return &installations[0], false, nil
-	}
-	return inst, false, err
-}
-
-func (h *GitHubHandler) convertRepos(repos []github.AppRepository) []RepositoryResponse {
-	resp := make([]RepositoryResponse, len(repos))
-	for i, repo := range repos {
-		resp[i] = RepositoryResponse{
-			ID:            repo.ID,
-			Name:          repo.Name,
-			FullName:      repo.FullName,
-			Private:       repo.Private,
-			Description:   repo.Description,
-			HTMLURL:       repo.HTMLURL,
-			CloneURL:      repo.CloneURL,
-			DefaultBranch: repo.DefaultBranch,
-			Language:      repo.Language,
-			Owner: OwnerResponse{
-				Login:     repo.Owner.Login,
-				AvatarURL: repo.Owner.AvatarURL,
-				Type:      repo.Owner.Type,
-			},
-		}
-	}
-	return resp
-}
-
 func (h *GitHubHandler) ListRepositories(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, errNotAuthenticated)
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
 	}
 
-	installation, needInstall, err := h.findInstallation(c, user.ID, c.Query("installation_id"))
+	result, err := h.findInstallation(c, user.ID, c.Query("installation_id"))
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			return response.OK(c, h.needInstallResponse())
@@ -161,7 +182,7 @@ func (h *GitHubHandler) ListRepositories(c *fiber.Ctx) error {
 		return response.InternalError(c)
 	}
 
-	if needInstall {
+	if result.needInstall {
 		return response.OK(c, h.needInstallResponse())
 	}
 
@@ -169,22 +190,22 @@ func (h *GitHubHandler) ListRepositories(c *fiber.Ctx) error {
 		return response.InternalError(c)
 	}
 
-	repos, err := h.appClient.ListInstallationRepos(c.Context(), installation.InstallationID)
+	repos, err := h.appClient.ListInstallationRepos(c.Context(), result.installation.InstallationID)
 	if err != nil {
-		h.logger.Error("failed to list repos from GitHub", "error", err, "installation_id", installation.InstallationID)
+		h.logger.Error("failed to list repos from GitHub", "error", err, "installation_id", result.installation.InstallationID)
 		return response.InternalError(c)
 	}
 
 	return response.OK(c, ReposResponse{
-		Repositories: h.convertRepos(repos),
+		Repositories: convertRepos(repos),
 		NeedInstall:  false,
 	})
 }
 
 func (h *GitHubHandler) GetRepository(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, errNotAuthenticated)
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
 	}
 
 	owner := c.Params("owner")
@@ -194,46 +215,27 @@ func (h *GitHubHandler) GetRepository(c *fiber.Ctx) error {
 		return response.BadRequest(c, "owner and repo are required")
 	}
 
-	installation, err := h.installationRepo.FindDefaultInstallation(c.Context(), user.ID)
+	result, err := h.findInstallation(c, user.ID, "")
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			installations, listErr := h.installationRepo.FindUserInstallations(c.Context(), user.ID)
-			if listErr != nil || len(installations) == 0 {
-				return response.NotFound(c, "no GitHub App installation found")
-			}
-			installation = &installations[0]
-		} else {
-			h.logger.Error("failed to find installation", "error", err, "user_id", user.ID)
-			return response.InternalError(c)
-		}
+		h.logger.Error("failed to find installation", "error", err, "user_id", user.ID)
+		return response.InternalError(c)
+	}
+
+	if result.needInstall {
+		return response.NotFound(c, "no GitHub App installation found")
 	}
 
 	if h.appClient == nil {
 		return response.InternalError(c)
 	}
 
-	repoData, err := h.appClient.GetRepository(c.Context(), installation.InstallationID, owner, repo)
+	repoData, err := h.appClient.GetRepository(c.Context(), result.installation.InstallationID, owner, repo)
 	if err != nil {
 		h.logger.Error("failed to get repo from GitHub", "error", err, "owner", owner, "repo", repo)
 		return response.NotFound(c, "repository not found or not accessible")
 	}
 
-	return response.OK(c, RepositoryResponse{
-		ID:            repoData.ID,
-		Name:          repoData.Name,
-		FullName:      repoData.FullName,
-		Private:       repoData.Private,
-		Description:   repoData.Description,
-		HTMLURL:       repoData.HTMLURL,
-		CloneURL:      repoData.CloneURL,
-		DefaultBranch: repoData.DefaultBranch,
-		Language:      repoData.Language,
-		Owner: OwnerResponse{
-			Login:     repoData.Owner.Login,
-			AvatarURL: repoData.Owner.AvatarURL,
-			Type:      repoData.Owner.Type,
-		},
-	})
+	return response.OK(c, convertRepo(*repoData))
 }
 
 func (h *GitHubHandler) HandleInstallationWebhook(c *fiber.Ctx) error {
@@ -284,33 +286,48 @@ func (h *GitHubHandler) handleInstallationCreated(ctx context.Context, inst Inst
 	}
 	h.logger.Info("installation created", "installation_id", inst.ID, "account", inst.Account.Login)
 
-	if h.userRepo != nil {
-		user, err := h.userRepo.FindByGitHubID(ctx, sender.ID)
-		if err == nil && user != nil {
-			if linkErr := h.installationRepo.LinkUserToInstallation(ctx, user.ID, installation.ID, true); linkErr != nil {
-				h.logger.Error("failed to link user to installation", "error", linkErr, "user_id", user.ID, "installation_id", installation.ID)
-			} else {
-				h.logger.Info("user linked to installation", "user_id", user.ID, "github_login", user.GitHubLogin, "installation_id", inst.ID)
-			}
-		}
-	}
+	h.linkUserToInstallation(ctx, sender.ID, installation.ID, inst.ID)
 
 	return nil
 }
 
+func (h *GitHubHandler) linkUserToInstallation(ctx context.Context, senderGitHubID int64, installationUUID string, installationID int64) {
+	if h.userRepo == nil {
+		return
+	}
+
+	user, err := h.userRepo.FindByGitHubID(ctx, senderGitHubID)
+	if err != nil || user == nil {
+		return
+	}
+
+	if err := h.installationRepo.LinkUserToInstallation(ctx, user.ID, installationUUID, true); err != nil {
+		h.logger.Error("failed to link user to installation", "error", err, "user_id", user.ID, "installation_id", installationUUID)
+		return
+	}
+
+	h.logger.Info("user linked to installation", "user_id", user.ID, "github_login", user.GitHubLogin, "installation_id", installationID)
+}
+
 func (h *GitHubHandler) handleInstallationDeleted(ctx context.Context, installationID int64) {
 	existing, err := h.installationRepo.FindByInstallationID(ctx, installationID)
-	if err == nil && existing != nil {
-		if err := h.installationRepo.Delete(ctx, existing.ID); err != nil {
-			h.logger.Error("failed to delete installation", "error", err, "installation_id", installationID)
-		}
+	if err != nil {
+		h.logger.Warn("installation not found for deletion", "installation_id", installationID, "error", err)
+		return
 	}
+
+	if err := h.installationRepo.Delete(ctx, existing.ID); err != nil {
+		h.logger.Error("failed to delete installation", "error", err, "installation_id", installationID)
+		return
+	}
+
 	h.logger.Info("installation deleted", "installation_id", installationID)
 }
 
 func (h *GitHubHandler) handleInstallationSuspend(ctx context.Context, inst InstallationPayloadData, suspend bool) {
 	existing, err := h.installationRepo.FindByInstallationID(ctx, inst.ID)
-	if err != nil || existing == nil {
+	if err != nil {
+		h.logger.Warn("installation not found for suspend/unsuspend", "installation_id", inst.ID, "error", err)
 		return
 	}
 
@@ -326,7 +343,8 @@ func (h *GitHubHandler) handleInstallationSuspend(ctx context.Context, inst Inst
 		if !suspend {
 			action = "unsuspend"
 		}
-		h.logger.Error("failed to "+action+" installation", "error", err)
+		h.logger.Error("failed to "+action+" installation", "error", err, "installation_id", inst.ID)
+		return
 	}
 
 	if suspend {
@@ -433,9 +451,9 @@ type OwnerResponse struct {
 }
 
 type InstallationEventPayload struct {
-	Action       string                   `json:"action"`
-	Installation InstallationPayloadData  `json:"installation"`
-	Sender       SenderPayload            `json:"sender"`
+	Action       string                  `json:"action"`
+	Installation InstallationPayloadData `json:"installation"`
+	Sender       SenderPayload           `json:"sender"`
 }
 
 type InstallationPayloadData struct {

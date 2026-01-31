@@ -8,6 +8,8 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
+const sessionSelectColumns = `id, user_id, token_hash, ip_address, user_agent, expires_at, created_at`
+
 type PostgresSessionRepository struct {
 	db *sql.DB
 }
@@ -16,85 +18,71 @@ func NewPostgresSessionRepository(db *sql.DB) *PostgresSessionRepository {
 	return &PostgresSessionRepository{db: db}
 }
 
+type sessionScanFields struct {
+	session   domain.Session
+	ipAddress sql.NullString
+	userAgent sql.NullString
+}
+
+func (f *sessionScanFields) scanDest() []any {
+	return []any{
+		&f.session.ID,
+		&f.session.UserID,
+		&f.session.TokenHash,
+		&f.ipAddress,
+		&f.userAgent,
+		&f.session.ExpiresAt,
+		&f.session.CreatedAt,
+	}
+}
+
+func (f *sessionScanFields) toSession() domain.Session {
+	f.session.IPAddress = fromNullString(f.ipAddress)
+	f.session.UserAgent = fromNullString(f.userAgent)
+	return f.session
+}
+
+func (r *PostgresSessionRepository) scanSession(row *sql.Row) (*domain.Session, error) {
+	var f sessionScanFields
+	if err := row.Scan(f.scanDest()...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	s := f.toSession()
+	return &s, nil
+}
+
 func (r *PostgresSessionRepository) Create(ctx context.Context, input domain.CreateSessionInput) (*domain.Session, error) {
 	query := `
 		INSERT INTO sessions (user_id, token_hash, ip_address, user_agent, expires_at)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, user_id, token_hash, ip_address, user_agent, expires_at, created_at
-	`
+		RETURNING ` + sessionSelectColumns
 
-	var session domain.Session
-	var ipAddress, userAgent sql.NullString
-
-	ipNull := sql.NullString{String: input.IPAddress, Valid: input.IPAddress != ""}
-	uaNull := sql.NullString{String: input.UserAgent, Valid: input.UserAgent != ""}
-
-	err := r.db.QueryRowContext(ctx, query,
+	row := r.db.QueryRowContext(ctx, query,
 		input.UserID,
 		input.TokenHash,
-		ipNull,
-		uaNull,
+		toNullStringValue(input.IPAddress),
+		toNullStringValue(input.UserAgent),
 		input.ExpiresAt,
-	).Scan(
-		&session.ID,
-		&session.UserID,
-		&session.TokenHash,
-		&ipAddress,
-		&userAgent,
-		&session.ExpiresAt,
-		&session.CreatedAt,
 	)
 
-	if err != nil {
+	var f sessionScanFields
+	if err := row.Scan(f.scanDest()...); err != nil {
 		return nil, err
 	}
-
-	session.IPAddress = ipAddress.String
-	session.UserAgent = userAgent.String
-
-	return &session, nil
+	s := f.toSession()
+	return &s, nil
 }
 
 func (r *PostgresSessionRepository) FindByTokenHash(ctx context.Context, tokenHash string) (*domain.Session, error) {
-	query := `
-		SELECT id, user_id, token_hash, ip_address, user_agent, expires_at, created_at
-		FROM sessions
-		WHERE token_hash = $1 AND expires_at > NOW()
-	`
-
-	var session domain.Session
-	var ipAddress, userAgent sql.NullString
-
-	err := r.db.QueryRowContext(ctx, query, tokenHash).Scan(
-		&session.ID,
-		&session.UserID,
-		&session.TokenHash,
-		&ipAddress,
-		&userAgent,
-		&session.ExpiresAt,
-		&session.CreatedAt,
-	)
-
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	session.IPAddress = ipAddress.String
-	session.UserAgent = userAgent.String
-
-	return &session, nil
+	query := `SELECT ` + sessionSelectColumns + ` FROM sessions WHERE token_hash = $1 AND expires_at > NOW()`
+	return r.scanSession(r.db.QueryRowContext(ctx, query, tokenHash))
 }
 
 func (r *PostgresSessionRepository) FindByUserID(ctx context.Context, userID string) ([]domain.Session, error) {
-	query := `
-		SELECT id, user_id, token_hash, ip_address, user_agent, expires_at, created_at
-		FROM sessions
-		WHERE user_id = $1 AND expires_at > NOW()
-		ORDER BY created_at DESC
-	`
+	query := `SELECT ` + sessionSelectColumns + ` FROM sessions WHERE user_id = $1 AND expires_at > NOW() ORDER BY created_at DESC`
 
 	rows, err := r.db.QueryContext(ctx, query, userID)
 	if err != nil {
@@ -104,25 +92,11 @@ func (r *PostgresSessionRepository) FindByUserID(ctx context.Context, userID str
 
 	var sessions []domain.Session
 	for rows.Next() {
-		var session domain.Session
-		var ipAddress, userAgent sql.NullString
-
-		err := rows.Scan(
-			&session.ID,
-			&session.UserID,
-			&session.TokenHash,
-			&ipAddress,
-			&userAgent,
-			&session.ExpiresAt,
-			&session.CreatedAt,
-		)
-		if err != nil {
+		var f sessionScanFields
+		if err := rows.Scan(f.scanDest()...); err != nil {
 			return nil, err
 		}
-
-		session.IPAddress = ipAddress.String
-		session.UserAgent = userAgent.String
-		sessions = append(sessions, session)
+		sessions = append(sessions, f.toSession())
 	}
 
 	if err := rows.Err(); err != nil {
@@ -154,7 +128,6 @@ func (r *PostgresSessionRepository) Delete(ctx context.Context, id string) error
 
 func (r *PostgresSessionRepository) DeleteByUserID(ctx context.Context, userID string) error {
 	query := `DELETE FROM sessions WHERE user_id = $1`
-
 	_, err := r.db.ExecContext(ctx, query, userID)
 	return err
 }
