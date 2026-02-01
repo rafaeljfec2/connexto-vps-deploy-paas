@@ -32,6 +32,7 @@ set token_encryption_key $env(TOKEN_ENCRYPTION_KEY)
 set frontend_url $env(FRONTEND_URL)
 set cookie_domain $env(COOKIE_DOMAIN)
 set session_secure $env(SESSION_SECURE)
+set cors_origins $env(CORS_ORIGINS)
 set cloudflare_server_ip [string trim $env(CLOUDFLARE_SERVER_IP)]
 set api_domain [string trim $env(API_DOMAIN)]
 set traefik_network [string trim $env(TRAEFIK_NETWORK)]
@@ -129,6 +130,7 @@ append cmd " -e 'TOKEN_ENCRYPTION_KEY=$token_encryption_key'"
 append cmd " -e 'FRONTEND_URL=$frontend_url'"
 append cmd " -e 'COOKIE_DOMAIN=$cookie_domain'"
 append cmd " -e 'SESSION_SECURE=$session_secure'"
+append cmd " -e 'CORS_ORIGINS=$cors_origins'"
 
 if {[string length $cloudflare_server_ip] > 0} {
   append cmd " -e 'CLOUDFLARE_SERVER_IP=$cloudflare_server_ip'"

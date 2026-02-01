@@ -235,6 +235,7 @@ func ProvideServerConfig(cfg *config.Config) server.Config {
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 0,
 		IdleTimeout:  60 * time.Second,
+		CorsOrigins:  cfg.Server.CorsOrigins,
 	}
 }
 

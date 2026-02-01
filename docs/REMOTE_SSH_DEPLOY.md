@@ -1,24 +1,23 @@
-# Arquitetura de Deploy Remoto com Agent
+# Arquitetura de Deploy Remoto com Agent (gRPC)
 
 ## Visao Geral
 
-O FlowDeploy suporta deploy de aplicacoes em servidores remotos atraves de um **Agent leve** instalado em cada servidor. O agent pode ser instalado:
+O FlowDeploy suporta deploy de aplicacoes em servidores remotos atraves de um **Agent leve** que se comunica via **gRPC** com mTLS. O agent pode ser instalado:
 
-1. **Automaticamente** - Durante o onboarding de um app, o FlowDeploy conecta via SSH e instala o agent
+1. **Automaticamente** - Durante o onboarding, FlowDeploy conecta via SSH e instala o agent
 2. **Manualmente** - Usuario executa script de instalacao no servidor
 
-## Por que Agent ao inves de SSH Direto?
+## Por que gRPC ao inves de WebSocket/REST?
 
-| Aspecto     | SSH Direto                    | Agent                              |
-| ----------- | ----------------------------- | ---------------------------------- |
-| Seguranca   | Chaves SSH no banco           | Token de autenticacao              |
-| Conexao     | Inbound (requer porta aberta) | Outbound (agent conecta ao server) |
-| Firewall    | Precisa abrir porta 22        | Nenhuma porta a abrir              |
-| Logs        | Dificil de coletar            | Streaming em tempo real            |
-| Status      | Sem visibilidade              | Heartbeat continuo                 |
-| Atualizacao | Manual                        | Auto-update                        |
-
-**Importante:** SSH e usado apenas para o provisionamento inicial (instalar o agent). As credenciais SSH NAO sao armazenadas - sao usadas uma unica vez e descartadas.
+| Aspecto         | REST/WebSocket     | gRPC                       |
+| --------------- | ------------------ | -------------------------- |
+| Protocolo       | JSON over HTTP     | Protocol Buffers (binario) |
+| Performance     | Mais lento         | 10x mais rapido            |
+| Contrato        | Informal (docs)    | Fortemente tipado (.proto) |
+| Streaming       | WebSocket separado | Nativo (bidirecional)      |
+| Seguranca       | TLS + Token        | mTLS (certificados mutuos) |
+| Versionamento   | Headers/URL        | Package versioning         |
+| Code generation | Manual             | Automatico                 |
 
 ## Arquitetura
 
@@ -27,191 +26,1162 @@ O FlowDeploy suporta deploy de aplicacoes em servidores remotos atraves de um **
 │                      FlowDeploy Server (Cloud)                          │
 │                                                                         │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐               │
-│  │ Frontend │  │ Backend  │  │PostgreSQL│  │ Traefik  │               │
-│  │  React   │  │   Go     │  │          │  │          │               │
-│  └────┬─────┘  └────┬─────┘  └──────────┘  └──────────┘               │
-│       │             │                                                   │
-│       │             │ WebSocket/HTTPS                                   │
-│       │             │ (conexao de SAIDA do agent)                       │
-└───────┼─────────────┼───────────────────────────────────────────────────┘
-        │             │
-        │             ▼
-┌───────┼─────────────────────────────────────────────────────────────────┐
-│       │            Servidor Remoto 1 (Sao Paulo)                        │
-│       │                                                                 │
-│       │   ┌────────────────┐                                           │
-│       │   │  FlowDeploy    │◄──── Conexao WebSocket para o Server      │
-│       │   │    Agent       │                                           │
-│       │   └───────┬────────┘                                           │
-│       │           │                                                     │
-│       │           ▼                                                     │
-│       │   ┌──────────┐  ┌──────────┐  ┌──────────┐                    │
-│       │   │ Docker   │  │  App A   │  │  App B   │                    │
-│       │   │ Engine   │  │          │  │          │                    │
-│       │   └──────────┘  └──────────┘  └──────────┘                    │
-└───────┼─────────────────────────────────────────────────────────────────┘
-        │             │
-        │             ▼
-┌───────┼─────────────────────────────────────────────────────────────────┐
-│       │            Servidor Remoto 2 (Frankfurt)                        │
-│       │                                                                 │
-│       │   ┌────────────────┐                                           │
-│       │   │  FlowDeploy    │◄──── Conexao WebSocket para o Server      │
-│       │   │    Agent       │                                           │
-│       │   └───────┬────────┘                                           │
-│       │           │                                                     │
-│       │           ▼                                                     │
-│       │   ┌──────────┐  ┌──────────┐                                   │
-│       │   │ Docker   │  │  App C   │                                   │
-│       │   │ Engine   │  │          │                                   │
-│       │   └──────────┘  └──────────┘                                   │
+│  │ Frontend │  │ Backend  │  │PostgreSQL│  │  gRPC    │               │
+│  │  React   │  │   Go     │  │          │  │  Server  │               │
+│  └──────────┘  └────┬─────┘  └──────────┘  └────┬─────┘               │
+│                     │                           │                       │
+│                     │                           │ gRPC + mTLS           │
+│                     │                           │ (porta 50051)         │
+└─────────────────────┼───────────────────────────┼───────────────────────┘
+                      │                           │
+                      │                           ▼
+┌─────────────────────┼───────────────────────────────────────────────────┐
+│                     │      Servidor Remoto 1                            │
+│                     │                                                   │
+│                     │   ┌────────────────┐                             │
+│                     │   │  FlowDeploy    │◄── gRPC Client              │
+│                     │   │    Agent       │    com certificado          │
+│                     │   └───────┬────────┘                             │
+│                     │           │                                       │
+│                     │           ▼                                       │
+│                     │   ┌──────────┐  ┌──────────┐                     │
+│                     │   │ Docker   │  │  Apps    │                     │
+│                     │   │ Engine   │  │          │                     │
+│                     │   └──────────┘  └──────────┘                     │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Fluxo de Onboarding com Provisionamento Automatico
+## Contrato gRPC (.proto)
 
-### Visao Geral do Fluxo
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        ONBOARDING WIZARD                                    │
-│                                                                             │
-│  Step 1          Step 2           Step 3            Step 4                 │
-│  Repository  →   Server       →   Environment   →   Review & Deploy        │
-│                                                                             │
-│  - Repo URL      - Select or      - Env vars        - Summary              │
-│  - Branch          Add Server                       - Deploy button        │
-│  - Workdir       - SSH Setup                                               │
-│                    (if new)                                                │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-### Step 2 - Server Selection (Detalhado)
+### Estrutura de Arquivos Proto
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  SELECT DEPLOYMENT TARGET                                                   │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  ○ Deploy Local (this server)                                       │   │
-│  │     Deploy na mesma maquina onde o FlowDeploy esta rodando          │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  ● Deploy Remote (another server)                                   │   │
-│  │                                                                     │   │
-│  │  Select a server:                                                   │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐   │   │
-│  │  │ ● production-server-1     192.168.1.100    ● Online        │   │   │
-│  │  │ ○ staging-server          192.168.1.101    ● Online        │   │   │
-│  │  │ ○ dev-server              192.168.1.102    ○ Offline       │   │   │
-│  │  └─────────────────────────────────────────────────────────────┘   │   │
-│  │                                                                     │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐   │   │
-│  │  │  + Add New Server                                           │   │   │
-│  │  └─────────────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+apps/
+├── proto/
+│   └── flowdeploy/
+│       └── v1/
+│           ├── agent.proto      # Service principal
+│           ├── deploy.proto     # Mensagens de deploy
+│           ├── server.proto     # Mensagens de servidor
+│           └── common.proto     # Tipos compartilhados
 ```
 
-### Add New Server Dialog
+### agent.proto - Service Principal
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ADD NEW SERVER                                                     [X]    │
-│                                                                             │
-│  Server Information                                                         │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │ Name:          [production-api                              ]      │    │
-│  │ Host/IP:       [192.168.1.100                               ]      │    │
-│  │ SSH Port:      [22                                          ]      │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-│  SSH Authentication (used only for agent installation)                      │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │ ○ Password                                                         │    │
-│  │   Username:    [root                                        ]      │    │
-│  │   Password:    [••••••••                                    ]      │    │
-│  │                                                                    │    │
-│  │ ● SSH Key                                                          │    │
-│  │   Username:    [root                                        ]      │    │
-│  │   Private Key: [Paste your private key here...              ]      │    │
-│  │                [                                            ]      │    │
-│  │                [                                            ]      │    │
-│  │                                                                    │    │
-│  │   ⚠️ The key is used only once and is NOT stored                   │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │                     [ Test Connection ]                            │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  ✓ Connection successful                                          │    │
-│  │  ✓ Docker installed (v24.0.7)                                     │    │
-│  │  ✓ Git installed (v2.34.1)                                        │    │
-│  │  ○ FlowDeploy Agent not installed                                 │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-│                               [ Cancel ]  [ Install Agent & Add Server ]   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+```protobuf
+syntax = "proto3";
 
-### Provisioning Progress
+package flowdeploy.v1;
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  INSTALLING FLOWDEPLOY AGENT                                                │
-│                                                                             │
-│  Server: production-api (192.168.1.100)                                     │
-│                                                                             │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  ✓ Connecting via SSH...                                          │    │
-│  │  ✓ Checking system requirements...                                │    │
-│  │  ✓ Downloading FlowDeploy Agent...                                │    │
-│  │  ✓ Installing agent binary...                                     │    │
-│  │  ✓ Configuring systemd service...                                 │    │
-│  │  ● Starting agent service...                                      │    │
-│  │  ○ Waiting for agent connection...                                │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  $ Downloading agent from https://flowdeploy.io/agent/linux-amd64 │    │
-│  │  $ Installing to /opt/flowdeploy/agent                            │    │
-│  │  $ Creating systemd service...                                    │    │
-│  │  $ systemctl enable flowdeploy-agent                              │    │
-│  │  $ systemctl start flowdeploy-agent                               │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+option go_package = "github.com/flowdeploy/flowdeploy/gen/go/flowdeploy/v1;flowdeployv1";
 
-### Provisioning Complete
+import "flowdeploy/v1/deploy.proto";
+import "flowdeploy/v1/server.proto";
+import "flowdeploy/v1/common.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  ✓ SERVER ADDED SUCCESSFULLY                                                │
-│                                                                             │
-│  ┌────────────────────────────────────────────────────────────────────┐    │
-│  │  Server: production-api                                           │    │
-│  │  IP: 192.168.1.100                                                │    │
-│  │  Status: ● Online                                                 │    │
-│  │  Agent Version: v1.0.0                                            │    │
-│  │  OS: Ubuntu 22.04 (amd64)                                         │    │
-│  │  Docker: v24.0.7                                                  │    │
-│  └────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-│  The SSH credentials have been discarded. All future communication         │
-│  will be through the secure agent connection.                              │
-│                                                                             │
-│                                              [ Continue to Next Step ]     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+// AgentService - Servico principal do Agent
+// O Agent conecta ao Server e mantem conexao persistente
+service AgentService {
+  // =========================================
+  // CONEXAO E HEARTBEAT
+  // =========================================
+
+  // Register - Agent se registra no server ao iniciar
+  // Envia informacoes do sistema e recebe configuracao
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Heartbeat - Agent envia heartbeat periodico
+  // Server responde com comandos pendentes (se houver)
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // =========================================
+  // DEPLOY
+  // =========================================
+
+  // ExecuteDeploy - Server solicita deploy ao agent
+  // Agent executa e retorna resultado
+  rpc ExecuteDeploy(DeployRequest) returns (DeployResponse);
+
+  // StreamDeployLogs - Stream bidirecional de logs durante deploy
+  // Agent envia logs em tempo real, server pode cancelar
+  rpc StreamDeployLogs(stream DeployLogEntry) returns (stream DeployLogControl);
+
+  // =========================================
+  // CONTAINER MANAGEMENT
+  // =========================================
+
+  // ListContainers - Lista containers no servidor
+  rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
+
+  // GetContainerLogs - Stream de logs de um container
+  rpc GetContainerLogs(ContainerLogsRequest) returns (stream ContainerLogEntry);
+
+  // GetContainerStats - Stream de metricas de um container
+  rpc GetContainerStats(ContainerStatsRequest) returns (stream ContainerStats);
+
+  // RestartContainer - Reinicia um container
+  rpc RestartContainer(RestartContainerRequest) returns (RestartContainerResponse);
+
+  // StopContainer - Para um container
+  rpc StopContainer(StopContainerRequest) returns (StopContainerResponse);
+
+  // =========================================
+  // SYSTEM INFO
+  // =========================================
+
+  // GetSystemInfo - Informacoes do sistema (CPU, memoria, disco)
+  rpc GetSystemInfo(google.protobuf.Empty) returns (SystemInfo);
+
+  // GetDockerInfo - Informacoes do Docker
+  rpc GetDockerInfo(google.protobuf.Empty) returns (DockerInfo);
+}
 ```
 
-## Fluxo Tecnico de Provisionamento
+### deploy.proto - Mensagens de Deploy
+
+```protobuf
+syntax = "proto3";
+
+package flowdeploy.v1;
+
+option go_package = "github.com/flowdeploy/flowdeploy/gen/go/flowdeploy/v1;flowdeployv1";
+
+import "google/protobuf/timestamp.proto";
+import "flowdeploy/v1/common.proto";
+
+// =========================================
+// DEPLOY REQUEST/RESPONSE
+// =========================================
+
+message DeployRequest {
+  string deployment_id = 1;
+  string app_id = 2;
+  string app_name = 3;
+
+  // Git configuration
+  GitConfig git = 4;
+
+  // Build configuration
+  BuildConfig build = 5;
+
+  // Runtime configuration
+  RuntimeConfig runtime = 6;
+
+  // Environment variables (encrypted in transit via mTLS)
+  map<string, string> env_vars = 7;
+
+  // Health check configuration
+  HealthCheckConfig health_check = 8;
+
+  // Rollback image (for rollback on failure)
+  optional string rollback_image = 9;
+}
+
+message GitConfig {
+  string repository_url = 1;
+  string branch = 2;
+  string commit_sha = 3;      // Specific commit (optional)
+  string workdir = 4;         // Subdirectory for monorepos
+
+  // Authentication
+  oneof auth {
+    string access_token = 5;  // GitHub PAT or similar
+    SSHAuth ssh_auth = 6;     // SSH key authentication
+  }
+}
+
+message SSHAuth {
+  string private_key = 1;
+  string passphrase = 2;      // Optional
+}
+
+message BuildConfig {
+  string dockerfile = 1;      // Path to Dockerfile (default: ./Dockerfile)
+  string context = 2;         // Build context (default: .)
+  map<string, string> args = 3;  // Build arguments
+  string target = 4;          // Multi-stage build target (optional)
+  repeated string cache_from = 5; // Images to use as cache
+}
+
+message RuntimeConfig {
+  int32 port = 1;             // Container port
+  optional int32 host_port = 2; // Host port (optional, for direct mapping)
+
+  ResourceLimits resources = 3;
+
+  repeated string domains = 4; // Custom domains
+
+  int32 replicas = 5;         // Number of replicas (default: 1)
+
+  // Network configuration
+  string network = 6;         // Docker network name
+
+  // Restart policy
+  RestartPolicy restart_policy = 7;
+}
+
+message ResourceLimits {
+  string memory = 1;          // e.g., "512m", "1g"
+  string cpu = 2;             // e.g., "0.5", "2"
+  string memory_swap = 3;     // Optional swap limit
+}
+
+enum RestartPolicy {
+  RESTART_POLICY_UNSPECIFIED = 0;
+  RESTART_POLICY_NO = 1;
+  RESTART_POLICY_ALWAYS = 2;
+  RESTART_POLICY_ON_FAILURE = 3;
+  RESTART_POLICY_UNLESS_STOPPED = 4;
+}
+
+message HealthCheckConfig {
+  string path = 1;            // HTTP path (e.g., /health)
+  string interval = 2;        // e.g., "30s"
+  string timeout = 3;         // e.g., "5s"
+  int32 retries = 4;          // Number of retries
+  string start_period = 5;    // e.g., "10s"
+}
+
+message DeployResponse {
+  bool success = 1;
+  string message = 2;
+
+  // Deploy result details
+  optional DeployResult result = 3;
+
+  // Error details (if failed)
+  optional DeployError error = 4;
+}
+
+message DeployResult {
+  string container_id = 1;
+  string image_id = 2;
+  string image_tag = 3;
+
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp completed_at = 5;
+
+  int64 build_duration_ms = 6;
+  int64 deploy_duration_ms = 7;
+
+  // Container info
+  int32 exposed_port = 8;
+  string container_ip = 9;
+}
+
+message DeployError {
+  DeployErrorCode code = 1;
+  string message = 2;
+  string stage = 3;           // git_sync, build, deploy, health_check
+  string details = 4;         // Stack trace or detailed error
+}
+
+enum DeployErrorCode {
+  DEPLOY_ERROR_UNSPECIFIED = 0;
+  DEPLOY_ERROR_GIT_CLONE_FAILED = 1;
+  DEPLOY_ERROR_GIT_CHECKOUT_FAILED = 2;
+  DEPLOY_ERROR_DOCKERFILE_NOT_FOUND = 3;
+  DEPLOY_ERROR_BUILD_FAILED = 4;
+  DEPLOY_ERROR_CONTAINER_START_FAILED = 5;
+  DEPLOY_ERROR_HEALTH_CHECK_FAILED = 6;
+  DEPLOY_ERROR_ROLLBACK_FAILED = 7;
+  DEPLOY_ERROR_TIMEOUT = 8;
+  DEPLOY_ERROR_CANCELLED = 9;
+  DEPLOY_ERROR_INTERNAL = 10;
+}
+
+// =========================================
+// DEPLOY LOGS (STREAMING)
+// =========================================
+
+message DeployLogEntry {
+  string deployment_id = 1;
+
+  google.protobuf.Timestamp timestamp = 2;
+
+  DeployLogLevel level = 3;
+  DeployStage stage = 4;
+
+  string message = 5;
+
+  // Progress info (optional)
+  optional DeployProgress progress = 6;
+}
+
+enum DeployLogLevel {
+  DEPLOY_LOG_LEVEL_UNSPECIFIED = 0;
+  DEPLOY_LOG_LEVEL_DEBUG = 1;
+  DEPLOY_LOG_LEVEL_INFO = 2;
+  DEPLOY_LOG_LEVEL_WARN = 3;
+  DEPLOY_LOG_LEVEL_ERROR = 4;
+}
+
+enum DeployStage {
+  DEPLOY_STAGE_UNSPECIFIED = 0;
+  DEPLOY_STAGE_INITIALIZING = 1;
+  DEPLOY_STAGE_GIT_SYNC = 2;
+  DEPLOY_STAGE_BUILD = 3;
+  DEPLOY_STAGE_PUSH = 4;
+  DEPLOY_STAGE_DEPLOY = 5;
+  DEPLOY_STAGE_HEALTH_CHECK = 6;
+  DEPLOY_STAGE_CLEANUP = 7;
+  DEPLOY_STAGE_ROLLBACK = 8;
+  DEPLOY_STAGE_COMPLETE = 9;
+}
+
+message DeployProgress {
+  int32 current_step = 1;
+  int32 total_steps = 2;
+  string step_name = 3;
+  int32 percentage = 4;       // 0-100
+}
+
+message DeployLogControl {
+  DeployLogControlAction action = 1;
+  string reason = 2;
+}
+
+enum DeployLogControlAction {
+  DEPLOY_LOG_CONTROL_UNSPECIFIED = 0;
+  DEPLOY_LOG_CONTROL_CONTINUE = 1;    // Continue sending logs
+  DEPLOY_LOG_CONTROL_CANCEL = 2;      // Cancel the deploy
+  DEPLOY_LOG_CONTROL_ACK = 3;         // Acknowledge receipt
+}
+```
+
+### server.proto - Mensagens de Servidor
+
+```protobuf
+syntax = "proto3";
+
+package flowdeploy.v1;
+
+option go_package = "github.com/flowdeploy/flowdeploy/gen/go/flowdeploy/v1;flowdeployv1";
+
+import "google/protobuf/timestamp.proto";
+
+// =========================================
+// REGISTER
+// =========================================
+
+message RegisterRequest {
+  string agent_id = 1;        // Unique agent identifier (from cert CN)
+  string agent_version = 2;
+
+  SystemInfo system_info = 3;
+  DockerInfo docker_info = 4;
+}
+
+message RegisterResponse {
+  bool accepted = 1;
+  string message = 2;
+
+  // Server configuration for agent
+  AgentConfig config = 3;
+
+  // Pending deploys (if any)
+  repeated string pending_deployment_ids = 4;
+}
+
+message AgentConfig {
+  int32 heartbeat_interval_seconds = 1;  // Default: 30
+  int32 log_buffer_size = 2;             // Default: 1000
+  int32 max_concurrent_deploys = 3;      // Default: 2
+
+  // Feature flags
+  bool enable_metrics = 4;
+  bool enable_auto_update = 5;
+}
+
+// =========================================
+// HEARTBEAT
+// =========================================
+
+message HeartbeatRequest {
+  string agent_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+
+  // Current status
+  AgentStatus status = 3;
+
+  // Active deployments
+  repeated ActiveDeployment active_deployments = 4;
+
+  // System metrics (optional, if enabled)
+  optional SystemMetrics metrics = 5;
+}
+
+message AgentStatus {
+  AgentState state = 1;
+  int32 active_deploy_count = 2;
+  int32 container_count = 3;
+
+  google.protobuf.Timestamp started_at = 4;
+  int64 uptime_seconds = 5;
+}
+
+enum AgentState {
+  AGENT_STATE_UNSPECIFIED = 0;
+  AGENT_STATE_IDLE = 1;
+  AGENT_STATE_DEPLOYING = 2;
+  AGENT_STATE_ERROR = 3;
+  AGENT_STATE_UPDATING = 4;
+}
+
+message ActiveDeployment {
+  string deployment_id = 1;
+  string app_id = 2;
+  DeployStage stage = 3;
+  google.protobuf.Timestamp started_at = 4;
+}
+
+message HeartbeatResponse {
+  bool acknowledged = 1;
+
+  // Commands from server (optional)
+  repeated AgentCommand commands = 2;
+
+  // Updated config (optional)
+  optional AgentConfig updated_config = 3;
+}
+
+message AgentCommand {
+  AgentCommandType type = 1;
+  string payload = 2;         // JSON payload
+}
+
+enum AgentCommandType {
+  AGENT_COMMAND_UNSPECIFIED = 0;
+  AGENT_COMMAND_DEPLOY = 1;           // Start a deploy
+  AGENT_COMMAND_CANCEL_DEPLOY = 2;    // Cancel active deploy
+  AGENT_COMMAND_RESTART_CONTAINER = 3;
+  AGENT_COMMAND_UPDATE_AGENT = 4;     // Update agent binary
+  AGENT_COMMAND_SHUTDOWN = 5;         // Graceful shutdown
+}
+
+// =========================================
+// SYSTEM INFO
+// =========================================
+
+message SystemInfo {
+  string hostname = 1;
+  string os = 2;              // e.g., "linux"
+  string os_version = 3;      // e.g., "Ubuntu 22.04"
+  string architecture = 4;    // e.g., "amd64"
+
+  int32 cpu_cores = 5;
+  int64 memory_total_bytes = 6;
+  int64 disk_total_bytes = 7;
+
+  string kernel_version = 8;
+}
+
+message DockerInfo {
+  string version = 1;
+  string api_version = 2;
+
+  string storage_driver = 3;
+  int64 images_count = 4;
+  int64 containers_count = 5;
+
+  bool swarm_active = 6;
+}
+
+message SystemMetrics {
+  double cpu_usage_percent = 1;
+  int64 memory_used_bytes = 2;
+  int64 memory_available_bytes = 3;
+  int64 disk_used_bytes = 4;
+  int64 disk_available_bytes = 5;
+
+  double load_average_1m = 6;
+  double load_average_5m = 7;
+  double load_average_15m = 8;
+
+  int64 network_rx_bytes = 9;
+  int64 network_tx_bytes = 10;
+}
+
+// =========================================
+// CONTAINER MANAGEMENT
+// =========================================
+
+message ListContainersRequest {
+  bool all = 1;               // Include stopped containers
+  optional string app_id = 2; // Filter by app
+}
+
+message ListContainersResponse {
+  repeated ContainerInfo containers = 1;
+}
+
+message ContainerInfo {
+  string id = 1;
+  string name = 2;
+  string image = 3;
+  string state = 4;           // running, stopped, etc.
+  string status = 5;          // human readable status
+
+  google.protobuf.Timestamp created_at = 6;
+
+  map<string, string> labels = 7;
+
+  repeated PortBinding ports = 8;
+}
+
+message PortBinding {
+  int32 container_port = 1;
+  int32 host_port = 2;
+  string protocol = 3;        // tcp, udp
+}
+
+message ContainerLogsRequest {
+  string container_id = 1;
+  bool follow = 2;            // Stream logs
+  int32 tail = 3;             // Number of lines from end (0 = all)
+  bool timestamps = 4;
+  optional google.protobuf.Timestamp since = 5;
+}
+
+message ContainerLogEntry {
+  google.protobuf.Timestamp timestamp = 1;
+  string stream = 2;          // stdout, stderr
+  string message = 3;
+}
+
+message ContainerStatsRequest {
+  string container_id = 1;
+  bool stream = 2;            // Stream stats
+}
+
+message ContainerStats {
+  google.protobuf.Timestamp timestamp = 1;
+
+  double cpu_percent = 2;
+  int64 memory_usage_bytes = 3;
+  int64 memory_limit_bytes = 4;
+
+  int64 network_rx_bytes = 5;
+  int64 network_tx_bytes = 6;
+
+  int64 block_read_bytes = 7;
+  int64 block_write_bytes = 8;
+}
+
+message RestartContainerRequest {
+  string container_id = 1;
+  int32 timeout_seconds = 2;  // Default: 10
+}
+
+message RestartContainerResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message StopContainerRequest {
+  string container_id = 1;
+  int32 timeout_seconds = 2;  // Default: 10
+}
+
+message StopContainerResponse {
+  bool success = 1;
+  string message = 2;
+}
+```
+
+### common.proto - Tipos Compartilhados
+
+```protobuf
+syntax = "proto3";
+
+package flowdeploy.v1;
+
+option go_package = "github.com/flowdeploy/flowdeploy/gen/go/flowdeploy/v1;flowdeployv1";
+
+// Reexport commonly used types
+// This file can be extended with shared enums, messages, etc.
+
+message Pagination {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message PaginationInfo {
+  int32 total = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int32 total_pages = 4;
+}
+```
+
+## Arquitetura de Seguranca (mTLS)
+
+### Visao Geral do mTLS
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           CERTIFICATE AUTHORITY                         │
+│                                                                         │
+│  FlowDeploy Server gera e gerencia certificados                         │
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                         ROOT CA                                  │   │
+│  │                                                                  │   │
+│  │  - Gerado na instalacao do FlowDeploy                           │   │
+│  │  - Armazenado de forma segura (encrypted)                       │   │
+│  │  - Usado para assinar todos os certificados                     │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                              │                                          │
+│              ┌───────────────┴───────────────┐                         │
+│              │                               │                         │
+│              ▼                               ▼                         │
+│  ┌─────────────────────┐       ┌─────────────────────┐                │
+│  │   SERVER CERT       │       │   AGENT CERT        │                │
+│  │                     │       │   (per server)      │                │
+│  │   CN: flowdeploy    │       │                     │                │
+│  │   server            │       │   CN: server-uuid   │                │
+│  │                     │       │   OU: agent         │                │
+│  │   Usado pelo gRPC   │       │                     │                │
+│  │   server            │       │   Gerado durante    │                │
+│  └─────────────────────┘       │   provisionamento   │                │
+│                                └─────────────────────┘                │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Fluxo de Certificados
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Frontend   │     │   Backend    │     │    Agent     │
+└──────┬───────┘     └──────┬───────┘     └──────┬───────┘
+       │                    │                    │
+       │ 1. Add Server      │                    │
+       │ (with SSH creds)   │                    │
+       │───────────────────>│                    │
+       │                    │                    │
+       │                    │ 2. Generate:       │
+       │                    │    - Agent Key     │
+       │                    │    - Agent CSR     │
+       │                    │    - Sign with CA  │
+       │                    │────┐               │
+       │                    │<───┘               │
+       │                    │                    │
+       │                    │ 3. SSH: Install    │
+       │                    │    - Agent binary  │
+       │                    │    - CA cert       │
+       │                    │    - Agent cert    │
+       │                    │    - Agent key     │
+       │                    │───────────────────>│
+       │                    │                    │
+       │                    │ 4. Close SSH       │
+       │                    │       X            │
+       │                    │                    │
+       │                    │ 5. Agent connects  │
+       │                    │    with mTLS       │
+       │                    │<───────────────────│
+       │                    │                    │
+       │                    │ 6. Verify:         │
+       │                    │    - Agent cert    │
+       │                    │      signed by CA  │
+       │                    │    - CN matches    │
+       │                    │      server UUID   │
+       │                    │────┐               │
+       │                    │<───┘               │
+       │                    │                    │
+       │ 7. Server Online   │                    │
+       │<───────────────────│                    │
+       │                    │                    │
+```
+
+### Implementacao da PKI
+
+**Arquivo:** `apps/backend/internal/pki/ca.go`
+
+```go
+package pki
+
+import (
+    "crypto/ecdsa"
+    "crypto/elliptic"
+    "crypto/rand"
+    "crypto/x509"
+    "crypto/x509/pkix"
+    "encoding/pem"
+    "math/big"
+    "time"
+)
+
+type CertificateAuthority struct {
+    cert       *x509.Certificate
+    privateKey *ecdsa.PrivateKey
+}
+
+// NewCA creates a new Certificate Authority
+func NewCA() (*CertificateAuthority, error) {
+    privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+    if err != nil {
+        return nil, err
+    }
+
+    template := &x509.Certificate{
+        SerialNumber: big.NewInt(1),
+        Subject: pkix.Name{
+            Organization: []string{"FlowDeploy"},
+            CommonName:   "FlowDeploy Root CA",
+        },
+        NotBefore:             time.Now(),
+        NotAfter:              time.Now().AddDate(10, 0, 0), // 10 years
+        IsCA:                  true,
+        KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+        BasicConstraintsValid: true,
+    }
+
+    certDER, err := x509.CreateCertificate(rand.Reader, template, template, &privateKey.PublicKey, privateKey)
+    if err != nil {
+        return nil, err
+    }
+
+    cert, err := x509.ParseCertificate(certDER)
+    if err != nil {
+        return nil, err
+    }
+
+    return &CertificateAuthority{
+        cert:       cert,
+        privateKey: privateKey,
+    }, nil
+}
+
+// GenerateServerCert generates the gRPC server certificate
+func (ca *CertificateAuthority) GenerateServerCert(hostname string) (*Certificate, error) {
+    privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+    if err != nil {
+        return nil, err
+    }
+
+    template := &x509.Certificate{
+        SerialNumber: generateSerial(),
+        Subject: pkix.Name{
+            Organization: []string{"FlowDeploy"},
+            CommonName:   "flowdeploy-server",
+        },
+        DNSNames:    []string{hostname, "localhost"},
+        NotBefore:   time.Now(),
+        NotAfter:    time.Now().AddDate(1, 0, 0), // 1 year
+        KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+        ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+    }
+
+    certDER, err := x509.CreateCertificate(rand.Reader, template, ca.cert, &privateKey.PublicKey, ca.privateKey)
+    if err != nil {
+        return nil, err
+    }
+
+    return &Certificate{
+        CertPEM: pemEncode("CERTIFICATE", certDER),
+        KeyPEM:  pemEncodeKey(privateKey),
+    }, nil
+}
+
+// GenerateAgentCert generates a certificate for an agent
+func (ca *CertificateAuthority) GenerateAgentCert(serverID string) (*Certificate, error) {
+    privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+    if err != nil {
+        return nil, err
+    }
+
+    template := &x509.Certificate{
+        SerialNumber: generateSerial(),
+        Subject: pkix.Name{
+            Organization:       []string{"FlowDeploy"},
+            OrganizationalUnit: []string{"agent"},
+            CommonName:         serverID, // Server UUID as CN
+        },
+        NotBefore:   time.Now(),
+        NotAfter:    time.Now().AddDate(1, 0, 0), // 1 year
+        KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+        ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+    }
+
+    certDER, err := x509.CreateCertificate(rand.Reader, template, ca.cert, &privateKey.PublicKey, ca.privateKey)
+    if err != nil {
+        return nil, err
+    }
+
+    return &Certificate{
+        CertPEM: pemEncode("CERTIFICATE", certDER),
+        KeyPEM:  pemEncodeKey(privateKey),
+    }, nil
+}
+
+// GetCACertPEM returns the CA certificate in PEM format
+func (ca *CertificateAuthority) GetCACertPEM() []byte {
+    return pemEncode("CERTIFICATE", ca.cert.Raw)
+}
+
+type Certificate struct {
+    CertPEM []byte
+    KeyPEM  []byte
+}
+
+func generateSerial() *big.Int {
+    serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+    return serial
+}
+
+func pemEncode(blockType string, data []byte) []byte {
+    return pem.EncodeToMemory(&pem.Block{Type: blockType, Bytes: data})
+}
+
+func pemEncodeKey(key *ecdsa.PrivateKey) []byte {
+    data, _ := x509.MarshalECPrivateKey(key)
+    return pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: data})
+}
+```
+
+### Configuracao do gRPC Server com mTLS
+
+**Arquivo:** `apps/backend/internal/grpc/server.go`
+
+```go
+package grpc
+
+import (
+    "crypto/tls"
+    "crypto/x509"
+    "net"
+
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials"
+    "google.golang.org/grpc/peer"
+
+    pb "flowdeploy/gen/go/flowdeploy/v1"
+    "flowdeploy/internal/pki"
+)
+
+type Server struct {
+    pb.UnimplementedAgentServiceServer
+
+    grpcServer *grpc.Server
+    ca         *pki.CertificateAuthority
+    serverRepo ServerRepository
+    hub        *AgentHub
+}
+
+func NewServer(ca *pki.CertificateAuthority, serverCert *pki.Certificate) (*Server, error) {
+    // Load server certificate
+    cert, err := tls.X509KeyPair(serverCert.CertPEM, serverCert.KeyPEM)
+    if err != nil {
+        return nil, err
+    }
+
+    // Create certificate pool with CA
+    certPool := x509.NewCertPool()
+    certPool.AppendCertsFromPEM(ca.GetCACertPEM())
+
+    // Configure mTLS
+    tlsConfig := &tls.Config{
+        Certificates: []tls.Certificate{cert},
+        ClientAuth:   tls.RequireAndVerifyClientCert,
+        ClientCAs:    certPool,
+        MinVersion:   tls.VersionTLS13,
+    }
+
+    // Create gRPC server with mTLS
+    grpcServer := grpc.NewServer(
+        grpc.Creds(credentials.NewTLS(tlsConfig)),
+        grpc.UnaryInterceptor(authInterceptor),
+        grpc.StreamInterceptor(streamAuthInterceptor),
+    )
+
+    s := &Server{
+        grpcServer: grpcServer,
+        ca:         ca,
+        hub:        NewAgentHub(),
+    }
+
+    pb.RegisterAgentServiceServer(grpcServer, s)
+
+    return s, nil
+}
+
+func (s *Server) Start(address string) error {
+    lis, err := net.Listen("tcp", address)
+    if err != nil {
+        return err
+    }
+
+    return s.grpcServer.Serve(lis)
+}
+
+// authInterceptor extracts server ID from client certificate
+func authInterceptor(
+    ctx context.Context,
+    req interface{},
+    info *grpc.UnaryServerInfo,
+    handler grpc.UnaryHandler,
+) (interface{}, error) {
+    serverID, err := extractServerIDFromCert(ctx)
+    if err != nil {
+        return nil, status.Error(codes.Unauthenticated, "invalid certificate")
+    }
+
+    ctx = context.WithValue(ctx, "server_id", serverID)
+    return handler(ctx, req)
+}
+
+func extractServerIDFromCert(ctx context.Context) (string, error) {
+    p, ok := peer.FromContext(ctx)
+    if !ok {
+        return "", fmt.Errorf("no peer info")
+    }
+
+    tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+    if !ok {
+        return "", fmt.Errorf("no TLS info")
+    }
+
+    if len(tlsInfo.State.VerifiedChains) == 0 || len(tlsInfo.State.VerifiedChains[0]) == 0 {
+        return "", fmt.Errorf("no verified chains")
+    }
+
+    cert := tlsInfo.State.VerifiedChains[0][0]
+
+    // Verify OU is "agent"
+    if len(cert.Subject.OrganizationalUnit) == 0 || cert.Subject.OrganizationalUnit[0] != "agent" {
+        return "", fmt.Errorf("invalid certificate OU")
+    }
+
+    return cert.Subject.CommonName, nil
+}
+```
+
+### Configuracao do Agent com mTLS
+
+**Arquivo:** `apps/agent/internal/grpc/client.go`
+
+```go
+package grpc
+
+import (
+    "crypto/tls"
+    "crypto/x509"
+    "os"
+
+    "google.golang.org/grpc"
+    "google.golang.org/grpc/credentials"
+
+    pb "flowdeploy/gen/go/flowdeploy/v1"
+)
+
+type Client struct {
+    conn   *grpc.ClientConn
+    client pb.AgentServiceClient
+}
+
+func NewClient(serverAddr, caCertPath, certPath, keyPath string) (*Client, error) {
+    // Load CA certificate
+    caCert, err := os.ReadFile(caCertPath)
+    if err != nil {
+        return nil, err
+    }
+
+    certPool := x509.NewCertPool()
+    certPool.AppendCertsFromPEM(caCert)
+
+    // Load agent certificate
+    cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+    if err != nil {
+        return nil, err
+    }
+
+    // Configure mTLS
+    tlsConfig := &tls.Config{
+        Certificates: []tls.Certificate{cert},
+        RootCAs:      certPool,
+        MinVersion:   tls.VersionTLS13,
+    }
+
+    // Connect with mTLS
+    conn, err := grpc.Dial(
+        serverAddr,
+        grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+    )
+    if err != nil {
+        return nil, err
+    }
+
+    return &Client{
+        conn:   conn,
+        client: pb.NewAgentServiceClient(conn),
+    }, nil
+}
+
+func (c *Client) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+    return c.client.Register(ctx, req)
+}
+
+func (c *Client) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.HeartbeatResponse, error) {
+    return c.client.Heartbeat(ctx, req)
+}
+
+func (c *Client) StreamDeployLogs(ctx context.Context) (pb.AgentService_StreamDeployLogsClient, error) {
+    return c.client.StreamDeployLogs(ctx)
+}
+
+func (c *Client) Close() error {
+    return c.conn.Close()
+}
+```
+
+## Estrategia de Versionamento gRPC
+
+### Estrutura de Packages
+
+```
+proto/
+└── flowdeploy/
+    ├── v1/           # Versao estavel atual
+    │   ├── agent.proto
+    │   ├── deploy.proto
+    │   └── server.proto
+    └── v2/           # Proxima versao (quando necessario)
+        ├── agent.proto
+        └── ...
+```
+
+### Regras de Versionamento
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    REGRAS DE COMPATIBILIDADE                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  PERMITIDO (backward compatible):                                       │
+│  ✓ Adicionar novos campos (com numero novo)                            │
+│  ✓ Adicionar novos RPCs                                                │
+│  ✓ Adicionar novos valores em enums                                    │
+│  ✓ Deprecar campos (nao remover)                                       │
+│                                                                         │
+│  PROIBIDO (breaking changes):                                           │
+│  ✗ Remover campos existentes                                           │
+│  ✗ Mudar tipo de campos                                                │
+│  ✗ Mudar numero de campos                                              │
+│  ✗ Renomear campos                                                     │
+│  ✗ Remover valores de enums                                            │
+│                                                                         │
+│  REQUER NOVA VERSAO (v2):                                              │
+│  • Mudancas estruturais significativas                                  │
+│  • Remocao de funcionalidades                                          │
+│  • Mudanca de semantica de campos                                       │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Negociacao de Versao
+
+```protobuf
+// No RegisterRequest, agent informa versoes suportadas
+message RegisterRequest {
+  string agent_id = 1;
+  string agent_version = 2;
+
+  // Versoes do protocolo suportadas
+  repeated string supported_protocol_versions = 10; // ["v1", "v1.1"]
+  string preferred_protocol_version = 11;           // "v1.1"
+
+  SystemInfo system_info = 3;
+  DockerInfo docker_info = 4;
+}
+
+// No RegisterResponse, server confirma versao a usar
+message RegisterResponse {
+  bool accepted = 1;
+  string message = 2;
+
+  // Versao do protocolo selecionada
+  string selected_protocol_version = 10;
+
+  // Se agent precisa atualizar
+  optional AgentUpdateInfo update_available = 11;
+
+  AgentConfig config = 3;
+  repeated string pending_deployment_ids = 4;
+}
+
+message AgentUpdateInfo {
+  string latest_version = 1;
+  string download_url = 2;
+  string changelog = 3;
+  bool required = 4;  // Se update e obrigatorio
+}
+```
+
+### Suporte Multi-Versao no Server
+
+```go
+package grpc
+
+import (
+    "context"
+
+    pb "flowdeploy/gen/go/flowdeploy/v1"
+)
+
+type VersionedAgentService struct {
+    pb.UnimplementedAgentServiceServer
+
+    // Handlers para diferentes versoes
+    v1Handler *V1Handler
+    v1_1Handler *V1_1Handler
+}
+
+func (s *VersionedAgentService) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+    // Verificar versoes suportadas pelo agent
+    selectedVersion := selectBestVersion(req.SupportedProtocolVersions)
+
+    // Armazenar versao no contexto do agent para uso futuro
+    ctx = context.WithValue(ctx, "protocol_version", selectedVersion)
+
+    // Verificar se agent precisa atualizar
+    var updateInfo *pb.AgentUpdateInfo
+    if needsUpdate(req.AgentVersion) {
+        updateInfo = &pb.AgentUpdateInfo{
+            LatestVersion: "1.2.0",
+            DownloadUrl:   "https://releases.flowdeploy.io/agent/1.2.0/linux-amd64",
+            Required:      isUpdateRequired(req.AgentVersion),
+        }
+    }
+
+    return &pb.RegisterResponse{
+        Accepted:                true,
+        SelectedProtocolVersion: selectedVersion,
+        UpdateAvailable:         updateInfo,
+        Config:                  getDefaultConfig(),
+    }, nil
+}
+
+func selectBestVersion(supported []string) string {
+    // Ordem de preferencia: mais recente primeiro
+    preferenceOrder := []string{"v1.1", "v1"}
+
+    for _, preferred := range preferenceOrder {
+        for _, supported := range supported {
+            if preferred == supported {
+                return preferred
+            }
+        }
+    }
+
+    return "v1" // fallback
+}
+```
+
+## Fluxo de Provisionamento com gRPC
+
+### Diagrama de Sequencia
 
 ```
 ┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
@@ -220,1413 +1190,946 @@ O FlowDeploy suporta deploy de aplicacoes em servidores remotos atraves de um **
 └────┬─────┘     └────┬─────┘     └────┬─────┘     └────┬─────┘
      │                │                │                │
      │ 1. Add Server  │                │                │
-     │ (with SSH creds)                │                │
+     │ (SSH creds)    │                │                │
      │───────────────>│                │                │
      │                │                │                │
-     │                │ 2. SSH Connect │                │
-     │                │───────────────>│                │
+     │                │ 2. Generate:   │                │
+     │                │    - Agent key │                │
+     │                │    - Agent cert│                │
+     │                │    (signed CA) │                │
+     │                │────┐           │                │
+     │                │<───┘           │                │
      │                │                │                │
-     │                │ 3. Verify Docker/Git           │
-     │                │<──────────────>│                │
+     │                │ 3. SSH Connect │                │
+     │                │───────────────>│                │
      │                │                │                │
      │ 4. Progress    │                │                │
      │    (SSE)       │                │                │
      │<───────────────│                │                │
      │                │                │                │
-     │                │ 5. Download &  │                │
-     │                │    Install Agent               │
+     │                │ 5. Install:    │                │
+     │                │    - Binary    │                │
+     │                │    - CA cert   │                │
+     │                │    - Agent cert│                │
+     │                │    - Agent key │                │
      │                │───────────────>│                │
      │                │                │                │
-     │                │ 6. Start Agent │                │
+     │                │ 6. Start agent │                │
      │                │───────────────>│────┐           │
-     │                │                │    │ Start     │
-     │                │                │<───┘           │
+     │                │                │    │ systemctl │
+     │                │                │<───┘ start     │
      │                │                │                │
      │                │ 7. Close SSH   │                │
      │                │       X        │                │
      │                │                │                │
-     │                │ 8. Agent connects via WebSocket │
+     │                │ 8. Agent       │                │
+     │                │    connects    │                │
+     │                │    with mTLS   │                │
      │                │<───────────────────────────────│
      │                │                │                │
-     │ 9. Server Online                │                │
+     │                │ 9. Verify cert │                │
+     │                │    CN = UUID   │                │
+     │                │────┐           │                │
+     │                │<───┘           │                │
+     │                │                │                │
+     │                │ 10. Register() │                │
+     │                │<───────────────────────────────│
+     │                │                │                │
+     │ 11. Server     │                │                │
+     │     Online     │                │                │
      │<───────────────│                │                │
      │                │                │                │
-```
-
-## Banco de Dados
-
-### Migration 000006 - Servidores
-
-```sql
-CREATE TYPE server_status AS ENUM ('pending', 'provisioning', 'online', 'offline', 'error');
-
-CREATE TABLE servers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    hostname VARCHAR(255) NOT NULL,
-    ip_address VARCHAR(45),
-    ssh_port INTEGER NOT NULL DEFAULT 22,
-    agent_token VARCHAR(64) NOT NULL UNIQUE,
-    agent_version VARCHAR(20),
-    status server_status NOT NULL DEFAULT 'pending',
-    last_heartbeat_at TIMESTAMPTZ,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_servers_status ON servers(status);
-CREATE INDEX idx_servers_agent_token ON servers(agent_token);
-
-ALTER TABLE apps ADD COLUMN server_id UUID REFERENCES servers(id) ON DELETE SET NULL;
-ALTER TABLE apps ADD COLUMN deploy_mode VARCHAR(20) NOT NULL DEFAULT 'local';
-
-CREATE INDEX idx_apps_server_id ON apps(server_id);
-CREATE INDEX idx_apps_deploy_mode ON apps(deploy_mode);
-```
-
-### Migration 000006 - Down
-
-```sql
-ALTER TABLE apps DROP COLUMN IF EXISTS deploy_mode;
-ALTER TABLE apps DROP COLUMN IF EXISTS server_id;
-
-DROP INDEX IF EXISTS idx_servers_agent_token;
-DROP INDEX IF EXISTS idx_servers_status;
-DROP TABLE IF EXISTS servers;
-DROP TYPE IF EXISTS server_status;
-```
-
-## Backend Implementation
-
-### Domain Layer
-
-**Arquivo:** `apps/backend/internal/domain/server.go`
-
-```go
-package domain
-
-import (
-    "encoding/json"
-    "time"
-)
-
-type ServerStatus string
-
-const (
-    ServerStatusPending      ServerStatus = "pending"
-    ServerStatusProvisioning ServerStatus = "provisioning"
-    ServerStatusOnline       ServerStatus = "online"
-    ServerStatusOffline      ServerStatus = "offline"
-    ServerStatusError        ServerStatus = "error"
-)
-
-type Server struct {
-    ID              string          `json:"id"`
-    Name            string          `json:"name"`
-    Hostname        string          `json:"hostname"`
-    IPAddress       *string         `json:"ipAddress,omitempty"`
-    SSHPort         int             `json:"sshPort"`
-    AgentToken      string          `json:"-"`
-    AgentVersion    *string         `json:"agentVersion,omitempty"`
-    Status          ServerStatus    `json:"status"`
-    LastHeartbeatAt *time.Time      `json:"lastHeartbeatAt,omitempty"`
-    Metadata        json.RawMessage `json:"metadata,omitempty"`
-    CreatedAt       time.Time       `json:"createdAt"`
-    UpdatedAt       time.Time       `json:"updatedAt"`
-}
-
-type ServerMetadata struct {
-    OS            string `json:"os,omitempty"`
-    Architecture  string `json:"arch,omitempty"`
-    CPUCores      int    `json:"cpuCores,omitempty"`
-    MemoryMB      int    `json:"memoryMb,omitempty"`
-    DockerVersion string `json:"dockerVersion,omitempty"`
-}
-
-type CreateServerInput struct {
-    Name     string `json:"name" validate:"required,min=2,max=63"`
-    Hostname string `json:"hostname" validate:"required"`
-    SSHPort  int    `json:"sshPort"`
-}
-
-type ProvisionServerInput struct {
-    Name       string  `json:"name" validate:"required,min=2,max=63"`
-    Hostname   string  `json:"hostname" validate:"required"`
-    SSHPort    int     `json:"sshPort"`
-    SSHUser    string  `json:"sshUser" validate:"required"`
-    SSHPassword *string `json:"sshPassword,omitempty"`
-    SSHKey     *string `json:"sshKey,omitempty"`
-}
-
-type ProvisionProgress struct {
-    Step    string `json:"step"`
-    Message string `json:"message"`
-    Status  string `json:"status"`
-    Log     string `json:"log,omitempty"`
-}
-
-type ServerWithToken struct {
-    Server
-    AgentToken string `json:"agentToken"`
-}
-```
-
-### SSH Provisioner
-
-**Arquivo:** `apps/backend/internal/provisioner/ssh_provisioner.go`
-
-```go
-package provisioner
-
-import (
-    "context"
-    "fmt"
-    "io"
-    "strings"
-    "time"
-
-    "golang.org/x/crypto/ssh"
-    "flowdeploy/internal/domain"
-)
-
-type SSHProvisioner struct {
-    serverURL string
-    logger    *slog.Logger
-}
-
-type ProvisionResult struct {
-    Success bool
-    Error   string
-    Logs    []string
-}
-
-func NewSSHProvisioner(serverURL string) *SSHProvisioner {
-    return &SSHProvisioner{
-        serverURL: serverURL,
-        logger:    slog.Default(),
-    }
-}
-
-func (p *SSHProvisioner) Provision(
-    ctx context.Context,
-    input domain.ProvisionServerInput,
-    agentToken string,
-    progressChan chan<- domain.ProvisionProgress,
-) (*ProvisionResult, error) {
-    result := &ProvisionResult{Logs: []string{}}
-
-    // 1. Conectar via SSH
-    p.sendProgress(progressChan, "connect", "Connecting via SSH...", "running", "")
-
-    client, err := p.connect(input)
-    if err != nil {
-        p.sendProgress(progressChan, "connect", "SSH connection failed", "error", err.Error())
-        return nil, fmt.Errorf("SSH connection failed: %w", err)
-    }
-    defer client.Close()
-
-    p.sendProgress(progressChan, "connect", "Connected via SSH", "done", "")
-
-    // 2. Verificar requisitos
-    p.sendProgress(progressChan, "verify", "Checking system requirements...", "running", "")
-
-    if err := p.verifyRequirements(ctx, client, result); err != nil {
-        p.sendProgress(progressChan, "verify", "System requirements not met", "error", err.Error())
-        return result, err
-    }
-
-    p.sendProgress(progressChan, "verify", "System requirements verified", "done", "")
-
-    // 3. Download do agent
-    p.sendProgress(progressChan, "download", "Downloading FlowDeploy Agent...", "running", "")
-
-    if err := p.downloadAgent(ctx, client, result); err != nil {
-        p.sendProgress(progressChan, "download", "Download failed", "error", err.Error())
-        return result, err
-    }
-
-    p.sendProgress(progressChan, "download", "Agent downloaded", "done", "")
-
-    // 4. Instalar agent
-    p.sendProgress(progressChan, "install", "Installing agent...", "running", "")
-
-    if err := p.installAgent(ctx, client, agentToken, result); err != nil {
-        p.sendProgress(progressChan, "install", "Installation failed", "error", err.Error())
-        return result, err
-    }
-
-    p.sendProgress(progressChan, "install", "Agent installed", "done", "")
-
-    // 5. Configurar systemd
-    p.sendProgress(progressChan, "configure", "Configuring systemd service...", "running", "")
-
-    if err := p.configureSystemd(ctx, client, agentToken, result); err != nil {
-        p.sendProgress(progressChan, "configure", "Configuration failed", "error", err.Error())
-        return result, err
-    }
-
-    p.sendProgress(progressChan, "configure", "Service configured", "done", "")
-
-    // 6. Iniciar servico
-    p.sendProgress(progressChan, "start", "Starting agent service...", "running", "")
-
-    if err := p.startService(ctx, client, result); err != nil {
-        p.sendProgress(progressChan, "start", "Failed to start service", "error", err.Error())
-        return result, err
-    }
-
-    p.sendProgress(progressChan, "start", "Agent service started", "done", "")
-
-    // 7. Aguardar conexao do agent
-    p.sendProgress(progressChan, "wait", "Waiting for agent connection...", "running", "")
-
-    result.Success = true
-    return result, nil
-}
-
-func (p *SSHProvisioner) connect(input domain.ProvisionServerInput) (*ssh.Client, error) {
-    var authMethods []ssh.AuthMethod
-
-    if input.SSHPassword != nil && *input.SSHPassword != "" {
-        authMethods = append(authMethods, ssh.Password(*input.SSHPassword))
-    }
-
-    if input.SSHKey != nil && *input.SSHKey != "" {
-        signer, err := ssh.ParsePrivateKey([]byte(*input.SSHKey))
-        if err != nil {
-            return nil, fmt.Errorf("invalid SSH key: %w", err)
-        }
-        authMethods = append(authMethods, ssh.PublicKeys(signer))
-    }
-
-    if len(authMethods) == 0 {
-        return nil, fmt.Errorf("no authentication method provided")
-    }
-
-    config := &ssh.ClientConfig{
-        User:            input.SSHUser,
-        Auth:            authMethods,
-        HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-        Timeout:         30 * time.Second,
-    }
-
-    port := input.SSHPort
-    if port == 0 {
-        port = 22
-    }
-
-    addr := fmt.Sprintf("%s:%d", input.Hostname, port)
-    return ssh.Dial("tcp", addr, config)
-}
-
-func (p *SSHProvisioner) verifyRequirements(ctx context.Context, client *ssh.Client, result *ProvisionResult) error {
-    checks := []struct {
-        name    string
-        command string
-    }{
-        {"Docker", "docker --version"},
-        {"Git", "git --version"},
-        {"curl", "curl --version"},
-    }
-
-    for _, check := range checks {
-        output, err := p.runCommand(client, check.command)
-        result.Logs = append(result.Logs, fmt.Sprintf("$ %s\n%s", check.command, output))
-
-        if err != nil {
-            return fmt.Errorf("%s not found: %w", check.name, err)
-        }
-    }
-
-    return nil
-}
-
-func (p *SSHProvisioner) downloadAgent(ctx context.Context, client *ssh.Client, result *ProvisionResult) error {
-    commands := []string{
-        "sudo mkdir -p /opt/flowdeploy",
-        fmt.Sprintf("sudo curl -fsSL %s/downloads/agent-linux-amd64 -o /opt/flowdeploy/flowdeploy-agent", p.serverURL),
-        "sudo chmod +x /opt/flowdeploy/flowdeploy-agent",
-    }
-
-    for _, cmd := range commands {
-        output, err := p.runCommand(client, cmd)
-        result.Logs = append(result.Logs, fmt.Sprintf("$ %s\n%s", cmd, output))
-
-        if err != nil {
-            return fmt.Errorf("command failed: %s: %w", cmd, err)
-        }
-    }
-
-    return nil
-}
-
-func (p *SSHProvisioner) installAgent(ctx context.Context, client *ssh.Client, token string, result *ProvisionResult) error {
-    configContent := fmt.Sprintf(`FLOWDEPLOY_SERVER=%s
-FLOWDEPLOY_TOKEN=%s
-`, p.serverURL, token)
-
-    cmd := fmt.Sprintf("echo '%s' | sudo tee /opt/flowdeploy/config.env > /dev/null && sudo chmod 600 /opt/flowdeploy/config.env", configContent)
-
-    output, err := p.runCommand(client, cmd)
-    result.Logs = append(result.Logs, fmt.Sprintf("$ (creating config.env)\n%s", output))
-
-    return err
-}
-
-func (p *SSHProvisioner) configureSystemd(ctx context.Context, client *ssh.Client, token string, result *ProvisionResult) error {
-    serviceContent := `[Unit]
-Description=FlowDeploy Agent
-After=network.target docker.service
-Requires=docker.service
-
-[Service]
-Type=simple
-EnvironmentFile=/opt/flowdeploy/config.env
-ExecStart=/opt/flowdeploy/flowdeploy-agent --server $FLOWDEPLOY_SERVER --token $FLOWDEPLOY_TOKEN
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-`
-
-    cmd := fmt.Sprintf("echo '%s' | sudo tee /etc/systemd/system/flowdeploy-agent.service > /dev/null", serviceContent)
-
-    output, err := p.runCommand(client, cmd)
-    result.Logs = append(result.Logs, fmt.Sprintf("$ (creating systemd service)\n%s", output))
-
-    if err != nil {
-        return err
-    }
-
-    output, err = p.runCommand(client, "sudo systemctl daemon-reload && sudo systemctl enable flowdeploy-agent")
-    result.Logs = append(result.Logs, fmt.Sprintf("$ systemctl daemon-reload && systemctl enable\n%s", output))
-
-    return err
-}
-
-func (p *SSHProvisioner) startService(ctx context.Context, client *ssh.Client, result *ProvisionResult) error {
-    output, err := p.runCommand(client, "sudo systemctl start flowdeploy-agent")
-    result.Logs = append(result.Logs, fmt.Sprintf("$ systemctl start flowdeploy-agent\n%s", output))
-    return err
-}
-
-func (p *SSHProvisioner) runCommand(client *ssh.Client, cmd string) (string, error) {
-    session, err := client.NewSession()
-    if err != nil {
-        return "", err
-    }
-    defer session.Close()
-
-    output, err := session.CombinedOutput(cmd)
-    return string(output), err
-}
-
-func (p *SSHProvisioner) sendProgress(ch chan<- domain.ProvisionProgress, step, message, status, log string) {
-    if ch != nil {
-        ch <- domain.ProvisionProgress{
-            Step:    step,
-            Message: message,
-            Status:  status,
-            Log:     log,
-        }
-    }
-}
-
-func (p *SSHProvisioner) TestConnection(input domain.ProvisionServerInput) (*domain.ServerMetadata, error) {
-    client, err := p.connect(input)
-    if err != nil {
-        return nil, err
-    }
-    defer client.Close()
-
-    metadata := &domain.ServerMetadata{}
-
-    // Get Docker version
-    if output, err := p.runCommand(client, "docker version --format '{{.Server.Version}}'"); err == nil {
-        metadata.DockerVersion = strings.TrimSpace(output)
-    }
-
-    // Get OS info
-    if output, err := p.runCommand(client, "cat /etc/os-release | grep PRETTY_NAME | cut -d'\"' -f2"); err == nil {
-        metadata.OS = strings.TrimSpace(output)
-    }
-
-    // Get arch
-    if output, err := p.runCommand(client, "uname -m"); err == nil {
-        metadata.Architecture = strings.TrimSpace(output)
-    }
-
-    // Get CPU cores
-    if output, err := p.runCommand(client, "nproc"); err == nil {
-        fmt.Sscanf(strings.TrimSpace(output), "%d", &metadata.CPUCores)
-    }
-
-    return metadata, nil
-}
-```
-
-### Server Handler
-
-**Arquivo:** `apps/backend/internal/handler/server_handler.go`
-
-```go
-package handler
-
-import (
-    "context"
-    "crypto/rand"
-    "encoding/hex"
-    "encoding/json"
-    "net/http"
-    "time"
-
-    "github.com/go-chi/chi/v5"
-    "flowdeploy/internal/agent"
-    "flowdeploy/internal/domain"
-    "flowdeploy/internal/provisioner"
-    "flowdeploy/internal/repository"
-    "flowdeploy/internal/response"
-)
-
-type ServerHandler struct {
-    repo        *repository.ServerRepository
-    hub         *agent.Hub
-    provisioner *provisioner.SSHProvisioner
-}
-
-func NewServerHandler(
-    repo *repository.ServerRepository,
-    hub *agent.Hub,
-    provisioner *provisioner.SSHProvisioner,
-) *ServerHandler {
-    return &ServerHandler{
-        repo:        repo,
-        hub:         hub,
-        provisioner: provisioner,
-    }
-}
-
-// GET /api/servers
-func (h *ServerHandler) List(w http.ResponseWriter, r *http.Request) {
-    servers, err := h.repo.List(r.Context())
-    if err != nil {
-        response.Error(w, http.StatusInternalServerError, "failed to list servers")
-        return
-    }
-
-    for i := range servers {
-        if h.hub.IsServerOnline(servers[i].ID) {
-            servers[i].Status = domain.ServerStatusOnline
-        }
-    }
-
-    response.JSON(w, http.StatusOK, servers)
-}
-
-// GET /api/servers/:id
-func (h *ServerHandler) Get(w http.ResponseWriter, r *http.Request) {
-    id := chi.URLParam(r, "id")
-
-    server, err := h.repo.GetByID(r.Context(), id)
-    if err != nil {
-        response.Error(w, http.StatusNotFound, "server not found")
-        return
-    }
-
-    if h.hub.IsServerOnline(server.ID) {
-        server.Status = domain.ServerStatusOnline
-    }
-
-    response.JSON(w, http.StatusOK, server)
-}
-
-// DELETE /api/servers/:id
-func (h *ServerHandler) Delete(w http.ResponseWriter, r *http.Request) {
-    id := chi.URLParam(r, "id")
-
-    if err := h.repo.Delete(r.Context(), id); err != nil {
-        response.Error(w, http.StatusInternalServerError, "failed to delete server")
-        return
-    }
-
-    w.WriteHeader(http.StatusNoContent)
-}
-
-// POST /api/servers/test-connection
-func (h *ServerHandler) TestConnection(w http.ResponseWriter, r *http.Request) {
-    var input domain.ProvisionServerInput
-    if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-        response.Error(w, http.StatusBadRequest, "invalid request body")
-        return
-    }
-
-    metadata, err := h.provisioner.TestConnection(input)
-    if err != nil {
-        response.JSON(w, http.StatusOK, map[string]interface{}{
-            "success": false,
-            "error":   err.Error(),
-        })
-        return
-    }
-
-    response.JSON(w, http.StatusOK, map[string]interface{}{
-        "success":  true,
-        "metadata": metadata,
-    })
-}
-
-// POST /api/servers/provision (SSE endpoint)
-func (h *ServerHandler) Provision(w http.ResponseWriter, r *http.Request) {
-    var input domain.ProvisionServerInput
-    if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-        response.Error(w, http.StatusBadRequest, "invalid request body")
-        return
-    }
-
-    // Gerar token para o agent
-    token := generateToken()
-
-    // Criar servidor no banco (status: provisioning)
-    server, err := h.repo.Create(r.Context(), domain.CreateServerInput{
-        Name:     input.Name,
-        Hostname: input.Hostname,
-        SSHPort:  input.SSHPort,
-    }, token)
-    if err != nil {
-        response.Error(w, http.StatusInternalServerError, "failed to create server")
-        return
-    }
-
-    _ = h.repo.UpdateStatus(r.Context(), server.ID, domain.ServerStatusProvisioning)
-
-    // Setup SSE
-    w.Header().Set("Content-Type", "text/event-stream")
-    w.Header().Set("Cache-Control", "no-cache")
-    w.Header().Set("Connection", "keep-alive")
-
-    flusher, ok := w.(http.Flusher)
-    if !ok {
-        response.Error(w, http.StatusInternalServerError, "streaming not supported")
-        return
-    }
-
-    // Canal para progresso
-    progressChan := make(chan domain.ProvisionProgress, 10)
-
-    // Executar provisionamento em goroutine
-    go func() {
-        defer close(progressChan)
-
-        result, err := h.provisioner.Provision(r.Context(), input, token, progressChan)
-
-        if err != nil {
-            _ = h.repo.UpdateStatus(context.Background(), server.ID, domain.ServerStatusError)
-            progressChan <- domain.ProvisionProgress{
-                Step:    "error",
-                Message: err.Error(),
-                Status:  "error",
-            }
-            return
-        }
-
-        if result.Success {
-            // Aguardar agent conectar (max 30s)
-            for i := 0; i < 30; i++ {
-                if h.hub.IsServerOnline(server.ID) {
-                    progressChan <- domain.ProvisionProgress{
-                        Step:    "complete",
-                        Message: "Agent connected successfully",
-                        Status:  "done",
-                    }
-                    return
-                }
-                time.Sleep(time.Second)
-            }
-
-            progressChan <- domain.ProvisionProgress{
-                Step:    "timeout",
-                Message: "Agent did not connect within 30 seconds",
-                Status:  "warning",
-            }
-        }
-    }()
-
-    // Enviar eventos SSE
-    for progress := range progressChan {
-        data, _ := json.Marshal(progress)
-        fmt.Fprintf(w, "data: %s\n\n", data)
-        flusher.Flush()
-    }
-
-    // Enviar resultado final
-    finalServer, _ := h.repo.GetByID(r.Context(), server.ID)
-    finalData, _ := json.Marshal(map[string]interface{}{
-        "type":   "result",
-        "server": finalServer,
-    })
-    fmt.Fprintf(w, "data: %s\n\n", finalData)
-    flusher.Flush()
-}
-
-func generateToken() string {
-    b := make([]byte, 32)
-    rand.Read(b)
-    return hex.EncodeToString(b)
-}
-```
-
-### Routes
-
-**Modificar:** `apps/backend/internal/server/server.go`
-
-```go
-// Rotas de servidores
-r.Route("/servers", func(r chi.Router) {
-    r.Get("/", serverHandler.List)
-    r.Get("/{id}", serverHandler.Get)
-    r.Delete("/{id}", serverHandler.Delete)
-    r.Post("/test-connection", serverHandler.TestConnection)
-    r.Post("/provision", serverHandler.Provision)
-})
-
-// WebSocket para agents
-r.Get("/agent/ws", agentHub.HandleWebSocket)
-```
-
-## Frontend Implementation
-
-### Types
-
-**Arquivo:** `apps/frontend/src/features/servers/types.ts`
-
-```typescript
-export type ServerStatus =
-  | "pending"
-  | "provisioning"
-  | "online"
-  | "offline"
-  | "error";
-
-export interface Server {
-  id: string;
-  name: string;
-  hostname: string;
-  ipAddress?: string;
-  sshPort: number;
-  agentVersion?: string;
-  status: ServerStatus;
-  lastHeartbeatAt?: string;
-  metadata?: ServerMetadata;
-  createdAt: string;
-}
-
-export interface ServerMetadata {
-  os?: string;
-  arch?: string;
-  cpuCores?: number;
-  memoryMb?: number;
-  dockerVersion?: string;
-}
-
-export interface ProvisionServerInput {
-  name: string;
-  hostname: string;
-  sshPort: number;
-  sshUser: string;
-  sshPassword?: string;
-  sshKey?: string;
-}
-
-export interface TestConnectionResult {
-  success: boolean;
-  error?: string;
-  metadata?: ServerMetadata;
-}
-
-export interface ProvisionProgress {
-  step: string;
-  message: string;
-  status: "running" | "done" | "error" | "warning";
-  log?: string;
-}
-```
-
-### API Service
-
-**Adicionar em:** `apps/frontend/src/services/api.ts`
-
-```typescript
-servers: {
-  list: (): Promise<readonly Server[]> =>
-    fetchApiList<Server>(`${API_BASE}/servers`),
-
-  get: (id: string): Promise<Server> =>
-    fetchApi<Server>(`${API_BASE}/servers/${id}`),
-
-  delete: (id: string): Promise<void> =>
-    fetchApi<void>(`${API_BASE}/servers/${id}`, {
-      method: 'DELETE',
-    }),
-
-  testConnection: (input: ProvisionServerInput): Promise<TestConnectionResult> =>
-    fetchApi<TestConnectionResult>(`${API_BASE}/servers/test-connection`, {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-}
-```
-
-### Hooks
-
-**Arquivo:** `apps/frontend/src/features/servers/hooks/use-servers.ts`
-
-```typescript
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/services/api";
-import type { ProvisionServerInput, ProvisionProgress, Server } from "../types";
-
-export function useServers() {
-  return useQuery({
-    queryKey: ["servers"],
-    queryFn: () => api.servers.list(),
-  });
-}
-
-export function useServer(id: string) {
-  return useQuery({
-    queryKey: ["servers", id],
-    queryFn: () => api.servers.get(id),
-    enabled: !!id,
-  });
-}
-
-export function useDeleteServer() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (id: string) => api.servers.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["servers"] });
-    },
-  });
-}
-
-export function useTestConnection() {
-  return useMutation({
-    mutationFn: (input: ProvisionServerInput) =>
-      api.servers.testConnection(input),
-  });
-}
-
-export function useProvisionServer() {
-  const queryClient = useQueryClient();
-
-  return {
-    provision: async (
-      input: ProvisionServerInput,
-      onProgress: (progress: ProvisionProgress) => void,
-    ): Promise<Server | null> => {
-      const response = await fetch(`${API_BASE}/servers/provision`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let server: Server | null = null;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const text = decoder.decode(value);
-        const lines = text.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = JSON.parse(line.slice(6));
-
-            if (data.type === "result") {
-              server = data.server;
-            } else {
-              onProgress(data as ProvisionProgress);
-            }
-          }
-        }
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["servers"] });
-      return server;
-    },
-  };
-}
-```
-
-### Add Server Dialog Component
-
-**Arquivo:** `apps/frontend/src/features/servers/components/add-server-dialog.tsx`
-
-```tsx
-import { useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useTestConnection, useProvisionServer } from "../hooks/use-servers";
-import type {
-  ProvisionServerInput,
-  ProvisionProgress,
-  ServerMetadata,
-} from "../types";
-
-interface AddServerDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onServerAdded: (serverId: string) => void;
-}
-
-type Step = "form" | "provisioning" | "complete";
-
-export function AddServerDialog({
-  open,
-  onOpenChange,
-  onServerAdded,
-}: AddServerDialogProps) {
-  const [step, setStep] = useState<Step>("form");
-  const [authMethod, setAuthMethod] = useState<"password" | "key">("password");
-
-  const [name, setName] = useState("");
-  const [hostname, setHostname] = useState("");
-  const [sshPort, setSshPort] = useState(22);
-  const [sshUser, setSshUser] = useState("root");
-  const [sshPassword, setSshPassword] = useState("");
-  const [sshKey, setSshKey] = useState("");
-
-  const [testResult, setTestResult] = useState<{
-    success: boolean;
-    metadata?: ServerMetadata;
-    error?: string;
-  } | null>(null);
-  const [progressLogs, setProgressLogs] = useState<ProvisionProgress[]>([]);
-  const [createdServerId, setCreatedServerId] = useState<string | null>(null);
-
-  const testConnection = useTestConnection();
-  const { provision } = useProvisionServer();
-
-  const getInput = (): ProvisionServerInput => ({
-    name,
-    hostname,
-    sshPort,
-    sshUser,
-    sshPassword: authMethod === "password" ? sshPassword : undefined,
-    sshKey: authMethod === "key" ? sshKey : undefined,
-  });
-
-  const handleTestConnection = async () => {
-    setTestResult(null);
-    const result = await testConnection.mutateAsync(getInput());
-    setTestResult(result);
-  };
-
-  const handleProvision = async () => {
-    setStep("provisioning");
-    setProgressLogs([]);
-
-    const server = await provision(getInput(), (progress) => {
-      setProgressLogs((prev) => [...prev, progress]);
-    });
-
-    if (server) {
-      setCreatedServerId(server.id);
-      setStep("complete");
-    }
-  };
-
-  const handleComplete = () => {
-    if (createdServerId) {
-      onServerAdded(createdServerId);
-    }
-    onOpenChange(false);
-    resetForm();
-  };
-
-  const resetForm = () => {
-    setStep("form");
-    setName("");
-    setHostname("");
-    setSshPort(22);
-    setSshUser("root");
-    setSshPassword("");
-    setSshKey("");
-    setTestResult(null);
-    setProgressLogs([]);
-    setCreatedServerId(null);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {step === "form" && "Add New Server"}
-            {step === "provisioning" && "Installing FlowDeploy Agent"}
-            {step === "complete" && "Server Added Successfully"}
-          </DialogTitle>
-        </DialogHeader>
-
-        {step === "form" && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Server Name</Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="production-api"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="hostname">Host / IP</Label>
-                <Input
-                  id="hostname"
-                  value={hostname}
-                  onChange={(e) => setHostname(e.target.value)}
-                  placeholder="192.168.1.100"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sshPort">SSH Port</Label>
-                <Input
-                  id="sshPort"
-                  type="number"
-                  value={sshPort}
-                  onChange={(e) => setSshPort(Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>SSH Authentication</Label>
-              <p className="text-xs text-muted-foreground">
-                Used only for agent installation. Credentials are NOT stored.
-              </p>
-
-              <Tabs
-                value={authMethod}
-                onValueChange={(v) => setAuthMethod(v as "password" | "key")}
-              >
-                <TabsList className="w-full">
-                  <TabsTrigger value="password" className="flex-1">
-                    Password
-                  </TabsTrigger>
-                  <TabsTrigger value="key" className="flex-1">
-                    SSH Key
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="password" className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="sshUser">Username</Label>
-                    <Input
-                      id="sshUser"
-                      value={sshUser}
-                      onChange={(e) => setSshUser(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sshPassword">Password</Label>
-                    <Input
-                      id="sshPassword"
-                      type="password"
-                      value={sshPassword}
-                      onChange={(e) => setSshPassword(e.target.value)}
-                    />
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="key" className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="sshUserKey">Username</Label>
-                    <Input
-                      id="sshUserKey"
-                      value={sshUser}
-                      onChange={(e) => setSshUser(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sshKey">Private Key</Label>
-                    <textarea
-                      id="sshKey"
-                      className="w-full h-32 p-2 text-sm font-mono border rounded-md"
-                      value={sshKey}
-                      onChange={(e) => setSshKey(e.target.value)}
-                      placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                    />
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={handleTestConnection}
-              disabled={!hostname || !sshUser || testConnection.isPending}
-            >
-              {testConnection.isPending ? "Testing..." : "Test Connection"}
-            </Button>
-
-            {testResult && (
-              <div
-                className={`p-3 rounded-md text-sm ${testResult.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}
-              >
-                {testResult.success ? (
-                  <div className="space-y-1">
-                    <p className="font-medium">Connection successful</p>
-                    {testResult.metadata && (
-                      <>
-                        <p>OS: {testResult.metadata.os}</p>
-                        <p>Docker: {testResult.metadata.dockerVersion}</p>
-                        <p>CPU: {testResult.metadata.cpuCores} cores</p>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <p>{testResult.error}</p>
-                )}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleProvision}
-                disabled={!testResult?.success || !name}
-              >
-                Install Agent & Add Server
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {step === "provisioning" && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              {progressLogs.map((log, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
-                  {log.status === "running" && (
-                    <span className="animate-spin">⏳</span>
-                  )}
-                  {log.status === "done" && (
-                    <span className="text-green-600">✓</span>
-                  )}
-                  {log.status === "error" && (
-                    <span className="text-red-600">✗</span>
-                  )}
-                  {log.status === "warning" && (
-                    <span className="text-yellow-600">⚠</span>
-                  )}
-                  <span>{log.message}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="bg-muted p-2 rounded-md max-h-48 overflow-y-auto">
-              <pre className="text-xs font-mono whitespace-pre-wrap">
-                {progressLogs
-                  .filter((l) => l.log)
-                  .map((l) => l.log)
-                  .join("\n")}
-              </pre>
-            </div>
-          </div>
-        )}
-
-        {step === "complete" && (
-          <div className="space-y-4">
-            <div className="text-center py-4">
-              <div className="text-4xl mb-2">✓</div>
-              <p className="font-medium">Server added successfully!</p>
-              <p className="text-sm text-muted-foreground">
-                The FlowDeploy Agent is now running and connected.
-              </p>
-            </div>
-
-            <p className="text-xs text-muted-foreground text-center">
-              SSH credentials have been discarded. All future communication will
-              be through the secure agent connection.
-            </p>
-
-            <Button className="w-full" onClick={handleComplete}>
-              Continue
-            </Button>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-```
-
-### Server Selector Component (for Onboarding)
-
-**Arquivo:** `apps/frontend/src/features/servers/components/server-selector.tsx`
-
-```tsx
-import { useState } from "react";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { useServers } from "../hooks/use-servers";
-import { AddServerDialog } from "./add-server-dialog";
-import type { DeployMode } from "@/features/apps/types";
-
-interface ServerSelectorProps {
-  deployMode: DeployMode;
-  serverId: string | null;
-  onDeployModeChange: (mode: DeployMode) => void;
-  onServerChange: (serverId: string | null) => void;
-}
-
-export function ServerSelector({
-  deployMode,
-  serverId,
-  onDeployModeChange,
-  onServerChange,
-}: ServerSelectorProps) {
-  const [showAddServer, setShowAddServer] = useState(false);
-  const { data: servers, isLoading } = useServers();
-
-  const handleServerAdded = (newServerId: string) => {
-    onServerChange(newServerId);
-    setShowAddServer(false);
-  };
-
-  return (
-    <div className="space-y-4">
-      <Label className="text-base font-medium">Deployment Target</Label>
-
-      <RadioGroup
-        value={deployMode}
-        onValueChange={(v) => {
-          onDeployModeChange(v as DeployMode);
-          if (v === "local") {
-            onServerChange(null);
-          }
-        }}
-      >
-        <div className="flex items-start space-x-3 p-4 border rounded-lg">
-          <RadioGroupItem value="local" id="local" className="mt-1" />
-          <div>
-            <Label htmlFor="local" className="font-medium cursor-pointer">
-              Deploy Local
-            </Label>
-            <p className="text-sm text-muted-foreground">
-              Deploy on the same server where FlowDeploy is running
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-start space-x-3 p-4 border rounded-lg">
-          <RadioGroupItem value="remote" id="remote" className="mt-1" />
-          <div className="flex-1">
-            <Label htmlFor="remote" className="font-medium cursor-pointer">
-              Deploy Remote
-            </Label>
-            <p className="text-sm text-muted-foreground mb-3">
-              Deploy on another server with FlowDeploy Agent
-            </p>
-
-            {deployMode === "remote" && (
-              <div className="space-y-3">
-                {isLoading ? (
-                  <p className="text-sm text-muted-foreground">
-                    Loading servers...
-                  </p>
-                ) : servers && servers.length > 0 ? (
-                  <RadioGroup
-                    value={serverId ?? ""}
-                    onValueChange={onServerChange}
-                    className="space-y-2"
-                  >
-                    {servers.map((server) => (
-                      <div
-                        key={server.id}
-                        className="flex items-center justify-between p-3 border rounded-md"
-                      >
-                        <div className="flex items-center gap-3">
-                          <RadioGroupItem value={server.id} id={server.id} />
-                          <Label htmlFor={server.id} className="cursor-pointer">
-                            <span className="font-medium">{server.name}</span>
-                            <span className="text-muted-foreground ml-2">
-                              {server.hostname}
-                            </span>
-                          </Label>
-                        </div>
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full ${
-                            server.status === "online"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {server.status}
-                        </span>
-                      </div>
-                    ))}
-                  </RadioGroup>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No servers configured
-                  </p>
-                )}
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setShowAddServer(true)}
-                >
-                  + Add New Server
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </RadioGroup>
-
-      <AddServerDialog
-        open={showAddServer}
-        onOpenChange={setShowAddServer}
-        onServerAdded={handleServerAdded}
-      />
-    </div>
-  );
-}
-```
-
-## Integracao no Onboarding Wizard
-
-**Modificar:** `apps/frontend/src/features/apps/components/onboarding/onboarding-wizard.tsx`
-
-```tsx
-import { ServerSelector } from "@/features/servers/components/server-selector";
-
-// Adicionar estado
-const [deployMode, setDeployMode] = useState<DeployMode>("local");
-const [serverId, setServerId] = useState<string | null>(null);
-
-// No step de Server Selection
-<ServerSelector
-  deployMode={deployMode}
-  serverId={serverId}
-  onDeployModeChange={setDeployMode}
-  onServerChange={setServerId}
-/>;
-
-// Ao criar o app, incluir deployMode e serverId
-const app = await createApp.mutateAsync({
-  name,
-  repositoryUrl,
-  branch,
-  workdir: workdir || undefined,
-  deployMode,
-  serverId: deployMode === "remote" ? serverId : undefined,
-});
 ```
 
 ## Estrutura de Arquivos Final
 
 ```
 apps/
+├── proto/
+│   └── flowdeploy/
+│       └── v1/
+│           ├── agent.proto
+│           ├── deploy.proto
+│           ├── server.proto
+│           └── common.proto
 ├── agent/
 │   ├── cmd/
 │   │   └── agent/
 │   │       └── main.go
 │   ├── internal/
-│   │   └── agent/
-│   │       └── agent.go
+│   │   ├── agent/
+│   │   │   └── agent.go
+│   │   ├── deploy/
+│   │   │   └── executor.go
+│   │   └── grpc/
+│   │       └── client.go
 │   ├── install.sh
 │   ├── Dockerfile
 │   └── go.mod
 ├── backend/
+│   ├── gen/
+│   │   └── go/
+│   │       └── flowdeploy/
+│   │           └── v1/
+│   │               ├── agent.pb.go
+│   │               ├── agent_grpc.pb.go
+│   │               ├── deploy.pb.go
+│   │               └── server.pb.go
 │   ├── internal/
-│   │   ├── agent/
-│   │   │   └── hub.go
+│   │   ├── grpc/
+│   │   │   ├── server.go
+│   │   │   └── handlers.go
+│   │   ├── pki/
+│   │   │   └── ca.go
 │   │   ├── domain/
-│   │   │   ├── app.go (modificado)
-│   │   │   └── server.go (novo)
+│   │   │   └── server.go
 │   │   ├── handler/
-│   │   │   └── server_handler.go (novo)
+│   │   │   └── server_handler.go
 │   │   ├── provisioner/
-│   │   │   └── ssh_provisioner.go (novo)
+│   │   │   └── ssh_provisioner.go
 │   │   └── repository/
-│   │       └── server_repository.go (novo)
+│   │       └── server_repository.go
 │   └── migrations/
-│       ├── 000006_add_servers.up.sql (novo)
-│       └── 000006_add_servers.down.sql (novo)
+│       ├── 000006_add_servers.up.sql
+│       └── 000006_add_servers.down.sql
 └── frontend/
     └── src/
         └── features/
-            ├── apps/
-            │   └── components/
-            │       └── onboarding/
-            │           └── onboarding-wizard.tsx (modificado)
-            └── servers/ (novo)
+            └── servers/
                 ├── components/
                 │   ├── add-server-dialog.tsx
-                │   ├── server-card.tsx
-                │   ├── server-list.tsx
                 │   └── server-selector.tsx
                 ├── hooks/
                 │   └── use-servers.ts
                 └── types.ts
 ```
 
-## Resumo do Fluxo
+## Makefile para Geracao de Codigo
 
-1. **Usuario inicia onboarding** de um novo app
-2. **Step 1:** Configura repositorio (URL, branch, workdir)
-3. **Step 2:** Seleciona target de deploy
-   - Se **Local**: continua normalmente
-   - Se **Remote**: seleciona servidor existente OU adiciona novo
-4. **Adicionar novo servidor:**
-   - Informa nome, host, porta SSH
-   - Escolhe autenticacao (senha OU chave SSH)
-   - Testa conexao
-   - Clica "Install Agent & Add Server"
-5. **Provisionamento automatico:**
-   - FlowDeploy conecta via SSH
-   - Verifica Docker e Git
-   - Download e instala o agent
-   - Configura systemd
-   - Inicia o agent
-   - Agent conecta via WebSocket
-6. **SSH encerrado**, credenciais descartadas
-7. **Servidor aparece como Online**
-8. **Step 3:** Configura variaveis de ambiente
-9. **Step 4:** Review e deploy
+```makefile
+.PHONY: proto proto-go proto-lint
 
-## Consideracoes de Seguranca
+PROTO_DIR := apps/proto
+GEN_GO_DIR := apps/backend/gen/go
 
-1. **Credenciais SSH descartadas:** Nunca armazenadas, usadas apenas para provisionamento
-2. **Token do agent:** Gerado aleatoriamente, unico por servidor
-3. **Comunicacao agent-server:** Via WebSocket com autenticacao por token
-4. **Conexao outbound:** Agent inicia conexao, nenhuma porta precisa ser aberta no servidor remoto
-5. **Timeout:** Conexao SSH tem timeout de 30 segundos
-6. **Validacao:** Host/IP validados antes da conexao
+proto: proto-lint proto-go
+
+proto-lint:
+	buf lint $(PROTO_DIR)
+
+proto-go:
+	buf generate $(PROTO_DIR) --template $(PROTO_DIR)/buf.gen.yaml
+
+proto-breaking:
+	buf breaking $(PROTO_DIR) --against '.git#branch=main'
+```
+
+### buf.gen.yaml
+
+```yaml
+version: v1
+plugins:
+  - plugin: go
+    out: ../backend/gen/go
+    opt:
+      - paths=source_relative
+  - plugin: go-grpc
+    out: ../backend/gen/go
+    opt:
+      - paths=source_relative
+```
+
+### buf.yaml
+
+```yaml
+version: v1
+name: buf.build/flowdeploy/flowdeploy
+deps:
+  - buf.build/googleapis/googleapis
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+```
+
+## Maquina de Estados do Agent
+
+### Diagrama de Estados Principal
+
+```
+                                    ┌─────────────────────────────────────────────────────────────┐
+                                    │                     AGENT STATE MACHINE                     │
+                                    └─────────────────────────────────────────────────────────────┘
+
+     ┌──────────┐     load config      ┌──────────┐     connect ok       ┌──────────┐
+     │          │────────────────────>│          │─────────────────────>│          │
+     │  INIT    │                      │CONNECTING│                      │REGISTERING│
+     │          │<────────────────────│          │<─────────────────────│          │
+     └──────────┘     config error     └──────────┘     connect fail     └──────────┘
+          │                                 │                                 │
+          │                                 │ max retries                     │ register ok
+          ▼                                 ▼                                 ▼
+     ┌──────────┐                     ┌──────────┐                      ┌──────────┐
+     │          │                     │          │                      │          │
+     │  FATAL   │                     │  BACKOFF │────────────────────>│   IDLE   │◄────────┐
+     │          │                     │          │      retry           │          │         │
+     └──────────┘                     └──────────┘                      └──────────┘         │
+                                           ▲                                 │               │
+                                           │                                 │               │
+                                           │ connection lost                 │ deploy cmd   │
+                                           │                                 ▼               │
+                                           │                           ┌──────────┐         │
+                                           │                           │          │         │
+                                           └───────────────────────────│ DEPLOYING│─────────┘
+                                                                       │          │  deploy done
+                                                                       └──────────┘
+                                                                            │
+                                                                            │ deploy error
+                                                                            ▼
+                                                                      ┌──────────┐
+                                                                      │          │
+                                                                      │ ROLLBACK │──────────┐
+                                                                      │          │          │
+                                                                      └──────────┘          │
+                                                                                            │
+                                                                                            ▼
+                                                                                       back to IDLE
+```
+
+### Estados do Agent
+
+```go
+type AgentState string
+
+const (
+    // Estados de inicializacao
+    StateInit         AgentState = "INIT"          // Carregando configuracao
+    StateConnecting   AgentState = "CONNECTING"    // Conectando ao server
+    StateRegistering  AgentState = "REGISTERING"   // Registrando no server
+
+    // Estados operacionais
+    StateIdle         AgentState = "IDLE"          // Aguardando comandos
+    StateDeploying    AgentState = "DEPLOYING"     // Executando deploy
+    StateRollback     AgentState = "ROLLBACK"      // Executando rollback
+
+    // Estados de recuperacao
+    StateBackoff      AgentState = "BACKOFF"       // Aguardando para reconectar
+    StateReconnecting AgentState = "RECONNECTING"  // Reconectando apos perda
+
+    // Estados de manutencao
+    StateUpdating     AgentState = "UPDATING"      // Atualizando agent
+    StateDraining     AgentState = "DRAINING"      // Finalizando deploys antes de shutdown
+
+    // Estados terminais
+    StateFatal        AgentState = "FATAL"         // Erro fatal, requer intervencao
+    StateShutdown     AgentState = "SHUTDOWN"      // Agent encerrado
+)
+```
+
+### Tabela de Transicoes
+
+```
+┌─────────────────┬────────────────────────┬─────────────────┬────────────────────────────────┐
+│ Estado Atual    │ Evento                 │ Proximo Estado  │ Acao                           │
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ INIT            │ config_loaded          │ CONNECTING      │ Iniciar conexao gRPC           │
+│ INIT            │ config_error           │ FATAL           │ Log erro, exit(1)              │
+│ INIT            │ cert_expired           │ FATAL           │ Log erro, solicitar reprovision│
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ CONNECTING      │ connected              │ REGISTERING     │ Enviar RegisterRequest         │
+│ CONNECTING      │ connect_failed         │ BACKOFF         │ Incrementar retry counter      │
+│ CONNECTING      │ cert_rejected          │ FATAL           │ Certificado invalido           │
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ REGISTERING     │ registered             │ IDLE            │ Iniciar heartbeat loop         │
+│ REGISTERING     │ rejected               │ FATAL           │ Server rejeitou agent          │
+│ REGISTERING     │ version_mismatch       │ UPDATING        │ Baixar nova versao             │
+│ REGISTERING     │ timeout                │ BACKOFF         │ Retry com backoff              │
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ IDLE            │ deploy_command         │ DEPLOYING       │ Iniciar deploy                 │
+│ IDLE            │ heartbeat_failed       │ RECONNECTING    │ Tentar reconectar              │
+│ IDLE            │ shutdown_command       │ DRAINING        │ Iniciar graceful shutdown      │
+│ IDLE            │ update_command         │ UPDATING        │ Baixar e aplicar update        │
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ DEPLOYING       │ deploy_success         │ IDLE            │ Notificar server, cleanup      │
+│ DEPLOYING       │ deploy_failed          │ ROLLBACK        │ Iniciar rollback               │
+│ DEPLOYING       │ deploy_cancelled       │ IDLE            │ Cleanup parcial                │
+│ DEPLOYING       │ connection_lost        │ DEPLOYING       │ Continuar deploy offline       │
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ ROLLBACK        │ rollback_success       │ IDLE            │ Notificar server               │
+│ ROLLBACK        │ rollback_failed        │ IDLE            │ Notificar server (erro critico)│
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ BACKOFF         │ backoff_complete       │ CONNECTING      │ Tentar reconectar              │
+│ BACKOFF         │ max_retries            │ FATAL           │ Desistir, requer intervencao   │
+│ BACKOFF         │ shutdown_signal        │ SHUTDOWN        │ Encerrar imediatamente         │
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ RECONNECTING    │ reconnected            │ IDLE            │ Sincronizar estado             │
+│ RECONNECTING    │ reconnect_failed       │ BACKOFF         │ Iniciar backoff                │
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ UPDATING        │ update_success         │ SHUTDOWN        │ Reiniciar com nova versao      │
+│ UPDATING        │ update_failed          │ IDLE            │ Continuar com versao atual     │
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ DRAINING        │ all_deploys_done       │ SHUTDOWN        │ Encerrar gracefully            │
+│ DRAINING        │ drain_timeout          │ SHUTDOWN        │ Forcar encerramento            │
+├─────────────────┼────────────────────────┼─────────────────┼────────────────────────────────┤
+│ FATAL           │ -                      │ -               │ Exit(1), requer intervencao    │
+│ SHUTDOWN        │ -                      │ -               │ Exit(0), encerrado com sucesso │
+└─────────────────┴────────────────────────┴─────────────────┴────────────────────────────────┘
+```
+
+### Maquina de Estados do Deploy
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              DEPLOY STATE MACHINE                                           │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+     ┌──────────┐                ┌──────────┐                ┌──────────┐
+     │          │  clone ok      │          │  build ok      │          │
+     │ GIT_SYNC │───────────────>│  BUILD   │───────────────>│  DEPLOY  │
+     │          │                │          │                │          │
+     └──────────┘                └──────────┘                └──────────┘
+          │                           │                           │
+          │ clone fail                │ build fail                │ deploy ok
+          │                           │                           ▼
+          │                           │                      ┌──────────┐
+          │                           │                      │  HEALTH  │
+          │                           │                      │  CHECK   │
+          │                           │                      └──────────┘
+          │                           │                           │
+          │                           │                           ├── health ok ──> SUCCESS
+          │                           │                           │
+          ▼                           ▼                           ▼ health fail
+     ┌─────────────────────────────────────────────────────────────────────┐
+     │                            ROLLBACK                                 │
+     │                                                                     │
+     │  1. Stop new container                                              │
+     │  2. Start previous container (if exists)                            │
+     │  3. Verify rollback health                                          │
+     │  4. Report failure with rollback status                             │
+     │                                                                     │
+     └─────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+                                 ┌──────────┐
+                                 │  FAILED  │
+                                 └──────────┘
+```
+
+### Estados do Deploy
+
+```go
+type DeployState string
+
+const (
+    DeployStateInitializing DeployState = "INITIALIZING"  // Preparando ambiente
+    DeployStateGitSync      DeployState = "GIT_SYNC"      // Clonando/atualizando repo
+    DeployStateBuild        DeployState = "BUILD"         // Docker build
+    DeployStateDeploy       DeployState = "DEPLOY"        // Docker run
+    DeployStateHealthCheck  DeployState = "HEALTH_CHECK"  // Verificando saude
+    DeployStateCleanup      DeployState = "CLEANUP"       // Limpando recursos antigos
+    DeployStateSuccess      DeployState = "SUCCESS"       // Deploy concluido
+    DeployStateRollback     DeployState = "ROLLBACK"      // Revertendo para versao anterior
+    DeployStateFailed       DeployState = "FAILED"        // Deploy falhou
+    DeployStateCancelled    DeployState = "CANCELLED"     // Deploy cancelado
+)
+```
+
+### Estrategia de Backoff Exponencial
+
+```go
+type BackoffConfig struct {
+    InitialInterval time.Duration // 1s
+    MaxInterval     time.Duration // 5m
+    Multiplier      float64       // 2.0
+    MaxRetries      int           // 10
+    Jitter          float64       // 0.1 (10%)
+}
+
+func DefaultBackoffConfig() BackoffConfig {
+    return BackoffConfig{
+        InitialInterval: 1 * time.Second,
+        MaxInterval:     5 * time.Minute,
+        Multiplier:      2.0,
+        MaxRetries:      10,
+        Jitter:          0.1,
+    }
+}
+
+// Calculo do intervalo de backoff
+// interval = min(initial * (multiplier ^ attempt), max) * (1 + random(-jitter, +jitter))
+//
+// Exemplo com config padrao:
+// Attempt 1:  1s  * 2^0 = 1s   (+/- 10%) = 0.9s  - 1.1s
+// Attempt 2:  1s  * 2^1 = 2s   (+/- 10%) = 1.8s  - 2.2s
+// Attempt 3:  1s  * 2^2 = 4s   (+/- 10%) = 3.6s  - 4.4s
+// Attempt 4:  1s  * 2^3 = 8s   (+/- 10%) = 7.2s  - 8.8s
+// Attempt 5:  1s  * 2^4 = 16s  (+/- 10%) = 14.4s - 17.6s
+// Attempt 6:  1s  * 2^5 = 32s  (+/- 10%) = 28.8s - 35.2s
+// Attempt 7:  1s  * 2^6 = 64s  (+/- 10%) = 57.6s - 70.4s
+// Attempt 8:  1s  * 2^7 = 128s (+/- 10%) = 115s  - 141s
+// Attempt 9:  1s  * 2^8 = 256s (+/- 10%) = 230s  - 282s
+// Attempt 10: 5m (max)         (+/- 10%) = 270s  - 330s
+```
+
+### Tratamento de Erros por Categoria
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              ERROR HANDLING MATRIX                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────┬─────────────────┬────────────────────┬──────────────────────────────┐
+│ Categoria de Erro      │ Retentavel?     │ Acao               │ Exemplos                     │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ TRANSIENT_NETWORK      │ Sim             │ Retry com backoff  │ Connection refused,          │
+│                        │                 │                    │ Connection reset,            │
+│                        │                 │                    │ DNS timeout                  │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ TRANSIENT_SERVER       │ Sim             │ Retry com backoff  │ gRPC UNAVAILABLE,            │
+│                        │                 │                    │ gRPC RESOURCE_EXHAUSTED,     │
+│                        │                 │                    │ HTTP 503, 502, 504           │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ TRANSIENT_TIMEOUT      │ Sim (limitado)  │ Retry 3x, depois   │ Context deadline exceeded,   │
+│                        │                 │ reportar erro      │ gRPC DEADLINE_EXCEEDED       │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ AUTH_ERROR             │ Nao             │ Estado FATAL       │ gRPC UNAUTHENTICATED,        │
+│                        │                 │                    │ Certificate expired,         │
+│                        │                 │                    │ Certificate revoked          │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ PERMISSION_ERROR       │ Nao             │ Reportar erro      │ gRPC PERMISSION_DENIED,      │
+│                        │                 │                    │ Docker permission denied     │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ VALIDATION_ERROR       │ Nao             │ Reportar erro      │ gRPC INVALID_ARGUMENT,       │
+│                        │                 │                    │ Invalid config, Bad request  │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ NOT_FOUND              │ Nao             │ Reportar erro      │ gRPC NOT_FOUND,              │
+│                        │                 │                    │ Image not found,             │
+│                        │                 │                    │ Container not found          │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ RESOURCE_ERROR         │ Sim (limitado)  │ Retry 3x           │ Disk full,                   │
+│                        │                 │                    │ Out of memory,               │
+│                        │                 │                    │ No space left on device      │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ INTERNAL_ERROR         │ Depende         │ Log + Retry 1x     │ gRPC INTERNAL,               │
+│                        │                 │                    │ Unexpected server error      │
+├────────────────────────┼─────────────────┼────────────────────┼──────────────────────────────┤
+│ CANCELLED              │ Nao             │ Cleanup + IDLE     │ gRPC CANCELLED,              │
+│                        │                 │                    │ Context cancelled            │
+└────────────────────────┴─────────────────┴────────────────────┴──────────────────────────────┘
+```
+
+### Protocolo de Reconexao
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              RECONNECTION PROTOCOL                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Cenario: Conexao perdida durante operacao normal (IDLE)
+
+     Agent                                                           Server
+       │                                                                │
+       │ ─────── heartbeat ─────────────────────────────────────────>  │
+       │                                                                │
+       │ <───────── ack ───────────────────────────────────────────── │
+       │                                                                │
+       │                        [CONEXAO PERDIDA]                       │
+       │                              X                                 │
+       │                                                                │
+       │ ─────── heartbeat ──────────X (timeout)                       │
+       │                                                                │
+       │  [Detecta perda: 3 heartbeats sem resposta]                   │
+       │                                                                │
+       │  Estado: IDLE -> RECONNECTING                                 │
+       │                                                                │
+       │  [Backoff: 1s]                                                │
+       │                                                                │
+       │ ─────── reconnect attempt 1 ───────X (fail)                   │
+       │                                                                │
+       │  [Backoff: 2s]                                                │
+       │                                                                │
+       │ ─────── reconnect attempt 2 ───────X (fail)                   │
+       │                                                                │
+       │  [Backoff: 4s]                                                │
+       │                                                                │
+       │ ─────── reconnect attempt 3 ─────────────────────────────>   │
+       │                                                                │
+       │ <───────── connected ──────────────────────────────────────  │
+       │                                                                │
+       │ ─────── RegisterRequest ─────────────────────────────────>   │
+       │         (reconnect = true)                                    │
+       │                                                                │
+       │ <───────── RegisterResponse ────────────────────────────────  │
+       │            (pending_deploys)                                  │
+       │                                                                │
+       │  Estado: RECONNECTING -> IDLE                                 │
+       │                                                                │
+       │  [Processar deploys pendentes se houver]                      │
+       │                                                                │
+```
+
+### Protocolo de Deploy com Falha e Rollback
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              DEPLOY WITH ROLLBACK PROTOCOL                                  │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Cenario: Deploy falha no health check
+
+     Agent                                                           Server
+       │                                                                │
+       │ <───────── DeployCommand ─────────────────────────────────── │
+       │            (app: my-api, image: v2)                           │
+       │                                                                │
+       │  Estado: IDLE -> DEPLOYING                                    │
+       │  Deploy Estado: INITIALIZING                                  │
+       │                                                                │
+       │ ─────── DeployLog (stage: GIT_SYNC) ─────────────────────>   │
+       │                                                                │
+       │  [git clone/pull...]                                          │
+       │                                                                │
+       │ ─────── DeployLog (stage: BUILD) ─────────────────────────>   │
+       │                                                                │
+       │  [docker build...]                                            │
+       │                                                                │
+       │ ─────── DeployLog (stage: DEPLOY) ────────────────────────>   │
+       │                                                                │
+       │  [docker stop old container]                                  │
+       │  [docker run new container]                                   │
+       │                                                                │
+       │ ─────── DeployLog (stage: HEALTH_CHECK) ──────────────────>   │
+       │                                                                │
+       │  [GET /health - timeout]                                      │
+       │  [GET /health - 500]                                          │
+       │  [GET /health - 500]                                          │
+       │                                                                │
+       │ ─────── DeployLog (level: ERROR, "health check failed") ──>   │
+       │                                                                │
+       │  Deploy Estado: HEALTH_CHECK -> ROLLBACK                      │
+       │                                                                │
+       │ ─────── DeployLog (stage: ROLLBACK, "starting rollback") ─>   │
+       │                                                                │
+       │  [docker stop v2 container]                                   │
+       │  [docker start v1 container (previous)]                       │
+       │  [verify v1 health - ok]                                      │
+       │                                                                │
+       │ ─────── DeployLog (stage: ROLLBACK, "rollback success") ──>   │
+       │                                                                │
+       │ ─────── DeployResponse ───────────────────────────────────>   │
+       │         (success: false,                                      │
+       │          error: HEALTH_CHECK_FAILED,                          │
+       │          rollback_status: SUCCESS)                            │
+       │                                                                │
+       │  Estado: DEPLOYING -> IDLE                                    │
+       │                                                                │
+```
+
+### Protocolo de Graceful Shutdown
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              GRACEFUL SHUTDOWN PROTOCOL                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Cenario: Agent recebe SIGTERM durante deploy
+
+     Agent                                                           Server
+       │                                                                │
+       │  [Executando deploy...]                                       │
+       │  Estado: DEPLOYING                                            │
+       │                                                                │
+       │  [SIGTERM recebido]                                           │
+       │                                                                │
+       │  Estado: DEPLOYING -> DRAINING                                │
+       │  [Nao aceita novos deploys]                                   │
+       │  [Continua deploy atual]                                      │
+       │                                                                │
+       │ ─────── Heartbeat (state: DRAINING) ──────────────────────>   │
+       │                                                                │
+       │ <───────── HeartbeatResponse (no new commands) ─────────────  │
+       │                                                                │
+       │  [Deploy continua...]                                         │
+       │  [Deploy completo]                                            │
+       │                                                                │
+       │ ─────── DeployResponse (success) ─────────────────────────>   │
+       │                                                                │
+       │ ─────── Unregister (reason: SHUTDOWN) ────────────────────>   │
+       │                                                                │
+       │ <───────── UnregisterResponse ────────────────────────────── │
+       │                                                                │
+       │  [Fechar conexao gRPC]                                        │
+       │  Estado: DRAINING -> SHUTDOWN                                 │
+       │  [Exit 0]                                                     │
+       │                                                                │
+
+
+Cenario: Timeout no drain (deploy muito longo)
+
+     Agent                                                           Server
+       │                                                                │
+       │  [SIGTERM recebido]                                           │
+       │  Estado: DEPLOYING -> DRAINING                                │
+       │  [Inicia drain timeout: 5 minutos]                            │
+       │                                                                │
+       │  [Deploy continua...]                                         │
+       │  [...]                                                        │
+       │  [Drain timeout expirado!]                                    │
+       │                                                                │
+       │ ─────── DeployLog (level: WARN, "drain timeout") ─────────>   │
+       │                                                                │
+       │ ─────── DeployResponse (success: false,                       │
+       │                         error: CANCELLED,                     │
+       │                         reason: "agent shutdown") ──────────> │
+       │                                                                │
+       │ ─────── Unregister (reason: SHUTDOWN_TIMEOUT) ────────────>   │
+       │                                                                │
+       │  Estado: DRAINING -> SHUTDOWN                                 │
+       │  [Exit 0]                                                     │
+       │                                                                │
+```
+
+### Protocolo de Auto-Update
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              AUTO-UPDATE PROTOCOL                                           │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+     Agent                                                           Server
+       │                                                                │
+       │ ─────── RegisterRequest (version: 1.0.0) ─────────────────>   │
+       │                                                                │
+       │ <───────── RegisterResponse ────────────────────────────────  │
+       │            (update_available:                                 │
+       │              version: 1.1.0,                                  │
+       │              url: https://...,                                │
+       │              required: false)                                 │
+       │                                                                │
+       │  [Agenda update para proximo periodo de inatividade]          │
+       │                                                                │
+       │  [...operacao normal...]                                      │
+       │                                                                │
+       │  [Periodo de inatividade detectado]                           │
+       │  [Nenhum deploy ativo]                                        │
+       │  Estado: IDLE -> UPDATING                                     │
+       │                                                                │
+       │ ─────── Heartbeat (state: UPDATING) ──────────────────────>   │
+       │                                                                │
+       │  [Download nova versao]                                       │
+       │  [Verificar checksum]                                         │
+       │  [Substituir binario]                                         │
+       │                                                                │
+       │ ─────── Unregister (reason: UPDATE) ──────────────────────>   │
+       │                                                                │
+       │  [Reiniciar via systemd]                                      │
+       │  Estado: UPDATING -> SHUTDOWN                                 │
+       │                                                                │
+       │  [systemd reinicia agent]                                     │
+       │                                                                │
+       │ ─────── RegisterRequest (version: 1.1.0) ─────────────────>   │
+       │                                                                │
+       │ <───────── RegisterResponse (update_available: null) ───────  │
+       │                                                                │
+```
+
+### Implementacao da State Machine
+
+```go
+package agent
+
+import (
+    "context"
+    "sync"
+    "time"
+)
+
+type StateMachine struct {
+    mu           sync.RWMutex
+    currentState AgentState
+    prevState    AgentState
+
+    // Channels para eventos
+    events       chan Event
+    transitions  chan Transition
+
+    // Handlers por estado
+    handlers     map[AgentState]StateHandler
+
+    // Configuracao
+    config       *Config
+
+    // Metricas
+    stateEnterTime time.Time
+    transitionCount int64
+}
+
+type Event struct {
+    Type    EventType
+    Payload interface{}
+    Error   error
+}
+
+type EventType string
+
+const (
+    EventConfigLoaded     EventType = "config_loaded"
+    EventConfigError      EventType = "config_error"
+    EventConnected        EventType = "connected"
+    EventConnectFailed    EventType = "connect_failed"
+    EventRegistered       EventType = "registered"
+    EventRejected         EventType = "rejected"
+    EventDeployCommand    EventType = "deploy_command"
+    EventDeploySuccess    EventType = "deploy_success"
+    EventDeployFailed     EventType = "deploy_failed"
+    EventHeartbeatFailed  EventType = "heartbeat_failed"
+    EventConnectionLost   EventType = "connection_lost"
+    EventReconnected      EventType = "reconnected"
+    EventBackoffComplete  EventType = "backoff_complete"
+    EventMaxRetries       EventType = "max_retries"
+    EventShutdownSignal   EventType = "shutdown_signal"
+    EventUpdateCommand    EventType = "update_command"
+    EventUpdateSuccess    EventType = "update_success"
+    EventUpdateFailed     EventType = "update_failed"
+)
+
+type Transition struct {
+    From      AgentState
+    To        AgentState
+    Event     EventType
+    Timestamp time.Time
+}
+
+type StateHandler interface {
+    Enter(ctx context.Context, sm *StateMachine) error
+    Exit(ctx context.Context, sm *StateMachine) error
+    HandleEvent(ctx context.Context, sm *StateMachine, event Event) (AgentState, error)
+}
+
+func NewStateMachine(config *Config) *StateMachine {
+    sm := &StateMachine{
+        currentState: StateInit,
+        events:       make(chan Event, 100),
+        transitions:  make(chan Transition, 100),
+        handlers:     make(map[AgentState]StateHandler),
+        config:       config,
+    }
+
+    // Registrar handlers
+    sm.handlers[StateInit] = &InitHandler{}
+    sm.handlers[StateConnecting] = &ConnectingHandler{}
+    sm.handlers[StateRegistering] = &RegisteringHandler{}
+    sm.handlers[StateIdle] = &IdleHandler{}
+    sm.handlers[StateDeploying] = &DeployingHandler{}
+    sm.handlers[StateRollback] = &RollbackHandler{}
+    sm.handlers[StateBackoff] = &BackoffHandler{}
+    sm.handlers[StateReconnecting] = &ReconnectingHandler{}
+    sm.handlers[StateUpdating] = &UpdatingHandler{}
+    sm.handlers[StateDraining] = &DrainingHandler{}
+
+    return sm
+}
+
+func (sm *StateMachine) Run(ctx context.Context) error {
+    // Entrar no estado inicial
+    if handler, ok := sm.handlers[sm.currentState]; ok {
+        if err := handler.Enter(ctx, sm); err != nil {
+            return err
+        }
+    }
+
+    sm.stateEnterTime = time.Now()
+
+    for {
+        select {
+        case <-ctx.Done():
+            return ctx.Err()
+
+        case event := <-sm.events:
+            if err := sm.handleEvent(ctx, event); err != nil {
+                // Log error but continue
+                sm.logError(err)
+            }
+        }
+    }
+}
+
+func (sm *StateMachine) handleEvent(ctx context.Context, event Event) error {
+    sm.mu.Lock()
+    defer sm.mu.Unlock()
+
+    handler, ok := sm.handlers[sm.currentState]
+    if !ok {
+        return fmt.Errorf("no handler for state %s", sm.currentState)
+    }
+
+    nextState, err := handler.HandleEvent(ctx, sm, event)
+    if err != nil {
+        return err
+    }
+
+    if nextState != sm.currentState {
+        return sm.transitionTo(ctx, nextState, event.Type)
+    }
+
+    return nil
+}
+
+func (sm *StateMachine) transitionTo(ctx context.Context, newState AgentState, eventType EventType) error {
+    // Exit current state
+    if handler, ok := sm.handlers[sm.currentState]; ok {
+        if err := handler.Exit(ctx, sm); err != nil {
+            return err
+        }
+    }
+
+    // Record transition
+    transition := Transition{
+        From:      sm.currentState,
+        To:        newState,
+        Event:     eventType,
+        Timestamp: time.Now(),
+    }
+
+    select {
+    case sm.transitions <- transition:
+    default:
+        // Channel full, log and continue
+    }
+
+    // Update state
+    sm.prevState = sm.currentState
+    sm.currentState = newState
+    sm.stateEnterTime = time.Now()
+    sm.transitionCount++
+
+    // Enter new state
+    if handler, ok := sm.handlers[newState]; ok {
+        if err := handler.Enter(ctx, sm); err != nil {
+            return err
+        }
+    }
+
+    return nil
+}
+
+func (sm *StateMachine) SendEvent(event Event) {
+    select {
+    case sm.events <- event:
+    default:
+        // Channel full, log warning
+    }
+}
+
+func (sm *StateMachine) CurrentState() AgentState {
+    sm.mu.RLock()
+    defer sm.mu.RUnlock()
+    return sm.currentState
+}
+
+func (sm *StateMachine) StateUptime() time.Duration {
+    sm.mu.RLock()
+    defer sm.mu.RUnlock()
+    return time.Since(sm.stateEnterTime)
+}
+```
+
+### Exemplo de Handler: IdleHandler
+
+```go
+package agent
+
+import (
+    "context"
+    "time"
+)
+
+type IdleHandler struct {
+    heartbeatTicker *time.Ticker
+    heartbeatFails  int
+}
+
+func (h *IdleHandler) Enter(ctx context.Context, sm *StateMachine) error {
+    // Iniciar heartbeat loop
+    h.heartbeatTicker = time.NewTicker(sm.config.HeartbeatInterval)
+    h.heartbeatFails = 0
+
+    go h.heartbeatLoop(ctx, sm)
+
+    return nil
+}
+
+func (h *IdleHandler) Exit(ctx context.Context, sm *StateMachine) error {
+    if h.heartbeatTicker != nil {
+        h.heartbeatTicker.Stop()
+    }
+    return nil
+}
+
+func (h *IdleHandler) HandleEvent(ctx context.Context, sm *StateMachine, event Event) (AgentState, error) {
+    switch event.Type {
+    case EventDeployCommand:
+        return StateDeploying, nil
+
+    case EventHeartbeatFailed:
+        h.heartbeatFails++
+        if h.heartbeatFails >= sm.config.MaxHeartbeatFails {
+            return StateReconnecting, nil
+        }
+        return StateIdle, nil
+
+    case EventShutdownSignal:
+        return StateDraining, nil
+
+    case EventUpdateCommand:
+        return StateUpdating, nil
+
+    case EventConnectionLost:
+        return StateReconnecting, nil
+
+    default:
+        return StateIdle, nil
+    }
+}
+
+func (h *IdleHandler) heartbeatLoop(ctx context.Context, sm *StateMachine) {
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case <-h.heartbeatTicker.C:
+            if err := sm.sendHeartbeat(ctx); err != nil {
+                sm.SendEvent(Event{
+                    Type:  EventHeartbeatFailed,
+                    Error: err,
+                })
+            } else {
+                h.heartbeatFails = 0 // Reset on success
+            }
+        }
+    }
+}
+```
+
+## Resumo da Arquitetura
+
+| Componente        | Tecnologia              | Responsabilidade               |
+| ----------------- | ----------------------- | ------------------------------ |
+| **Protocolo**     | gRPC + Protocol Buffers | Comunicacao tipada e eficiente |
+| **Seguranca**     | mTLS (TLS 1.3)          | Autenticacao mutua             |
+| **Certificados**  | ECDSA P-256             | Leves e seguros                |
+| **Streaming**     | gRPC Bidirectional      | Logs em tempo real             |
+| **Versionamento** | Package versioning      | Compatibilidade backward       |
+| **State Machine** | Event-driven FSM        | Gestao de ciclo de vida        |
+
+## Proximos Passos
+
+1. Criar arquivos .proto com buf
+2. Gerar codigo Go (protoc/buf)
+3. Implementar PKI (CA, certificados)
+4. Implementar gRPC Server
+5. Implementar Agent com gRPC client
+6. Implementar SSH Provisioner
+7. Integrar no frontend

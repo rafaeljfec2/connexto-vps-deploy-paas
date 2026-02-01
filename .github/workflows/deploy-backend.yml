@@ -200,6 +200,7 @@ jobs:
           FRONTEND_URL: ${{ vars.FRONTEND_URL }}
           COOKIE_DOMAIN: ${{ vars.COOKIE_DOMAIN || '' }}
           SESSION_SECURE: ${{ vars.SESSION_SECURE || 'true' }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS || '*' }}
           CLOUDFLARE_SERVER_IP: ${{ vars.CLOUDFLARE_SERVER_IP || '' }}
           API_DOMAIN: ${{ env.API_DOMAIN }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}

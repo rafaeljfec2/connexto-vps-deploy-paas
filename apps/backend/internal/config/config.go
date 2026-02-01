@@ -33,10 +33,11 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Env      string
-	Host     string
-	Port     int
-	LogLevel string
+	Env         string
+	Host        string
+	Port        int
+	LogLevel    string
+	CorsOrigins string
 }
 
 type DatabaseConfig struct {
@@ -94,10 +95,11 @@ type CloudflareConfig struct {
 func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Env:      getEnv("APP_ENV", "development"),
-			Host:     getEnv("HOST", "0.0.0.0"),
-			Port:     getEnvInt("PORT", DefaultPort),
-			LogLevel: getEnv("LOG_LEVEL", "info"),
+			Env:         getEnv("APP_ENV", "development"),
+			Host:        getEnv("HOST", "0.0.0.0"),
+			Port:        getEnvInt("PORT", DefaultPort),
+			LogLevel:    getEnv("LOG_LEVEL", "info"),
+			CorsOrigins: getEnv("CORS_ORIGINS", "*"),
 		},
 		Database: DatabaseConfig{
 			URL: getEnv("DATABASE_URL", ""),

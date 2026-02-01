@@ -20,6 +20,7 @@ type Config struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+	CorsOrigins  string
 }
 
 type Server struct {
@@ -56,12 +57,16 @@ func (s *Server) setupMiddlewares() {
 
 	s.app.Use(middleware.TraceID())
 
-	s.app.Use(cors.New(cors.Config{
-		AllowOrigins: "*",
-		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders: "Content-Type,Authorization,X-Trace-ID",
+	corsConfig := cors.Config{
+		AllowOrigins:  s.config.CorsOrigins,
+		AllowMethods:  "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders:  "Content-Type,Authorization,X-Trace-ID",
 		ExposeHeaders: "X-Trace-ID",
-	}))
+	}
+	if s.config.CorsOrigins != "*" && s.config.CorsOrigins != "" {
+		corsConfig.AllowCredentials = true
+	}
+	s.app.Use(cors.New(corsConfig))
 
 	s.app.Use(logger.New(logger.Config{
 		Format:     "${time} | ${status} | ${latency} | ${method} ${path} | trace=${locals:traceId}\n",
