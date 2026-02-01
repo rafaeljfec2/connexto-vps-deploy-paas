@@ -113,15 +113,15 @@ export function MigrationPage() {
   const sslCertificates = status.sslCertificates ?? [];
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Migration Center</h1>
-          <p className="text-muted-foreground">
-            Migrate from Nginx to Traefik and manage your server configuration
+          <h1 className="text-xl sm:text-2xl font-bold">Migration Center</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Migrate from Nginx to Traefik
           </p>
         </div>
-        <Button variant="outline" onClick={() => refetch()}>
+        <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>

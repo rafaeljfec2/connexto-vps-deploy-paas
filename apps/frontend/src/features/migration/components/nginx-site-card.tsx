@@ -76,43 +76,63 @@ export function NginxSiteCard({
   return (
     <Collapsible open={expanded} onOpenChange={onToggle}>
       <div className="border rounded-lg">
-        <CollapsibleTrigger className="w-full p-4 flex items-center justify-between hover:bg-muted/50">
-          <div className="flex items-center gap-3">
-            {expanded ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-            <Globe className="h-5 w-5 text-blue-500" />
-            <div className="text-left">
-              <p className="font-medium">{serverNames[0]}</p>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <CollapsibleTrigger className="w-full p-3 sm:p-4 hover:bg-muted/50">
+          <div className="flex items-start gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 shrink-0 pt-0.5">
+              {expanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+              <Globe className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="font-medium text-sm sm:text-base truncate">
+                {serverNames[0]}
+              </p>
+              <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm text-muted-foreground mt-1">
                 {site.sslEnabled && (
-                  <Badge variant="outline" className="text-green-600">
+                  <Badge variant="outline" className="text-green-600 text-xs">
                     <Lock className="h-3 w-3 mr-1" />
                     SSL
                   </Badge>
                 )}
                 <span>Locations: {locations.length}</span>
                 {uniquePorts.length > 0 && (
-                  <span>Ports: {uniquePorts.join(", ")}</span>
+                  <span className="truncate">
+                    Ports: {uniquePorts.join(", ")}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-1 mt-1 sm:hidden">
+                {site.hasSSE && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Radio className="h-3 w-3 mr-1" />
+                    SSE
+                  </Badge>
+                )}
+                {site.hasWebSocket && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Zap className="h-3 w-3 mr-1" />
+                    WS
+                  </Badge>
                 )}
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {site.hasSSE && (
-              <Badge variant="secondary">
-                <Radio className="h-3 w-3 mr-1" />
-                SSE
-              </Badge>
-            )}
-            {site.hasWebSocket && (
-              <Badge variant="secondary">
-                <Zap className="h-3 w-3 mr-1" />
-                WebSocket
-              </Badge>
-            )}
+            <div className="hidden sm:flex items-center gap-2 shrink-0">
+              {site.hasSSE && (
+                <Badge variant="secondary">
+                  <Radio className="h-3 w-3 mr-1" />
+                  SSE
+                </Badge>
+              )}
+              {site.hasWebSocket && (
+                <Badge variant="secondary">
+                  <Zap className="h-3 w-3 mr-1" />
+                  WebSocket
+                </Badge>
+              )}
+            </div>
           </div>
         </CollapsibleTrigger>
 
@@ -179,22 +199,27 @@ export function NginxSiteCard({
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-2">
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full sm:w-auto justify-start sm:justify-center"
+                  >
                     <Code className="h-4 w-4 mr-2" />
-                    View Raw Config
+                    <span className="sm:hidden">Nginx Config</span>
+                    <span className="hidden sm:inline">View Raw Config</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-3xl">
+                <DialogContent className="max-w-[95vw] sm:max-w-3xl">
                   <DialogHeader>
-                    <DialogTitle>
-                      Nginx Configuration - {serverNames[0]}
+                    <DialogTitle className="text-sm sm:text-base truncate">
+                      Nginx - {serverNames[0]}
                     </DialogTitle>
                   </DialogHeader>
-                  <ScrollArea className="h-[500px]">
-                    <pre className="text-sm p-4 bg-muted rounded">
+                  <ScrollArea className="h-[60vh] sm:h-[500px]">
+                    <pre className="text-xs sm:text-sm p-2 sm:p-4 bg-muted rounded overflow-x-auto">
                       {site.rawConfig}
                     </pre>
                   </ScrollArea>
@@ -206,18 +231,24 @@ export function NginxSiteCard({
                   <Button
                     variant="outline"
                     size="sm"
+                    className="w-full sm:w-auto justify-start sm:justify-center"
                     onClick={loadTraefikPreview}
                   >
                     <Shield className="h-4 w-4 mr-2" />
-                    View Traefik Config
+                    <span className="sm:hidden">Traefik Labels</span>
+                    <span className="hidden sm:inline">
+                      View Traefik Config
+                    </span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-3xl">
+                <DialogContent className="max-w-[95vw] sm:max-w-3xl">
                   <DialogHeader>
-                    <DialogTitle>Traefik Labels - {serverNames[0]}</DialogTitle>
+                    <DialogTitle className="text-sm sm:text-base truncate">
+                      Traefik - {serverNames[0]}
+                    </DialogTitle>
                   </DialogHeader>
-                  <ScrollArea className="h-[500px]">
-                    <pre className="text-sm p-4 bg-muted rounded">
+                  <ScrollArea className="h-[60vh] sm:h-[500px]">
+                    <pre className="text-xs sm:text-sm p-2 sm:p-4 bg-muted rounded overflow-x-auto">
                       {traefikPreview ?? "Loading..."}
                     </pre>
                   </ScrollArea>
@@ -225,18 +256,18 @@ export function NginxSiteCard({
               </Dialog>
             </div>
 
-            <div className="flex items-center gap-2 pt-4 border-t mt-4">
+            <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t mt-4">
               <Select
                 value={selectedContainer}
                 onValueChange={setSelectedContainer}
               >
-                <SelectTrigger className="w-[280px]">
-                  <SelectValue placeholder="Select container to migrate" />
+                <SelectTrigger className="w-full sm:w-[280px]">
+                  <SelectValue placeholder="Select container" />
                 </SelectTrigger>
                 <SelectContent>
                   {containers.map((container) => (
                     <SelectItem key={container.id} value={container.id}>
-                      {container.name} ({container.image.split("/").pop()})
+                      {container.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -244,6 +275,7 @@ export function NginxSiteCard({
 
               <Button
                 size="sm"
+                className="w-full sm:w-auto"
                 disabled={!selectedContainer || migrateMutation.isPending}
                 onClick={() =>
                   migrateMutation.mutate({
@@ -253,9 +285,7 @@ export function NginxSiteCard({
                 }
               >
                 <ArrowRightLeft className="h-4 w-4 mr-2" />
-                {migrateMutation.isPending
-                  ? "Migrating..."
-                  : "Migrate to Traefik"}
+                {migrateMutation.isPending ? "Migrating..." : "Migrate"}
               </Button>
             </div>
 
