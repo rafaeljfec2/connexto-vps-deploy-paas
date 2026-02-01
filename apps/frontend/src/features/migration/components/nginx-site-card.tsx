@@ -33,8 +33,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/services/api";
-import { useMigrateSiteMutation } from "../hooks/use-migration";
 import type { MigrationContainer, NginxSite, SSLCertificate } from "@/types";
+import { useMigrateSiteMutation } from "../hooks/use-migration";
 
 interface NginxSiteCardProps {
   readonly site: NginxSite;
@@ -253,21 +253,25 @@ export function NginxSiteCard({
                 }
               >
                 <ArrowRightLeft className="h-4 w-4 mr-2" />
-                {migrateMutation.isPending ? "Migrating..." : "Migrate to Traefik"}
+                {migrateMutation.isPending
+                  ? "Migrating..."
+                  : "Migrate to Traefik"}
               </Button>
             </div>
 
             {migrateMutation.isSuccess && (
               <div className="mt-2 p-2 bg-green-500/10 border border-green-500/20 rounded text-sm text-green-600">
-                Migration successful! Container {migrateMutation.data.containerName} now has Traefik labels.
+                Migration successful! Container{" "}
+                {migrateMutation.data.containerName} now has Traefik labels.
               </div>
             )}
 
-            {migrateMutation.isError && migrateMutation.error instanceof Error && (
-              <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-sm text-red-600">
-                Migration failed: {migrateMutation.error.message}
-              </div>
-            )}
+            {migrateMutation.isError &&
+              migrateMutation.error instanceof Error && (
+                <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-sm text-red-600">
+                  Migration failed: {migrateMutation.error.message}
+                </div>
+              )}
           </div>
         </CollapsibleContent>
       </div>

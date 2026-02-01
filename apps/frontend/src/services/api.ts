@@ -17,6 +17,7 @@ import type {
   Deployment,
   EnvVar,
   HealthStatus,
+  MigrateResult,
   MigrationStatus,
   TraefikPreview,
   UpdateAppInput,
