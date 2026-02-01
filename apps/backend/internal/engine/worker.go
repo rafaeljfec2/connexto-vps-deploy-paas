@@ -354,7 +354,9 @@ func (w *Worker) generateComposeFile(ctx context.Context, appDir, appName, appID
 		"%s"+
 		"%s"+
 		"    healthcheck:\n"+
-		"      test: [\"CMD-SHELL\", \"%s\"]\n"+
+		"      test:\n"+
+		"        - CMD-SHELL\n"+
+		"        - %s\n"+
 		"      interval: %s\n"+
 		"      timeout: %s\n"+
 		"      retries: %d\n"+
@@ -424,24 +426,24 @@ func buildHealthCheckCommand(runtime string, port int, path string) string {
 	switch strings.ToLower(runtime) {
 	case "node", "nodejs", "node.js":
 		return fmt.Sprintf(
-			"node -e \"const h=require('http');h.get('%s',(r)=>process.exit(r.statusCode>=200&&r.statusCode<400?0:1)).on('error',()=>process.exit(1))\"",
+			`node -e 'const h=require("http");h.get("%s",(r)=>process.exit(r.statusCode>=200&&r.statusCode<400?0:1)).on("error",()=>process.exit(1))'`,
 			url,
 		)
 	case "python", "python3":
 		return fmt.Sprintf(
-			"python3 -c \"import urllib.request,sys;urllib.request.urlopen('%s');sys.exit(0)\" 2>/dev/null || python -c \"import urllib.request,sys;urllib.request.urlopen('%s');sys.exit(0)\"",
+			`python3 -c 'import urllib.request,sys;urllib.request.urlopen("%s");sys.exit(0)' 2>/dev/null || python -c 'import urllib.request,sys;urllib.request.urlopen("%s");sys.exit(0)'`,
 			url, url,
 		)
 	case "go", "golang":
 		return fmt.Sprintf("curl -sf %s || wget -q --spider %s || exit 1", url, url)
 	case "ruby":
 		return fmt.Sprintf(
-			"ruby -e \"require 'net/http';exit(Net::HTTP.get_response(URI('%s')).is_a?(Net::HTTPSuccess)?0:1)\"",
+			`ruby -e 'require "net/http";exit(Net::HTTP.get_response(URI("%s")).is_a?(Net::HTTPSuccess)?0:1)'`,
 			url,
 		)
 	case "php":
 		return fmt.Sprintf(
-			"php -r \"exit(file_get_contents('%s')!==false?0:1);\"",
+			`php -r 'exit(file_get_contents("%s")!==false?0:1);'`,
 			url,
 		)
 	default:

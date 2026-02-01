@@ -353,7 +353,9 @@ func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployCo
 		"%s"+
 		"%s"+
 		"    healthcheck:\n"+
-		"      test: [\"CMD-SHELL\", \"%s\"]\n"+
+		"      test:\n"+
+		"        - CMD-SHELL\n"+
+		"        - %s\n"+
 		"      interval: %s\n"+
 		"      timeout: %s\n"+
 		"      retries: %d\n"+
