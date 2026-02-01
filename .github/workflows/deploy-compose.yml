@@ -1,0 +1,74 @@
+name: Deploy with Docker Compose
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - "deploy/**"
+      - ".github/workflows/deploy-compose.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DEPLOY_PATH: ~/paasdeploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: Prod
+    steps:
+      - name: Validate required secrets
+        run: |
+          echo "🔍 Validating environment variables..."
+          missing_vars=()
+
+          [ -z "$SERVER_USER" ] && missing_vars+=("SERVER_USER")
+          [ -z "$SERVER_HOST" ] && missing_vars+=("SERVER_HOST")
+          [ -z "$SERVER_PASSWORD" ] && missing_vars+=("SERVER_PASSWORD")
+          [ -z "$POSTGRES_USER" ] && missing_vars+=("POSTGRES_USER")
+          [ -z "$POSTGRES_PASSWORD" ] && missing_vars+=("POSTGRES_PASSWORD")
+          [ -z "$POSTGRES_DB" ] && missing_vars+=("POSTGRES_DB")
+
+          if [ ${#missing_vars[@]} -gt 0 ]; then
+            echo "❌ Missing required variables:"
+            printf '  - %s\n' "${missing_vars[@]}"
+            exit 1
+          fi
+
+          echo "✅ All required variables are set"
+        env:
+          SERVER_USER: ${{ vars.SERVER_USER }}
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install expect
+        run: sudo apt-get update && sudo apt-get install -y expect
+
+      - name: Deploy with docker-compose
+        run: |
+          chmod +x .github/scripts/deploy-compose.exp
+          .github/scripts/deploy-compose.exp
+        env:
+          SERVER_USER: ${{ vars.SERVER_USER }}
+          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+
+      - name: Verify deployment
+        run: |
+          echo "🎉 Deployment completed!"
+          echo "🌐 Server: ${{ vars.SERVER_HOST }}"

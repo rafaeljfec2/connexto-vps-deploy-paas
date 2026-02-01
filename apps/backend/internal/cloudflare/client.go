@@ -12,7 +12,10 @@ import (
 )
 
 const (
-	baseURL = "https://api.cloudflare.com/client/v4"
+	baseURL            = "https://api.cloudflare.com/client/v4"
+	errRequestFailed   = "request failed: %w"
+	errDecodeResponse  = "decode response: %w"
+	errCloudflareAPI   = "cloudflare API error: %v"
 )
 
 type Client struct {
@@ -82,17 +85,17 @@ func (c *Client) doRequest(ctx context.Context, method, path string, body io.Rea
 func (c *Client) GetUserInfo(ctx context.Context) (*UserInfo, error) {
 	resp, err := c.doRequest(ctx, http.MethodGet, "/user", nil)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf(errRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	var result apiResponse[UserInfo]
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	if !result.Success {
-		return nil, fmt.Errorf("cloudflare API error: %v", result.Errors)
+		return nil, fmt.Errorf(errCloudflareAPI, result.Errors)
 	}
 
 	return &result.Result, nil
@@ -102,17 +105,17 @@ func (c *Client) GetZoneID(ctx context.Context, domain string) (string, error) {
 	path := fmt.Sprintf("/zones?name=%s", domain)
 	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return "", fmt.Errorf("request failed: %w", err)
+		return "", fmt.Errorf(errRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	var result apiResponse[[]Zone]
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
+		return "", fmt.Errorf(errDecodeResponse, err)
 	}
 
 	if !result.Success {
-		return "", fmt.Errorf("cloudflare API error: %v", result.Errors)
+		return "", fmt.Errorf(errCloudflareAPI, result.Errors)
 	}
 
 	if len(result.Result) == 0 {
@@ -182,17 +185,17 @@ func (c *Client) createRecord(ctx context.Context, zoneID string, record DNSReco
 	path := fmt.Sprintf("/zones/%s/dns_records", zoneID)
 	resp, err := c.doRequest(ctx, http.MethodPost, path, strings.NewReader(string(body)))
 	if err != nil {
-		return "", fmt.Errorf("request failed: %w", err)
+		return "", fmt.Errorf(errRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	var result apiResponse[DNSRecord]
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decode response: %w", err)
+		return "", fmt.Errorf(errDecodeResponse, err)
 	}
 
 	if !result.Success {
-		return "", fmt.Errorf("cloudflare API error: %v", result.Errors)
+		return "", fmt.Errorf(errCloudflareAPI, result.Errors)
 	}
 
 	c.logger.Info("DNS record created",
@@ -209,7 +212,7 @@ func (c *Client) DeleteRecord(ctx context.Context, zoneID, recordID string) erro
 	path := fmt.Sprintf("/zones/%s/dns_records/%s", zoneID, recordID)
 	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return fmt.Errorf(errRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -217,11 +220,11 @@ func (c *Client) DeleteRecord(ctx context.Context, zoneID, recordID string) erro
 		ID string `json:"id"`
 	}]
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("decode response: %w", err)
+		return fmt.Errorf(errDecodeResponse, err)
 	}
 
 	if !result.Success {
-		return fmt.Errorf("cloudflare API error: %v", result.Errors)
+		return fmt.Errorf(errCloudflareAPI, result.Errors)
 	}
 
 	c.logger.Info("DNS record deleted", "record_id", recordID)
@@ -237,17 +240,17 @@ func (c *Client) ListRecords(ctx context.Context, zoneID, name string) ([]DNSRec
 
 	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf(errRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	var result apiResponse[[]DNSRecord]
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	if !result.Success {
-		return nil, fmt.Errorf("cloudflare API error: %v", result.Errors)
+		return nil, fmt.Errorf(errCloudflareAPI, result.Errors)
 	}
 
 	return result.Result, nil
@@ -261,13 +264,13 @@ type TokenInfo struct {
 func (c *Client) VerifyToken(ctx context.Context) (*TokenInfo, error) {
 	resp, err := c.doRequest(ctx, http.MethodGet, "/user/tokens/verify", nil)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf(errRequestFailed, err)
 	}
 	defer resp.Body.Close()
 
 	var result apiResponse[TokenInfo]
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	if !result.Success {

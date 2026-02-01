@@ -1,9 +1,15 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NETWORK_NAME="paasdeploy"
 
 echo "=== PaaS Deploy - Starting ==="
+
+if [ ! -f "$SCRIPT_DIR/.env" ]; then
+    echo "Creating .env from .env.example..."
+    cp "$SCRIPT_DIR/.env.example" "$SCRIPT_DIR/.env"
+fi
 
 if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
     echo "Creating Docker network: $NETWORK_NAME"
@@ -13,7 +19,7 @@ else
 fi
 
 echo "Starting services with docker-compose..."
-docker compose up -d --build
+docker compose --env-file "$SCRIPT_DIR/.env" up -d --build
 
 echo ""
 echo "=== PaaS Deploy started successfully ==="

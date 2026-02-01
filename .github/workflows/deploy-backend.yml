@@ -162,7 +162,7 @@ jobs:
           SERVER_HOST: ${{ vars.SERVER_HOST }}
           SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
-          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'admin@connexto.com.br' }}
+          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'contato@connexto.com.br' }}
 
       - name: Deploy container
         run: |
@@ -204,7 +204,7 @@ jobs:
           CLOUDFLARE_SERVER_IP: ${{ vars.CLOUDFLARE_SERVER_IP || '' }}
           API_DOMAIN: ${{ env.API_DOMAIN }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
-          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'admin@connexto.com.br' }}
+          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'contato@connexto.com.br' }}
 
       - name: Verify deployment
         run: |
