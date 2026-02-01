@@ -172,6 +172,7 @@ export function MigrationPage() {
                 expanded={expandedSites.has(index)}
                 onToggle={() => toggleSiteExpanded(index)}
                 certificates={sslCertificates}
+                containers={containers}
               />
             ))
           )}

@@ -30,6 +30,7 @@ func (h *MigrationHandler) Register(app fiber.Router) {
 	m.Post("/containers/start", h.StartContainers)
 	m.Post("/proxy/stop-nginx", h.StopNginx)
 	m.Get("/sites/:index/traefik", h.GetTraefikConfig)
+	m.Post("/sites/:index/migrate", h.MigrateSite)
 }
 
 func (h *MigrationHandler) GetStatus(c *fiber.Ctx) error {
@@ -137,4 +138,46 @@ func (h *MigrationHandler) GetTraefikConfig(c *fiber.Ctx) error {
 		"configs": configs,
 		"yaml":    yaml,
 	})
+}
+
+type MigrateSiteRequest struct {
+	ContainerID string `json:"containerId"`
+}
+
+func (h *MigrationHandler) MigrateSite(c *fiber.Ctx) error {
+	index, err := c.ParamsInt("index")
+	if err != nil {
+		return response.BadRequest(c, "Invalid site index")
+	}
+
+	var req MigrateSiteRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "Invalid request body")
+	}
+
+	if req.ContainerID == "" {
+		return response.BadRequest(c, "Container ID is required")
+	}
+
+	status, err := h.service.GetStatus(c.Context())
+	if err != nil {
+		return response.InternalError(c)
+	}
+
+	if index < 0 || index >= len(status.NginxSites) {
+		return response.BadRequest(c, "Site index out of range")
+	}
+
+	site := status.NginxSites[index]
+
+	h.logger.Info("Starting migration", "site", site.ServerNames[0], "container", req.ContainerID)
+
+	result, err := h.service.MigrateContainer(c.Context(), site, req.ContainerID)
+	if err != nil {
+		h.logger.Error("Migration failed", "error", err)
+		return response.BadRequest(c, "Migration failed: "+err.Error())
+	}
+
+	h.logger.Info("Migration completed", "site", site.ServerNames[0], "newContainer", result.ContainerID)
+	return response.OK(c, result)
 }

@@ -3,6 +3,7 @@ export { NginxSiteCard } from "./components/nginx-site-card";
 export { SSLCertificateRow } from "./components/ssl-certificate-row";
 export {
   useBackupMutation,
+  useMigrateSiteMutation,
   useMigrationStatus,
   useStartContainersMutation,
   useStopContainersMutation,

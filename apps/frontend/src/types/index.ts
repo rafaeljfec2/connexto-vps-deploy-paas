@@ -290,3 +290,12 @@ export interface TraefikPreview {
   readonly configs: readonly TraefikConfig[];
   readonly yaml: string;
 }
+
+export interface MigrateResult {
+  readonly containerId: string;
+  readonly containerName: string;
+  readonly domain: string;
+  readonly labels: readonly string[];
+  readonly success: boolean;
+  readonly message: string;
+}

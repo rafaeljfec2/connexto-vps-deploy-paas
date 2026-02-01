@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  ArrowRightLeft,
   ChevronDown,
   ChevronRight,
   Code,
@@ -24,8 +25,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/services/api";
-import type { NginxSite, SSLCertificate } from "@/types";
+import { useMigrateSiteMutation } from "../hooks/use-migration";
+import type { MigrationContainer, NginxSite, SSLCertificate } from "@/types";
 
 interface NginxSiteCardProps {
   readonly site: NginxSite;
@@ -33,6 +42,7 @@ interface NginxSiteCardProps {
   readonly expanded: boolean;
   readonly onToggle: () => void;
   readonly certificates: readonly SSLCertificate[];
+  readonly containers: readonly MigrationContainer[];
 }
 
 export function NginxSiteCard({
@@ -41,8 +51,11 @@ export function NginxSiteCard({
   expanded,
   onToggle,
   certificates,
+  containers,
 }: NginxSiteCardProps) {
   const [traefikPreview, setTraefikPreview] = useState<string | null>(null);
+  const [selectedContainer, setSelectedContainer] = useState<string>("");
+  const migrateMutation = useMigrateSiteMutation();
 
   const loadTraefikPreview = async () => {
     const preview = await api.migration.getTraefikConfig(index);
@@ -166,7 +179,7 @@ export function NginxSiteCard({
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex flex-wrap gap-2 pt-2">
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -211,6 +224,50 @@ export function NginxSiteCard({
                 </DialogContent>
               </Dialog>
             </div>
+
+            <div className="flex items-center gap-2 pt-4 border-t mt-4">
+              <Select
+                value={selectedContainer}
+                onValueChange={setSelectedContainer}
+              >
+                <SelectTrigger className="w-[280px]">
+                  <SelectValue placeholder="Select container to migrate" />
+                </SelectTrigger>
+                <SelectContent>
+                  {containers.map((container) => (
+                    <SelectItem key={container.id} value={container.id}>
+                      {container.name} ({container.image.split("/").pop()})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                size="sm"
+                disabled={!selectedContainer || migrateMutation.isPending}
+                onClick={() =>
+                  migrateMutation.mutate({
+                    siteIndex: index,
+                    containerId: selectedContainer,
+                  })
+                }
+              >
+                <ArrowRightLeft className="h-4 w-4 mr-2" />
+                {migrateMutation.isPending ? "Migrating..." : "Migrate to Traefik"}
+              </Button>
+            </div>
+
+            {migrateMutation.isSuccess && (
+              <div className="mt-2 p-2 bg-green-500/10 border border-green-500/20 rounded text-sm text-green-600">
+                Migration successful! Container {migrateMutation.data.containerName} now has Traefik labels.
+              </div>
+            )}
+
+            {migrateMutation.isError && migrateMutation.error instanceof Error && (
+              <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded text-sm text-red-600">
+                Migration failed: {migrateMutation.error.message}
+              </div>
+            )}
           </div>
         </CollapsibleContent>
       </div>

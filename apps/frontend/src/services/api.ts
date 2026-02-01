@@ -389,5 +389,17 @@ export const api = {
       fetchApi<TraefikPreview>(
         `${API_BASE}/migration/sites/${siteIndex}/traefik`,
       ),
+
+    migrateSite: (
+      siteIndex: number,
+      containerId: string,
+    ): Promise<MigrateResult> =>
+      fetchApi<MigrateResult>(
+        `${API_BASE}/migration/sites/${siteIndex}/migrate`,
+        {
+          method: "POST",
+          body: JSON.stringify({ containerId }),
+        },
+      ),
   },
 };

@@ -2,6 +2,7 @@ package migration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -377,4 +378,141 @@ func (s *MigrationService) GetTraefikConfigs(site NginxSite) []TraefikConfig {
 func (s *MigrationService) GetTraefikLabelsYAML(site NginxSite) string {
 	configs := s.traefikConverter.ConvertSite(site)
 	return s.traefikConverter.GenerateYAMLLabels(configs)
+}
+
+type MigrateResult struct {
+	ContainerID   string   `json:"containerId"`
+	ContainerName string   `json:"containerName"`
+	Domain        string   `json:"domain"`
+	Labels        []string `json:"labels"`
+	Success       bool     `json:"success"`
+	Message       string   `json:"message"`
+}
+
+func (s *MigrationService) MigrateContainer(ctx context.Context, site NginxSite, containerID string) (*MigrateResult, error) {
+	s.logger.Info("Starting container migration", "container", containerID, "domain", site.ServerNames[0])
+
+	configs := s.traefikConverter.ConvertSite(site)
+	if len(configs) == 0 {
+		return nil, fmt.Errorf("no traefik config generated for site")
+	}
+
+	inspectCmd := exec.CommandContext(ctx, "docker", "inspect", containerID)
+	inspectOutput, err := inspectCmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container: %w", err)
+	}
+
+	var containerInfo []map[string]interface{}
+	if err := parseJSON(inspectOutput, &containerInfo); err != nil {
+		return nil, fmt.Errorf("failed to parse container info: %w", err)
+	}
+
+	if len(containerInfo) == 0 {
+		return nil, fmt.Errorf("container not found")
+	}
+
+	info := containerInfo[0]
+	containerName := strings.TrimPrefix(info["Name"].(string), "/")
+
+	config := info["Config"].(map[string]interface{})
+	hostConfig := info["HostConfig"].(map[string]interface{})
+	networkSettings := info["NetworkSettings"].(map[string]interface{})
+
+	image := config["Image"].(string)
+
+	var labels []string
+	labels = append(labels, "traefik.enable=true")
+	for _, cfg := range configs {
+		labels = append(labels, fmt.Sprintf("traefik.http.routers.%s.rule=Host(`%s`)", cfg.ServiceName, cfg.Domain))
+		labels = append(labels, fmt.Sprintf("traefik.http.routers.%s.entrypoints=websecure", cfg.ServiceName))
+		labels = append(labels, fmt.Sprintf("traefik.http.routers.%s.tls=true", cfg.ServiceName))
+		labels = append(labels, fmt.Sprintf("traefik.http.routers.%s.tls.certresolver=letsencrypt", cfg.ServiceName))
+		labels = append(labels, fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port=%d", cfg.ServiceName, cfg.Port))
+
+		labels = append(labels, fmt.Sprintf("traefik.http.routers.%s-http.rule=Host(`%s`)", cfg.ServiceName, cfg.Domain))
+		labels = append(labels, fmt.Sprintf("traefik.http.routers.%s-http.entrypoints=web", cfg.ServiceName))
+		labels = append(labels, fmt.Sprintf("traefik.http.routers.%s-http.middlewares=redirect-to-https", cfg.ServiceName))
+	}
+	labels = append(labels, "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https")
+
+	s.logger.Info("Stopping container", "name", containerName)
+	stopCmd := exec.CommandContext(ctx, "docker", "stop", containerID)
+	if err := stopCmd.Run(); err != nil {
+		return nil, fmt.Errorf("failed to stop container: %w", err)
+	}
+
+	renameCmd := exec.CommandContext(ctx, "docker", "rename", containerName, containerName+"-backup")
+	if err := renameCmd.Run(); err != nil {
+		startCmd := exec.CommandContext(ctx, "docker", "start", containerID)
+		startCmd.Run()
+		return nil, fmt.Errorf("failed to rename container: %w", err)
+	}
+
+	args := []string{"run", "-d", "--name", containerName}
+
+	if restartPolicy, ok := hostConfig["RestartPolicy"].(map[string]interface{}); ok {
+		if name, ok := restartPolicy["Name"].(string); ok && name != "" {
+			args = append(args, "--restart", name)
+		}
+	}
+
+	networks := networkSettings["Networks"].(map[string]interface{})
+	for netName := range networks {
+		if netName != "bridge" {
+			args = append(args, "--network", netName)
+		}
+	}
+
+	if binds, ok := hostConfig["Binds"].([]interface{}); ok {
+		for _, bind := range binds {
+			args = append(args, "-v", bind.(string))
+		}
+	}
+
+	if env, ok := config["Env"].([]interface{}); ok {
+		for _, e := range env {
+			envStr := e.(string)
+			if !strings.HasPrefix(envStr, "PATH=") && !strings.HasPrefix(envStr, "HOME=") {
+				args = append(args, "-e", envStr)
+			}
+		}
+	}
+
+	for _, label := range labels {
+		args = append(args, "--label", label)
+	}
+
+	args = append(args, image)
+
+	s.logger.Info("Creating new container with Traefik labels", "args", args)
+	createCmd := exec.CommandContext(ctx, "docker", args...)
+	output, err := createCmd.CombinedOutput()
+	if err != nil {
+		s.logger.Error("Failed to create container, rolling back", "error", err, "output", string(output))
+		rollbackRename := exec.CommandContext(ctx, "docker", "rename", containerName+"-backup", containerName)
+		rollbackRename.Run()
+		startCmd := exec.CommandContext(ctx, "docker", "start", containerID)
+		startCmd.Run()
+		return nil, fmt.Errorf("failed to create container: %s", string(output))
+	}
+
+	newContainerID := strings.TrimSpace(string(output))
+	s.logger.Info("Container migrated successfully", "newId", newContainerID)
+
+	removeBackup := exec.CommandContext(ctx, "docker", "rm", containerName+"-backup")
+	removeBackup.Run()
+
+	return &MigrateResult{
+		ContainerID:   newContainerID,
+		ContainerName: containerName,
+		Domain:        site.ServerNames[0],
+		Labels:        labels,
+		Success:       true,
+		Message:       "Container migrated successfully with Traefik labels",
+	}, nil
+}
+
+func parseJSON(data []byte, v interface{}) error {
+	return json.Unmarshal(data, v)
 }

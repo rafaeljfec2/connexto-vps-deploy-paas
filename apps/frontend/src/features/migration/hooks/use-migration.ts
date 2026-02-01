@@ -56,3 +56,20 @@ export function useStopNginxMutation() {
     },
   });
 }
+
+interface MigrateSiteParams {
+  readonly siteIndex: number;
+  readonly containerId: string;
+}
+
+export function useMigrateSiteMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ siteIndex, containerId }: MigrateSiteParams) =>
+      api.migration.migrateSite(siteIndex, containerId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.status });
+    },
+  });
+}
