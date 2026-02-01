@@ -360,7 +360,9 @@ export const api = {
       fetchApiList<CertificateStatus>(`${API_URL}/api/certificates`),
 
     getStatus: (domain: string): Promise<CertificateStatus> =>
-      fetchApi<CertificateStatus>(`${API_URL}/api/certificates/${encodeURIComponent(domain)}`),
+      fetchApi<CertificateStatus>(
+        `${API_URL}/api/certificates/${encodeURIComponent(domain)}`,
+      ),
   },
 
   migration: {

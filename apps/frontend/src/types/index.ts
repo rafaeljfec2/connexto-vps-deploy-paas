@@ -76,7 +76,12 @@ export interface WebhookStatus {
   readonly error: string | null;
 }
 
-export type CertificateStatusType = "active" | "pending" | "no_tls" | "unknown" | "error";
+export type CertificateStatusType =
+  | "active"
+  | "pending"
+  | "no_tls"
+  | "unknown"
+  | "error";
 
 export interface CertificateStatus {
   readonly domain: string;

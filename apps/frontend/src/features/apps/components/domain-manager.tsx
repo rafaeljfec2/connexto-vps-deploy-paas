@@ -44,7 +44,11 @@ interface DomainManagerProps {
   readonly appId: string;
 }
 
-function CertificateStatusBadge({ status }: { readonly status?: CertificateStatus }) {
+function CertificateStatusBadge({
+  status,
+}: {
+  readonly status?: CertificateStatus;
+}) {
   if (!status) {
     return (
       <TooltipProvider>
@@ -65,6 +69,7 @@ function CertificateStatusBadge({ status }: { readonly status?: CertificateStatu
       icon: ShieldCheck,
       color: "text-green-500",
       label: "SSL Certificate Active",
+      animate: false,
     },
     pending: {
       icon: Loader2,
@@ -76,16 +81,19 @@ function CertificateStatusBadge({ status }: { readonly status?: CertificateStatu
       icon: ShieldAlert,
       color: "text-orange-500",
       label: "No SSL configured",
+      animate: false,
     },
     unknown: {
       icon: ShieldQuestion,
       color: "text-muted-foreground",
       label: "Certificate status unknown",
+      animate: false,
     },
     error: {
       icon: ShieldAlert,
       color: "text-red-500",
       label: status.error ?? "Certificate error",
+      animate: false,
     },
   };
 
@@ -96,7 +104,9 @@ function CertificateStatusBadge({ status }: { readonly status?: CertificateStatu
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger>
-          <Icon className={`h-4 w-4 ${config.color} ${config.animate ? "animate-spin" : ""}`} />
+          <Icon
+            className={`h-4 w-4 ${config.color} ${config.animate ? "animate-spin" : ""}`}
+          />
         </TooltipTrigger>
         <TooltipContent>
           <p>{config.label}</p>
@@ -134,7 +144,9 @@ export function DomainManager({ appId }: DomainManagerProps) {
     refetchInterval: 30000,
   });
 
-  const getCertificateStatus = (domain: string): CertificateStatus | undefined => {
+  const getCertificateStatus = (
+    domain: string,
+  ): CertificateStatus | undefined => {
     return certificates.find((cert) => cert.domain === domain);
   };
 
@@ -273,7 +285,9 @@ export function DomainManager({ appId }: DomainManagerProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <CertificateStatusBadge status={getCertificateStatus(domain.domain)} />
+                    <CertificateStatusBadge
+                      status={getCertificateStatus(domain.domain)}
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
