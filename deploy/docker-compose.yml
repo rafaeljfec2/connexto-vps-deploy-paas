@@ -58,9 +58,11 @@ services:
       DEPLOY_WORKERS: "2"
       DEPLOY_TIMEOUT: "600"
       HEALTH_CHECK_TIMEOUT: "60"
+      DOCKER_BUILDKIT: "1"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/run/docker.sock:/var/run/docker.sock
       - deploy-data:/data/apps
+      - buildkit-cache:/var/cache/paasdeploy/buildkit
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,3 +100,4 @@ volumes:
   deploy-data:
   traefik-logs:
   traefik-certs:
+  buildkit-cache:

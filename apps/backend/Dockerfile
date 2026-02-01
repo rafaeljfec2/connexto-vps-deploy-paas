@@ -30,6 +30,7 @@ RUN apk add --no-cache \
     ca-certificates \
     git \
     docker-cli \
+    docker-cli-buildx \
     docker-cli-compose \
     tzdata && \
     addgroup -S paasdeploy && \

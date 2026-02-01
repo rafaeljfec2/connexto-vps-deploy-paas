@@ -23,6 +23,7 @@ type Engine struct {
 	healthMonitor    *HealthMonitor
 	statsMonitor     *StatsMonitor
 	docker           *DockerClient
+	locker           *Locker
 	workers          []*Worker
 	logger           *slog.Logger
 	ctx              context.Context
@@ -53,6 +54,7 @@ func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRep
 		healthMonitor:    healthMonitor,
 		statsMonitor:     statsMonitor,
 		docker:           docker,
+		locker:           locker,
 		logger:           logger.With("component", "engine"),
 		ctx:              ctx,
 		cancel:           cancel,
@@ -93,6 +95,8 @@ func (e *Engine) Start() error {
 
 	e.logger.Info("Starting deploy engine", "workers", len(e.workers))
 
+	e.recoverFromRestart()
+
 	if err := e.docker.EnsureNetwork(e.ctx, defaultNetworkName); err != nil {
 		e.logger.Error("Failed to ensure network", "network", defaultNetworkName, "error", err)
 	}
@@ -132,6 +136,34 @@ func (e *Engine) Stop() {
 	e.wg.Wait()
 	e.notifier.Close()
 	e.logger.Info("Deploy engine stopped")
+}
+
+func (e *Engine) recoverFromRestart() {
+	e.logger.Info("Recovering from restart, cleaning up stale state...")
+
+	if err := e.locker.CleanupStale(); err != nil {
+		e.logger.Error("Failed to cleanup stale locks", "error", err)
+	} else {
+		e.logger.Info("Cleaned up stale locks")
+	}
+
+	query := `
+		UPDATE deployments 
+		SET status = 'failed', 
+		    error_message = 'Deployment interrupted by server restart', 
+		    finished_at = NOW() 
+		WHERE status = 'running'
+	`
+	result, err := e.db.Exec(query)
+	if err != nil {
+		e.logger.Error("Failed to reset running deployments", "error", err)
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected > 0 {
+		e.logger.Info("Reset interrupted deployments", "count", rowsAffected)
+	}
 }
 
 func (e *Engine) runWorkerLoop(worker *Worker) {
