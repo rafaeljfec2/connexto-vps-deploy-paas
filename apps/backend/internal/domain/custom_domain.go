@@ -9,6 +9,7 @@ type CustomDomain struct {
 	ID          string
 	AppID       string
 	Domain      string
+	PathPrefix  string
 	ZoneID      string
 	DNSRecordID string
 	RecordType  string
@@ -20,6 +21,7 @@ type CustomDomain struct {
 type CreateCustomDomainInput struct {
 	AppID       string
 	Domain      string
+	PathPrefix  string
 	ZoneID      string
 	DNSRecordID string
 	RecordType  string

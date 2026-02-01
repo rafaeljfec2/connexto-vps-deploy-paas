@@ -336,10 +336,14 @@ export const api = {
     list: (appId: string): Promise<readonly CustomDomain[]> =>
       fetchApiList<CustomDomain>(`${API_BASE}/apps/${appId}/domains`),
 
-    add: (appId: string, domain: string): Promise<CustomDomain> =>
+    add: (
+      appId: string,
+      domain: string,
+      pathPrefix?: string,
+    ): Promise<CustomDomain> =>
       fetchApi<CustomDomain>(`${API_BASE}/apps/${appId}/domains`, {
         method: "POST",
-        body: JSON.stringify({ domain }),
+        body: JSON.stringify({ domain, pathPrefix }),
       }),
 
     remove: async (appId: string, domainId: string): Promise<void> => {

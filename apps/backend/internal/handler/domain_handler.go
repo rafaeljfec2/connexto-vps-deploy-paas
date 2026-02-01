@@ -60,6 +60,7 @@ type DomainResponse struct {
 	ID         string `json:"id"`
 	AppID      string `json:"appId"`
 	Domain     string `json:"domain"`
+	PathPrefix string `json:"pathPrefix"`
 	RecordType string `json:"recordType"`
 	Status     string `json:"status"`
 	CreatedAt  string `json:"createdAt"`
@@ -70,6 +71,7 @@ func toDomainResponse(d *domain.CustomDomain) DomainResponse {
 		ID:         d.ID,
 		AppID:      d.AppID,
 		Domain:     d.Domain,
+		PathPrefix: d.PathPrefix,
 		RecordType: d.RecordType,
 		Status:     d.Status,
 		CreatedAt:  d.CreatedAt.Format("2006-01-02T15:04:05Z"),
@@ -104,7 +106,8 @@ func (h *DomainHandler) ListDomains(c *fiber.Ctx) error {
 }
 
 type AddDomainRequest struct {
-	Domain string `json:"domain"`
+	Domain     string `json:"domain"`
+	PathPrefix string `json:"pathPrefix"`
 }
 
 func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
@@ -167,9 +170,15 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 	}
 	recordType := "A"
 
+	pathPrefix := strings.TrimSpace(req.PathPrefix)
+	if pathPrefix != "" && !strings.HasPrefix(pathPrefix, "/") {
+		pathPrefix = "/" + pathPrefix
+	}
+
 	customDomain, err := h.domainRepo.Create(c.Context(), domain.CreateCustomDomainInput{
 		AppID:       appID,
 		Domain:      domainName,
+		PathPrefix:  pathPrefix,
 		ZoneID:      zoneID,
 		DNSRecordID: recordID,
 		RecordType:  recordType,

@@ -178,6 +178,7 @@ export interface CustomDomain {
   readonly id: string;
   readonly appId: string;
   readonly domain: string;
+  readonly pathPrefix: string;
   readonly recordType: string;
   readonly status: string;
   readonly createdAt: string;

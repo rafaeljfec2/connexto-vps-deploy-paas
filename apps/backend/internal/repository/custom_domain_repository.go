@@ -8,7 +8,7 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
-const customDomainSelectColumns = `id, app_id, domain, zone_id, dns_record_id, record_type, status, created_at, updated_at`
+const customDomainSelectColumns = `id, app_id, domain, path_prefix, zone_id, dns_record_id, record_type, status, created_at, updated_at`
 
 type PostgresCustomDomainRepository struct {
 	db *sql.DB
@@ -24,6 +24,7 @@ func (r *PostgresCustomDomainRepository) scanDomain(row *sql.Row) (*domain.Custo
 		&d.ID,
 		&d.AppID,
 		&d.Domain,
+		&d.PathPrefix,
 		&d.ZoneID,
 		&d.DNSRecordID,
 		&d.RecordType,
@@ -48,6 +49,7 @@ func (r *PostgresCustomDomainRepository) scanDomains(rows *sql.Rows) ([]domain.C
 			&d.ID,
 			&d.AppID,
 			&d.Domain,
+			&d.PathPrefix,
 			&d.ZoneID,
 			&d.DNSRecordID,
 			&d.RecordType,
@@ -65,13 +67,14 @@ func (r *PostgresCustomDomainRepository) scanDomains(rows *sql.Rows) ([]domain.C
 
 func (r *PostgresCustomDomainRepository) Create(ctx context.Context, input domain.CreateCustomDomainInput) (*domain.CustomDomain, error) {
 	query := `
-		INSERT INTO custom_domains (app_id, domain, zone_id, dns_record_id, record_type)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO custom_domains (app_id, domain, path_prefix, zone_id, dns_record_id, record_type)
+		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING ` + customDomainSelectColumns
 
 	return r.scanDomain(r.db.QueryRowContext(ctx, query,
 		input.AppID,
 		input.Domain,
+		input.PathPrefix,
 		input.ZoneID,
 		input.DNSRecordID,
 		input.RecordType,

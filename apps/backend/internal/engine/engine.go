@@ -332,23 +332,28 @@ func (e *Engine) getCurrentContainerImage(ctx context.Context, containerName str
 	return containerHealth.Image, nil
 }
 
-func (e *Engine) collectAllDomains(ctx context.Context, appID string, configDomains []string) []string {
-	allDomains := make([]string, len(configDomains))
-	copy(allDomains, configDomains)
+func (e *Engine) collectAllDomains(ctx context.Context, appID string, configDomains []string) []DomainRoute {
+	var domainRoutes []DomainRoute
+	for _, d := range configDomains {
+		domainRoutes = append(domainRoutes, DomainRoute{Domain: d})
+	}
 
 	if e.customDomainRepo == nil {
-		return allDomains
+		return domainRoutes
 	}
 
 	customDomains, err := e.customDomainRepo.FindByAppID(ctx, appID)
 	if err != nil {
-		return allDomains
+		return domainRoutes
 	}
 
 	for _, d := range customDomains {
-		allDomains = append(allDomains, d.Domain)
+		domainRoutes = append(domainRoutes, DomainRoute{
+			Domain:     d.Domain,
+			PathPrefix: d.PathPrefix,
+		})
 	}
-	return allDomains
+	return domainRoutes
 }
 
 func (e *Engine) collectEnvVars(appID string) map[string]string {
@@ -368,7 +373,7 @@ func (e *Engine) collectEnvVars(appID string) map[string]string {
 	return envVars
 }
 
-func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployConfig, domains []string, envVars map[string]string) string {
+func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployConfig, domains []DomainRoute, envVars map[string]string) string {
 	envYAML := e.buildEnvVarsYAML(cfg, envVars)
 	labels := buildLabelsYAML(appName, domains, cfg.Port)
 	portMapping := buildPortMapping(cfg.HostPort, cfg.Port)

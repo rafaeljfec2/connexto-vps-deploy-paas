@@ -124,6 +124,7 @@ function CertificateStatusBadge({
 export function DomainManager({ appId }: DomainManagerProps) {
   const queryClient = useQueryClient();
   const [newDomain, setNewDomain] = useState("");
+  const [pathPrefix, setPathPrefix] = useState("");
   const [domainToDelete, setDomainToDelete] = useState<CustomDomain | null>(
     null,
   );
@@ -151,10 +152,12 @@ export function DomainManager({ appId }: DomainManagerProps) {
   };
 
   const addDomainMutation = useMutation({
-    mutationFn: (domain: string) => api.domains.add(appId, domain),
+    mutationFn: (data: { domain: string; pathPrefix?: string }) =>
+      api.domains.add(appId, data.domain, data.pathPrefix),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["custom-domains", appId] });
       setNewDomain("");
+      setPathPrefix("");
     },
   });
 
@@ -169,7 +172,10 @@ export function DomainManager({ appId }: DomainManagerProps) {
   const handleAddDomain = (e: React.FormEvent) => {
     e.preventDefault();
     if (newDomain.trim()) {
-      addDomainMutation.mutate(newDomain.trim());
+      addDomainMutation.mutate({
+        domain: newDomain.trim(),
+        pathPrefix: pathPrefix.trim() || undefined,
+      });
     }
   };
 
@@ -229,24 +235,37 @@ export function DomainManager({ appId }: DomainManagerProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <form onSubmit={handleAddDomain} className="flex gap-2">
-            <Input
-              placeholder="example.com or sub.example.com"
-              value={newDomain}
-              onChange={(e) => setNewDomain(e.target.value)}
-              disabled={addDomainMutation.isPending}
-            />
-            <Button
-              type="submit"
-              disabled={!newDomain.trim() || addDomainMutation.isPending}
-            >
-              {addDomainMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              <span className="ml-2 hidden sm:inline">Add</span>
-            </Button>
+          <form onSubmit={handleAddDomain} className="space-y-2">
+            <div className="flex gap-2">
+              <Input
+                placeholder="example.com or sub.example.com"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                disabled={addDomainMutation.isPending}
+                className="flex-1"
+              />
+              <Input
+                placeholder="/path (optional)"
+                value={pathPrefix}
+                onChange={(e) => setPathPrefix(e.target.value)}
+                disabled={addDomainMutation.isPending}
+                className="w-32 sm:w-40"
+              />
+              <Button
+                type="submit"
+                disabled={!newDomain.trim() || addDomainMutation.isPending}
+              >
+                {addDomainMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                <span className="ml-2 hidden sm:inline">Add</span>
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Path prefix routes specific paths to this app (e.g., /api or /integration-bank)
+            </p>
           </form>
 
           {addDomainMutation.isError && (
@@ -268,18 +287,26 @@ export function DomainManager({ appId }: DomainManagerProps) {
                     <Globe className="h-4 w-4 text-muted-foreground" />
                     <div>
                       <a
-                        href={`https://${domain.domain}`}
+                        href={`https://${domain.domain}${domain.pathPrefix ?? ""}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="font-medium hover:underline flex items-center gap-1"
                       >
                         {domain.domain}
+                        {domain.pathPrefix && (
+                          <span className="text-primary">{domain.pathPrefix}</span>
+                        )}
                         <ExternalLink className="h-3 w-3" />
                       </a>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Badge variant="secondary" className="text-xs">
                           {domain.recordType}
                         </Badge>
+                        {domain.pathPrefix && (
+                          <Badge variant="outline" className="text-xs">
+                            Path Prefix
+                          </Badge>
+                        )}
                         <span>Proxied via Cloudflare</span>
                       </div>
                     </div>

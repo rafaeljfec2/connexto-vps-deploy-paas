@@ -19,6 +19,11 @@ const (
 	defaultAppPort        = 8080
 )
 
+type DomainRoute struct {
+	Domain     string
+	PathPrefix string
+}
+
 type PaasDeployConfig struct {
 	Name    string `json:"name"`
 	Runtime string `json:"runtime,omitempty"`
@@ -327,20 +332,25 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 func (w *Worker) generateComposeFile(ctx context.Context, appDir, appName, appID, imageTag string) error {
 	cfg := w.deployConfig
 
-	allDomains := make([]string, len(cfg.Domains))
-	copy(allDomains, cfg.Domains)
+	var domainRoutes []DomainRoute
+	for _, d := range cfg.Domains {
+		domainRoutes = append(domainRoutes, DomainRoute{Domain: d})
+	}
 
 	if w.deps.CustomDomainRepo != nil {
 		customDomains, err := w.deps.CustomDomainRepo.FindByAppID(ctx, appID)
 		if err == nil {
 			for _, d := range customDomains {
-				allDomains = append(allDomains, d.Domain)
+				domainRoutes = append(domainRoutes, DomainRoute{
+					Domain:     d.Domain,
+					PathPrefix: d.PathPrefix,
+				})
 			}
 		}
 	}
 
 	envVars := w.buildEnvVarsYAML(cfg)
-	labels := buildLabelsYAML(appName, allDomains, cfg.Port)
+	labels := buildLabelsYAML(appName, domainRoutes, cfg.Port)
 	portMapping := buildPortMapping(cfg.HostPort, cfg.Port)
 
 	healthCmd := buildHealthCheckCommand(cfg.Runtime, cfg.Port, cfg.Healthcheck.Path)
@@ -452,23 +462,32 @@ func buildHealthCheckCommand(runtime string, port int, path string) string {
 	}
 }
 
-func buildLabelsYAML(appName string, domains []string, port int) string {
+func buildLabelsYAML(appName string, domains []DomainRoute, port int) string {
 	if len(domains) > 0 {
-		hosts := ""
-		for i, domain := range domains {
+		var labels strings.Builder
+		labels.WriteString("    labels:\n")
+		labels.WriteString("      - \"traefik.enable=true\"\n")
+		labels.WriteString("      - \"traefik.docker.network=paasdeploy\"\n")
+		labels.WriteString(fmt.Sprintf("      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n", appName, port))
+
+		for i, d := range domains {
+			routerName := appName
 			if i > 0 {
-				hosts += " || "
+				routerName = fmt.Sprintf("%s-%d", appName, i)
 			}
-			hosts += fmt.Sprintf("Host(`%s`)", domain)
+
+			rule := fmt.Sprintf("Host(`%s`)", d.Domain)
+			if d.PathPrefix != "" {
+				rule = fmt.Sprintf("Host(`%s`) && PathPrefix(`%s`)", d.Domain, d.PathPrefix)
+			}
+
+			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.rule=%s\"\n", routerName, rule))
+			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.tls=true\"\n", routerName))
+			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.tls.certresolver=letsencrypt\"\n", routerName))
+			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.service=%s\"\n", routerName, appName))
 		}
-		return fmt.Sprintf("    labels:\n"+
-			"      - \"traefik.enable=true\"\n"+
-			"      - \"traefik.docker.network=paasdeploy\"\n"+
-			"      - \"traefik.http.routers.%s.rule=%s\"\n"+
-			"      - \"traefik.http.routers.%s.tls=true\"\n"+
-			"      - \"traefik.http.routers.%s.tls.certresolver=letsencrypt\"\n"+
-			"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
-			appName, hosts, appName, appName, appName, port)
+
+		return labels.String()
 	}
 
 	return fmt.Sprintf("    labels:\n"+
