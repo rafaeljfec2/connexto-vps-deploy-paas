@@ -44,9 +44,9 @@ jobs:
           SERVER_USER: ${{ vars.SERVER_USER }}
           SERVER_HOST: ${{ vars.SERVER_HOST }}
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -63,9 +63,9 @@ jobs:
           SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
           SERVER_HOST: ${{ vars.SERVER_HOST }}
           SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
 
       - name: Verify deployment
