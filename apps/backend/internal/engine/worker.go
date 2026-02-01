@@ -424,7 +424,15 @@ func buildPortMapping(hostPort, port int) string {
 func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
 	w.log(deploy.ID, app.ID, "Performing health check...")
 
-	time.Sleep(healthCheckStartDelay)
+	startDelay := healthCheckStartDelay
+	if w.deployConfig.Healthcheck.StartPeriod != "" {
+		if parsed, err := time.ParseDuration(w.deployConfig.Healthcheck.StartPeriod); err == nil && parsed > startDelay {
+			startDelay = parsed
+		}
+	}
+
+	w.log(deploy.ID, app.ID, "Waiting %s for container to be ready...", startDelay)
+	time.Sleep(startDelay)
 
 	containerIP, err := w.deps.Docker.GetContainerIP(ctx, app.Name, defaultNetworkName)
 	if err != nil {
@@ -432,6 +440,7 @@ func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app
 	}
 
 	healthURL := fmt.Sprintf("http://%s:%d%s", containerIP, w.deployConfig.Port, w.deployConfig.Healthcheck.Path)
+	w.log(deploy.ID, app.ID, "Health check URL: %s", healthURL)
 
 	if err := w.deps.Health.CheckWithBackoff(ctx, healthURL); err != nil {
 		return err

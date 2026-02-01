@@ -88,6 +88,14 @@ func (e *Engine) Start() error {
 		e.logger.Error("Failed to ensure network", "network", defaultNetworkName, "error", err)
 	}
 
+	if containerID, err := e.docker.GetCurrentContainerID(e.ctx); err == nil {
+		if err := e.docker.ConnectToNetwork(e.ctx, containerID, defaultNetworkName); err != nil {
+			e.logger.Warn("Failed to connect to network (may already be connected)", "network", defaultNetworkName, "error", err)
+		}
+	} else {
+		e.logger.Debug("Not running in container or could not detect container ID", "error", err)
+	}
+
 	e.healthMonitor.Start(e.ctx)
 	e.statsMonitor.Start(e.ctx)
 

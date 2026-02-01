@@ -185,6 +185,51 @@ func (d *DockerClient) EnsureNetwork(ctx context.Context, networkName string) er
 	return nil
 }
 
+func (d *DockerClient) ConnectToNetwork(ctx context.Context, containerName, networkName string) error {
+	result, err := d.executor.RunQuiet(ctx, "docker", "network", "connect", networkName, containerName)
+	if err != nil {
+		if strings.Contains(result.Stderr, "already exists") {
+			d.logger.Debug("Container already connected to network", "container", containerName, "network", networkName)
+			return nil
+		}
+		return fmt.Errorf("failed to connect container to network: %w", err)
+	}
+	d.logger.Info("Container connected to network", "container", containerName, "network", networkName)
+	return nil
+}
+
+func (d *DockerClient) GetCurrentContainerID(ctx context.Context) (string, error) {
+	result, err := d.executor.RunQuiet(ctx, "cat", "/proc/self/cgroup")
+	if err != nil {
+		return "", fmt.Errorf("failed to read cgroup: %w", err)
+	}
+
+	lines := strings.Split(result.Stdout, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "docker") {
+			parts := strings.Split(line, "/")
+			if len(parts) > 0 {
+				containerID := parts[len(parts)-1]
+				if len(containerID) >= 12 {
+					return containerID[:12], nil
+				}
+			}
+		}
+	}
+
+	result, err = d.executor.RunQuiet(ctx, "hostname")
+	if err != nil {
+		return "", fmt.Errorf("failed to get hostname: %w", err)
+	}
+
+	hostname := strings.TrimSpace(result.Stdout)
+	if hostname != "" {
+		return hostname, nil
+	}
+
+	return "", fmt.Errorf("could not determine container ID")
+}
+
 func (d *DockerClient) getImagePrefix() string {
 	if d.registry != "" {
 		return d.registry + "/paasdeploy"
