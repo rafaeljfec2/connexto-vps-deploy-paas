@@ -4,22 +4,21 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
 
 const (
-	dockerFormatFlag     = "--format"
-	errNoSuchContainer   = "no such container"
-	buildCacheDir        = "/var/cache/paasdeploy/buildkit"
+	dockerFormatFlag   = "--format"
+	errNoSuchContainer = "no such container"
 )
 
 type DockerClient struct {
-	executor *Executor
-	logger   *slog.Logger
-	registry string
+	executor        *Executor
+	logger          *slog.Logger
+	registry        string
+	buildxAvailable bool
 }
 
 func NewDockerClient(baseDir string, registry string, logger *slog.Logger) *DockerClient {
@@ -29,30 +28,30 @@ func NewDockerClient(baseDir string, registry string, logger *slog.Logger) *Dock
 		logger:   logger,
 		registry: registry,
 	}
-	client.initBuildCache()
+	client.initBuildx()
 	return client
 }
 
-func (d *DockerClient) initBuildCache() {
-	if err := os.MkdirAll(buildCacheDir, 0755); err != nil {
-		d.logger.Warn("Failed to create build cache directory", "error", err, "path", buildCacheDir)
-	}
-
+func (d *DockerClient) initBuildx() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	_, err := d.executor.Run(ctx, "docker", "buildx", "inspect", "paasdeploy-builder")
+	_, err := d.executor.Run(ctx, "docker", "buildx", "version")
 	if err != nil {
-		d.logger.Info("Creating buildx builder for faster builds")
-		_, createErr := d.executor.Run(ctx, "docker", "buildx", "create",
-			"--name", "paasdeploy-builder",
-			"--driver", "docker-container",
-			"--use",
-		)
-		if createErr != nil {
-			d.logger.Warn("Failed to create buildx builder, using default", "error", createErr)
-		}
+		d.logger.Info("BuildKit (buildx) not available, using legacy builder")
+		d.buildxAvailable = false
+		return
 	}
+
+	_, err = d.executor.Run(ctx, "docker", "buildx", "inspect", "--builder", "default")
+	if err == nil {
+		d.buildxAvailable = true
+		d.logger.Info("BuildKit available, using buildx with default builder")
+		return
+	}
+
+	d.buildxAvailable = false
+	d.logger.Info("Buildx default builder not available, using legacy builder")
 }
 
 func (d *DockerClient) Build(ctx context.Context, workDir, dockerfile, tag string, output chan<- string) error {
@@ -61,33 +60,30 @@ func (d *DockerClient) Build(ctx context.Context, workDir, dockerfile, tag strin
 	d.executor.SetWorkDir(workDir)
 	d.executor.SetTimeout(15 * time.Minute)
 
-	args := []string{
-		"buildx", "build",
-		"--load",
-		"--cache-from", fmt.Sprintf("type=local,src=%s", buildCacheDir),
-		"--cache-to", fmt.Sprintf("type=local,dest=%s,mode=max", buildCacheDir),
-		"-t", tag,
-		"-f", dockerfile,
-		".",
+	var args []string
+	if d.buildxAvailable {
+		args = []string{
+			"buildx", "build",
+			"--builder", "default",
+			"--load",
+			"-t", tag,
+			"-f", dockerfile,
+			".",
+		}
+	} else {
+		args = []string{
+			"build",
+			"-t", tag,
+			"-f", dockerfile,
+			".",
+		}
 	}
 
 	if output != nil {
-		err := d.executor.RunWithStreaming(ctx, output, "docker", args...)
-		if err != nil {
-			d.logger.Warn("buildx failed, falling back to legacy build", "error", err)
-			fallbackArgs := []string{"build", "-t", tag, "-f", dockerfile, "."}
-			return d.executor.RunWithStreaming(ctx, output, "docker", fallbackArgs...)
-		}
-		return nil
+		return d.executor.RunWithStreaming(ctx, output, "docker", args...)
 	}
 
 	_, err := d.executor.Run(ctx, "docker", args...)
-	if err != nil {
-		d.logger.Warn("buildx failed, falling back to legacy build", "error", err)
-		fallbackArgs := []string{"build", "-t", tag, "-f", dockerfile, "."}
-		_, err = d.executor.Run(ctx, "docker", fallbackArgs...)
-	}
-
 	if err != nil {
 		return fmt.Errorf("docker build failed: %w", err)
 	}

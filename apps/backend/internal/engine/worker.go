@@ -15,7 +15,7 @@ import (
 
 const (
 	outputChannelBuffer   = 100
-	healthCheckStartDelay = 5 * time.Second
+	healthCheckStartDelay = 15 * time.Second
 	defaultAppPort        = 8080
 )
 

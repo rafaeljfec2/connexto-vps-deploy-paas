@@ -13,8 +13,8 @@ const (
 	DefaultPort               = 8080
 	DefaultDeployWorkers      = 2
 	DefaultDeployTimeoutSec   = 600
-	DefaultHealthTimeoutSec   = 60
-	DefaultHealthRetries      = 3
+	DefaultHealthTimeoutSec   = 180
+	DefaultHealthRetries      = 5
 	DefaultSessionMaxAgeSec   = 604800
 	DefaultDockerHost         = "unix:///var/run/docker.sock"
 	DefaultFrontendURL        = "http://localhost:3000"
