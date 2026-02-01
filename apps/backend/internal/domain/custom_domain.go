@@ -32,6 +32,7 @@ type CustomDomainRepository interface {
 	FindByID(ctx context.Context, id string) (*CustomDomain, error)
 	FindByAppID(ctx context.Context, appID string) ([]CustomDomain, error)
 	FindByDomain(ctx context.Context, domain string) (*CustomDomain, error)
+	FindByDomainAndPath(ctx context.Context, domain, pathPrefix string) (*CustomDomain, error)
 	Delete(ctx context.Context, id string) error
 	DeleteByAppID(ctx context.Context, appID string) error
 }

@@ -101,6 +101,11 @@ func (r *PostgresCustomDomainRepository) FindByDomain(ctx context.Context, domai
 	return r.scanDomain(r.db.QueryRowContext(ctx, query, domainName))
 }
 
+func (r *PostgresCustomDomainRepository) FindByDomainAndPath(ctx context.Context, domainName, pathPrefix string) (*domain.CustomDomain, error) {
+	query := `SELECT ` + customDomainSelectColumns + ` FROM custom_domains WHERE domain = $1 AND path_prefix = $2`
+	return r.scanDomain(r.db.QueryRowContext(ctx, query, domainName, pathPrefix))
+}
+
 func (r *PostgresCustomDomainRepository) Delete(ctx context.Context, id string) error {
 	query := `DELETE FROM custom_domains WHERE id = $1`
 	result, err := r.db.ExecContext(ctx, query, id)

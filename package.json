@@ -4,6 +4,7 @@
   "private": true,
   "description": "A lightweight, self-hosted PaaS for automatic deployments",
   "scripts": {
+    "prepare": "husky",
     "dev": "turbo run dev --filter=@paasdeploy/backend & sleep 3 && turbo run dev --filter=@paasdeploy/frontend",
     "dev:parallel": "turbo run dev",
     "build": "turbo run build",
@@ -20,6 +21,8 @@
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "turbo": "^2.3.3"
   },
   "packageManager": "pnpm@9.15.0",

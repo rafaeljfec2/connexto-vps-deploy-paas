@@ -148,9 +148,14 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Invalid domain format")
 	}
 
-	existing, _ := h.domainRepo.FindByDomain(c.Context(), domainName)
+	pathPrefix := strings.TrimSpace(req.PathPrefix)
+	if pathPrefix != "" && !strings.HasPrefix(pathPrefix, "/") {
+		pathPrefix = "/" + pathPrefix
+	}
+
+	existing, _ := h.domainRepo.FindByDomainAndPath(c.Context(), domainName, pathPrefix)
 	if existing != nil {
-		return response.BadRequest(c, "Domain already exists")
+		return response.BadRequest(c, "Domain with this path already exists")
 	}
 
 	rootDomain := extractRootDomain(domainName)
@@ -169,11 +174,6 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Failed to configure DNS record: "+err.Error())
 	}
 	recordType := "A"
-
-	pathPrefix := strings.TrimSpace(req.PathPrefix)
-	if pathPrefix != "" && !strings.HasPrefix(pathPrefix, "/") {
-		pathPrefix = "/" + pathPrefix
-	}
 
 	customDomain, err := h.domainRepo.Create(c.Context(), domain.CreateCustomDomainInput{
 		AppID:       appID,
