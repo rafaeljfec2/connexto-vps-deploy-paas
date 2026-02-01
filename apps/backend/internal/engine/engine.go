@@ -34,7 +34,7 @@ type Engine struct {
 	envVarRepo       domain.EnvVarRepository
 }
 
-func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRepo domain.EnvVarRepository, customDomainRepo domain.CustomDomainRepository, logger *slog.Logger) *Engine {
+func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRepo domain.EnvVarRepository, customDomainRepo domain.CustomDomainRepository, gitTokenProvider GitTokenProvider, logger *slog.Logger) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	queue := NewQueue(db)
@@ -68,6 +68,7 @@ func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRep
 		Dispatcher:       dispatcher,
 		EnvVarRepo:       envVarRepo,
 		CustomDomainRepo: customDomainRepo,
+		GitTokenProvider: gitTokenProvider,
 		Logger:           logger,
 	}
 

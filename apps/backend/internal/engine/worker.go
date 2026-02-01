@@ -45,6 +45,10 @@ type PaasDeployConfig struct {
 	Domains []string `json:"domains,omitempty"`
 }
 
+type GitTokenProvider interface {
+	GetToken(ctx context.Context, repoURL string) (string, error)
+}
+
 type WorkerDeps struct {
 	Git              *GitClient
 	Docker           *DockerClient
@@ -53,6 +57,7 @@ type WorkerDeps struct {
 	Dispatcher       *Dispatcher
 	EnvVarRepo       domain.EnvVarRepository
 	CustomDomainRepo domain.CustomDomainRepository
+	GitTokenProvider GitTokenProvider
 	Logger           *slog.Logger
 }
 
@@ -156,7 +161,9 @@ func (w *Worker) syncGit(ctx context.Context, deploy *domain.Deployment, app *do
 		if err := os.MkdirAll(filepath.Dir(repoDir), 0755); err != nil {
 			return err
 		}
-		if err := w.deps.Git.Clone(ctx, app.RepositoryURL, repoDir); err != nil {
+
+		token := w.getGitToken(ctx, app.RepositoryURL)
+		if err := w.deps.Git.CloneWithToken(ctx, app.RepositoryURL, repoDir, token); err != nil {
 			return err
 		}
 	}
@@ -173,6 +180,20 @@ func (w *Worker) syncGit(ctx context.Context, deploy *domain.Deployment, app *do
 	w.log(deploy.ID, app.ID, "Checked out commit: %s", truncateSHA(sha))
 
 	return nil
+}
+
+func (w *Worker) getGitToken(ctx context.Context, repoURL string) string {
+	if w.deps.GitTokenProvider == nil {
+		return ""
+	}
+
+	token, err := w.deps.GitTokenProvider.GetToken(ctx, repoURL)
+	if err != nil {
+		w.deps.Logger.Warn("Failed to get git token, will try without authentication", "error", err)
+		return ""
+	}
+
+	return token
 }
 
 func (w *Worker) loadConfig(appDir string) error {

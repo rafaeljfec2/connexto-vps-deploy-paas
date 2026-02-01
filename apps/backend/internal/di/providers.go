@@ -75,6 +75,7 @@ var ServiceSet = wire.NewSet(
 )
 
 var EngineSet = wire.NewSet(
+	ProvideGitTokenProvider,
 	engine.New,
 )
 
@@ -143,6 +144,18 @@ func ProvideWebhookManager(cfg *config.Config, logger *slog.Logger) webhook.Mana
 
 func ProvideAppCleaner(cfg *config.Config, logger *slog.Logger) *engine.AppCleaner {
 	return engine.NewAppCleaner(cfg.Deploy.DataDir, logger)
+}
+
+func ProvideGitTokenProvider(
+	appClient *github.AppClient,
+	installationRepo domain.InstallationRepository,
+	logger *slog.Logger,
+) engine.GitTokenProvider {
+	if appClient == nil {
+		logger.Info("git token provider disabled: GitHub App not configured")
+		return nil
+	}
+	return engine.NewAppGitTokenProvider(appClient, installationRepo, logger)
 }
 
 func ProvideAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, cfg *config.Config) *handler.AppAdminHandler {

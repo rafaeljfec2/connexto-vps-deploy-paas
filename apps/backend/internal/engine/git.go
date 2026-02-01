@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -23,16 +24,39 @@ func NewGitClient(baseDir string, logger *slog.Logger) *GitClient {
 }
 
 func (g *GitClient) Clone(ctx context.Context, repoURL, targetDir string) error {
-	g.logger.Info("Cloning repository", "url", repoURL, "target", targetDir)
+	return g.CloneWithToken(ctx, repoURL, targetDir, "")
+}
+
+func (g *GitClient) CloneWithToken(ctx context.Context, repoURL, targetDir, token string) error {
+	g.logger.Info("Cloning repository", "url", repoURL, "target", targetDir, "authenticated", token != "")
+
+	cloneURL := repoURL
+	if token != "" {
+		authenticatedURL, err := injectTokenIntoURL(repoURL, token)
+		if err != nil {
+			return fmt.Errorf("failed to create authenticated URL: %w", err)
+		}
+		cloneURL = authenticatedURL
+	}
 
 	g.executor.SetWorkDir(filepath.Dir(targetDir))
 
-	_, err := g.executor.Run(ctx, "git", "clone", "--depth", "1", repoURL, filepath.Base(targetDir))
+	_, err := g.executor.Run(ctx, "git", "clone", "--depth", "1", cloneURL, filepath.Base(targetDir))
 	if err != nil {
 		return fmt.Errorf("git clone failed: %w", err)
 	}
 
 	return nil
+}
+
+func injectTokenIntoURL(repoURL, token string) (string, error) {
+	parsed, err := url.Parse(repoURL)
+	if err != nil {
+		return "", err
+	}
+
+	parsed.User = url.UserPassword("x-access-token", token)
+	return parsed.String(), nil
 }
 
 func (g *GitClient) Fetch(ctx context.Context, repoDir string) error {
