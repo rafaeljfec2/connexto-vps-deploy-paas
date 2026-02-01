@@ -7,6 +7,7 @@ export function useContainers(all = true) {
     queryKey: ["containers", all],
     queryFn: () => api.containers.list(all),
     refetchInterval: 10000,
+    refetchOnWindowFocus: true,
   });
 }
 

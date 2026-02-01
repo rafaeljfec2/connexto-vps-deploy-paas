@@ -7,6 +7,7 @@ export function useApps() {
   return useQuery({
     queryKey: ["apps"],
     queryFn: () => api.apps.list(),
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -15,6 +16,7 @@ export function useApp(id: string) {
     queryKey: ["app", id],
     queryFn: () => api.apps.get(id),
     enabled: !!id,
+    refetchOnWindowFocus: true,
   });
 }
 
