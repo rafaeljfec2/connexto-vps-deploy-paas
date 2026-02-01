@@ -62,6 +62,7 @@ export interface ReposResponse {
 async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,
@@ -87,6 +88,7 @@ async function fetchApiList<T>(
 ): Promise<readonly T[]> {
   const response = await fetch(url, {
     ...options,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,
@@ -165,6 +167,7 @@ export const api = {
     delete: async (id: string): Promise<void> => {
       const response = await fetch(`${API_BASE}/apps/${id}`, {
         method: "DELETE",
+        credentials: "include",
       });
 
       if (!response.ok && response.status !== 204) {
@@ -176,6 +179,7 @@ export const api = {
     purge: async (id: string): Promise<void> => {
       const response = await fetch(`${API_BASE}/apps/${id}?purge=true`, {
         method: "DELETE",
+        credentials: "include",
       });
 
       if (!response.ok && response.status !== 204) {
@@ -244,6 +248,7 @@ export const api = {
     remove: async (appId: string): Promise<void> => {
       const response = await fetch(`${API_BASE}/apps/${appId}/webhook`, {
         method: "DELETE",
+        credentials: "include",
       });
 
       if (!response.ok && response.status !== 204) {
@@ -288,6 +293,7 @@ export const api = {
     delete: async (appId: string, varId: string): Promise<void> => {
       const response = await fetch(`${API_BASE}/apps/${appId}/env/${varId}`, {
         method: "DELETE",
+        credentials: "include",
       });
 
       if (!response.ok && response.status !== 204) {
@@ -310,6 +316,7 @@ export const api = {
     disconnect: async (): Promise<void> => {
       const response = await fetch(`${API_URL}/auth/cloudflare/disconnect`, {
         method: "POST",
+        credentials: "include",
       });
 
       if (!response.ok && response.status !== 204) {
@@ -332,7 +339,7 @@ export const api = {
     remove: async (appId: string, domainId: string): Promise<void> => {
       const response = await fetch(
         `${API_BASE}/apps/${appId}/domains/${domainId}`,
-        { method: "DELETE" },
+        { method: "DELETE", credentials: "include" },
       );
 
       if (!response.ok && response.status !== 204) {

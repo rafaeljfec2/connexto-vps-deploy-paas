@@ -28,10 +28,10 @@ export function Stepper({ steps, currentStep, className }: StepperProps) {
               key={step.id}
               className={cn("flex items-center", !isLast && "flex-1")}
             >
-              <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-col items-center gap-1 sm:gap-2">
                 <div
                   className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors",
+                    "flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full border-2 transition-colors",
                     isCompleted &&
                       "border-primary bg-primary text-primary-foreground",
                     isCurrent && "border-primary bg-primary/10 text-primary",
@@ -41,15 +41,16 @@ export function Stepper({ steps, currentStep, className }: StepperProps) {
                   )}
                 >
                   {isCompleted ? (
-                    <Check className="h-5 w-5" />
+                    <Check className="h-4 w-4 sm:h-5 sm:w-5" />
                   ) : (
-                    <Icon className="h-5 w-5" />
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                   )}
                 </div>
                 <span
                   className={cn(
-                    "text-xs font-medium whitespace-nowrap",
+                    "text-[10px] sm:text-xs font-medium whitespace-nowrap",
                     isCurrent ? "text-foreground" : "text-muted-foreground",
+                    !isCurrent && "hidden xs:block",
                   )}
                 >
                   {step.title}
@@ -59,7 +60,7 @@ export function Stepper({ steps, currentStep, className }: StepperProps) {
               {!isLast && (
                 <div
                   className={cn(
-                    "h-0.5 flex-1 mx-3 mt-[-1.5rem] transition-colors",
+                    "h-0.5 flex-1 mx-2 sm:mx-3 mt-[-1rem] sm:mt-[-1.5rem] transition-colors",
                     isCompleted ? "bg-primary" : "bg-muted-foreground/30",
                   )}
                 />

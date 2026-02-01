@@ -178,13 +178,13 @@ function CollapsibleSection({
     <Card>
       <CardHeader
         className={cn(
-          "flex flex-row items-center justify-between cursor-pointer select-none transition-colors hover:bg-muted/50",
+          "flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer select-none transition-colors hover:bg-muted/50 gap-2 sm:gap-3",
           !expanded && "pb-4",
         )}
         onClick={onToggle}
       >
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {expanded ? (
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             ) : (
@@ -192,9 +192,9 @@ function CollapsibleSection({
             )}
             <Icon className="h-4 w-4 text-muted-foreground" />
           </div>
-          <CardTitle className="text-base">{title}</CardTitle>
+          <CardTitle className="text-sm sm:text-base">{title}</CardTitle>
           {!expanded && summary && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground ml-2 truncate">
+            <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground ml-2 truncate">
               <span className="text-muted-foreground/50">—</span>
               {summary}
             </div>
@@ -202,14 +202,16 @@ function CollapsibleSection({
         </div>
         {actions && (
           <div
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 ml-7 sm:ml-0"
             onPointerDown={(e) => e.stopPropagation()}
           >
             {actions}
           </div>
         )}
       </CardHeader>
-      {expanded && <CardContent>{children}</CardContent>}
+      {expanded && (
+        <CardContent className="pt-0 sm:pt-0">{children}</CardContent>
+      )}
     </Card>
   );
 }
@@ -273,12 +275,18 @@ function DeploymentsSection({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
         <Tabs defaultValue="history" className="w-full min-w-0 overflow-hidden">
           <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="history" className="gap-2">
-              <History className="h-4 w-4" />
-              Deploy History
+            <TabsTrigger
+              value="history"
+              className="gap-1 sm:gap-2 text-xs sm:text-sm"
+            >
+              <History className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden xs:inline">Deploy</span> History
             </TabsTrigger>
-            <TabsTrigger value="commits" className="gap-2">
-              <GitCommit className="h-4 w-4" />
+            <TabsTrigger
+              value="commits"
+              className="gap-1 sm:gap-2 text-xs sm:text-sm"
+            >
+              <GitCommit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Commits
             </TabsTrigger>
           </TabsList>
@@ -472,9 +480,9 @@ function ContainerHealthSection({
             }
           >
             <RefreshCw
-              className={`h-4 w-4 mr-1 ${actions.restartContainer.isPending ? "animate-spin" : ""}`}
+              className={`h-4 w-4 sm:mr-1 ${actions.restartContainer.isPending ? "animate-spin" : ""}`}
             />
-            Restart
+            <span className="hidden sm:inline">Restart</span>
           </Button>
           {health?.status === "running" ? (
             <Button
@@ -483,8 +491,8 @@ function ContainerHealthSection({
               onClick={() => actions.stopContainer.mutate(appId)}
               disabled={actions.stopContainer.isPending}
             >
-              <Square className="h-4 w-4 mr-1" />
-              Stop
+              <Square className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Stop</span>
             </Button>
           ) : (
             <Button
@@ -496,8 +504,8 @@ function ContainerHealthSection({
                 health?.status === "not_found"
               }
             >
-              <Play className="h-4 w-4 mr-1" />
-              Start
+              <Play className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Start</span>
             </Button>
           )}
         </>
@@ -641,8 +649,8 @@ function WebhookSection({
             onClick={actions.handleRemoveWebhook}
             disabled={actions.removeWebhook.isPending}
           >
-            <Link2Off className="h-4 w-4 mr-1" />
-            Remove
+            <Link2Off className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Remove</span>
           </Button>
         ) : (
           <Button
@@ -650,8 +658,8 @@ function WebhookSection({
             onClick={actions.handleSetupWebhook}
             disabled={actions.setupWebhook.isPending}
           >
-            <Link2 className="h-4 w-4 mr-1" />
-            Setup
+            <Link2 className="h-4 w-4 sm:mr-1" />
+            <span className="hidden sm:inline">Setup</span>
           </Button>
         )
       }
@@ -749,7 +757,7 @@ interface HeaderActionsProps {
 function AppDescription({ app }: { readonly app: App }) {
   const showWorkdir = app.workdir && app.workdir !== ".";
   return (
-    <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+    <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground flex-wrap">
       <IconText icon={GitBranch} as="span">
         {app.branch}
       </IconText>
@@ -757,14 +765,18 @@ function AppDescription({ app }: { readonly app: App }) {
         href={app.repositoryUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-1 hover:text-foreground"
+        className="flex items-center gap-1 hover:text-foreground truncate max-w-[200px] sm:max-w-none"
       >
-        <ExternalLink className="h-4 w-4" />
-        {formatRepositoryUrl(app.repositoryUrl)}
+        <ExternalLink className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+        <span className="truncate">
+          {formatRepositoryUrl(app.repositoryUrl)}
+        </span>
       </a>
       {showWorkdir && (
         <IconText icon={Folder} as="span">
-          <span className="font-mono text-xs">{app.workdir}</span>
+          <span className="font-mono text-xs truncate max-w-[100px] sm:max-w-none">
+            {app.workdir}
+          </span>
         </IconText>
       )}
     </div>
@@ -781,44 +793,51 @@ function HeaderActions({
 }: HeaderActionsProps) {
   return (
     <>
-      <Button variant="outline" onClick={toggleAllSections}>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={toggleAllSections}
+        className="hidden sm:inline-flex"
+      >
         {allExpanded ? (
           <>
-            <ChevronsDownUp className="h-4 w-4 mr-2" />
-            Collapse All
+            <ChevronsDownUp className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Collapse All</span>
           </>
         ) : (
           <>
-            <ChevronsUpDown className="h-4 w-4 mr-2" />
-            Expand All
+            <ChevronsUpDown className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Expand All</span>
           </>
         )}
       </Button>
       {appUrl?.url && (
-        <Button variant="outline" asChild>
+        <Button variant="outline" size="sm" asChild>
           <a href={appUrl.url} target="_blank" rel="noopener noreferrer">
-            <Globe className="h-4 w-4 mr-2" />
-            Open App
+            <Globe className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Open App</span>
           </a>
         </Button>
       )}
       <AppSettingsDialog app={app} />
       <Button
         variant="outline"
+        size="sm"
         onClick={actions.handleRollback}
         disabled={actions.rollback.isPending || !hasSuccessfulDeploy}
       >
-        <RotateCcw className="h-4 w-4 mr-2" />
-        Rollback
+        <RotateCcw className="h-4 w-4 sm:mr-2" />
+        <span className="hidden sm:inline">Rollback</span>
       </Button>
       <Button
+        size="sm"
         onClick={() => actions.handleRedeploy()}
         disabled={actions.redeploy.isPending}
       >
         <RefreshCw
-          className={`h-4 w-4 mr-2 ${actions.redeploy.isPending ? "animate-spin" : ""}`}
+          className={`h-4 w-4 sm:mr-2 ${actions.redeploy.isPending ? "animate-spin" : ""}`}
         />
-        Redeploy
+        <span className="hidden xs:inline">Redeploy</span>
       </Button>
     </>
   );
