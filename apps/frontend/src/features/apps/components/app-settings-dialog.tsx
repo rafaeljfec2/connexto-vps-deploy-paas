@@ -58,9 +58,9 @@ export function AppSettingsDialog({ app }: AppSettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <Settings className="h-4 w-4 mr-2" />
-          Settings
+        <Button variant="outline" size="sm">
+          <Settings className="h-4 w-4" />
+          <span className="hidden lg:inline ml-2">Settings</span>
         </Button>
       </DialogTrigger>
       <DialogContent>

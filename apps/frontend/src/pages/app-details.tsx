@@ -800,22 +800,19 @@ function HeaderActions({
         className="hidden sm:inline-flex"
       >
         {allExpanded ? (
-          <>
-            <ChevronsDownUp className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Collapse All</span>
-          </>
+          <ChevronsDownUp className="h-4 w-4" />
         ) : (
-          <>
-            <ChevronsUpDown className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Expand All</span>
-          </>
+          <ChevronsUpDown className="h-4 w-4" />
         )}
+        <span className="hidden lg:inline ml-2">
+          {allExpanded ? "Collapse All" : "Expand All"}
+        </span>
       </Button>
       {appUrl?.url && (
         <Button variant="outline" size="sm" asChild>
           <a href={appUrl.url} target="_blank" rel="noopener noreferrer">
-            <Globe className="h-4 w-4 sm:mr-2" />
-            <span className="hidden sm:inline">Open App</span>
+            <Globe className="h-4 w-4" />
+            <span className="hidden lg:inline ml-2">Open App</span>
           </a>
         </Button>
       )}
@@ -826,8 +823,8 @@ function HeaderActions({
         onClick={actions.handleRollback}
         disabled={actions.rollback.isPending || !hasSuccessfulDeploy}
       >
-        <RotateCcw className="h-4 w-4 sm:mr-2" />
-        <span className="hidden sm:inline">Rollback</span>
+        <RotateCcw className="h-4 w-4" />
+        <span className="hidden lg:inline ml-2">Rollback</span>
       </Button>
       <Button
         size="sm"
@@ -835,9 +832,9 @@ function HeaderActions({
         disabled={actions.redeploy.isPending}
       >
         <RefreshCw
-          className={`h-4 w-4 sm:mr-2 ${actions.redeploy.isPending ? "animate-spin" : ""}`}
+          className={`h-4 w-4 ${actions.redeploy.isPending ? "animate-spin" : ""}`}
         />
-        <span className="hidden xs:inline">Redeploy</span>
+        <span className="hidden lg:inline ml-2">Redeploy</span>
       </Button>
     </>
   );
