@@ -341,6 +341,8 @@ func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployCo
 	labels := buildLabelsYAML(appName, domains, cfg.Port)
 	portMapping := buildPortMapping(cfg.HostPort, cfg.Port)
 
+	healthCmd := buildHealthCheckCommand(cfg.Runtime, cfg.Port, cfg.Healthcheck.Path)
+
 	return fmt.Sprintf("services:\n"+
 		"  %s:\n"+
 		"    image: %s\n"+
@@ -351,7 +353,7 @@ func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployCo
 		"%s"+
 		"%s"+
 		"    healthcheck:\n"+
-		"      test: [\"CMD-SHELL\", \"curl -sf http://127.0.0.1:%d%s || wget -q --spider http://127.0.0.1:%d%s || exit 1\"]\n"+
+		"      test: [\"CMD-SHELL\", \"%s\"]\n"+
 		"      interval: %s\n"+
 		"      timeout: %s\n"+
 		"      retries: %d\n"+
@@ -367,8 +369,7 @@ func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployCo
 		"  paasdeploy:\n"+
 		"    external: true\n",
 		appName, image, appName, portMapping, envYAML, labels,
-		cfg.Port, cfg.Healthcheck.Path,
-		cfg.Port, cfg.Healthcheck.Path,
+		healthCmd,
 		cfg.Healthcheck.Interval, cfg.Healthcheck.Timeout,
 		cfg.Healthcheck.Retries, cfg.Healthcheck.StartPeriod,
 		cfg.Resources.Memory, cfg.Resources.CPU,
