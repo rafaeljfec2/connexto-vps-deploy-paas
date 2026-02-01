@@ -466,6 +466,7 @@ func buildLabelsYAML(appName string, domains []DomainRoute, port int) string {
 	if len(domains) > 0 {
 		var labels strings.Builder
 		labels.WriteString("    labels:\n")
+		labels.WriteString(fmt.Sprintf("      - \"paasdeploy.app=%s\"\n", appName))
 		labels.WriteString("      - \"traefik.enable=true\"\n")
 		labels.WriteString("      - \"traefik.docker.network=paasdeploy\"\n")
 		labels.WriteString(fmt.Sprintf("      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n", appName, port))
@@ -491,11 +492,12 @@ func buildLabelsYAML(appName string, domains []DomainRoute, port int) string {
 	}
 
 	return fmt.Sprintf("    labels:\n"+
+		"      - \"paasdeploy.app=%s\"\n"+
 		"      - \"traefik.enable=true\"\n"+
 		"      - \"traefik.docker.network=paasdeploy\"\n"+
 		"      - \"traefik.http.routers.%s.rule=Host(`%s.localhost`)\"\n"+
 		"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
-		appName, appName, appName, port)
+		appName, appName, appName, appName, port)
 }
 
 func buildPortMapping(hostPort, port int) string {

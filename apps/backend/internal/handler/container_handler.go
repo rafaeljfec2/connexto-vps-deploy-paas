@@ -287,11 +287,14 @@ func (h *ContainerHandler) toContainerResponse(container engine.ContainerInfo) C
 	if _, ok := container.Labels["paasdeploy.app"]; ok {
 		isFlowDeployManaged = true
 	}
-	if _, ok := container.Labels["com.docker.compose.project"]; ok {
-		if project, exists := container.Labels["com.docker.compose.project"]; exists {
-			if project == "paasdeploy" || project == "flowdeploy" {
-				isFlowDeployManaged = true
-			}
+	if network, ok := container.Labels["traefik.docker.network"]; ok {
+		if network == "paasdeploy" {
+			isFlowDeployManaged = true
+		}
+	}
+	if project, ok := container.Labels["com.docker.compose.project"]; ok {
+		if project == "paasdeploy" || project == "flowdeploy" {
+			isFlowDeployManaged = true
 		}
 	}
 
