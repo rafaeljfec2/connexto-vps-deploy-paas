@@ -157,20 +157,21 @@ func (w *Worker) loadEnvVars(appID string) error {
 func (w *Worker) syncGit(ctx context.Context, deploy *domain.Deployment, app *domain.App, repoDir string) error {
 	w.log(deploy.ID, app.ID, "Syncing repository...")
 
+	token := w.getGitToken(ctx, app.RepositoryURL)
+
 	if _, err := os.Stat(repoDir); os.IsNotExist(err) {
 		w.log(deploy.ID, app.ID, "Cloning repository: %s", app.RepositoryURL)
 		if err := os.MkdirAll(filepath.Dir(repoDir), 0755); err != nil {
 			return err
 		}
 
-		token := w.getGitToken(ctx, app.RepositoryURL)
 		if err := w.deps.Git.CloneWithToken(ctx, app.RepositoryURL, repoDir, token); err != nil {
 			return err
 		}
 	}
 
 	w.log(deploy.ID, app.ID, "Fetching updates...")
-	if err := w.deps.Git.Sync(ctx, repoDir, deploy.CommitSHA); err != nil {
+	if err := w.deps.Git.SyncWithToken(ctx, repoDir, deploy.CommitSHA, app.RepositoryURL, token); err != nil {
 		return err
 	}
 

@@ -60,13 +60,32 @@ func injectTokenIntoURL(repoURL, token string) (string, error) {
 }
 
 func (g *GitClient) Fetch(ctx context.Context, repoDir string) error {
-	g.logger.Info("Fetching updates", "dir", repoDir)
+	return g.FetchWithToken(ctx, repoDir, "", "")
+}
+
+func (g *GitClient) FetchWithToken(ctx context.Context, repoDir, repoURL, token string) error {
+	g.logger.Info("Fetching updates", "dir", repoDir, "authenticated", token != "")
 
 	g.executor.SetWorkDir(repoDir)
+
+	if token != "" && repoURL != "" {
+		authenticatedURL, err := injectTokenIntoURL(repoURL, token)
+		if err != nil {
+			return fmt.Errorf("failed to create authenticated URL: %w", err)
+		}
+		_, err = g.executor.Run(ctx, "git", "remote", "set-url", "origin", authenticatedURL)
+		if err != nil {
+			g.logger.Warn("Failed to update remote URL with token", "error", err)
+		}
+	}
 
 	_, err := g.executor.Run(ctx, "git", "fetch", "origin")
 	if err != nil {
 		return fmt.Errorf("git fetch failed: %w", err)
+	}
+
+	if token != "" && repoURL != "" {
+		_, _ = g.executor.Run(ctx, "git", "remote", "set-url", "origin", repoURL)
 	}
 
 	return nil
@@ -113,7 +132,11 @@ func (g *GitClient) GetCommitMessage(ctx context.Context, repoDir string) (strin
 }
 
 func (g *GitClient) Sync(ctx context.Context, repoDir, commitSHA string) error {
-	if err := g.Fetch(ctx, repoDir); err != nil {
+	return g.SyncWithToken(ctx, repoDir, commitSHA, "", "")
+}
+
+func (g *GitClient) SyncWithToken(ctx context.Context, repoDir, commitSHA, repoURL, token string) error {
+	if err := g.FetchWithToken(ctx, repoDir, repoURL, token); err != nil {
 		return err
 	}
 
