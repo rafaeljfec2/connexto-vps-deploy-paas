@@ -20,8 +20,8 @@ export function Header() {
   const displayName = user?.name ?? user?.githubLogin ?? "User";
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center">
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 safe-top safe-x">
+      <div className="container flex h-14 sm:h-16 items-center">
         <Link
           to={ROUTES.HOME}
           className="flex items-center gap-2 font-semibold text-lg"

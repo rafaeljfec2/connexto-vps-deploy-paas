@@ -342,6 +342,7 @@ func ProvideAuthHandler(
 		SessionCookieName: cfg.Auth.SessionCookieName,
 		SessionMaxAge:     cfg.Auth.SessionMaxAge,
 		SecureCookie:      cfg.Auth.SecureCookie,
+		CookieDomain:      cfg.Auth.CookieDomain,
 		FrontendURL:       cfg.Auth.FrontendURL,
 	})
 }
@@ -384,6 +385,7 @@ func ProvideCloudflareAuthHandler(
 		Logger:         logger,
 		FrontendURL:    cfg.Auth.FrontendURL,
 		SecureCookie:   cfg.Auth.SecureCookie,
+		CookieDomain:   cfg.Auth.CookieDomain,
 	})
 }
 

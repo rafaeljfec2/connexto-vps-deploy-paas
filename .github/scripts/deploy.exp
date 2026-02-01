@@ -30,6 +30,8 @@ set github_app_private_key_base64 $env(GITHUB_APP_PRIVATE_KEY_BASE64)
 set github_app_install_url $env(GITHUB_APP_INSTALL_URL)
 set token_encryption_key $env(TOKEN_ENCRYPTION_KEY)
 set frontend_url $env(FRONTEND_URL)
+set cookie_domain $env(COOKIE_DOMAIN)
+set session_secure $env(SESSION_SECURE)
 set cloudflare_server_ip [string trim $env(CLOUDFLARE_SERVER_IP)]
 set api_domain [string trim $env(API_DOMAIN)]
 set traefik_network [string trim $env(TRAEFIK_NETWORK)]
@@ -125,6 +127,8 @@ append cmd " -e GIT_HUB_APP_PRIVATE_KEY_PATH=/opt/flowdeploy/github-app-private-
 append cmd " -e 'GIT_HUB_APP_INSTALL_URL=$github_app_install_url'"
 append cmd " -e 'TOKEN_ENCRYPTION_KEY=$token_encryption_key'"
 append cmd " -e 'FRONTEND_URL=$frontend_url'"
+append cmd " -e 'COOKIE_DOMAIN=$cookie_domain'"
+append cmd " -e 'SESSION_SECURE=$session_secure'"
 
 if {[string length $cloudflare_server_ip] > 0} {
   append cmd " -e 'CLOUDFLARE_SERVER_IP=$cloudflare_server_ip'"

@@ -198,6 +198,8 @@ jobs:
           GITHUB_APP_INSTALL_URL: ${{ vars.GIT_HUB_APP_INSTALL_URL || 'https://github.com/apps/flowdeployapp/installations/new' }}
           TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
           FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+          COOKIE_DOMAIN: ${{ vars.COOKIE_DOMAIN || '' }}
+          SESSION_SECURE: ${{ vars.SESSION_SECURE || 'true' }}
           CLOUDFLARE_SERVER_IP: ${{ vars.CLOUDFLARE_SERVER_IP || '' }}
           API_DOMAIN: ${{ env.API_DOMAIN }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}

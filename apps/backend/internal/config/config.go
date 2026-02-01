@@ -80,6 +80,7 @@ type AuthConfig struct {
 	SessionCookieName  string
 	SessionMaxAge      time.Duration
 	SecureCookie       bool
+	CookieDomain       string
 	FrontendURL        string
 }
 
@@ -132,6 +133,7 @@ func Load() *Config {
 			SessionCookieName:  getEnv("SESSION_COOKIE_NAME", DefaultSessionCookieName),
 			SessionMaxAge:      time.Duration(getEnvInt("SESSION_MAX_AGE", DefaultSessionMaxAgeSec)) * time.Second,
 			SecureCookie:       getEnv("SESSION_SECURE", "false") == "true",
+			CookieDomain:       getEnv("COOKIE_DOMAIN", ""),
 			FrontendURL:        getEnv("FRONTEND_URL", DefaultFrontendURL),
 		},
 		Cloudflare: CloudflareConfig{

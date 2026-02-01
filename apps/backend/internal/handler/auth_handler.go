@@ -22,6 +22,7 @@ type AuthHandler struct {
 	sessionCookieName string
 	sessionMaxAge     time.Duration
 	secureCookie      bool
+	cookieDomain      string
 	frontendURL       string
 }
 
@@ -34,6 +35,7 @@ type AuthHandlerConfig struct {
 	SessionCookieName string
 	SessionMaxAge     time.Duration
 	SecureCookie      bool
+	CookieDomain      string
 	FrontendURL       string
 }
 
@@ -47,6 +49,7 @@ func NewAuthHandler(cfg AuthHandlerConfig) *AuthHandler {
 		sessionCookieName: cfg.SessionCookieName,
 		sessionMaxAge:     cfg.SessionMaxAge,
 		secureCookie:      cfg.SecureCookie,
+		cookieDomain:      cfg.CookieDomain,
 		frontendURL:       cfg.FrontendURL,
 	}
 }
@@ -63,14 +66,19 @@ func (h *AuthHandler) RegisterProtected(app fiber.Router) {
 }
 
 func (h *AuthHandler) setCookie(c *fiber.Ctx, name, value string, maxAge int) {
+	sameSite := "Lax"
+	if h.cookieDomain != "" {
+		sameSite = "None"
+	}
 	c.Cookie(&fiber.Cookie{
 		Name:     name,
 		Value:    value,
 		HTTPOnly: true,
 		Secure:   h.secureCookie,
-		SameSite: "Lax",
+		SameSite: sameSite,
 		MaxAge:   maxAge,
 		Path:     "/",
+		Domain:   h.cookieDomain,
 	})
 }
 

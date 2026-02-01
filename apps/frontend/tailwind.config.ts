@@ -67,6 +67,22 @@ export default {
       fontFamily: {
         mono: ["JetBrains Mono", "Fira Code", "monospace"],
       },
+      minHeight: {
+        dvh: "100dvh",
+        svh: "100svh",
+        lvh: "100lvh",
+      },
+      height: {
+        dvh: "100dvh",
+        svh: "100svh",
+        lvh: "100lvh",
+      },
+      spacing: {
+        "safe-top": "var(--safe-area-inset-top)",
+        "safe-bottom": "var(--safe-area-inset-bottom)",
+        "safe-left": "var(--safe-area-inset-left)",
+        "safe-right": "var(--safe-area-inset-right)",
+      },
     },
   },
   plugins: [],

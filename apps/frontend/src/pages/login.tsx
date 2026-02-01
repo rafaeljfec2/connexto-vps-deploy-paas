@@ -64,7 +64,7 @@ export function LoginPage() {
   if (isLoading) {
     return (
       <div
-        className="flex items-center justify-center min-h-screen"
+        className="flex items-center justify-center min-h-dvh safe-all"
         role="status"
         aria-label="Checking authentication status"
       >
@@ -78,8 +78,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
-      <Card className="w-full max-w-md mx-4">
+    <div className="flex items-center justify-center min-h-dvh bg-background safe-all px-4">
+      <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">FlowDeploy</CardTitle>
           <CardDescription>Sign in to deploy your applications</CardDescription>

@@ -23,6 +23,7 @@ type CloudflareAuthHandler struct {
 	logger         *slog.Logger
 	frontendURL    string
 	secureCookie   bool
+	cookieDomain   string
 }
 
 type CloudflareAuthHandlerConfig struct {
@@ -34,6 +35,7 @@ type CloudflareAuthHandlerConfig struct {
 	Logger         *slog.Logger
 	FrontendURL    string
 	SecureCookie   bool
+	CookieDomain   string
 }
 
 func NewCloudflareAuthHandler(cfg CloudflareAuthHandlerConfig) *CloudflareAuthHandler {
@@ -46,6 +48,7 @@ func NewCloudflareAuthHandler(cfg CloudflareAuthHandlerConfig) *CloudflareAuthHa
 		logger:         cfg.Logger.With("handler", "cloudflare_auth"),
 		frontendURL:    cfg.FrontendURL,
 		secureCookie:   cfg.SecureCookie,
+		cookieDomain:   cfg.CookieDomain,
 	}
 }
 
@@ -59,14 +62,19 @@ func (h *CloudflareAuthHandler) Register(app fiber.Router) {
 }
 
 func (h *CloudflareAuthHandler) setCookie(c *fiber.Ctx, name, value string, maxAge int) {
+	sameSite := "Lax"
+	if h.cookieDomain != "" {
+		sameSite = "None"
+	}
 	c.Cookie(&fiber.Cookie{
 		Name:     name,
 		Value:    value,
 		HTTPOnly: true,
 		Secure:   h.secureCookie,
-		SameSite: "Lax",
+		SameSite: sameSite,
 		MaxAge:   maxAge,
 		Path:     "/",
+		Domain:   h.cookieDomain,
 	})
 }
 
