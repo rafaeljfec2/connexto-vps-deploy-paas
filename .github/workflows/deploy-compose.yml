@@ -67,6 +67,7 @@ jobs:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ vars.POSTGRES_DB }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+          GITHUB_REPO: ${{ github.repository }}
 
       - name: Verify deployment
         run: |

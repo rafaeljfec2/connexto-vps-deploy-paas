@@ -10,6 +10,7 @@ set deploy_path [string trim $env(DEPLOY_PATH)]
 set postgres_user $env(POSTGRES_USER)
 set postgres_password $env(POSTGRES_PASSWORD)
 set postgres_db $env(POSTGRES_DB)
+set github_repo $env(GITHUB_REPO)
 
 puts "🚀 Deploying to $host:$port"
 
@@ -24,7 +25,7 @@ expect {
 expect "$ "
 
 puts "📥 Pulling latest code..."
-send "cd $deploy_path && git fetch origin && git reset --hard origin/main\r"
+send "if \[ -d $deploy_path/.git \]; then cd $deploy_path && git fetch origin && git reset --hard origin/main; else rm -rf $deploy_path && git clone https://github.com/$github_repo.git $deploy_path; fi\r"
 expect "$ "
 
 puts "📝 Creating .env file..."
