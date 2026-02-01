@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 
@@ -11,6 +12,10 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 )
 
+type ContainerDomainUpdater interface {
+	UpdateContainerDomains(ctx context.Context, app *domain.App) error
+}
+
 type DomainHandler struct {
 	appRepo        domain.AppRepository
 	domainRepo     domain.CustomDomainRepository
@@ -18,6 +23,7 @@ type DomainHandler struct {
 	tokenEncryptor *crypto.TokenEncryptor
 	serverIP       string
 	logger         *slog.Logger
+	domainUpdater  ContainerDomainUpdater
 }
 
 type DomainHandlerConfig struct {
@@ -27,6 +33,7 @@ type DomainHandlerConfig struct {
 	TokenEncryptor *crypto.TokenEncryptor
 	ServerIP       string
 	Logger         *slog.Logger
+	DomainUpdater  ContainerDomainUpdater
 }
 
 func NewDomainHandler(cfg DomainHandlerConfig) *DomainHandler {
@@ -37,6 +44,7 @@ func NewDomainHandler(cfg DomainHandlerConfig) *DomainHandler {
 		tokenEncryptor: cfg.TokenEncryptor,
 		serverIP:       cfg.ServerIP,
 		logger:         cfg.Logger.With("handler", "domain"),
+		domainUpdater:  cfg.DomainUpdater,
 	}
 }
 
@@ -112,7 +120,8 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
-	if _, err := h.appRepo.FindByID(appID); err != nil {
+	app, err := h.appRepo.FindByID(appID)
+	if err != nil {
 		return response.NotFound(c, MsgAppNotFound)
 	}
 
@@ -171,6 +180,16 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		return response.InternalError(c)
 	}
 
+	if h.domainUpdater != nil {
+		if err := h.domainUpdater.UpdateContainerDomains(c.Context(), app); err != nil {
+			h.logger.Warn("failed to update container with new domain",
+				"error", err,
+				"app_id", appID,
+				"domain", domainName,
+			)
+		}
+	}
+
 	h.logger.Info("Custom domain added",
 		"app_id", appID,
 		"domain", domainName,
@@ -190,7 +209,7 @@ func (h *DomainHandler) RemoveDomain(c *fiber.Ctx) error {
 	appID := c.Params("id")
 	domainID := c.Params("domainId")
 
-	_, err := h.appRepo.FindByID(appID)
+	app, err := h.appRepo.FindByID(appID)
 	if err != nil {
 		return response.NotFound(c, MsgAppNotFound)
 	}
@@ -221,6 +240,16 @@ func (h *DomainHandler) RemoveDomain(c *fiber.Ctx) error {
 	if err := h.domainRepo.Delete(c.Context(), domainID); err != nil {
 		h.logger.Error("failed to delete custom domain", "error", err)
 		return response.InternalError(c)
+	}
+
+	if h.domainUpdater != nil {
+		if err := h.domainUpdater.UpdateContainerDomains(c.Context(), app); err != nil {
+			h.logger.Warn("failed to update container after domain removal",
+				"error", err,
+				"app_id", appID,
+				"domain", customDomain.Domain,
+			)
+		}
 	}
 
 	h.logger.Info("Custom domain removed",

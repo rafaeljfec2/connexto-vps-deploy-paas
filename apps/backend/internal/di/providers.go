@@ -400,6 +400,7 @@ func ProvideDomainHandler(
 	domainRepo domain.CustomDomainRepository,
 	connectionRepo domain.CloudflareConnectionRepository,
 	tokenEncryptor *crypto.TokenEncryptor,
+	eng *engine.Engine,
 	logger *slog.Logger,
 ) *handler.DomainHandler {
 	if tokenEncryptor == nil {
@@ -414,6 +415,7 @@ func ProvideDomainHandler(
 		TokenEncryptor: tokenEncryptor,
 		ServerIP:       cfg.Cloudflare.ServerIP,
 		Logger:         logger,
+		DomainUpdater:  eng,
 	})
 }
 

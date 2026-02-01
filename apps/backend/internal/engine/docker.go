@@ -255,6 +255,7 @@ type ContainerHealth struct {
 	Health    string
 	StartedAt string
 	Uptime    string
+	Image     string
 }
 
 func (d *DockerClient) ContainerExists(ctx context.Context, containerName string) (bool, error) {
@@ -271,7 +272,7 @@ func (d *DockerClient) ContainerExists(ctx context.Context, containerName string
 func (d *DockerClient) InspectContainer(ctx context.Context, containerName string) (*ContainerHealth, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
-	format := "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.State.StartedAt}}"
+	format := "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.State.StartedAt}}|{{.Config.Image}}"
 	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatFlag, format, containerName)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
@@ -286,7 +287,7 @@ func (d *DockerClient) InspectContainer(ctx context.Context, containerName strin
 	}
 
 	parts := strings.Split(strings.TrimSpace(result.Stdout), "|")
-	if len(parts) < 3 {
+	if len(parts) < 4 {
 		return nil, fmt.Errorf("unexpected inspect output: %s", result.Stdout)
 	}
 
@@ -295,6 +296,7 @@ func (d *DockerClient) InspectContainer(ctx context.Context, containerName strin
 		Status:    parts[0],
 		Health:    parts[1],
 		StartedAt: parts[2],
+		Image:     parts[3],
 	}
 
 	if health.Status == "running" && health.StartedAt != "" {
