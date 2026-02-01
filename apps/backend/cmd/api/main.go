@@ -124,6 +124,10 @@ func registerHandlers(app *di.Application) {
 	app.WebhookHandler.Register(app.Server.App())
 	app.ContainerHandler.Register(app.Server.App())
 	app.TemplateHandler.Register(app.Server.App())
+
+	if app.CertificateHandler != nil {
+		app.CertificateHandler.RegisterRoutes(app.Server.App().Group("/api"))
+	}
 }
 
 func registerProtectedRoutes(app *di.Application) {

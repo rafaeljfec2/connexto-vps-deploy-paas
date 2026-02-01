@@ -96,6 +96,7 @@ var HandlerSet = wire.NewSet(
 	ProvideMigrationHandler,
 	ProvideContainerHandler,
 	ProvideTemplateHandler,
+	ProvideCertificateHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -276,6 +277,7 @@ type Application struct {
 	MigrationHandler        *handler.MigrationHandler
 	ContainerHandler        *handler.ContainerHandler
 	TemplateHandler         *handler.TemplateHandler
+	CertificateHandler      *handler.CertificateHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -442,4 +444,11 @@ func ProvideContainerHandler(eng *engine.Engine, logger *slog.Logger) *handler.C
 
 func ProvideTemplateHandler(eng *engine.Engine, logger *slog.Logger) *handler.TemplateHandler {
 	return handler.NewTemplateHandler(eng.Docker(), logger)
+}
+
+func ProvideCertificateHandler(cfg *config.Config, logger *slog.Logger) *handler.CertificateHandler {
+	return handler.NewCertificateHandler(handler.CertificateHandlerConfig{
+		TraefikURL: cfg.Traefik.URL,
+		Logger:     logger,
+	})
 }

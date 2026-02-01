@@ -6,6 +6,7 @@ import type {
   AppURL,
   BackupResult,
   BulkEnvVarInput,
+  CertificateStatus,
   CloudflareStatus,
   CommitInfo,
   Container,
@@ -352,6 +353,14 @@ export const api = {
         throw ApiError.fromResponse(envelope, response.status);
       }
     },
+  },
+
+  certificates: {
+    list: (): Promise<readonly CertificateStatus[]> =>
+      fetchApiList<CertificateStatus>(`${API_URL}/api/certificates`),
+
+    getStatus: (domain: string): Promise<CertificateStatus> =>
+      fetchApi<CertificateStatus>(`${API_URL}/api/certificates/${encodeURIComponent(domain)}`),
   },
 
   migration: {

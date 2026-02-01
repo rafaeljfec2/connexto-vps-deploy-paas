@@ -6,6 +6,9 @@ import {
   Globe,
   Loader2,
   Plus,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldQuestion,
   Trash2,
 } from "lucide-react";
 import {
@@ -28,11 +31,84 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { api } from "@/services/api";
-import type { CustomDomain } from "@/types";
+import type { CertificateStatus, CustomDomain } from "@/types";
 
 interface DomainManagerProps {
   readonly appId: string;
+}
+
+function CertificateStatusBadge({ status }: { readonly status?: CertificateStatus }) {
+  if (!status) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <ShieldQuestion className="h-4 w-4 text-muted-foreground" />
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Certificate status unknown</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  const statusConfig = {
+    active: {
+      icon: ShieldCheck,
+      color: "text-green-500",
+      label: "SSL Certificate Active",
+    },
+    pending: {
+      icon: Loader2,
+      color: "text-yellow-500",
+      label: "SSL Certificate Pending",
+      animate: true,
+    },
+    no_tls: {
+      icon: ShieldAlert,
+      color: "text-orange-500",
+      label: "No SSL configured",
+    },
+    unknown: {
+      icon: ShieldQuestion,
+      color: "text-muted-foreground",
+      label: "Certificate status unknown",
+    },
+    error: {
+      icon: ShieldAlert,
+      color: "text-red-500",
+      label: status.error ?? "Certificate error",
+    },
+  };
+
+  const config = statusConfig[status.status] ?? statusConfig.unknown;
+  const Icon = config.icon;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger>
+          <Icon className={`h-4 w-4 ${config.color} ${config.animate ? "animate-spin" : ""}`} />
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{config.label}</p>
+          {status.expiresAt && (
+            <p className="text-xs text-muted-foreground">
+              Expires: {new Date(status.expiresAt).toLocaleDateString()}
+            </p>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 export function DomainManager({ appId }: DomainManagerProps) {
@@ -51,6 +127,16 @@ export function DomainManager({ appId }: DomainManagerProps) {
     queryKey: ["custom-domains", appId],
     queryFn: () => api.domains.list(appId),
   });
+
+  const { data: certificates = [] } = useQuery({
+    queryKey: ["certificates"],
+    queryFn: () => api.certificates.list(),
+    refetchInterval: 30000,
+  });
+
+  const getCertificateStatus = (domain: string): CertificateStatus | undefined => {
+    return certificates.find((cert) => cert.domain === domain);
+  };
 
   const addDomainMutation = useMutation({
     mutationFn: (domain: string) => api.domains.add(appId, domain),
@@ -186,14 +272,17 @@ export function DomainManager({ appId }: DomainManagerProps) {
                       </div>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setDomainToDelete(domain)}
-                    disabled={removeDomainMutation.isPending}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <CertificateStatusBadge status={getCertificateStatus(domain.domain)} />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDomainToDelete(domain)}
+                      disabled={removeDomainMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -3,6 +3,8 @@ services:
     image: traefik:v3.2
     container_name: paasdeploy-traefik
     restart: unless-stopped
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}
     ports:
       - "80:80"
       - "443:443"
@@ -11,6 +13,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - traefik-logs:/var/log/traefik
+      - traefik-certs:/etc/traefik
     networks:
       - paasdeploy
     labels:
@@ -94,3 +97,4 @@ volumes:
   postgres-data:
   deploy-data:
   traefik-logs:
+  traefik-certs:

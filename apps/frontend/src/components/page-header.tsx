@@ -18,22 +18,22 @@ export function PageHeader({
   titleSuffix,
 }: PageHeaderProps) {
   return (
-    <div className="flex flex-col gap-3 sm:gap-4">
-      <div className="flex items-start gap-3 sm:gap-4">
-        {backTo && (
-          <Button
-            asChild
-            variant="ghost"
-            size="icon"
-            className="shrink-0 -ml-2 sm:ml-0"
-          >
-            <Link to={backTo}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-        )}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+          {backTo && (
+            <Button
+              asChild
+              variant="ghost"
+              size="icon"
+              className="shrink-0 -ml-2 sm:ml-0"
+            >
+              <Link to={backTo}>
+                <ArrowLeft className="h-4 w-4" />
+              </Link>
+            </Button>
+          )}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
             <h1
               className={
                 backTo
@@ -45,15 +45,15 @@ export function PageHeader({
             </h1>
             {titleSuffix}
           </div>
-          {description && (
-            <div className="text-sm sm:text-base text-muted-foreground mt-1">
-              {description}
-            </div>
-          )}
         </div>
+        {actions && (
+          <div className="flex flex-wrap gap-2 shrink-0">{actions}</div>
+        )}
       </div>
-      {actions && (
-        <div className="flex flex-wrap gap-2 -mx-1 sm:mx-0">{actions}</div>
+      {description && (
+        <div className="text-sm sm:text-base text-muted-foreground ml-0 lg:ml-10">
+          {description}
+        </div>
       )}
     </div>
   );

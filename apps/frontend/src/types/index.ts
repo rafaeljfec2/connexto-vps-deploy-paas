@@ -76,6 +76,17 @@ export interface WebhookStatus {
   readonly error: string | null;
 }
 
+export type CertificateStatusType = "active" | "pending" | "no_tls" | "unknown" | "error";
+
+export interface CertificateStatus {
+  readonly domain: string;
+  readonly status: CertificateStatusType;
+  readonly expiresAt?: string | null;
+  readonly issuedAt?: string | null;
+  readonly issuer?: string | null;
+  readonly error?: string | null;
+}
+
 export interface EnvVar {
   readonly id: string;
   readonly appId: string;

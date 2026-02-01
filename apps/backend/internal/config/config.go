@@ -30,6 +30,7 @@ type Config struct {
 	GitHub     GitHubConfig
 	Auth       AuthConfig
 	Cloudflare CloudflareConfig
+	Traefik    TraefikConfig
 }
 
 type ServerConfig struct {
@@ -92,6 +93,10 @@ type CloudflareConfig struct {
 	ServerIP     string
 }
 
+type TraefikConfig struct {
+	URL string
+}
+
 func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
@@ -143,6 +148,9 @@ func Load() *Config {
 			ClientSecret: getEnv("CLOUDFLARE_CLIENT_SECRET", ""),
 			CallbackURL:  getEnv("CLOUDFLARE_CALLBACK_URL", ""),
 			ServerIP:     getEnv("CLOUDFLARE_SERVER_IP", ""),
+		},
+		Traefik: TraefikConfig{
+			URL: getEnv("TRAEFIK_API_URL", "http://paasdeploy-traefik:8081"),
 		},
 	}
 }
