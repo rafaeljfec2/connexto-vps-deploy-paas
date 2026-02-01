@@ -351,7 +351,7 @@ func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployCo
 		"%s"+
 		"%s"+
 		"    healthcheck:\n"+
-		"      test: [\"CMD\", \"wget\", \"-q\", \"--spider\", \"http://127.0.0.1:%d%s\"]\n"+
+		"      test: [\"CMD-SHELL\", \"curl -sf http://127.0.0.1:%d%s || wget -q --spider http://127.0.0.1:%d%s || exit 1\"]\n"+
 		"      interval: %s\n"+
 		"      timeout: %s\n"+
 		"      retries: %d\n"+
@@ -367,6 +367,7 @@ func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployCo
 		"  paasdeploy:\n"+
 		"    external: true\n",
 		appName, image, appName, portMapping, envYAML, labels,
+		cfg.Port, cfg.Healthcheck.Path,
 		cfg.Port, cfg.Healthcheck.Path,
 		cfg.Healthcheck.Interval, cfg.Healthcheck.Timeout,
 		cfg.Healthcheck.Retries, cfg.Healthcheck.StartPeriod,

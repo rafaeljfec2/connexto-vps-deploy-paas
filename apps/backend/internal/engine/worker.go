@@ -352,7 +352,7 @@ func (w *Worker) generateComposeFile(ctx context.Context, appDir, appName, appID
 		"%s"+
 		"%s"+
 		"    healthcheck:\n"+
-		"      test: [\"CMD\", \"wget\", \"-q\", \"--spider\", \"http://127.0.0.1:%d%s\"]\n"+
+		"      test: [\"CMD-SHELL\", \"curl -sf http://127.0.0.1:%d%s || wget -q --spider http://127.0.0.1:%d%s || exit 1\"]\n"+
 		"      interval: %s\n"+
 		"      timeout: %s\n"+
 		"      retries: %d\n"+
@@ -373,6 +373,8 @@ func (w *Worker) generateComposeFile(ctx context.Context, appDir, appName, appID
 		portMapping,
 		envVars,
 		labels,
+		cfg.Port,
+		cfg.Healthcheck.Path,
 		cfg.Port,
 		cfg.Healthcheck.Path,
 		cfg.Healthcheck.Interval,
