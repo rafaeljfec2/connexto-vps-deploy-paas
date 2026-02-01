@@ -97,11 +97,19 @@ expect "$ "
 send "echo 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https' >> /tmp/labels.txt\r"
 expect "$ "
 
+# Get docker group GID for socket access
+send "stat -c '%g' /var/run/docker.sock\r"
+expect -re {(\d+)\r?\n}
+set docker_gid $expect_out(1,string)
+expect "$ "
+puts "📦 Docker socket GID: $docker_gid"
+
 # Build docker run command
 set cmd "docker run -d"
 append cmd " --name $container_name"
 append cmd " --network $traefik_network"
 append cmd " --restart unless-stopped"
+append cmd " --group-add $docker_gid"
 append cmd " -p 9005:8080"
 append cmd " -v /var/run/docker.sock:/var/run/docker.sock"
 append cmd " -v /opt/flowdeploy:/opt/flowdeploy"

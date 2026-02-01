@@ -29,6 +29,9 @@ export function Header() {
         >
           <Rocket className="h-6 w-6" aria-hidden="true" />
           <span className="hidden sm:inline">FlowDeploy</span>
+          <span className="text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+            Self-hosted
+          </span>
         </Link>
 
         <nav
