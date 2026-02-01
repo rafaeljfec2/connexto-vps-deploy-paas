@@ -23,7 +23,8 @@ expect {
 
 expect "$ "
 
-send "mkdir -p $deploy_path/deploy\r"
+puts "📥 Pulling latest code..."
+send "cd $deploy_path && git fetch origin && git reset --hard origin/main\r"
 expect "$ "
 
 puts "📝 Creating .env file..."
@@ -39,10 +40,6 @@ send "ENVEOF\r"
 expect "$ "
 
 send "chmod 600 $deploy_path/deploy/.env\r"
-expect "$ "
-
-puts "📥 Pulling latest code..."
-send "cd $deploy_path && git pull origin main 2>/dev/null || git clone https://github.com/\$GITHUB_REPOSITORY.git $deploy_path\r"
 expect "$ "
 
 puts "🐳 Creating Docker network..."
