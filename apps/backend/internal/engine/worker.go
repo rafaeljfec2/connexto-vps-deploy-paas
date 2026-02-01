@@ -400,6 +400,7 @@ func buildLabelsYAML(appName string, domains []string, port int) string {
 		}
 		return fmt.Sprintf("    labels:\n"+
 			"      - \"traefik.enable=true\"\n"+
+			"      - \"traefik.docker.network=paasdeploy\"\n"+
 			"      - \"traefik.http.routers.%s.rule=%s\"\n"+
 			"      - \"traefik.http.routers.%s.tls=true\"\n"+
 			"      - \"traefik.http.routers.%s.tls.certresolver=letsencrypt\"\n"+
@@ -409,6 +410,7 @@ func buildLabelsYAML(appName string, domains []string, port int) string {
 
 	return fmt.Sprintf("    labels:\n"+
 		"      - \"traefik.enable=true\"\n"+
+		"      - \"traefik.docker.network=paasdeploy\"\n"+
 		"      - \"traefik.http.routers.%s.rule=Host(`%s.localhost`)\"\n"+
 		"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
 		appName, appName, appName, port)

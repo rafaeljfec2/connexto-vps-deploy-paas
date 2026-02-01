@@ -181,7 +181,7 @@ func (c *TraefikConverter) generateLabels(config TraefikConfig, site NginxSite) 
 		labels[fmt.Sprintf("traefik.http.routers.%s.middlewares", svc)] = strings.Join(middlewares, ",")
 	}
 
-	labels["traefik.docker.network"] = "traefik-public"
+	labels["traefik.docker.network"] = "paasdeploy"
 
 	return labels
 }

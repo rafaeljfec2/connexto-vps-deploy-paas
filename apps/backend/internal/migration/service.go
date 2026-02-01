@@ -423,6 +423,7 @@ func (s *MigrationService) MigrateContainer(ctx context.Context, site NginxSite,
 
 	var labels []string
 	labels = append(labels, "traefik.enable=true")
+	labels = append(labels, "traefik.docker.network=paasdeploy")
 	for _, cfg := range configs {
 		labels = append(labels, fmt.Sprintf("traefik.http.routers.%s.rule=Host(`%s`)", cfg.ServiceName, cfg.Domain))
 		labels = append(labels, fmt.Sprintf("traefik.http.routers.%s.entrypoints=websecure", cfg.ServiceName))
