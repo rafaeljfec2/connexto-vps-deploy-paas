@@ -151,10 +151,10 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Domain not found in your Cloudflare account")
 	}
 
-	recordID, err := cfClient.CreateARecord(c.Context(), zoneID, domainName, h.serverIP)
+	recordID, err := cfClient.CreateOrGetARecord(c.Context(), zoneID, domainName, h.serverIP)
 	if err != nil {
-		h.logger.Error("failed to create DNS record", "domain", domainName, "error", err)
-		return response.BadRequest(c, "Failed to create DNS record: "+err.Error())
+		h.logger.Error("failed to create/get DNS record", "domain", domainName, "error", err)
+		return response.BadRequest(c, "Failed to configure DNS record: "+err.Error())
 	}
 	recordType := "A"
 

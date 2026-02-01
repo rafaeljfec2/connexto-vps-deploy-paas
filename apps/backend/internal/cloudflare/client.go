@@ -146,6 +146,33 @@ func (c *Client) CreateARecord(ctx context.Context, zoneID, name, ip string) (st
 	return c.createRecord(ctx, zoneID, record)
 }
 
+func (c *Client) CreateOrGetARecord(ctx context.Context, zoneID, name, ip string) (string, error) {
+	recordID, err := c.CreateARecord(ctx, zoneID, name, ip)
+	if err == nil {
+		return recordID, nil
+	}
+
+	if !strings.Contains(err.Error(), "81058") {
+		return "", err
+	}
+
+	c.logger.Info("DNS record already exists, fetching existing record", "name", name)
+
+	records, err := c.ListRecords(ctx, zoneID, name)
+	if err != nil {
+		return "", fmt.Errorf("failed to list existing records: %w", err)
+	}
+
+	for _, r := range records {
+		if r.Type == "A" && r.Name == name {
+			c.logger.Info("Found existing DNS record", "record_id", r.ID, "name", r.Name)
+			return r.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("record exists but could not be found")
+}
+
 func (c *Client) createRecord(ctx context.Context, zoneID string, record DNSRecord) (string, error) {
 	body, err := json.Marshal(record)
 	if err != nil {
