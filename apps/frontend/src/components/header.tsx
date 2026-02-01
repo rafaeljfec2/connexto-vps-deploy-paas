@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
-import { LogOut, Plus, Rocket, Settings, User } from "lucide-react";
+import { Box, LogOut, Plus, Rocket, Settings, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,13 @@ export function Header() {
 
           {isAuthenticated && user ? (
             <>
+              <Button asChild variant="ghost" size="sm">
+                <Link to={ROUTES.CONTAINERS} aria-label="View containers">
+                  <Box className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                  <span className="hidden sm:inline">Containers</span>
+                </Link>
+              </Button>
+
               <Button asChild variant="outline" size="sm">
                 <Link to={ROUTES.NEW_APP} aria-label="Create new application">
                   <Plus className="h-4 w-4 sm:mr-2" aria-hidden="true" />

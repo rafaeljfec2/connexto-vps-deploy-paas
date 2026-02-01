@@ -122,6 +122,8 @@ func registerHandlers(app *di.Application) {
 	app.ContainerHealthHandler.Register(app.Server.App())
 	app.AppAdminHandler.Register(app.Server.App())
 	app.WebhookHandler.Register(app.Server.App())
+	app.ContainerHandler.Register(app.Server.App())
+	app.TemplateHandler.Register(app.Server.App())
 }
 
 func registerProtectedRoutes(app *di.Application) {

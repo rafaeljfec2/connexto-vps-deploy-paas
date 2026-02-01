@@ -97,6 +97,10 @@ func InternalError(c *fiber.Ctx) error {
 	return sendError(c, fiber.StatusInternalServerError, ErrCodeInternal, "internal server error", nil)
 }
 
+func ServerError(c *fiber.Ctx, status int, message string) error {
+	return sendError(c, status, ErrCodeInternal, message, nil)
+}
+
 func send(c *fiber.Ctx, status int, data interface{}, errInfo *ErrorInfo) error {
 	meta := Meta{
 		TraceID: getTraceID(c),

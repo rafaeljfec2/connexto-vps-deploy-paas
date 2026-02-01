@@ -205,3 +205,7 @@ func (e *Engine) StreamContainerLogs(ctx context.Context, containerName string, 
 func (e *Engine) ContainerStats(ctx context.Context, containerName string) (*ContainerStats, error) {
 	return e.docker.ContainerStats(ctx, containerName)
 }
+
+func (e *Engine) Docker() *DockerClient {
+	return e.docker
+}

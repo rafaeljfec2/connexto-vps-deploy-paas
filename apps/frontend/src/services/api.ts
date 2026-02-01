@@ -8,17 +8,21 @@ import type {
   BulkEnvVarInput,
   CloudflareStatus,
   CommitInfo,
+  Container,
   ContainerActionResult,
   ContainerLogs,
   ContainerStats,
   CreateAppInput,
+  CreateContainerInput,
   CreateEnvVarInput,
   CustomDomain,
+  DeployTemplateInput,
   Deployment,
   EnvVar,
   HealthStatus,
   MigrateResult,
   MigrationStatus,
+  Template,
   TraefikPreview,
   UpdateAppInput,
   WebhookSetupResult,
@@ -402,5 +406,70 @@ export const api = {
           body: JSON.stringify({ containerId }),
         },
       ),
+  },
+
+  containers: {
+    list: (all = true): Promise<readonly Container[]> =>
+      fetchApiList<Container>(`${API_BASE}/containers?all=${all}`),
+
+    get: (id: string): Promise<Container> =>
+      fetchApi<Container>(`${API_BASE}/containers/${id}`),
+
+    create: (input: CreateContainerInput): Promise<Container> =>
+      fetchApi<Container>(`${API_BASE}/containers`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+
+    start: (id: string): Promise<{ message: string; id: string }> =>
+      fetchApi<{ message: string; id: string }>(
+        `${API_BASE}/containers/${id}/start`,
+        { method: "POST" },
+      ),
+
+    stop: (id: string): Promise<{ message: string; id: string }> =>
+      fetchApi<{ message: string; id: string }>(
+        `${API_BASE}/containers/${id}/stop`,
+        { method: "POST" },
+      ),
+
+    restart: (id: string): Promise<{ message: string; id: string }> =>
+      fetchApi<{ message: string; id: string }>(
+        `${API_BASE}/containers/${id}/restart`,
+        { method: "POST" },
+      ),
+
+    remove: async (id: string, force = false): Promise<void> => {
+      const response = await fetch(
+        `${API_BASE}/containers/${id}?force=${force}`,
+        { method: "DELETE", credentials: "include" },
+      );
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+
+    logs: (id: string, tail = 100): Promise<ContainerLogs> =>
+      fetchApi<ContainerLogs>(`${API_BASE}/containers/${id}/logs?tail=${tail}`),
+  },
+
+  templates: {
+    list: (category?: string): Promise<readonly Template[]> => {
+      const url = category
+        ? `${API_BASE}/templates?category=${category}`
+        : `${API_BASE}/templates`;
+      return fetchApiList<Template>(url);
+    },
+
+    get: (id: string): Promise<Template> =>
+      fetchApi<Template>(`${API_BASE}/templates/${id}`),
+
+    deploy: (id: string, input: DeployTemplateInput): Promise<Container> =>
+      fetchApi<Container>(`${API_BASE}/templates/${id}/deploy`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
   },
 };

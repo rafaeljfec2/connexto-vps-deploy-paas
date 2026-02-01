@@ -1,10 +1,12 @@
 import { Route, Routes } from "react-router-dom";
 import { AppDetailsPage } from "@/pages/app-details";
+import { ContainersPage } from "@/pages/containers";
 import { DashboardPage } from "@/pages/dashboard";
 import { LoginPage } from "@/pages/login";
 import { MigrationPage } from "@/pages/migration";
 import { NewAppPage } from "@/pages/new-app";
 import { SettingsPage } from "@/pages/settings";
+import { TemplatesPage } from "@/pages/templates";
 import { ProtectedRoute } from "@/components/protected-route";
 
 export function AppRoutes() {
@@ -48,6 +50,22 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <MigrationPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/containers"
+        element={
+          <ProtectedRoute>
+            <ContainersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/containers/templates"
+        element={
+          <ProtectedRoute>
+            <TemplatesPage />
           </ProtectedRoute>
         }
       />

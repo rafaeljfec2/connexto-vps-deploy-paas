@@ -517,10 +517,10 @@ func (w *Worker) fail(deploy *domain.Deployment, app *domain.App, err error) err
 func (w *Worker) log(deployID, appID, format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
 	timestamp := time.Now().Format("15:04:05")
-	logLine := fmt.Sprintf("[%s] %s\n", timestamp, message)
+	logLine := fmt.Sprintf("[%s] %s", timestamp, message)
 
-	w.deps.Dispatcher.AppendLogs(deployID, logLine)
-	w.deps.Notifier.EmitLog(deployID, appID, message)
+	w.deps.Dispatcher.AppendLogs(deployID, logLine+"\n")
+	w.deps.Notifier.EmitLog(deployID, appID, logLine)
 	w.deps.Logger.Info(message, "deployId", deployID, "appId", appID)
 }
 

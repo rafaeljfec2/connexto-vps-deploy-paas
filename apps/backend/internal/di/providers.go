@@ -93,6 +93,8 @@ var HandlerSet = wire.NewSet(
 	ProvideCloudflareAuthHandler,
 	ProvideDomainHandler,
 	ProvideMigrationHandler,
+	ProvideContainerHandler,
+	ProvideTemplateHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -259,6 +261,8 @@ type Application struct {
 	CloudflareAuthHandler   *handler.CloudflareAuthHandler
 	DomainHandler           *handler.DomainHandler
 	MigrationHandler        *handler.MigrationHandler
+	ContainerHandler        *handler.ContainerHandler
+	TemplateHandler         *handler.TemplateHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -415,4 +419,12 @@ func ProvideDomainHandler(
 
 func ProvideMigrationHandler(logger *slog.Logger) *handler.MigrationHandler {
 	return handler.NewMigrationHandler(logger)
+}
+
+func ProvideContainerHandler(eng *engine.Engine, logger *slog.Logger) *handler.ContainerHandler {
+	return handler.NewContainerHandler(eng.Docker(), logger)
+}
+
+func ProvideTemplateHandler(eng *engine.Engine, logger *slog.Logger) *handler.TemplateHandler {
+	return handler.NewTemplateHandler(eng.Docker(), logger)
 }

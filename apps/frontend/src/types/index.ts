@@ -299,3 +299,83 @@ export interface MigrateResult {
   readonly success: boolean;
   readonly message: string;
 }
+
+export type ContainerState =
+  | "running"
+  | "exited"
+  | "paused"
+  | "restarting"
+  | "dead"
+  | "created";
+
+export interface ContainerPort {
+  readonly privatePort: number;
+  readonly publicPort?: number;
+  readonly type: "tcp" | "udp";
+}
+
+export interface Container {
+  readonly id: string;
+  readonly name: string;
+  readonly image: string;
+  readonly state: ContainerState;
+  readonly status: string;
+  readonly health: string;
+  readonly created: string;
+  readonly ipAddress: string;
+  readonly ports: readonly ContainerPort[];
+  readonly labels: Record<string, string>;
+  readonly isFlowDeployManaged: boolean;
+}
+
+export interface PortMappingInput {
+  readonly hostPort: number;
+  readonly containerPort: number;
+  readonly protocol?: "tcp" | "udp";
+}
+
+export interface VolumeMappingInput {
+  readonly hostPath: string;
+  readonly containerPath: string;
+  readonly readOnly?: boolean;
+}
+
+export interface CreateContainerInput {
+  readonly name: string;
+  readonly image: string;
+  readonly ports?: readonly PortMappingInput[];
+  readonly env?: Record<string, string>;
+  readonly volumes?: readonly VolumeMappingInput[];
+  readonly network?: string;
+  readonly restartPolicy?: "no" | "always" | "unless-stopped" | "on-failure";
+  readonly command?: readonly string[];
+}
+
+export interface TemplateEnvVar {
+  readonly name: string;
+  readonly label: string;
+  readonly description?: string;
+  readonly default?: string;
+  readonly required: boolean;
+}
+
+export interface Template {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly image: string;
+  readonly category: string;
+  readonly type: "container" | "stack";
+  readonly logo?: string;
+  readonly env?: readonly TemplateEnvVar[];
+  readonly ports?: readonly number[];
+  readonly volumes?: readonly string[];
+}
+
+export interface DeployTemplateInput {
+  readonly name?: string;
+  readonly env?: Record<string, string>;
+  readonly ports?: readonly PortMappingInput[];
+  readonly network?: string;
+  readonly restartPolicy?: string;
+}

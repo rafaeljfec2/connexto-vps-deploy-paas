@@ -5,7 +5,10 @@ import {
   ExternalLink,
   Folder,
   GitBranch,
+  Hammer,
+  Loader2,
   MoreVertical,
+  Rocket,
   Trash2,
 } from "lucide-react";
 import {
@@ -32,8 +35,75 @@ import { IconText } from "@/components/icon-text";
 import { StatusBadge } from "@/components/status-badge";
 import { usePurgeApp } from "@/features/apps/hooks/use-apps";
 import { useAppHealth } from "@/hooks/use-sse";
-import { formatRelativeTime, formatRepositoryUrl } from "@/lib/utils";
+import { cn, formatRelativeTime, formatRepositoryUrl } from "@/lib/utils";
 import type { App, Deployment } from "@/types";
+
+function DeployProgress({ deploy }: { readonly deploy: Deployment }) {
+  const isRunning = deploy.status === "running";
+  const isPending = deploy.status === "pending";
+
+  if (!isRunning && !isPending) return null;
+
+  const logs = deploy.logs ?? "";
+  const isBuildPhase =
+    logs.includes("[build]") && !logs.includes("Container deployed");
+  const isDeployPhase =
+    logs.includes("Deploying container") || logs.includes("[deploy]");
+  const isHealthCheck = logs.includes("Waiting for health check");
+
+  let phase = "Initializing";
+  let Icon = Loader2;
+  let progress = 10;
+
+  if (isPending) {
+    phase = "Queued";
+    progress = 5;
+  } else if (isHealthCheck) {
+    phase = "Health check";
+    Icon = Rocket;
+    progress = 90;
+  } else if (isDeployPhase) {
+    phase = "Deploying";
+    Icon = Rocket;
+    progress = 75;
+  } else if (isBuildPhase) {
+    phase = "Building";
+    Icon = Hammer;
+    const buildSteps = logs.match(/Step \d+\/\d+/g) ?? [];
+    const lastStep = buildSteps.at(-1);
+    if (lastStep) {
+      const match = /Step (\d+)\/(\d+)/.exec(lastStep);
+      const currentStep = match?.[1];
+      const totalSteps = match?.[2];
+      if (currentStep && totalSteps) {
+        const current = Number.parseInt(currentStep, 10);
+        const total = Number.parseInt(totalSteps, 10);
+        progress = Math.round((current / total) * 60) + 15;
+        phase = `Building (${current}/${total})`;
+      }
+    } else {
+      progress = 20;
+    }
+  }
+
+  return (
+    <div className="absolute inset-0 z-5 bg-background/80 backdrop-blur-[2px] rounded-lg flex flex-col items-center justify-center gap-2 p-4">
+      <div className="flex items-center gap-2 text-primary">
+        <Icon className={cn("h-5 w-5", isRunning && "animate-spin")} />
+        <span className="font-medium text-sm">{phase}</span>
+      </div>
+      <div className="w-full max-w-[200px] h-1.5 bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <span className="text-[10px] text-muted-foreground">
+        {deploy.commitSha?.slice(0, 7)}
+      </span>
+    </div>
+  );
+}
 
 interface TechTag {
   readonly name: string;
@@ -92,48 +162,46 @@ function detectTechTags(app: App): readonly TechTag[] {
     if (runtimeTag) {
       tags.push(runtimeTag);
     }
-  } else {
-    if (
-      nameAndWorkdir.includes("go") ||
-      nameAndWorkdir.includes("golang") ||
-      app.workdir.includes("cmd/")
-    ) {
-      tags.push({
-        name: "Go",
-        color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
-      });
-    } else if (
-      nameAndWorkdir.includes("node") ||
-      nameAndWorkdir.includes("express") ||
-      nameAndWorkdir.includes("nest")
-    ) {
-      tags.push({
-        name: "Node.js",
-        color: "bg-green-500/20 text-green-400 border-green-500/30",
-      });
-    } else if (
-      nameAndWorkdir.includes("python") ||
-      nameAndWorkdir.includes("django") ||
-      nameAndWorkdir.includes("flask")
-    ) {
-      tags.push({
-        name: "Python",
-        color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-      });
-    } else if (nameAndWorkdir.includes("rust")) {
-      tags.push({
-        name: "Rust",
-        color: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-      });
-    } else if (
-      nameAndWorkdir.includes("java") ||
-      nameAndWorkdir.includes("spring")
-    ) {
-      tags.push({
-        name: "Java",
-        color: "bg-red-500/20 text-red-400 border-red-500/30",
-      });
-    }
+  } else if (
+    nameAndWorkdir.includes("go") ||
+    nameAndWorkdir.includes("golang") ||
+    app.workdir.includes("cmd/")
+  ) {
+    tags.push({
+      name: "Go",
+      color: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+    });
+  } else if (
+    nameAndWorkdir.includes("node") ||
+    nameAndWorkdir.includes("express") ||
+    nameAndWorkdir.includes("nest")
+  ) {
+    tags.push({
+      name: "Node.js",
+      color: "bg-green-500/20 text-green-400 border-green-500/30",
+    });
+  } else if (
+    nameAndWorkdir.includes("python") ||
+    nameAndWorkdir.includes("django") ||
+    nameAndWorkdir.includes("flask")
+  ) {
+    tags.push({
+      name: "Python",
+      color: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    });
+  } else if (nameAndWorkdir.includes("rust")) {
+    tags.push({
+      name: "Rust",
+      color: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    });
+  } else if (
+    nameAndWorkdir.includes("java") ||
+    nameAndWorkdir.includes("spring")
+  ) {
+    tags.push({
+      name: "Java",
+      color: "bg-red-500/20 text-red-400 border-red-500/30",
+    });
   }
 
   if (nameAndWorkdir.includes("api")) {
@@ -181,10 +249,20 @@ export function AppCard({ app, latestDeploy }: AppCardProps) {
     });
   };
 
+  const isDeploying =
+    latestDeploy?.status === "running" || latestDeploy?.status === "pending";
+
   return (
     <>
-      <Card className="hover:bg-accent/50 transition-colors cursor-pointer group relative">
+      <Card
+        className={cn(
+          "transition-colors cursor-pointer group relative overflow-hidden",
+          isDeploying ? "border-primary/50" : "hover:bg-accent/50",
+        )}
+      >
         <Link to={`/apps/${app.id}`} className="absolute inset-0 z-0" />
+
+        {latestDeploy && <DeployProgress deploy={latestDeploy} />}
 
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between">

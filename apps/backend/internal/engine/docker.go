@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+const (
+	dockerFormatFlag     = "--format"
+	errNoSuchContainer   = "no such container"
+)
+
 type DockerClient struct {
 	executor *Executor
 	logger   *slog.Logger
@@ -210,7 +215,7 @@ type ContainerHealth struct {
 func (d *DockerClient) ContainerExists(ctx context.Context, containerName string) (bool, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
-	result, err := d.executor.Run(ctx, "docker", "ps", "-a", "--filter", fmt.Sprintf("name=^%s$", containerName), "--format", "{{.Names}}")
+	result, err := d.executor.Run(ctx, "docker", "ps", "-a", "--filter", fmt.Sprintf("name=^%s$", containerName), dockerFormatFlag, "{{.Names}}")
 	if err != nil {
 		return false, fmt.Errorf("failed to check container: %w", err)
 	}
@@ -222,10 +227,10 @@ func (d *DockerClient) InspectContainer(ctx context.Context, containerName strin
 	d.executor.SetTimeout(30 * time.Second)
 
 	format := "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.State.StartedAt}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", "--format", format, containerName)
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatFlag, format, containerName)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
-		if strings.Contains(stderrLower, "no such object") || strings.Contains(stderrLower, "no such container") {
+		if strings.Contains(stderrLower, "no such object") || strings.Contains(stderrLower, errNoSuchContainer) {
 			return &ContainerHealth{
 				Name:   containerName,
 				Status: "not_found",
@@ -318,7 +323,7 @@ func (d *DockerClient) ContainerLogs(ctx context.Context, containerName string, 
 	result, err := d.executor.RunQuiet(ctx, "docker", "logs", "--tail", tailArg, "--timestamps", containerName)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
-		if strings.Contains(stderrLower, "no such container") {
+		if strings.Contains(stderrLower, errNoSuchContainer) {
 			return "", fmt.Errorf("container not found: %s", containerName)
 		}
 		return "", fmt.Errorf("failed to get container logs: %w", err)
@@ -352,10 +357,10 @@ func (d *DockerClient) ContainerStats(ctx context.Context, containerName string)
 	d.executor.SetTimeout(30 * time.Second)
 
 	format := "{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.PIDs}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "stats", "--no-stream", "--format", format, containerName)
+	result, err := d.executor.RunQuiet(ctx, "docker", "stats", "--no-stream", dockerFormatFlag, format, containerName)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
-		if strings.Contains(stderrLower, "no such container") {
+		if strings.Contains(stderrLower, errNoSuchContainer) {
 			return nil, fmt.Errorf("container not found: %s", containerName)
 		}
 		return nil, fmt.Errorf("failed to get container stats: %w", err)
@@ -450,3 +455,4 @@ func (d *DockerClient) PruneUnusedImages(ctx context.Context) error {
 
 	return nil
 }
+

@@ -1,0 +1,311 @@
+package handler
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"log/slog"
+	"strconv"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/paasdeploy/backend/internal/engine"
+	"github.com/paasdeploy/backend/internal/response"
+	"github.com/valyala/fasthttp"
+)
+
+type ContainerHandler struct {
+	docker *engine.DockerClient
+	logger *slog.Logger
+}
+
+func NewContainerHandler(docker *engine.DockerClient, logger *slog.Logger) *ContainerHandler {
+	return &ContainerHandler{
+		docker: docker,
+		logger: logger,
+	}
+}
+
+func (h *ContainerHandler) Register(app *fiber.App) {
+	v1 := app.Group(APIPrefix)
+	v1.Get("/containers", h.ListContainers)
+	v1.Get("/containers/:id", h.GetContainer)
+	v1.Post("/containers", h.CreateContainer)
+	v1.Post("/containers/:id/start", h.StartContainer)
+	v1.Post("/containers/:id/stop", h.StopContainer)
+	v1.Post("/containers/:id/restart", h.RestartContainer)
+	v1.Delete("/containers/:id", h.RemoveContainer)
+	v1.Get("/containers/:id/logs", h.GetContainerLogs)
+}
+
+type ContainerResponse struct {
+	ID                  string                  `json:"id"`
+	Name                string                  `json:"name"`
+	Image               string                  `json:"image"`
+	State               string                  `json:"state"`
+	Status              string                  `json:"status"`
+	Health              string                  `json:"health"`
+	Created             string                  `json:"created"`
+	IPAddress           string                  `json:"ipAddress"`
+	Ports               []ContainerPortResponse `json:"ports"`
+	Labels              map[string]string       `json:"labels"`
+	IsFlowDeployManaged bool                    `json:"isFlowDeployManaged"`
+}
+
+type ContainerPortResponse struct {
+	PrivatePort int    `json:"privatePort"`
+	PublicPort  int    `json:"publicPort,omitempty"`
+	Type        string `json:"type"`
+}
+
+func (h *ContainerHandler) ListContainers(c *fiber.Ctx) error {
+	all := c.Query("all", "true") == "true"
+
+	containers, err := h.docker.ListContainers(c.Context(), all)
+	if err != nil {
+		h.logger.Error("Failed to list containers", "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to list containers")
+	}
+
+	result := make([]ContainerResponse, len(containers))
+	for i, container := range containers {
+		result[i] = h.toContainerResponse(container)
+	}
+
+	return response.OK(c, result)
+}
+
+func (h *ContainerHandler) GetContainer(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	container, err := h.docker.GetContainerDetails(c.Context(), id)
+	if err != nil {
+		h.logger.Error("Failed to get container", "id", id, "error", err)
+		return response.NotFound(c, "Container not found")
+	}
+
+	return response.OK(c, h.toContainerResponse(*container))
+}
+
+type CreateContainerRequest struct {
+	Name          string               `json:"name"`
+	Image         string               `json:"image"`
+	Ports         []PortMappingRequest `json:"ports,omitempty"`
+	Env           map[string]string    `json:"env,omitempty"`
+	Volumes       []VolumeMappingRequest `json:"volumes,omitempty"`
+	Network       string               `json:"network,omitempty"`
+	RestartPolicy string               `json:"restartPolicy,omitempty"`
+	Command       []string             `json:"command,omitempty"`
+}
+
+type PortMappingRequest struct {
+	HostPort      int    `json:"hostPort"`
+	ContainerPort int    `json:"containerPort"`
+	Protocol      string `json:"protocol,omitempty"`
+}
+
+type VolumeMappingRequest struct {
+	HostPath      string `json:"hostPath"`
+	ContainerPath string `json:"containerPath"`
+	ReadOnly      bool   `json:"readOnly,omitempty"`
+}
+
+func (h *ContainerHandler) CreateContainer(c *fiber.Ctx) error {
+	var req CreateContainerRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "Invalid request body")
+	}
+
+	if req.Image == "" {
+		return response.BadRequest(c, "Image is required")
+	}
+
+	opts := engine.CreateContainerOptions{
+		Name:          req.Name,
+		Image:         req.Image,
+		Env:           req.Env,
+		Network:       req.Network,
+		RestartPolicy: req.RestartPolicy,
+		Command:       req.Command,
+	}
+
+	for _, p := range req.Ports {
+		opts.Ports = append(opts.Ports, engine.PortMapping{
+			HostPort:      p.HostPort,
+			ContainerPort: p.ContainerPort,
+			Protocol:      p.Protocol,
+		})
+	}
+
+	for _, v := range req.Volumes {
+		opts.Volumes = append(opts.Volumes, engine.VolumeMapping{
+			HostPath:      v.HostPath,
+			ContainerPath: v.ContainerPath,
+			ReadOnly:      v.ReadOnly,
+		})
+	}
+
+	containerID, err := h.docker.CreateContainer(c.Context(), opts)
+	if err != nil {
+		h.logger.Error("Failed to create container", "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to create container: "+err.Error())
+	}
+
+	container, err := h.docker.GetContainerDetails(c.Context(), containerID)
+	if err != nil {
+		return response.OK(c, map[string]string{"id": containerID, "message": "Container created"})
+	}
+
+	return response.Created(c, h.toContainerResponse(*container))
+}
+
+func (h *ContainerHandler) StartContainer(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	if err := h.docker.StartContainer(c.Context(), id); err != nil {
+		h.logger.Error("Failed to start container", "id", id, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to start container")
+	}
+
+	return response.OK(c, map[string]string{"message": "Container started", "id": id})
+}
+
+func (h *ContainerHandler) StopContainer(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	if err := h.docker.StopContainer(c.Context(), id); err != nil {
+		h.logger.Error("Failed to stop container", "id", id, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to stop container")
+	}
+
+	return response.OK(c, map[string]string{"message": "Container stopped", "id": id})
+}
+
+func (h *ContainerHandler) RestartContainer(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	if err := h.docker.RestartContainer(c.Context(), id); err != nil {
+		h.logger.Error("Failed to restart container", "id", id, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to restart container")
+	}
+
+	return response.OK(c, map[string]string{"message": "Container restarted", "id": id})
+}
+
+func (h *ContainerHandler) RemoveContainer(c *fiber.Ctx) error {
+	id := c.Params("id")
+	force := c.Query("force", "false") == "true"
+
+	if err := h.docker.RemoveContainer(c.Context(), id, force); err != nil {
+		h.logger.Error("Failed to remove container", "id", id, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove container")
+	}
+
+	return response.NoContent(c)
+}
+
+type ContainerLogsResponseGeneral struct {
+	Logs string `json:"logs"`
+}
+
+func (h *ContainerHandler) GetContainerLogs(c *fiber.Ctx) error {
+	id := c.Params("id")
+	tailStr := c.Query("tail", "100")
+	follow := c.Query("follow", "false") == "true"
+
+	tail, err := strconv.Atoi(tailStr)
+	if err != nil {
+		tail = 100
+	}
+
+	if follow {
+		return h.streamContainerLogs(c, c.Context(), id)
+	}
+
+	logs, err := h.docker.ContainerLogs(c.Context(), id, tail)
+	if err != nil {
+		h.logger.Error("Failed to get container logs", "id", id, "error", err)
+		return response.OK(c, ContainerLogsResponseGeneral{Logs: ""})
+	}
+
+	return response.OK(c, ContainerLogsResponseGeneral{Logs: logs})
+}
+
+func (h *ContainerHandler) streamContainerLogs(c *fiber.Ctx, ctx context.Context, containerID string) error {
+	c.Set("Content-Type", "text/event-stream")
+	c.Set("Cache-Control", "no-cache")
+	c.Set("Connection", "keep-alive")
+	c.Set("Transfer-Encoding", "chunked")
+
+	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
+		output := make(chan string, 100)
+		done := make(chan struct{})
+
+		go func() {
+			defer close(done)
+			_ = h.docker.StreamContainerLogs(ctx, containerID, output)
+		}()
+
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case line, ok := <-output:
+				if !ok {
+					return
+				}
+				fmt.Fprintf(w, "data: %s\n\n", line)
+				if err := w.Flush(); err != nil {
+					return
+				}
+			case <-ticker.C:
+				fmt.Fprintf(w, ": keepalive\n\n")
+				if err := w.Flush(); err != nil {
+					return
+				}
+			case <-done:
+				return
+			}
+		}
+	}))
+
+	return nil
+}
+
+func (h *ContainerHandler) toContainerResponse(container engine.ContainerInfo) ContainerResponse {
+	ports := make([]ContainerPortResponse, len(container.Ports))
+	for i, p := range container.Ports {
+		ports[i] = ContainerPortResponse{
+			PrivatePort: p.PrivatePort,
+			PublicPort:  p.PublicPort,
+			Type:        p.Type,
+		}
+	}
+
+	isFlowDeployManaged := false
+	if _, ok := container.Labels["paasdeploy.app"]; ok {
+		isFlowDeployManaged = true
+	}
+	if _, ok := container.Labels["com.docker.compose.project"]; ok {
+		if project, exists := container.Labels["com.docker.compose.project"]; exists {
+			if project == "paasdeploy" || project == "flowdeploy" {
+				isFlowDeployManaged = true
+			}
+		}
+	}
+
+	return ContainerResponse{
+		ID:                  container.ID,
+		Name:                container.Name,
+		Image:               container.Image,
+		State:               container.State,
+		Status:              container.Status,
+		Health:              container.Health,
+		Created:             container.Created,
+		IPAddress:           container.IPAddress,
+		Ports:               ports,
+		Labels:              container.Labels,
+		IsFlowDeployManaged: isFlowDeployManaged,
+	}
+}

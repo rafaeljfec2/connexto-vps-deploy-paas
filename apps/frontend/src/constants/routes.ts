@@ -3,6 +3,8 @@ export const ROUTES = {
   LOGIN: "/login",
   NEW_APP: "/apps/new",
   SETTINGS: "/settings",
+  CONTAINERS: "/containers",
+  TEMPLATES: "/containers/templates",
   APP_DETAIL: (id: string) => `/apps/${id}`,
 } as const;
 

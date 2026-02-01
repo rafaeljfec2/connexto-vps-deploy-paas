@@ -60,6 +60,8 @@ func InitializeApplication() (*Application, func(), error) {
 	cloudflareAuthHandler := ProvideCloudflareAuthHandler(config, postgresCloudflareConnectionRepository, tokenEncryptor, logger)
 	domainHandler := ProvideDomainHandler(config, postgresAppRepository, postgresCustomDomainRepository, postgresCloudflareConnectionRepository, tokenEncryptor, logger)
 	migrationHandler := ProvideMigrationHandler(logger)
+	containerHandler := ProvideContainerHandler(engineEngine, logger)
+	templateHandler := ProvideTemplateHandler(engineEngine, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -80,6 +82,8 @@ func InitializeApplication() (*Application, func(), error) {
 		CloudflareAuthHandler:  cloudflareAuthHandler,
 		DomainHandler:          domainHandler,
 		MigrationHandler:       migrationHandler,
+		ContainerHandler:       containerHandler,
+		TemplateHandler:        templateHandler,
 	}
 	return application, func() {
 		cleanup()

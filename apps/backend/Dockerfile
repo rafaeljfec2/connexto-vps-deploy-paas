@@ -22,9 +22,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     ./cmd/api
 
 # Stage 2: Production
-FROM alpine:3.19 AS production
+FROM alpine:edge AS production
 
 # Install runtime dependencies, create user and directories
+# Using edge to get latest docker-cli with API version 1.44+
 RUN apk add --no-cache \
     ca-certificates \
     git \
