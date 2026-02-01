@@ -36,17 +36,30 @@ func (d *DockerClient) Build(ctx context.Context, workDir, dockerfile, tag strin
 	d.executor.SetTimeout(15 * time.Minute)
 
 	args := []string{
-		"build",
+		"buildx", "build",
+		"--load",
 		"-t", tag,
 		"-f", dockerfile,
 		".",
 	}
 
 	if output != nil {
-		return d.executor.RunWithStreaming(ctx, output, "docker", args...)
+		err := d.executor.RunWithStreaming(ctx, output, "docker", args...)
+		if err != nil {
+			d.logger.Warn("buildx failed, falling back to legacy build", "error", err)
+			fallbackArgs := []string{"build", "-t", tag, "-f", dockerfile, "."}
+			return d.executor.RunWithStreaming(ctx, output, "docker", fallbackArgs...)
+		}
+		return nil
 	}
 
 	_, err := d.executor.Run(ctx, "docker", args...)
+	if err != nil {
+		d.logger.Warn("buildx failed, falling back to legacy build", "error", err)
+		fallbackArgs := []string{"build", "-t", tag, "-f", dockerfile, "."}
+		_, err = d.executor.Run(ctx, "docker", fallbackArgs...)
+	}
+
 	if err != nil {
 		return fmt.Errorf("docker build failed: %w", err)
 	}
@@ -67,6 +80,7 @@ func (d *DockerClient) ComposeUp(ctx context.Context, projectDir string, output 
 		"-f", composeFile,
 		"up",
 		"-d",
+		"--force-recreate",
 		"--remove-orphans",
 	}
 
