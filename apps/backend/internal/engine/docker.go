@@ -276,6 +276,23 @@ func formatUptime(d time.Duration) string {
 	return fmt.Sprintf("%dm", minutes)
 }
 
+func (d *DockerClient) GetContainerIP(ctx context.Context, containerName, networkName string) (string, error) {
+	d.executor.SetTimeout(30 * time.Second)
+
+	format := fmt.Sprintf("{{.NetworkSettings.Networks.%s.IPAddress}}", networkName)
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatFlag, format, containerName)
+	if err != nil {
+		return "", fmt.Errorf("failed to get container IP: %w", err)
+	}
+
+	ip := strings.TrimSpace(result.Stdout)
+	if ip == "" {
+		return "", fmt.Errorf("container %s has no IP in network %s", containerName, networkName)
+	}
+
+	return ip, nil
+}
+
 func (d *DockerClient) RestartContainer(ctx context.Context, containerName string) error {
 	d.logger.Info("Restarting container", "containerName", containerName)
 	d.executor.SetTimeout(2 * time.Minute)

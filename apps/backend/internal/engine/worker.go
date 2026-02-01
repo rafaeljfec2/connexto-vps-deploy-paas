@@ -273,7 +273,7 @@ func (w *Worker) buildDocker(ctx context.Context, deploy *domain.Deployment, app
 func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment, app *domain.App, appDir string) error {
 	w.log(deploy.ID, app.ID, "Deploying container...")
 
-	if err := w.deps.Docker.EnsureNetwork(ctx, "paasdeploy"); err != nil {
+	if err := w.deps.Docker.EnsureNetwork(ctx, defaultNetworkName); err != nil {
 		return fmt.Errorf("failed to ensure network: %w", err)
 	}
 
@@ -424,9 +424,14 @@ func buildPortMapping(hostPort, port int) string {
 func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
 	w.log(deploy.ID, app.ID, "Performing health check...")
 
-	healthURL := fmt.Sprintf("http://%s:%d%s", app.Name, w.deployConfig.Port, w.deployConfig.Healthcheck.Path)
-
 	time.Sleep(healthCheckStartDelay)
+
+	containerIP, err := w.deps.Docker.GetContainerIP(ctx, app.Name, defaultNetworkName)
+	if err != nil {
+		return fmt.Errorf("failed to get container IP: %w", err)
+	}
+
+	healthURL := fmt.Sprintf("http://%s:%d%s", containerIP, w.deployConfig.Port, w.deployConfig.Healthcheck.Path)
 
 	if err := w.deps.Health.CheckWithBackoff(ctx, healthURL); err != nil {
 		return err

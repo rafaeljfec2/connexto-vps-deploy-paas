@@ -71,6 +71,8 @@ func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRep
 	return engine
 }
 
+const defaultNetworkName = "paasdeploy"
+
 func (e *Engine) Start() error {
 	e.mu.Lock()
 	if e.running {
@@ -81,6 +83,10 @@ func (e *Engine) Start() error {
 	e.mu.Unlock()
 
 	e.logger.Info("Starting deploy engine", "workers", len(e.workers))
+
+	if err := e.docker.EnsureNetwork(e.ctx, defaultNetworkName); err != nil {
+		e.logger.Error("Failed to ensure network", "network", defaultNetworkName, "error", err)
+	}
 
 	e.healthMonitor.Start(e.ctx)
 	e.statsMonitor.Start(e.ctx)
