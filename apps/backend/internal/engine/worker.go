@@ -424,12 +424,7 @@ func buildPortMapping(hostPort, port int) string {
 func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
 	w.log(deploy.ID, app.ID, "Performing health check...")
 
-	port := w.deployConfig.Port
-	if w.deployConfig.HostPort > 0 {
-		port = w.deployConfig.HostPort
-	}
-
-	healthURL := fmt.Sprintf("http://localhost:%d%s", port, w.deployConfig.Healthcheck.Path)
+	healthURL := fmt.Sprintf("http://%s:%d%s", app.Name, w.deployConfig.Port, w.deployConfig.Healthcheck.Path)
 
 	time.Sleep(healthCheckStartDelay)
 
