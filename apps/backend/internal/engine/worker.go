@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/paasdeploy/backend/internal/domain"
@@ -405,9 +406,15 @@ func (w *Worker) buildEnvVarsYAML(cfg *PaasDeployConfig) string {
 
 	envVars := "    environment:\n"
 	for k, v := range allEnvVars {
-		envVars += fmt.Sprintf("      - %s=%s\n", k, v)
+		escapedValue := escapeEnvValue(v)
+		envVars += fmt.Sprintf("      - %s=%s\n", k, escapedValue)
 	}
 	return envVars
+}
+
+func escapeEnvValue(value string) string {
+	escaped := strings.ReplaceAll(value, "$", "$$")
+	return escaped
 }
 
 func buildLabelsYAML(appName string, domains []string, port int) string {

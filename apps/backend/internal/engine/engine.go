@@ -405,7 +405,8 @@ func (e *Engine) buildEnvVarsYAML(cfg *PaasDeployConfig, appEnvVars map[string]s
 
 	envVars := "    environment:\n"
 	for k, v := range allEnvVars {
-		envVars += fmt.Sprintf("      - %s=%s\n", k, v)
+		escapedValue := escapeEnvValue(v)
+		envVars += fmt.Sprintf("      - %s=%s\n", k, escapedValue)
 	}
 	return envVars
 }

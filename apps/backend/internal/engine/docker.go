@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 const (
 	dockerFormatFlag     = "--format"
 	errNoSuchContainer   = "no such container"
+	buildCacheDir        = "/var/cache/paasdeploy/buildkit"
 )
 
 type DockerClient struct {
@@ -22,10 +24,34 @@ type DockerClient struct {
 
 func NewDockerClient(baseDir string, registry string, logger *slog.Logger) *DockerClient {
 	executor := NewExecutor(baseDir, 15*time.Minute, logger)
-	return &DockerClient{
+	client := &DockerClient{
 		executor: executor,
 		logger:   logger,
 		registry: registry,
+	}
+	client.initBuildCache()
+	return client
+}
+
+func (d *DockerClient) initBuildCache() {
+	if err := os.MkdirAll(buildCacheDir, 0755); err != nil {
+		d.logger.Warn("Failed to create build cache directory", "error", err, "path", buildCacheDir)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	_, err := d.executor.Run(ctx, "docker", "buildx", "inspect", "paasdeploy-builder")
+	if err != nil {
+		d.logger.Info("Creating buildx builder for faster builds")
+		_, createErr := d.executor.Run(ctx, "docker", "buildx", "create",
+			"--name", "paasdeploy-builder",
+			"--driver", "docker-container",
+			"--use",
+		)
+		if createErr != nil {
+			d.logger.Warn("Failed to create buildx builder, using default", "error", createErr)
+		}
 	}
 }
 
@@ -38,6 +64,8 @@ func (d *DockerClient) Build(ctx context.Context, workDir, dockerfile, tag strin
 	args := []string{
 		"buildx", "build",
 		"--load",
+		"--cache-from", fmt.Sprintf("type=local,src=%s", buildCacheDir),
+		"--cache-to", fmt.Sprintf("type=local,dest=%s,mode=max", buildCacheDir),
 		"-t", tag,
 		"-f", dockerfile,
 		".",
