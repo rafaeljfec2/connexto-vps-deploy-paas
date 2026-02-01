@@ -49,21 +49,23 @@ export function OnboardingWizard() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex flex-col">
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
-        <div className="container max-w-3xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-4 mb-6">
+    <div className="min-h-dvh flex flex-col">
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
+        <div className="container max-w-3xl mx-auto py-3 sm:py-4">
+          <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => navigate("/")}
-              className="shrink-0"
+              className="shrink-0 -ml-2"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div>
-              <h1 className="text-lg font-semibold">Create New Application</h1>
-              <p className="text-sm text-muted-foreground hidden md:block">
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-lg font-semibold truncate">
+                Create New Application
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
                 Deploy your GitHub repository in minutes
               </p>
             </div>
@@ -73,7 +75,7 @@ export function OnboardingWizard() {
         </div>
       </div>
 
-      <div className="flex-1 container max-w-3xl mx-auto px-4 py-6 md:py-8">
+      <div className="flex-1 container max-w-3xl mx-auto py-4 sm:py-6 md:py-8 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {renderStep()}
       </div>
     </div>

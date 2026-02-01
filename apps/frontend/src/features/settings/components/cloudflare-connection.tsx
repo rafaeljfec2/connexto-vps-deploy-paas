@@ -81,14 +81,14 @@ export function CloudflareConnection() {
       <CardContent>
         {status?.connected ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-green-200 bg-green-50 p-3 sm:p-4 dark:border-green-800 dark:bg-green-900/20">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-                  <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
+                <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900 shrink-0">
+                  <Check className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 dark:text-green-400" />
                 </div>
-                <div>
-                  <p className="font-medium">Connected</p>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0">
+                  <p className="font-medium text-sm sm:text-base">Connected</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">
                     {status.email}
                   </p>
                 </div>
