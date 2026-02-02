@@ -40,6 +40,7 @@ import {
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
@@ -184,20 +185,22 @@ export function NetworksManager({
               >
                 <Network className="h-3 w-3" />
                 {netName}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-5 w-5 p-0 ml-1 hover:bg-destructive/20"
-                      onClick={() => handleDisconnect(netName)}
-                      disabled={disconnectFromNetwork.isPending}
-                    >
-                      <Unplug className="h-3 w-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Disconnect from network</TooltipContent>
-                </Tooltip>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0 ml-1 hover:bg-destructive/20"
+                        onClick={() => handleDisconnect(netName)}
+                        disabled={disconnectFromNetwork.isPending}
+                      >
+                        <Unplug className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Disconnect from network</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </Badge>
             ))}
           </div>
@@ -229,22 +232,24 @@ export function NetworksManager({
                       {networkContainers.length > 0 && (
                         <>
                           <span>•</span>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="flex items-center gap-1 cursor-help">
-                                <Server className="h-3 w-3" />
-                                {networkContainers.length}
-                              </span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="font-medium mb-1">Containers:</p>
-                              <ul className="text-xs">
-                                {networkContainers.map((c) => (
-                                  <li key={c}>{c}</li>
-                                ))}
-                              </ul>
-                            </TooltipContent>
-                          </Tooltip>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="flex items-center gap-1 cursor-help">
+                                  <Server className="h-3 w-3" />
+                                  {networkContainers.length}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="font-medium mb-1">Containers:</p>
+                                <ul className="text-xs">
+                                  {networkContainers.map((c) => (
+                                    <li key={c}>{c}</li>
+                                  ))}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </>
                       )}
                       {network.internal && (
@@ -255,29 +260,31 @@ export function NetworksManager({
                     </div>
                   </div>
                 </div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => setNetworkToDelete(network.name)}
-                      disabled={
-                        removeNetwork.isPending ||
-                        networkContainers.length > 0 ||
-                        ["bridge", "host", "none"].includes(network.name)
-                      }
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {getDeleteTooltip(
-                      networkContainers.length > 0,
-                      ["bridge", "host", "none"].includes(network.name),
-                    )}
-                  </TooltipContent>
-                </Tooltip>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setNetworkToDelete(network.name)}
+                        disabled={
+                          removeNetwork.isPending ||
+                          networkContainers.length > 0 ||
+                          ["bridge", "host", "none"].includes(network.name)
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {getDeleteTooltip(
+                        networkContainers.length > 0,
+                        ["bridge", "host", "none"].includes(network.name),
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             );
           })

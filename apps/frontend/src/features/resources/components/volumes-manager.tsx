@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
+  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
@@ -169,19 +170,23 @@ export function VolumesManager({ containerVolumes = [] }: VolumesManagerProps) {
                       <span className="font-medium">Driver:</span>
                       {volume.driver}
                     </span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="flex items-center gap-1 truncate cursor-help">
-                          <FolderOpen className="h-3 w-3 shrink-0" />
-                          <span className="truncate font-mono max-w-[250px]">
-                            {volume.mountpoint}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="flex items-center gap-1 truncate cursor-help">
+                            <FolderOpen className="h-3 w-3 shrink-0" />
+                            <span className="truncate font-mono max-w-[250px]">
+                              {volume.mountpoint}
+                            </span>
                           </span>
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p className="font-mono text-xs">{volume.mountpoint}</p>
-                      </TooltipContent>
-                    </Tooltip>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="font-mono text-xs">
+                            {volume.mountpoint}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     {volume.createdAt && (
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
@@ -191,26 +196,28 @@ export function VolumesManager({ containerVolumes = [] }: VolumesManagerProps) {
                   </div>
                 </div>
               </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setVolumeToDelete(volume.name)}
-                    disabled={
-                      removeVolume.isPending || isVolumeInUse(volume.name)
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isVolumeInUse(volume.name)
-                    ? "Cannot delete: volume is in use"
-                    : "Delete volume"}
-                </TooltipContent>
-              </Tooltip>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setVolumeToDelete(volume.name)}
+                      disabled={
+                        removeVolume.isPending || isVolumeInUse(volume.name)
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {isVolumeInUse(volume.name)
+                      ? "Cannot delete: volume is in use"
+                      : "Delete volume"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           ))
         )}
