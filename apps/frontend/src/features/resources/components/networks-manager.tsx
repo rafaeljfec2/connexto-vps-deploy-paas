@@ -86,7 +86,10 @@ export function NetworksManager({
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const [selectedNetwork, setSelectedNetwork] = useState<string>("");
 
-  const filteredNetworks = networks?.filter((net) =>
+  const scopedNetworks = containerId
+    ? networks?.filter((net) => containerNetworks.includes(net.name))
+    : networks;
+  const filteredNetworks = scopedNetworks?.filter((net) =>
     (net.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()),
   );
 

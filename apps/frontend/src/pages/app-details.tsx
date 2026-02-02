@@ -58,6 +58,7 @@ import {
   useWebhookStatus,
 } from "@/features/apps/hooks/use-apps";
 import { useEnvVars } from "@/features/apps/hooks/use-env-vars";
+import { useContainers } from "@/features/containers/hooks/use-containers";
 import { DeployTimeline } from "@/features/deploys/components/deploy-timeline";
 import { LogViewer } from "@/features/deploys/components/log-viewer";
 import {
@@ -757,9 +758,16 @@ function DomainsSection({ appId, expanded, onToggle }: DomainsSectionProps) {
 interface NetworksSectionProps {
   readonly expanded: boolean;
   readonly onToggle: () => void;
+  readonly containerId?: string;
+  readonly containerNetworks?: readonly string[];
 }
 
-function NetworksSection({ expanded, onToggle }: NetworksSectionProps) {
+function NetworksSection({
+  expanded,
+  onToggle,
+  containerId,
+  containerNetworks,
+}: NetworksSectionProps) {
   return (
     <CollapsibleSection
       title="Docker Networks"
@@ -770,7 +778,10 @@ function NetworksSection({ expanded, onToggle }: NetworksSectionProps) {
         <span className="text-muted-foreground">Manage container networks</span>
       }
     >
-      <NetworksManager />
+      <NetworksManager
+        containerId={containerId}
+        containerNetworks={containerNetworks}
+      />
     </CollapsibleSection>
   );
 }
@@ -778,9 +789,14 @@ function NetworksSection({ expanded, onToggle }: NetworksSectionProps) {
 interface VolumesSectionProps {
   readonly expanded: boolean;
   readonly onToggle: () => void;
+  readonly containerVolumes?: readonly string[];
 }
 
-function VolumesSection({ expanded, onToggle }: VolumesSectionProps) {
+function VolumesSection({
+  expanded,
+  onToggle,
+  containerVolumes,
+}: VolumesSectionProps) {
   return (
     <CollapsibleSection
       title="Docker Volumes"
@@ -791,7 +807,7 @@ function VolumesSection({ expanded, onToggle }: VolumesSectionProps) {
         <span className="text-muted-foreground">Manage persistent storage</span>
       }
     >
-      <VolumesManager />
+      <VolumesManager containerVolumes={containerVolumes} />
     </CollapsibleSection>
   );
 }
@@ -932,6 +948,7 @@ export function AppDetailsPage() {
   const { data: appConfig } = useAppConfig(id);
   const { data: envVars } = useEnvVars(id ?? "");
   const { data: containerStats } = useContainerStats(id);
+  const { data: containers } = useContainers(true);
   const { data: customDomains = [] } = useQuery({
     queryKey: ["custom-domains", id],
     queryFn: () => api.domains.list(id ?? ""),
@@ -956,6 +973,18 @@ export function AppDetailsPage() {
     deployments?.filter((d) => d.status === "success").length ?? 0;
   const hasSuccessfulDeploy = successfulDeploys > 0;
   const openAppUrl = getOpenAppUrl(customDomains, appUrl?.url ?? null);
+  const appContainer = containers?.find(
+    (container) =>
+      container.labels["paasdeploy.app"] === app.name ||
+      container.name === app.name,
+  );
+  const containerId = appContainer?.id;
+  const containerNetworks = appContainer?.networks;
+  const containerVolumes = appContainer
+    ? appContainer.mounts
+        .filter((mount) => mount.type === "volume")
+        .map((mount) => mount.source)
+    : undefined;
 
   return (
     <div className="space-y-0">
@@ -1047,11 +1076,14 @@ export function AppDetailsPage() {
         <NetworksSection
           expanded={expandedSections.networks ?? false}
           onToggle={() => toggleSection("networks")}
+          containerId={containerId}
+          containerNetworks={containerNetworks}
         />
 
         <VolumesSection
           expanded={expandedSections.volumes ?? false}
           onToggle={() => toggleSection("volumes")}
+          containerVolumes={containerVolumes}
         />
       </Card>
     </div>

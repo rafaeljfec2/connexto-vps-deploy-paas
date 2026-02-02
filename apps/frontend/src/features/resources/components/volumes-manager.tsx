@@ -66,7 +66,11 @@ export function VolumesManager({ containerVolumes = [] }: VolumesManagerProps) {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [volumeToDelete, setVolumeToDelete] = useState<string | null>(null);
 
-  const filteredVolumes = volumes?.filter((vol) =>
+  const isScoped = containerVolumes !== undefined;
+  const scopedVolumes = isScoped
+    ? volumes?.filter((vol) => containerVolumes.includes(vol.name))
+    : volumes;
+  const filteredVolumes = scopedVolumes?.filter((vol) =>
     (vol.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
@@ -84,7 +88,7 @@ export function VolumesManager({ containerVolumes = [] }: VolumesManagerProps) {
   };
 
   const isVolumeInUse = (volumeName: string) =>
-    containerVolumes.some((cv) => cv.includes(volumeName));
+    containerVolumes?.some((cv) => cv.includes(volumeName)) ?? false;
 
   if (isLoading) {
     return (
