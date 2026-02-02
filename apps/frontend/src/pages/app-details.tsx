@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
   CheckCircle,
@@ -67,7 +68,8 @@ import {
 import { NetworksManager, VolumesManager } from "@/features/resources";
 import { useAppHealth } from "@/hooks/use-sse";
 import { cn, formatRepositoryUrl } from "@/lib/utils";
-import type { App, Deployment } from "@/types";
+import { api } from "@/services/api";
+import type { App, CustomDomain, Deployment } from "@/types";
 
 type SectionKey =
   | "deployments"
@@ -235,6 +237,32 @@ function getHealthColor(health: string): string {
   if (health === "healthy") return "text-green-500";
   if (health === "unhealthy") return "text-red-500";
   return "text-yellow-500";
+}
+
+function buildDomainUrl(domain: CustomDomain): string {
+  const rawPath = domain.pathPrefix?.trim() ?? "";
+  let path = "";
+  if (rawPath !== "") {
+    path = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+  }
+  return `https://${domain.domain}${path}`;
+}
+
+function getOpenAppUrl(
+  customDomains: readonly CustomDomain[],
+  fallbackUrl: string | null,
+): string | null {
+  const rootDomain = customDomains.find(
+    (domain) => domain.pathPrefix?.trim() === "",
+  );
+  if (rootDomain) {
+    return buildDomainUrl(rootDomain);
+  }
+  const firstDomain = customDomains[0];
+  if (firstDomain) {
+    return buildDomainUrl(firstDomain);
+  }
+  return fallbackUrl;
 }
 
 interface DeploymentsSectionProps {
@@ -790,7 +818,7 @@ function AppNotFound() {
 interface HeaderActionsProps {
   readonly allExpanded: boolean;
   readonly toggleAllSections: () => void;
-  readonly appUrl: { url: string } | undefined;
+  readonly openAppUrl: string | null;
   readonly app: {
     id: string;
     name: string;
@@ -835,7 +863,7 @@ function AppDescription({ app }: { readonly app: App }) {
 function HeaderActions({
   allExpanded,
   toggleAllSections,
-  appUrl,
+  openAppUrl,
   app,
   actions,
   hasSuccessfulDeploy,
@@ -857,9 +885,9 @@ function HeaderActions({
           {allExpanded ? "Collapse All" : "Expand All"}
         </span>
       </Button>
-      {appUrl?.url && (
+      {openAppUrl && (
         <Button variant="outline" size="sm" asChild>
-          <a href={appUrl.url} target="_blank" rel="noopener noreferrer">
+          <a href={openAppUrl} target="_blank" rel="noopener noreferrer">
             <Globe className="h-4 w-4" />
             <span className="hidden lg:inline ml-2">Open App</span>
           </a>
@@ -899,6 +927,11 @@ export function AppDetailsPage() {
   const { data: appConfig } = useAppConfig(id);
   const { data: envVars } = useEnvVars(id ?? "");
   const { data: containerStats } = useContainerStats(id);
+  const { data: customDomains = [] } = useQuery({
+    queryKey: ["custom-domains", id],
+    queryFn: () => api.domains.list(id ?? ""),
+    enabled: !!id,
+  });
 
   const { expandedSections, toggleSection, allExpanded, toggleAllSections } =
     useExpandedSections();
@@ -917,6 +950,7 @@ export function AppDetailsPage() {
   const successfulDeploys =
     deployments?.filter((d) => d.status === "success").length ?? 0;
   const hasSuccessfulDeploy = successfulDeploys > 0;
+  const openAppUrl = getOpenAppUrl(customDomains, appUrl?.url ?? null);
 
   return (
     <div className="space-y-4">
@@ -934,7 +968,7 @@ export function AppDetailsPage() {
           <HeaderActions
             allExpanded={allExpanded}
             toggleAllSections={toggleAllSections}
-            appUrl={appUrl}
+            openAppUrl={openAppUrl}
             app={app}
             actions={actions}
             hasSuccessfulDeploy={hasSuccessfulDeploy}

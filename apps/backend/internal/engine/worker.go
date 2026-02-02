@@ -318,7 +318,7 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 		}
 	}()
 
-	err := w.deps.Docker.ComposeUp(ctx, appDir, output)
+	err := w.deps.Docker.ComposeUp(ctx, appDir, app.ID, output)
 	close(output)
 
 	if err != nil {
@@ -550,7 +550,7 @@ func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *d
 
 	w.log(deploy.ID, app.ID, "Rolling back to: %s", deploy.PreviousImageTag)
 
-	if err := w.deps.Docker.ComposeDown(ctx, repoDir); err != nil {
+	if err := w.deps.Docker.ComposeDown(ctx, repoDir, app.ID); err != nil {
 		w.deps.Logger.Warn("Failed to stop containers", "error", err)
 	}
 

@@ -285,7 +285,7 @@ func (e *Engine) UpdateContainerDomains(ctx context.Context, app *domain.App) er
 
 	composeContent := e.generateComposeContent(app.Name, currentImage, deployConfig, allDomains, envVars)
 
-	if err := e.writeAndApplyCompose(ctx, appDir, composeContent); err != nil {
+	if err := e.writeAndApplyCompose(ctx, appDir, app.ID, composeContent); err != nil {
 		return err
 	}
 
@@ -415,14 +415,14 @@ func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployCo
 	)
 }
 
-func (e *Engine) writeAndApplyCompose(ctx context.Context, appDir, content string) error {
+func (e *Engine) writeAndApplyCompose(ctx context.Context, appDir, projectName, content string) error {
 	composePath := filepath.Join(appDir, "docker-compose.yml")
 
 	if err := os.WriteFile(composePath, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write docker-compose.yml: %w", err)
 	}
 
-	if err := e.docker.ComposeUp(ctx, appDir, nil); err != nil {
+	if err := e.docker.ComposeUp(ctx, appDir, projectName, nil); err != nil {
 		return fmt.Errorf("failed to update container: %w", err)
 	}
 

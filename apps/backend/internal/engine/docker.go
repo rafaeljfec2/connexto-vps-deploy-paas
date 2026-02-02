@@ -92,7 +92,7 @@ func (d *DockerClient) Build(ctx context.Context, workDir, dockerfile, tag strin
 	return nil
 }
 
-func (d *DockerClient) ComposeUp(ctx context.Context, projectDir string, output chan<- string) error {
+func (d *DockerClient) ComposeUp(ctx context.Context, projectDir, projectName string, output chan<- string) error {
 	d.logger.Info("Starting containers with docker compose", "dir", projectDir)
 
 	d.executor.SetWorkDir(projectDir)
@@ -103,6 +103,7 @@ func (d *DockerClient) ComposeUp(ctx context.Context, projectDir string, output 
 	args := []string{
 		"compose",
 		"-f", composeFile,
+		"-p", projectName,
 		"up",
 		"-d",
 		"--force-recreate",
@@ -121,7 +122,7 @@ func (d *DockerClient) ComposeUp(ctx context.Context, projectDir string, output 
 	return nil
 }
 
-func (d *DockerClient) ComposeDown(ctx context.Context, projectDir string) error {
+func (d *DockerClient) ComposeDown(ctx context.Context, projectDir, projectName string) error {
 	d.logger.Info("Stopping containers with docker compose", "dir", projectDir)
 
 	d.executor.SetWorkDir(projectDir)
@@ -129,7 +130,7 @@ func (d *DockerClient) ComposeDown(ctx context.Context, projectDir string) error
 
 	composeFile := filepath.Join(projectDir, "docker-compose.yml")
 
-	_, err := d.executor.Run(ctx, "docker", "compose", "-f", composeFile, "down")
+	_, err := d.executor.Run(ctx, "docker", "compose", "-f", composeFile, "-p", projectName, "down")
 	if err != nil {
 		return fmt.Errorf("docker compose down failed: %w", err)
 	}

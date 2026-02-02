@@ -535,7 +535,7 @@ export const api = {
   },
 
   networks: {
-    list: (): Promise<
+    list: async (): Promise<
       readonly {
         name: string;
         id: string;
@@ -544,7 +544,40 @@ export const api = {
         internal: boolean;
         containers: readonly string[];
       }[]
-    > => fetchApiList(`${API_BASE}/networks`),
+    > => {
+      const data = await fetchApiList<
+        | string
+        | {
+            name: string;
+            id: string;
+            driver: string;
+            scope: string;
+            internal: boolean;
+            containers: readonly string[];
+          }
+      >(`${API_BASE}/networks`);
+
+      return data.map((item) => {
+        if (typeof item === "string") {
+          return {
+            name: item,
+            id: item,
+            driver: "unknown",
+            scope: "unknown",
+            internal: false,
+            containers: [],
+          };
+        }
+        return {
+          name: item.name ?? "",
+          id: item.id ?? item.name ?? "",
+          driver: item.driver ?? "unknown",
+          scope: item.scope ?? "unknown",
+          internal: item.internal ?? false,
+          containers: item.containers ?? [],
+        };
+      });
+    },
 
     create: (name: string): Promise<{ name: string; id: string }> =>
       fetchApi<{ name: string; id: string }>(`${API_BASE}/networks`, {
@@ -593,7 +626,7 @@ export const api = {
   },
 
   volumes: {
-    list: (): Promise<
+    list: async (): Promise<
       readonly {
         name: string;
         driver: string;
@@ -601,7 +634,37 @@ export const api = {
         createdAt: string;
         labels: Record<string, string>;
       }[]
-    > => fetchApiList(`${API_BASE}/volumes`),
+    > => {
+      const data = await fetchApiList<
+        | string
+        | {
+            name: string;
+            driver: string;
+            mountpoint: string;
+            createdAt: string;
+            labels: Record<string, string>;
+          }
+      >(`${API_BASE}/volumes`);
+
+      return data.map((item) => {
+        if (typeof item === "string") {
+          return {
+            name: item,
+            driver: "unknown",
+            mountpoint: "",
+            createdAt: "",
+            labels: {},
+          };
+        }
+        return {
+          name: item.name ?? "",
+          driver: item.driver ?? "unknown",
+          mountpoint: item.mountpoint ?? "",
+          createdAt: item.createdAt ?? "",
+          labels: item.labels ?? {},
+        };
+      });
+    },
 
     create: (name: string): Promise<{ name: string }> =>
       fetchApi<{ name: string }>(`${API_BASE}/volumes`, {
