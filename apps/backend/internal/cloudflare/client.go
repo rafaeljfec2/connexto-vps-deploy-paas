@@ -131,7 +131,7 @@ func (c *Client) CreateCNAME(ctx context.Context, zoneID, name, target string) (
 		Name:    name,
 		Content: target,
 		TTL:     1,
-		Proxied: true,
+		Proxied: false,
 	}
 
 	return c.createRecord(ctx, zoneID, record)
@@ -143,7 +143,7 @@ func (c *Client) CreateARecord(ctx context.Context, zoneID, name, ip string) (st
 		Name:    name,
 		Content: ip,
 		TTL:     1,
-		Proxied: true,
+		Proxied: false,
 	}
 
 	return c.createRecord(ctx, zoneID, record)
