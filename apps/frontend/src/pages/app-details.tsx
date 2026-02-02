@@ -184,10 +184,10 @@ function CollapsibleSection({
   children,
 }: CollapsibleSectionProps) {
   return (
-    <Card>
+    <div>
       <CardHeader
         className={cn(
-          "flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer select-none transition-colors hover:bg-muted/50 gap-2 sm:gap-3",
+          "flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer select-none transition-colors hover:bg-muted/50 gap-2 sm:gap-3 p-4",
           !expanded && "pb-4",
         )}
         onClick={onToggle}
@@ -218,10 +218,15 @@ function CollapsibleSection({
           </div>
         )}
       </CardHeader>
-      {expanded && (
-        <CardContent className="pt-0 sm:pt-0">{children}</CardContent>
-      )}
-    </Card>
+      <div
+        className={cn(
+          "overflow-hidden transition-all duration-300",
+          expanded ? "max-h-[1000px] opacity-100" : "max-h-0 opacity-0",
+        )}
+      >
+        <CardContent className="pt-0 sm:pt-0 px-4 pb-4">{children}</CardContent>
+      </div>
+    </div>
   );
 }
 
@@ -953,98 +958,102 @@ export function AppDetailsPage() {
   const openAppUrl = getOpenAppUrl(customDomains, appUrl?.url ?? null);
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        backTo="/"
-        title={app.name}
-        titleSuffix={
-          <div className="flex items-center gap-2">
-            <HealthIndicator health={health} />
-            {latestDeploy && <StatusBadge status={latestDeploy.status} />}
-          </div>
-        }
-        description={<AppDescription app={app} />}
-        actions={
-          <HeaderActions
-            allExpanded={allExpanded}
-            toggleAllSections={toggleAllSections}
-            openAppUrl={openAppUrl}
-            app={app}
-            actions={actions}
-            hasSuccessfulDeploy={hasSuccessfulDeploy}
-          />
-        }
-      />
+    <div className="space-y-0">
+      <div className="mb-3">
+        <PageHeader
+          backTo="/"
+          title={app.name}
+          titleSuffix={
+            <div className="flex items-center gap-2">
+              <HealthIndicator health={health} />
+              {latestDeploy && <StatusBadge status={latestDeploy.status} />}
+            </div>
+          }
+          description={<AppDescription app={app} />}
+          actions={
+            <HeaderActions
+              allExpanded={allExpanded}
+              toggleAllSections={toggleAllSections}
+              openAppUrl={openAppUrl}
+              app={app}
+              actions={actions}
+              hasSuccessfulDeploy={hasSuccessfulDeploy}
+            />
+          }
+        />
+      </div>
 
-      <DeploymentsSection
-        app={app}
-        deployments={deployments}
-        expanded={expandedSections.deployments ?? false}
-        onToggle={() => toggleSection("deployments")}
-        actions={actions}
-        selectedDeploy={selectedDeploy}
-        onSelectDeploy={setSelectedDeployId}
-      />
+      <Card className="border border-border rounded-lg divide-y divide-border">
+        <DeploymentsSection
+          app={app}
+          deployments={deployments}
+          expanded={expandedSections.deployments ?? false}
+          onToggle={() => toggleSection("deployments")}
+          actions={actions}
+          selectedDeploy={selectedDeploy}
+          onSelectDeploy={setSelectedDeployId}
+        />
 
-      <ContainerLogsSection
-        appId={app.id}
-        appName={app.name}
-        health={health}
-        expanded={expandedSections.containerLogs ?? false}
-        onToggle={() => toggleSection("containerLogs")}
-      />
+        <ContainerLogsSection
+          appId={app.id}
+          appName={app.name}
+          health={health}
+          expanded={expandedSections.containerLogs ?? false}
+          onToggle={() => toggleSection("containerLogs")}
+        />
 
-      <ResourceUsageSection
-        appId={app.id}
-        containerStats={containerStats}
-        expanded={expandedSections.metrics ?? false}
-        onToggle={() => toggleSection("metrics")}
-      />
+        <ResourceUsageSection
+          appId={app.id}
+          containerStats={containerStats}
+          expanded={expandedSections.metrics ?? false}
+          onToggle={() => toggleSection("metrics")}
+        />
 
-      <EnvVarsSection
-        appId={app.id}
-        envVarsCount={envVars?.length ?? 0}
-        expanded={expandedSections.envVars ?? false}
-        onToggle={() => toggleSection("envVars")}
-      />
+        <EnvVarsSection
+          appId={app.id}
+          envVarsCount={envVars?.length ?? 0}
+          expanded={expandedSections.envVars ?? false}
+          onToggle={() => toggleSection("envVars")}
+        />
 
-      <ContainerHealthSection
-        appId={app.id}
-        health={health}
-        actions={actions}
-        expanded={expandedSections.health ?? false}
-        onToggle={() => toggleSection("health")}
-      />
+        <ContainerHealthSection
+          appId={app.id}
+          health={health}
+          actions={actions}
+          expanded={expandedSections.health ?? false}
+          onToggle={() => toggleSection("health")}
+        />
 
-      <DeploymentConfigSection
-        appConfig={appConfig}
-        expanded={expandedSections.config ?? false}
-        onToggle={() => toggleSection("config")}
-      />
+        <DeploymentConfigSection
+          appConfig={appConfig}
+          expanded={expandedSections.config ?? false}
+          onToggle={() => toggleSection("config")}
+        />
 
-      <WebhookSection
-        webhookId={app.webhookId}
-        webhookStatus={webhookStatus}
-        actions={actions}
-        expanded={expandedSections.webhook ?? false}
-        onToggle={() => toggleSection("webhook")}
-      />
+        <WebhookSection
+          webhookId={app.webhookId}
+          webhookStatus={webhookStatus}
+          actions={actions}
+          expanded={expandedSections.webhook ?? false}
+          onToggle={() => toggleSection("webhook")}
+        />
 
-      <DomainsSection
-        appId={app.id}
-        expanded={expandedSections.domains ?? false}
-        onToggle={() => toggleSection("domains")}
-      />
+        <DomainsSection
+          appId={app.id}
+          expanded={expandedSections.domains ?? false}
+          onToggle={() => toggleSection("domains")}
+        />
 
-      <NetworksSection
-        expanded={expandedSections.networks ?? false}
-        onToggle={() => toggleSection("networks")}
-      />
+        <NetworksSection
+          expanded={expandedSections.networks ?? false}
+          onToggle={() => toggleSection("networks")}
+        />
 
-      <VolumesSection
-        expanded={expandedSections.volumes ?? false}
-        onToggle={() => toggleSection("volumes")}
-      />
+        <VolumesSection
+          expanded={expandedSections.volumes ?? false}
+          onToggle={() => toggleSection("volumes")}
+        />
+      </Card>
     </div>
   );
 }
