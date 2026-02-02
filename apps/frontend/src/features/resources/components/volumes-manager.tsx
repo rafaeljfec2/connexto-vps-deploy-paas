@@ -66,7 +66,7 @@ export function VolumesManager({ containerVolumes = [] }: VolumesManagerProps) {
   const [volumeToDelete, setVolumeToDelete] = useState<string | null>(null);
 
   const filteredVolumes = volumes?.filter((vol) =>
-    vol.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    (vol.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const handleCreate = async () => {

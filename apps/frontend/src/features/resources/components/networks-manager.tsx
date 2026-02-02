@@ -86,7 +86,7 @@ export function NetworksManager({
   const [selectedNetwork, setSelectedNetwork] = useState<string>("");
 
   const filteredNetworks = networks?.filter((net) =>
-    net.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    (net.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const availableNetworksToConnect = networks?.filter(
