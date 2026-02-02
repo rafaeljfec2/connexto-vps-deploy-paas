@@ -477,12 +477,18 @@ func buildLabelsYAML(appName string, domains []DomainRoute, port int) string {
 				routerName = fmt.Sprintf("%s-%d", appName, i)
 			}
 
+			priority := 1
+			if d.PathPrefix != "" {
+				priority = 100 + len(d.PathPrefix)
+			}
+
 			rule := fmt.Sprintf("Host(`%s`)", d.Domain)
 			if d.PathPrefix != "" {
 				rule = fmt.Sprintf("Host(`%s`) && PathPrefix(`%s`)", d.Domain, d.PathPrefix)
 			}
 
 			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.rule=%s\"\n", routerName, rule))
+			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.priority=%d\"\n", routerName, priority))
 			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.tls=true\"\n", routerName))
 			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.tls.certresolver=letsencrypt\"\n", routerName))
 			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.service=%s\"\n", routerName, appName))
