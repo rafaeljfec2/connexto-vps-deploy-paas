@@ -15,6 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorMessage } from "@/components/error-message";
 import { useImages, usePruneImages, useRemoveImage } from "../hooks/use-images";
@@ -178,15 +184,26 @@ export function ImageList() {
                   >
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium truncate max-w-[200px]">
-                          {image.repository === "<none>" ? (
-                            <span className="text-muted-foreground italic">
-                              none
-                            </span>
-                          ) : (
-                            image.repository
-                          )}
-                        </span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="font-medium truncate max-w-[200px]">
+                                {image.repository === "<none>" ? (
+                                  <span className="text-muted-foreground italic">
+                                    none
+                                  </span>
+                                ) : (
+                                  image.repository
+                                )}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="font-mono text-xs">
+                                {image.repository}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         {image.dangling && (
                           <Badge
                             variant="outline"
