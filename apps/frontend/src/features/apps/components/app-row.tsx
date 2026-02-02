@@ -62,7 +62,7 @@ export function AppRow({ app, latestDeploy }: AppRowProps) {
         <Link to={`/apps/${app.id}`} className="absolute inset-0 z-0" />
 
         {isDeploying && (
-          <div className="absolute inset-0 z-5 bg-background/60 backdrop-blur-[1px] rounded-lg flex items-center justify-center">
+          <div className="absolute inset-0 z-5 bg-background/60 backdrop-blur-[1px] rounded-lg flex items-center justify-center pointer-events-none">
             <Loader2 className="h-5 w-5 animate-spin text-primary" />
           </div>
         )}
