@@ -22,6 +22,9 @@ export function useSSE() {
           queryClient.invalidateQueries({ queryKey: ["apps"] });
           queryClient.invalidateQueries({ queryKey: ["app", event.appId] });
           queryClient.invalidateQueries({
+            queryKey: ["app-health", event.appId],
+          });
+          queryClient.invalidateQueries({
             queryKey: ["deployments", event.appId],
           });
 
