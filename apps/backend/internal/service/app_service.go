@@ -58,7 +58,7 @@ func (s *AppService) ListAppsWithDeployments() ([]domain.AppWithDeployment, erro
 	if err != nil {
 		return nil, err
 	}
-	if apps == nil || len(apps) == 0 {
+	if len(apps) == 0 {
 		return []domain.AppWithDeployment{}, nil
 	}
 
