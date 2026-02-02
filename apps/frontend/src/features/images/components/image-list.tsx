@@ -195,6 +195,18 @@ export function ImageList() {
                             dangling
                           </Badge>
                         )}
+                        {image.containers > 0 ? (
+                          <Badge variant="secondary" className="text-xs">
+                            In use ({image.containers})
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-xs text-muted-foreground"
+                          >
+                            Unused
+                          </Badge>
+                        )}
                       </div>
                     </td>
                     <td className="py-3 px-4">
