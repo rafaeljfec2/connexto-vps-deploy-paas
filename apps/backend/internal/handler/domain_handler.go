@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -128,6 +129,15 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		return response.NotFound(c, MsgAppNotFound)
 	}
 
+	domainName, pathPrefix, err := h.parseAndValidateAddDomainInput(c, req)
+	if err != nil {
+		return err
+	}
+
+	if err := h.checkDomainAvailability(c, domainName, pathPrefix); err != nil {
+		return err
+	}
+
 	conn, err := h.connectionRepo.FindByUserID(c.Context(), user.ID)
 	if err != nil {
 		return response.BadRequest(c, "Connect your Cloudflare account first")
@@ -139,41 +149,68 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		return response.InternalError(c)
 	}
 
-	domainName := strings.ToLower(strings.TrimSpace(req.Domain))
-	if domainName == "" {
-		return response.BadRequest(c, "Domain is required")
+	customDomain, err := h.createCustomDomainWithDNS(c, appID, domainName, pathPrefix, accessToken)
+	if err != nil {
+		return err
 	}
 
+	h.notifyContainerUpdate(c.Context(), app, appID, domainName)
+
+	h.logger.Info("Custom domain added",
+		"app_id", appID,
+		"domain", domainName,
+		"record_type", "A",
+		"user_id", user.ID,
+	)
+
+	return response.OK(c, toDomainResponse(customDomain))
+}
+
+func (h *DomainHandler) parseAndValidateAddDomainInput(c *fiber.Ctx, req AddDomainRequest) (string, string, error) {
+	domainName := strings.ToLower(strings.TrimSpace(req.Domain))
+	if domainName == "" {
+		return "", "", response.BadRequest(c, "Domain is required")
+	}
 	if !isValidDomain(domainName) {
-		return response.BadRequest(c, "Invalid domain format")
+		return "", "", response.BadRequest(c, "Invalid domain format")
 	}
 
 	pathPrefix := strings.TrimSpace(req.PathPrefix)
 	if pathPrefix != "" && !strings.HasPrefix(pathPrefix, "/") {
 		pathPrefix = "/" + pathPrefix
 	}
+	return domainName, pathPrefix, nil
+}
 
+func (h *DomainHandler) checkDomainAvailability(c *fiber.Ctx, domainName, pathPrefix string) error {
 	existing, _ := h.domainRepo.FindByDomainAndPath(c.Context(), domainName, pathPrefix)
 	if existing != nil {
 		return response.BadRequest(c, "Domain with this path already exists")
 	}
+	if pathPrefix == "" {
+		existingByDomain, _ := h.domainRepo.FindByDomain(c.Context(), domainName)
+		if existingByDomain != nil {
+			return response.BadRequest(c, "Domain already in use")
+		}
+	}
+	return nil
+}
 
-	rootDomain := extractRootDomain(domainName)
-
+func (h *DomainHandler) createCustomDomainWithDNS(c *fiber.Ctx, appID, domainName, pathPrefix, accessToken string) (*domain.CustomDomain, error) {
 	cfClient := cloudflare.NewClient(accessToken, h.logger)
+	rootDomain := extractRootDomain(domainName)
 
 	zoneID, err := cfClient.GetZoneID(c.Context(), rootDomain)
 	if err != nil {
 		h.logger.Error("zone not found", "domain", rootDomain, "error", err)
-		return response.BadRequest(c, "Domain not found in your Cloudflare account")
+		return nil, response.BadRequest(c, "Domain not found in your Cloudflare account")
 	}
 
 	recordID, err := cfClient.CreateOrGetARecord(c.Context(), zoneID, domainName, h.serverIP)
 	if err != nil {
 		h.logger.Error("failed to create/get DNS record", "domain", domainName, "error", err)
-		return response.BadRequest(c, "Failed to configure DNS record: "+err.Error())
+		return nil, response.BadRequest(c, "Failed to configure DNS record: "+err.Error())
 	}
-	recordType := "A"
 
 	customDomain, err := h.domainRepo.Create(c.Context(), domain.CreateCustomDomainInput{
 		AppID:       appID,
@@ -181,32 +218,30 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		PathPrefix:  pathPrefix,
 		ZoneID:      zoneID,
 		DNSRecordID: recordID,
-		RecordType:  recordType,
+		RecordType:  "A",
 	})
 	if err != nil {
+		if errors.Is(err, domain.ErrAlreadyExists) {
+			return nil, response.BadRequest(c, "Domain already in use")
+		}
 		_ = cfClient.DeleteRecord(c.Context(), zoneID, recordID)
 		h.logger.Error("failed to save custom domain", "error", err)
-		return response.InternalError(c)
+		return nil, response.InternalError(c)
 	}
+	return customDomain, nil
+}
 
-	if h.domainUpdater != nil {
-		if err := h.domainUpdater.UpdateContainerDomains(c.Context(), app); err != nil {
-			h.logger.Warn("failed to update container with new domain",
-				"error", err,
-				"app_id", appID,
-				"domain", domainName,
-			)
-		}
+func (h *DomainHandler) notifyContainerUpdate(ctx context.Context, app *domain.App, appID, domainName string) {
+	if h.domainUpdater == nil {
+		return
 	}
-
-	h.logger.Info("Custom domain added",
-		"app_id", appID,
-		"domain", domainName,
-		"record_type", recordType,
-		"user_id", user.ID,
-	)
-
-	return response.OK(c, toDomainResponse(customDomain))
+	if err := h.domainUpdater.UpdateContainerDomains(ctx, app); err != nil {
+		h.logger.Warn("failed to update container with new domain",
+			"error", err,
+			"app_id", appID,
+			"domain", domainName,
+		)
+	}
 }
 
 func (h *DomainHandler) RemoveDomain(c *fiber.Ctx) error {

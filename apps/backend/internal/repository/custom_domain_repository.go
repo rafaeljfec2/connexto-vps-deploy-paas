@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/lib/pq"
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
@@ -71,7 +72,7 @@ func (r *PostgresCustomDomainRepository) Create(ctx context.Context, input domai
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING ` + customDomainSelectColumns
 
-	return r.scanDomain(r.db.QueryRowContext(ctx, query,
+	customDomain, err := r.scanDomain(r.db.QueryRowContext(ctx, query,
 		input.AppID,
 		input.Domain,
 		input.PathPrefix,
@@ -79,6 +80,14 @@ func (r *PostgresCustomDomainRepository) Create(ctx context.Context, input domai
 		input.DNSRecordID,
 		input.RecordType,
 	))
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return nil, domain.ErrAlreadyExists
+		}
+		return nil, err
+	}
+	return customDomain, nil
 }
 
 func (r *PostgresCustomDomainRepository) FindByID(ctx context.Context, id string) (*domain.CustomDomain, error) {

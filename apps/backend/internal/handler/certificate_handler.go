@@ -34,8 +34,8 @@ func (h *CertificateHandler) RegisterRoutes(router fiber.Router) {
 func (h *CertificateHandler) ListCertificates(c *fiber.Ctx) error {
 	certificates, err := h.traefikClient.GetAllCertificatesStatus(c.Context())
 	if err != nil {
-		h.logger.Error("Failed to get certificates status", "error", err)
-		return response.InternalError(c)
+		h.logger.Warn("Traefik unavailable, returning empty certificates list", "error", err)
+		return response.OK(c, []traefik.CertificateStatus{})
 	}
 
 	return response.OK(c, certificates)
@@ -49,8 +49,12 @@ func (h *CertificateHandler) GetCertificateStatus(c *fiber.Ctx) error {
 
 	status, err := h.traefikClient.GetCertificateStatus(c.Context(), domain)
 	if err != nil {
-		h.logger.Error("Failed to get certificate status", "error", err, "domain", domain)
-		return response.InternalError(c)
+		h.logger.Warn("Traefik unavailable for certificate status", "error", err, "domain", domain)
+		return response.OK(c, &traefik.CertificateStatus{
+			Domain: domain,
+			Status: "unavailable",
+			Error:  "Traefik API unavailable",
+		})
 	}
 
 	return response.OK(c, status)
