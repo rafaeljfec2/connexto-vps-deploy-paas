@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -556,5 +557,143 @@ func (d *DockerClient) PruneUnusedImages(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+type ImageInfo struct {
+	ID         string   `json:"id"`
+	Repository string   `json:"repository"`
+	Tag        string   `json:"tag"`
+	Size       int64    `json:"size"`
+	Created    string   `json:"created"`
+	Containers int      `json:"containers"`
+	Dangling   bool     `json:"dangling"`
+	Labels     []string `json:"labels"`
+}
+
+func (d *DockerClient) ListImages(ctx context.Context, all bool) ([]ImageInfo, error) {
+	d.executor.SetTimeout(30 * time.Second)
+
+	args := []string{"images", dockerFormatFlag, "{{.ID}}|{{.Repository}}|{{.Tag}}|{{.Size}}|{{.CreatedAt}}|{{.Containers}}"}
+	if all {
+		args = append(args, "-a")
+	}
+
+	result, err := d.executor.Run(ctx, "docker", args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list images: %w", err)
+	}
+
+	return d.parseImageList(result.Stdout), nil
+}
+
+func (d *DockerClient) parseImageList(output string) []ImageInfo {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	images := make([]ImageInfo, 0, len(lines))
+
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Split(line, "|")
+		if len(parts) < 6 {
+			continue
+		}
+
+		img := ImageInfo{
+			ID:         parts[0],
+			Repository: parts[1],
+			Tag:        parts[2],
+			Created:    parts[4],
+		}
+
+		img.Size = parseImageSize(parts[3])
+		img.Containers = parseImageContainers(parts[5])
+		img.Dangling = parts[1] == "<none>" || parts[2] == "<none>"
+
+		images = append(images, img)
+	}
+
+	return images
+}
+
+func parseImageSize(sizeStr string) int64 {
+	sizeStr = strings.ToUpper(sizeStr)
+	var value float64
+	var unit string
+	fmt.Sscanf(sizeStr, "%f%s", &value, &unit)
+
+	multiplier := int64(1)
+	switch {
+	case strings.HasPrefix(unit, "K"):
+		multiplier = 1024
+	case strings.HasPrefix(unit, "M"):
+		multiplier = 1024 * 1024
+	case strings.HasPrefix(unit, "G"):
+		multiplier = 1024 * 1024 * 1024
+	}
+
+	return int64(value * float64(multiplier))
+}
+
+func parseImageContainers(containersStr string) int {
+	containersStr = strings.TrimSpace(containersStr)
+	if containersStr == "" || containersStr == "-" {
+		return 0
+	}
+	containers, err := strconv.Atoi(containersStr)
+	if err != nil {
+		return 0
+	}
+	return containers
+}
+
+func (d *DockerClient) RemoveImageByID(ctx context.Context, imageID string, force bool) error {
+	d.logger.Info("Removing Docker image", "id", imageID, "force", force)
+	d.executor.SetTimeout(2 * time.Minute)
+
+	args := []string{"rmi"}
+	if force {
+		args = append(args, "-f")
+	}
+	args = append(args, imageID)
+
+	_, err := d.executor.Run(ctx, "docker", args...)
+	if err != nil {
+		return fmt.Errorf("failed to remove image: %w", err)
+	}
+
+	return nil
+}
+
+type PruneResult struct {
+	ImagesDeleted  int
+	SpaceReclaimed int64
+}
+
+func (d *DockerClient) PruneImages(ctx context.Context) (*PruneResult, error) {
+	d.logger.Info("Pruning all dangling Docker images")
+	d.executor.SetTimeout(5 * time.Minute)
+
+	result, err := d.executor.Run(ctx, "docker", "image", "prune", "-a", "-f")
+	if err != nil {
+		return nil, fmt.Errorf("failed to prune images: %w", err)
+	}
+
+	pruneResult := &PruneResult{}
+	lines := strings.Split(result.Stdout, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "Total reclaimed space") {
+			parts := strings.Split(line, ":")
+			if len(parts) > 1 {
+				pruneResult.SpaceReclaimed = parseImageSize(strings.TrimSpace(parts[1]))
+			}
+		}
+		if strings.HasPrefix(line, "deleted:") || strings.HasPrefix(line, "Deleted:") {
+			pruneResult.ImagesDeleted++
+		}
+	}
+
+	return pruneResult, nil
 }
 

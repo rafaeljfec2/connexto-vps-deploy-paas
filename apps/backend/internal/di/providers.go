@@ -96,7 +96,10 @@ var HandlerSet = wire.NewSet(
 	ProvideMigrationHandler,
 	ProvideContainerHandler,
 	ProvideTemplateHandler,
+	ProvideImageHandler,
 	ProvideCertificateHandler,
+	ProvideAuditService,
+	ProvideAuditHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -277,7 +280,10 @@ type Application struct {
 	MigrationHandler        *handler.MigrationHandler
 	ContainerHandler        *handler.ContainerHandler
 	TemplateHandler         *handler.TemplateHandler
+	ImageHandler            *handler.ImageHandler
 	CertificateHandler      *handler.CertificateHandler
+	AuditService            *service.AuditService
+	AuditHandler            *handler.AuditHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -444,6 +450,19 @@ func ProvideContainerHandler(eng *engine.Engine, logger *slog.Logger) *handler.C
 
 func ProvideTemplateHandler(eng *engine.Engine, logger *slog.Logger) *handler.TemplateHandler {
 	return handler.NewTemplateHandler(eng.Docker(), logger)
+}
+
+func ProvideImageHandler(eng *engine.Engine, logger *slog.Logger) *handler.ImageHandler {
+	return handler.NewImageHandler(eng.Docker(), logger)
+}
+
+func ProvideAuditService(db *sql.DB, logger *slog.Logger) *service.AuditService {
+	repo := repository.NewPostgresAuditLogRepository(db)
+	return service.NewAuditService(repo, logger)
+}
+
+func ProvideAuditHandler(auditService *service.AuditService) *handler.AuditHandler {
+	return handler.NewAuditHandler(auditService)
 }
 
 func ProvideCertificateHandler(cfg *config.Config, logger *slog.Logger) *handler.CertificateHandler {

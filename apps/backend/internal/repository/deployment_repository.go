@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/lib/pq"
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
@@ -183,6 +184,100 @@ func (r *PostgresDeploymentRepository) FindLatestByAppID(appID string) (*domain.
 	d.CurrentImageTag = currentImageTag.String
 
 	return &d, nil
+}
+
+func (r *PostgresDeploymentRepository) FindMostRecentByAppID(appID string) (*domain.Deployment, error) {
+	query := `
+		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
+		       error_message, logs, previous_image_tag, current_image_tag, created_at
+		FROM deployments
+		WHERE app_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1
+	`
+
+	var d domain.Deployment
+	var startedAt, finishedAt sql.NullTime
+	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+
+	err := r.db.QueryRow(query, appID).Scan(
+		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
+		&startedAt, &finishedAt, &errorMessage, &logs,
+		&previousImageTag, &currentImageTag, &d.CreatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if startedAt.Valid {
+		d.StartedAt = &startedAt.Time
+	}
+	if finishedAt.Valid {
+		d.FinishedAt = &finishedAt.Time
+	}
+	d.CommitMessage = commitMessage.String
+	d.ErrorMessage = errorMessage.String
+	d.Logs = logs.String
+	d.PreviousImageTag = previousImageTag.String
+	d.CurrentImageTag = currentImageTag.String
+
+	return &d, nil
+}
+
+func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (map[string]*domain.Deployment, error) {
+	if len(appIDs) == 0 {
+		return make(map[string]*domain.Deployment), nil
+	}
+
+	query := `
+		SELECT DISTINCT ON (app_id) 
+		       id, app_id, commit_sha, commit_message, status, started_at, finished_at,
+		       error_message, logs, previous_image_tag, current_image_tag, created_at
+		FROM deployments
+		WHERE app_id = ANY($1)
+		ORDER BY app_id, created_at DESC
+	`
+
+	rows, err := r.db.Query(query, pq.Array(appIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]*domain.Deployment)
+	for rows.Next() {
+		var d domain.Deployment
+		var startedAt, finishedAt sql.NullTime
+		var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+
+		err := rows.Scan(
+			&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
+			&startedAt, &finishedAt, &errorMessage, &logs,
+			&previousImageTag, &currentImageTag, &d.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if startedAt.Valid {
+			d.StartedAt = &startedAt.Time
+		}
+		if finishedAt.Valid {
+			d.FinishedAt = &finishedAt.Time
+		}
+		d.CommitMessage = commitMessage.String
+		d.ErrorMessage = errorMessage.String
+		d.Logs = logs.String
+		d.PreviousImageTag = previousImageTag.String
+		d.CurrentImageTag = currentImageTag.String
+
+		result[d.AppID] = &d
+	}
+
+	return result, nil
 }
 
 func (r *PostgresDeploymentRepository) Create(input domain.CreateDeploymentInput) (*domain.Deployment, error) {

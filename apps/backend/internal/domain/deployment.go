@@ -50,6 +50,8 @@ type DeploymentRepository interface {
 	FindByAppID(appID string, limit int) ([]Deployment, error)
 	FindPendingByAppID(appID string) (*Deployment, error)
 	FindLatestByAppID(appID string) (*Deployment, error)
+	FindMostRecentByAppID(appID string) (*Deployment, error)
+	FindMostRecentByAppIDs(appIDs []string) (map[string]*Deployment, error)
 	Create(input CreateDeploymentInput) (*Deployment, error)
 	Update(id string, input UpdateDeploymentInput) (*Deployment, error)
 	AppendLogs(id string, logs string) error

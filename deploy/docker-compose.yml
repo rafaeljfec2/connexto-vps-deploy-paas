@@ -4,7 +4,7 @@ services:
     container_name: paasdeploy-traefik
     restart: unless-stopped
     environment:
-      ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-contato@connexto.com.br}
     ports:
       - "80:80"
       - "443:443"

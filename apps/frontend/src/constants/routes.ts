@@ -5,6 +5,8 @@ export const ROUTES = {
   SETTINGS: "/settings",
   CONTAINERS: "/containers",
   TEMPLATES: "/containers/templates",
+  IMAGES: "/images",
+  AUDIT: "/audit",
   APP_DETAIL: (id: string) => `/apps/${id}`,
 } as const;
 

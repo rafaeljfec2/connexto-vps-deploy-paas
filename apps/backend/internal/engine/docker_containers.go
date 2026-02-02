@@ -10,16 +10,25 @@ import (
 const dockerFormatArg = "--format"
 
 type ContainerInfo struct {
-	ID        string            `json:"id"`
-	Name      string            `json:"name"`
-	Image     string            `json:"image"`
-	State     string            `json:"state"`
-	Status    string            `json:"status"`
-	Health    string            `json:"health"`
-	Created   string            `json:"created"`
-	IPAddress string            `json:"ipAddress"`
-	Ports     []ContainerPort   `json:"ports"`
-	Labels    map[string]string `json:"labels"`
+	ID        string              `json:"id"`
+	Name      string              `json:"name"`
+	Image     string              `json:"image"`
+	State     string              `json:"state"`
+	Status    string              `json:"status"`
+	Health    string              `json:"health"`
+	Created   string              `json:"created"`
+	IPAddress string              `json:"ipAddress"`
+	Ports     []ContainerPort     `json:"ports"`
+	Labels    map[string]string   `json:"labels"`
+	Networks  []string            `json:"networks"`
+	Mounts    []ContainerMount    `json:"mounts"`
+}
+
+type ContainerMount struct {
+	Type        string `json:"type"`
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	ReadOnly    bool   `json:"readOnly"`
 }
 
 type ContainerPort struct {
@@ -109,6 +118,8 @@ func (d *DockerClient) parseContainerLine(ctx context.Context, line string) *Con
 
 	container.Health, _ = d.getContainerHealth(ctx, container.ID)
 	container.IPAddress, _ = d.getContainerIP(ctx, container.ID)
+	container.Networks, _ = d.getContainerNetworks(ctx, container.ID)
+	container.Mounts, _ = d.getContainerMounts(ctx, container.ID)
 
 	return container
 }
@@ -129,6 +140,54 @@ func (d *DockerClient) getContainerIP(ctx context.Context, containerID string) (
 		return "", nil
 	}
 	return strings.TrimSpace(result.Stdout), nil
+}
+
+func (d *DockerClient) getContainerNetworks(ctx context.Context, containerID string) ([]string, error) {
+	format := "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}"
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatArg, format, containerID)
+	if err != nil {
+		return nil, nil
+	}
+	
+	networksStr := strings.TrimSpace(result.Stdout)
+	if networksStr == "" {
+		return []string{}, nil
+	}
+	
+	networks := strings.Fields(networksStr)
+	return networks, nil
+}
+
+func (d *DockerClient) getContainerMounts(ctx context.Context, containerID string) ([]ContainerMount, error) {
+	format := "{{range .Mounts}}{{.Type}}|{{.Source}}|{{.Destination}}|{{.RW}};{{end}}"
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatArg, format, containerID)
+	if err != nil {
+		return nil, nil
+	}
+	
+	mountsStr := strings.TrimSpace(result.Stdout)
+	if mountsStr == "" {
+		return []ContainerMount{}, nil
+	}
+	
+	mounts := []ContainerMount{}
+	mountEntries := strings.Split(mountsStr, ";")
+	for _, entry := range mountEntries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.Split(entry, "|")
+		if len(parts) >= 4 {
+			mounts = append(mounts, ContainerMount{
+				Type:        parts[0],
+				Source:      parts[1],
+				Destination: parts[2],
+				ReadOnly:    parts[3] != "true",
+			})
+		}
+	}
+	return mounts, nil
 }
 
 func (d *DockerClient) CreateContainer(ctx context.Context, opts CreateContainerOptions) (string, error) {
@@ -260,6 +319,8 @@ func (d *DockerClient) parseContainerDetails(ctx context.Context, containerID, o
 
 	container.Health, _ = d.getContainerHealth(ctx, containerID)
 	container.IPAddress, _ = d.getContainerIP(ctx, containerID)
+	container.Networks, _ = d.getContainerNetworks(ctx, containerID)
+	container.Mounts, _ = d.getContainerMounts(ctx, containerID)
 
 	portsResult, err := d.executor.RunQuiet(ctx, "docker", "port", containerID)
 	if err == nil {

@@ -1,7 +1,11 @@
 import { useState } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
+  HardDrive,
   MoreVertical,
+  Network,
   Play,
   RefreshCw,
   Square,
@@ -27,6 +31,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Container } from "@/types";
 import {
   useRemoveContainer,
@@ -57,6 +67,7 @@ function formatPorts(ports: Container["ports"]): string {
 export function ContainerCard({ container }: ContainerCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showLogsDialog, setShowLogsDialog] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const startContainer = useStartContainer();
   const stopContainer = useStopContainer();
@@ -78,6 +89,10 @@ export function ContainerCard({ container }: ContainerCardProps) {
   };
 
   const dockerHubUrl = `https://hub.docker.com/r/${container.image.split(":")[0]}`;
+
+  const hasNetworks = container.networks && container.networks.length > 0;
+  const hasMounts = container.mounts && container.mounts.length > 0;
+  const hasDetails = hasNetworks || hasMounts;
 
   return (
     <>
@@ -121,6 +136,71 @@ export function ContainerCard({ container }: ContainerCardProps) {
           <span className="text-sm text-muted-foreground font-mono">
             {formatPorts(container.ports)}
           </span>
+        </td>
+        <td className="py-3 px-4 hidden 2xl:table-cell">
+          <div className="flex items-center gap-2">
+            {hasNetworks && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="gap-1 cursor-help">
+                      <Network className="h-3 w-3" />
+                      {container.networks.length}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="font-medium mb-1">Networks</p>
+                    {container.networks.map((network) => (
+                      <p key={network} className="text-xs">
+                        {network}
+                      </p>
+                    ))}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {hasMounts && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className="gap-1 cursor-help">
+                      <HardDrive className="h-3 w-3" />
+                      {container.mounts.length}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="font-medium mb-1">Volumes/Mounts</p>
+                    {container.mounts.map((mount) => (
+                      <p
+                        key={`${mount.type}:${mount.source}:${mount.destination}:${mount.readOnly}`}
+                        className="text-xs font-mono"
+                      >
+                        {mount.source.length > 30
+                          ? `...${mount.source.slice(-30)}`
+                          : mount.source}{" "}
+                        → {mount.destination}
+                        {mount.readOnly && " (ro)"}
+                      </p>
+                    ))}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {hasDetails && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={() => setExpanded(!expanded)}
+              >
+                {expanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </Button>
+            )}
+          </div>
         </td>
         <td className="py-3 px-4">
           <DropdownMenu>
@@ -210,6 +290,62 @@ export function ContainerCard({ container }: ContainerCardProps) {
         open={showLogsDialog}
         onOpenChange={setShowLogsDialog}
       />
+
+      {expanded && hasDetails && (
+        <tr className="border-b border-border bg-muted/30">
+          <td colSpan={8} className="py-3 px-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {hasNetworks && (
+                <div>
+                  <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                    <Network className="h-4 w-4" />
+                    Networks ({container.networks.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-1">
+                    {container.networks.map((network) => (
+                      <Badge
+                        key={network}
+                        variant="secondary"
+                        className="text-xs"
+                      >
+                        {network}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {hasMounts && (
+                <div>
+                  <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                    <HardDrive className="h-4 w-4" />
+                    Volumes/Mounts ({container.mounts.length})
+                  </h4>
+                  <div className="space-y-1">
+                    {container.mounts.map((mount) => (
+                      <div
+                        key={`${mount.type}:${mount.source}:${mount.destination}:${mount.readOnly}`}
+                        className="text-xs font-mono bg-muted rounded px-2 py-1"
+                      >
+                        <span className="text-muted-foreground">
+                          {mount.type}:
+                        </span>{" "}
+                        <span className="break-all">{mount.source}</span>
+                        <span className="text-muted-foreground mx-1">→</span>
+                        <span className="break-all">{mount.destination}</span>
+                        {mount.readOnly && (
+                          <Badge variant="outline" className="ml-2 text-[10px]">
+                            RO
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
     </>
   );
 }

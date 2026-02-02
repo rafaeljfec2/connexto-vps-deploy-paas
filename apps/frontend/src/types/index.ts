@@ -9,6 +9,17 @@ export type DeployStatus =
   | "failed"
   | "cancelled";
 
+export interface DeploymentSummary {
+  readonly id: string;
+  readonly status: DeployStatus;
+  readonly commitSha: string;
+  readonly commitMessage?: string;
+  readonly startedAt?: string | null;
+  readonly finishedAt?: string | null;
+  readonly durationMs?: number | null;
+  readonly logs?: string | null;
+}
+
 export interface App {
   readonly id: string;
   readonly name: string;
@@ -20,6 +31,7 @@ export interface App {
   readonly status: AppStatus;
   readonly webhookId: number | null;
   readonly lastDeployedAt: string | null;
+  readonly lastDeployment?: DeploymentSummary | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -331,6 +343,13 @@ export interface ContainerPort {
   readonly type: "tcp" | "udp";
 }
 
+export interface ContainerMount {
+  readonly type: string;
+  readonly source: string;
+  readonly destination: string;
+  readonly readOnly: boolean;
+}
+
 export interface Container {
   readonly id: string;
   readonly name: string;
@@ -342,7 +361,25 @@ export interface Container {
   readonly ipAddress: string;
   readonly ports: readonly ContainerPort[];
   readonly labels: Record<string, string>;
+  readonly networks: readonly string[];
+  readonly mounts: readonly ContainerMount[];
   readonly isFlowDeployManaged: boolean;
+}
+
+export interface DockerImage {
+  readonly id: string;
+  readonly repository: string;
+  readonly tag: string;
+  readonly size: number;
+  readonly created: string;
+  readonly containers: number;
+  readonly dangling: boolean;
+  readonly labels: readonly string[];
+}
+
+export interface PruneResult {
+  readonly imagesDeleted: number;
+  readonly spaceReclaimed: number;
 }
 
 export interface PortMappingInput {

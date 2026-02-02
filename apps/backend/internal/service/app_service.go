@@ -53,6 +53,56 @@ func (s *AppService) ListApps() ([]domain.App, error) {
 	return apps, nil
 }
 
+func (s *AppService) ListAppsWithDeployments() ([]domain.AppWithDeployment, error) {
+	apps, err := s.appRepo.FindAll()
+	if err != nil {
+		return nil, err
+	}
+	if apps == nil || len(apps) == 0 {
+		return []domain.AppWithDeployment{}, nil
+	}
+
+	appIDs := make([]string, len(apps))
+	for i, app := range apps {
+		appIDs[i] = app.ID
+	}
+
+	deployments, err := s.deploymentRepo.FindMostRecentByAppIDs(appIDs)
+	if err != nil {
+		s.logger.Warn("failed to fetch deployments for apps", "error", err)
+		deployments = make(map[string]*domain.Deployment)
+	}
+
+	result := make([]domain.AppWithDeployment, len(apps))
+	for i, app := range apps {
+		result[i] = domain.AppWithDeployment{App: app}
+		if deploy := deployments[app.ID]; deploy != nil {
+			result[i].LastDeployment = s.toDeploymentSummary(deploy)
+		}
+	}
+
+	return result, nil
+}
+
+func (s *AppService) toDeploymentSummary(d *domain.Deployment) *domain.DeploymentSummary {
+	summary := &domain.DeploymentSummary{
+		ID:            d.ID,
+		Status:        d.Status,
+		CommitSHA:     d.CommitSHA,
+		CommitMessage: d.CommitMessage,
+		StartedAt:     d.StartedAt,
+		FinishedAt:    d.FinishedAt,
+		Logs:          d.Logs,
+	}
+
+	if d.StartedAt != nil && d.FinishedAt != nil {
+		duration := d.FinishedAt.Sub(*d.StartedAt).Milliseconds()
+		summary.DurationMs = &duration
+	}
+
+	return summary
+}
+
 func (s *AppService) GetApp(id string) (*domain.App, error) {
 	return s.appRepo.FindByID(id)
 }

@@ -1,7 +1,9 @@
 import { Route, Routes } from "react-router-dom";
 import { AppDetailsPage } from "@/pages/app-details";
+import { AuditPage } from "@/pages/audit";
 import { ContainersPage } from "@/pages/containers";
 import { DashboardPage } from "@/pages/dashboard";
+import { ImagesPage } from "@/pages/images";
 import { LoginPage } from "@/pages/login";
 import { MigrationPage } from "@/pages/migration";
 import { NewAppPage } from "@/pages/new-app";
@@ -66,6 +68,22 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <TemplatesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/images"
+        element={
+          <ProtectedRoute>
+            <ImagesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/audit"
+        element={
+          <ProtectedRoute>
+            <AuditPage />
           </ProtectedRoute>
         }
       />

@@ -125,8 +125,16 @@ func registerHandlers(app *di.Application) {
 	app.ContainerHandler.Register(app.Server.App())
 	app.TemplateHandler.Register(app.Server.App())
 
+	if app.ImageHandler != nil {
+		app.ImageHandler.Register(app.Server.App())
+	}
+
 	if app.CertificateHandler != nil {
 		app.CertificateHandler.RegisterRoutes(app.Server.App().Group("/api"))
+	}
+
+	if app.AuditHandler != nil {
+		app.AuditHandler.Register(app.Server.App().Group(handler.APIPrefix))
 	}
 }
 

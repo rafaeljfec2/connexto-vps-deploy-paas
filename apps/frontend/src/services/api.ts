@@ -487,4 +487,50 @@ export const api = {
         body: JSON.stringify(input),
       }),
   },
+
+  images: {
+    list: (): Promise<
+      readonly {
+        id: string;
+        repository: string;
+        tag: string;
+        size: number;
+        created: string;
+        containers: number;
+        dangling: boolean;
+        labels: readonly string[];
+      }[]
+    > => fetchApiList(`${API_BASE}/images`),
+
+    listDangling: (): Promise<
+      readonly {
+        id: string;
+        repository: string;
+        tag: string;
+        size: number;
+        created: string;
+        containers: number;
+        dangling: boolean;
+        labels: readonly string[];
+      }[]
+    > => fetchApiList(`${API_BASE}/images/dangling`),
+
+    remove: async (id: string, force = false): Promise<void> => {
+      const response = await fetch(
+        `${API_BASE}/images/${encodeURIComponent(id)}?force=${force}`,
+        { method: "DELETE", credentials: "include" },
+      );
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+
+    prune: (): Promise<{ imagesDeleted: number; spaceReclaimed: number }> =>
+      fetchApi<{ imagesDeleted: number; spaceReclaimed: number }>(
+        `${API_BASE}/images/prune`,
+        { method: "POST" },
+      ),
+  },
 };

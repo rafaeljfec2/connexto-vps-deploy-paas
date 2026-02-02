@@ -43,14 +43,14 @@ func (h *AppHandler) Register(app *fiber.App) {
 // ListApps godoc
 //
 //	@Summary		Lista todas as aplicacoes
-//	@Description	Retorna lista de apps cadastrados no sistema
+//	@Description	Retorna lista de apps cadastrados no sistema com ultimo deployment
 //	@Tags			apps
 //	@Produce		json
-//	@Success		200	{array}		docs.App
+//	@Success		200	{array}		docs.AppWithDeployment
 //	@Failure		500	{object}	docs.ErrorInfo
 //	@Router			/apps [get]
 func (h *AppHandler) ListApps(c *fiber.Ctx) error {
-	apps, err := h.appService.ListApps()
+	apps, err := h.appService.ListAppsWithDeployments()
 	if err != nil {
 		return h.handleError(c, err)
 	}

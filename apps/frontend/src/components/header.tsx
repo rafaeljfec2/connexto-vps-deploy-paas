@@ -1,7 +1,16 @@
 import { Link } from "react-router-dom";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
-import { Box, LogOut, Plus, Rocket, Settings, User } from "lucide-react";
+import {
+  Activity,
+  Box,
+  HardDrive,
+  LogOut,
+  Plus,
+  Rocket,
+  Settings,
+  User,
+} from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +57,18 @@ export function Header() {
                   <span className="hidden sm:inline">Containers</span>
                 </Link>
               </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link to={ROUTES.IMAGES} aria-label="View Docker images">
+                  <HardDrive className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                  <span className="hidden sm:inline">Images</span>
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link to={ROUTES.AUDIT} aria-label="View audit logs">
+                  <Activity className="h-4 w-4 sm:mr-2" aria-hidden="true" />
+                  <span className="hidden sm:inline">Audit</span>
+                </Link>
+              </Button>
 
               <Button asChild variant="outline" size="sm">
                 <Link to={ROUTES.NEW_APP} aria-label="Create new application">
@@ -85,11 +106,24 @@ export function Header() {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to={ROUTES.IMAGES} role="menuitem">
+                      <HardDrive className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Images
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to={ROUTES.AUDIT} role="menuitem">
+                      <Activity className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Audit Logs
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
                     <Link to={ROUTES.SETTINGS} role="menuitem">
                       <Settings className="mr-2 h-4 w-4" aria-hidden="true" />
                       Settings
                     </Link>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={logout}
                     className="cursor-pointer"

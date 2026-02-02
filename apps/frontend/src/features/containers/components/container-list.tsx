@@ -108,6 +108,9 @@ export function ContainerList() {
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden xl:table-cell">
                     Ports
                   </th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden 2xl:table-cell">
+                    Resources
+                  </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground w-10"></th>
                 </tr>
               </thead>

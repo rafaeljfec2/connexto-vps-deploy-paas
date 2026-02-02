@@ -63,7 +63,10 @@ func InitializeApplication() (*Application, func(), error) {
 	migrationHandler := ProvideMigrationHandler(logger)
 	containerHandler := ProvideContainerHandler(engineEngine, logger)
 	templateHandler := ProvideTemplateHandler(engineEngine, logger)
+	imageHandler := ProvideImageHandler(engineEngine, logger)
 	certificateHandler := ProvideCertificateHandler(config, logger)
+	auditService := ProvideAuditService(db, logger)
+	auditHandler := ProvideAuditHandler(auditService)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -86,7 +89,10 @@ func InitializeApplication() (*Application, func(), error) {
 		MigrationHandler:       migrationHandler,
 		ContainerHandler:       containerHandler,
 		TemplateHandler:        templateHandler,
+		ImageHandler:           imageHandler,
 		CertificateHandler:     certificateHandler,
+		AuditService:           auditService,
+		AuditHandler:           auditHandler,
 	}
 	return application, func() {
 		cleanup()

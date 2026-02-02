@@ -163,8 +163,12 @@ export function DomainManager({ appId }: DomainManagerProps) {
 
   const removeDomainMutation = useMutation({
     mutationFn: (domainId: string) => api.domains.remove(appId, domainId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["custom-domains", appId] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["custom-domains", appId],
+      });
+    },
+    onSettled: () => {
       setDomainToDelete(null);
     },
   });
@@ -264,7 +268,8 @@ export function DomainManager({ appId }: DomainManagerProps) {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Path prefix routes specific paths to this app (e.g., /api or /integration-bank)
+              Path prefix routes specific paths to this app (e.g., /api or
+              /integration-bank)
             </p>
           </form>
 
@@ -294,7 +299,9 @@ export function DomainManager({ appId }: DomainManagerProps) {
                       >
                         {domain.domain}
                         {domain.pathPrefix && (
-                          <span className="text-primary">{domain.pathPrefix}</span>
+                          <span className="text-primary">
+                            {domain.pathPrefix}
+                          </span>
                         )}
                         <ExternalLink className="h-3 w-3" />
                       </a>

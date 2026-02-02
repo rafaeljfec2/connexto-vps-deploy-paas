@@ -39,17 +39,26 @@ func (h *ContainerHandler) Register(app *fiber.App) {
 }
 
 type ContainerResponse struct {
-	ID                  string                  `json:"id"`
-	Name                string                  `json:"name"`
-	Image               string                  `json:"image"`
-	State               string                  `json:"state"`
-	Status              string                  `json:"status"`
-	Health              string                  `json:"health"`
-	Created             string                  `json:"created"`
-	IPAddress           string                  `json:"ipAddress"`
-	Ports               []ContainerPortResponse `json:"ports"`
-	Labels              map[string]string       `json:"labels"`
-	IsFlowDeployManaged bool                    `json:"isFlowDeployManaged"`
+	ID                  string                   `json:"id"`
+	Name                string                   `json:"name"`
+	Image               string                   `json:"image"`
+	State               string                   `json:"state"`
+	Status              string                   `json:"status"`
+	Health              string                   `json:"health"`
+	Created             string                   `json:"created"`
+	IPAddress           string                   `json:"ipAddress"`
+	Ports               []ContainerPortResponse  `json:"ports"`
+	Labels              map[string]string        `json:"labels"`
+	Networks            []string                 `json:"networks"`
+	Mounts              []ContainerMountResponse `json:"mounts"`
+	IsFlowDeployManaged bool                     `json:"isFlowDeployManaged"`
+}
+
+type ContainerMountResponse struct {
+	Type        string `json:"type"`
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	ReadOnly    bool   `json:"readOnly"`
 }
 
 type ContainerPortResponse struct {
@@ -283,6 +292,21 @@ func (h *ContainerHandler) toContainerResponse(container engine.ContainerInfo) C
 		}
 	}
 
+	mounts := make([]ContainerMountResponse, len(container.Mounts))
+	for i, m := range container.Mounts {
+		mounts[i] = ContainerMountResponse{
+			Type:        m.Type,
+			Source:      m.Source,
+			Destination: m.Destination,
+			ReadOnly:    m.ReadOnly,
+		}
+	}
+
+	networks := container.Networks
+	if networks == nil {
+		networks = []string{}
+	}
+
 	isFlowDeployManaged := false
 	if _, ok := container.Labels["paasdeploy.app"]; ok {
 		isFlowDeployManaged = true
@@ -309,6 +333,8 @@ func (h *ContainerHandler) toContainerResponse(container engine.ContainerInfo) C
 		IPAddress:           container.IPAddress,
 		Ports:               ports,
 		Labels:              container.Labels,
+		Networks:            networks,
+		Mounts:              mounts,
 		IsFlowDeployManaged: isFlowDeployManaged,
 	}
 }

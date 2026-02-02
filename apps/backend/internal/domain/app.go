@@ -58,3 +58,19 @@ type AppRepository interface {
 	HardDelete(id string) error
 	UpdateLastDeployedAt(id string, deployedAt time.Time) error
 }
+
+type AppWithDeployment struct {
+	App
+	LastDeployment *DeploymentSummary `json:"lastDeployment,omitempty"`
+}
+
+type DeploymentSummary struct {
+	ID            string       `json:"id"`
+	Status        DeployStatus `json:"status"`
+	CommitSHA     string       `json:"commitSha"`
+	CommitMessage string       `json:"commitMessage,omitempty"`
+	StartedAt     *time.Time   `json:"startedAt,omitempty"`
+	FinishedAt    *time.Time   `json:"finishedAt,omitempty"`
+	DurationMs    *int64       `json:"durationMs,omitempty"`
+	Logs          string       `json:"logs,omitempty"`
+}
