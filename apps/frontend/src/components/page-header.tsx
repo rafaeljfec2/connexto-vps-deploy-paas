@@ -1,3 +1,4 @@
+import type { ElementType } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ interface PageHeaderProps {
   readonly backTo?: string;
   readonly actions?: React.ReactNode;
   readonly titleSuffix?: React.ReactNode;
+  readonly icon?: ElementType;
 }
 
 export function PageHeader({
@@ -16,6 +18,7 @@ export function PageHeader({
   backTo,
   actions,
   titleSuffix,
+  icon: Icon,
 }: PageHeaderProps) {
   return (
     <div className="flex flex-col gap-2">
@@ -34,6 +37,7 @@ export function PageHeader({
             </Button>
           )}
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+            {Icon && <Icon className="h-6 w-6 text-muted-foreground" />}
             <h1
               className={
                 backTo

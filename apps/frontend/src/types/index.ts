@@ -48,6 +48,7 @@ export interface Deployment {
   readonly logs: string | null;
   readonly previousImageTag: string | null;
   readonly currentImageTag: string | null;
+  readonly durationMs?: number | null;
   readonly createdAt: string;
 }
 
