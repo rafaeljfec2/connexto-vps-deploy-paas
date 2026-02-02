@@ -305,6 +305,12 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 		return fmt.Errorf("failed to ensure network: %w", err)
 	}
 
+	if err := w.deps.Docker.RemoveContainer(ctx, app.Name, true); err != nil {
+		if !strings.Contains(err.Error(), "No such container") {
+			w.deps.Logger.Warn("Failed to remove existing container", "appName", app.Name, "error", err)
+		}
+	}
+
 	imageTag := w.deps.Docker.GetImageTag(app.Name, deploy.CommitSHA)
 
 	if err := w.generateComposeFile(ctx, appDir, app.Name, app.ID, imageTag); err != nil {
