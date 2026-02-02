@@ -434,3 +434,20 @@ export interface DeployTemplateInput {
   readonly network?: string;
   readonly restartPolicy?: string;
 }
+
+export interface DockerNetwork {
+  readonly name: string;
+  readonly id: string;
+  readonly driver: string;
+  readonly scope: string;
+  readonly internal: boolean;
+  readonly containers: readonly string[];
+}
+
+export interface DockerVolume {
+  readonly name: string;
+  readonly driver: string;
+  readonly mountpoint: string;
+  readonly createdAt: string;
+  readonly labels: Record<string, string>;
+}

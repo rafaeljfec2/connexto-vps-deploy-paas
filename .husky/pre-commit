@@ -1,1 +1,26 @@
-cd apps/frontend && npx lint-staged
+#!/bin/sh
+
+# Run lint-staged for frontend files
+pnpm -w lint-staged || {
+  echo "lint-staged failed. Fix issues before committing."
+  exit 1
+}
+
+# Run a quick go lint (fast mode) to catch obvious Go issues before commit.
+ver="$(golangci-lint --version 2>/dev/null || true)"
+if echo "$ver" | grep -E -q 'go1\.(2[4-9]|[3-9][0-9])'; then
+  pnpm run lint:go-quick || {
+    echo "golangci-lint (quick) failed. Fix issues or run full check in CI."
+    exit 1
+  }
+else
+  echo "Warning: golangci-lint built with older Go version or not found. Skipping quick Go lint."
+fi
+
+# Optional: run frontend typecheck (fast)
+pnpm run typecheck:frontend || {
+  echo "Typecheck failed. Fix TypeScript issues before committing."
+  exit 1
+}
+
+exit 0

@@ -533,4 +533,92 @@ export const api = {
         { method: "POST" },
       ),
   },
+
+  networks: {
+    list: (): Promise<
+      readonly {
+        name: string;
+        id: string;
+        driver: string;
+        scope: string;
+        internal: boolean;
+        containers: readonly string[];
+      }[]
+    > => fetchApiList(`${API_BASE}/networks`),
+
+    create: (name: string): Promise<{ name: string; id: string }> =>
+      fetchApi<{ name: string; id: string }>(`${API_BASE}/networks`, {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      }),
+
+    remove: async (name: string): Promise<void> => {
+      const response = await fetch(
+        `${API_BASE}/networks/${encodeURIComponent(name)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+
+    connectContainer: (
+      containerId: string,
+      network: string,
+    ): Promise<{ message: string }> =>
+      fetchApi<{ message: string }>(
+        `${API_BASE}/containers/${containerId}/networks`,
+        {
+          method: "POST",
+          body: JSON.stringify({ network }),
+        },
+      ),
+
+    disconnectContainer: async (
+      containerId: string,
+      network: string,
+    ): Promise<void> => {
+      const response = await fetch(
+        `${API_BASE}/containers/${containerId}/networks/${encodeURIComponent(network)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+  },
+
+  volumes: {
+    list: (): Promise<
+      readonly {
+        name: string;
+        driver: string;
+        mountpoint: string;
+        createdAt: string;
+        labels: Record<string, string>;
+      }[]
+    > => fetchApiList(`${API_BASE}/volumes`),
+
+    create: (name: string): Promise<{ name: string }> =>
+      fetchApi<{ name: string }>(`${API_BASE}/volumes`, {
+        method: "POST",
+        body: JSON.stringify({ name }),
+      }),
+
+    remove: async (name: string): Promise<void> => {
+      const response = await fetch(
+        `${API_BASE}/volumes/${encodeURIComponent(name)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+  },
 };

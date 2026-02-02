@@ -67,6 +67,7 @@ func InitializeApplication() (*Application, func(), error) {
 	certificateHandler := ProvideCertificateHandler(config, logger)
 	auditService := ProvideAuditService(db, logger)
 	auditHandler := ProvideAuditHandler(auditService)
+	resourceHandler := ProvideResourceHandler(engineEngine, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -93,6 +94,7 @@ func InitializeApplication() (*Application, func(), error) {
 		CertificateHandler:     certificateHandler,
 		AuditService:           auditService,
 		AuditHandler:           auditHandler,
+		ResourceHandler:        resourceHandler,
 	}
 	return application, func() {
 		cleanup()

@@ -284,6 +284,7 @@ type Application struct {
 	CertificateHandler      *handler.CertificateHandler
 	AuditService            *service.AuditService
 	AuditHandler            *handler.AuditHandler
+	ResourceHandler         *handler.ResourceHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -463,6 +464,10 @@ func ProvideAuditService(db *sql.DB, logger *slog.Logger) *service.AuditService 
 
 func ProvideAuditHandler(auditService *service.AuditService) *handler.AuditHandler {
 	return handler.NewAuditHandler(auditService)
+}
+
+func ProvideResourceHandler(eng *engine.Engine, logger *slog.Logger) *handler.ResourceHandler {
+	return handler.NewResourceHandler(eng.Docker(), logger)
 }
 
 func ProvideCertificateHandler(cfg *config.Config, logger *slog.Logger) *handler.CertificateHandler {

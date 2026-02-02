@@ -128,6 +128,9 @@ func registerHandlers(app *di.Application) {
 	if app.ImageHandler != nil {
 		app.ImageHandler.Register(app.Server.App())
 	}
+	if app.ResourceHandler != nil {
+		app.ResourceHandler.Register(app.Server.App())
+	}
 
 	if app.CertificateHandler != nil {
 		app.CertificateHandler.RegisterRoutes(app.Server.App().Group("/api"))

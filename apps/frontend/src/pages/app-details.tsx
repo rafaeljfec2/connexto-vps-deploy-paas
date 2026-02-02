@@ -64,6 +64,7 @@ import {
   useRedeploy,
   useRollback,
 } from "@/features/deploys/hooks/use-deploys";
+import { NetworksManager, VolumesManager } from "@/features/resources";
 import { useAppHealth } from "@/hooks/use-sse";
 import { cn, formatRepositoryUrl } from "@/lib/utils";
 import type { App, Deployment } from "@/types";
@@ -76,7 +77,9 @@ type SectionKey =
   | "health"
   | "config"
   | "webhook"
-  | "domains";
+  | "domains"
+  | "networks"
+  | "volumes";
 
 function useExpandedSections() {
   const [expandedSections, setExpandedSections] = useState<
@@ -90,6 +93,8 @@ function useExpandedSections() {
     config: false,
     webhook: false,
     domains: false,
+    networks: false,
+    volumes: false,
   });
 
   const toggleSection = (section: SectionKey) => {
@@ -109,6 +114,8 @@ function useExpandedSections() {
       config: newState,
       webhook: newState,
       domains: newState,
+      networks: newState,
+      volumes: newState,
     });
   };
 
@@ -714,6 +721,48 @@ function DomainsSection({ appId, expanded, onToggle }: DomainsSectionProps) {
   );
 }
 
+interface NetworksSectionProps {
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+}
+
+function NetworksSection({ expanded, onToggle }: NetworksSectionProps) {
+  return (
+    <CollapsibleSection
+      title="Docker Networks"
+      icon={Network}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={
+        <span className="text-muted-foreground">Manage container networks</span>
+      }
+    >
+      <NetworksManager />
+    </CollapsibleSection>
+  );
+}
+
+interface VolumesSectionProps {
+  readonly expanded: boolean;
+  readonly onToggle: () => void;
+}
+
+function VolumesSection({ expanded, onToggle }: VolumesSectionProps) {
+  return (
+    <CollapsibleSection
+      title="Docker Volumes"
+      icon={HardDrive}
+      expanded={expanded}
+      onToggle={onToggle}
+      summary={
+        <span className="text-muted-foreground">Manage persistent storage</span>
+      }
+    >
+      <VolumesManager />
+    </CollapsibleSection>
+  );
+}
+
 function AppDetailsLoading() {
   return (
     <div className="space-y-6">
@@ -951,6 +1000,16 @@ export function AppDetailsPage() {
         appId={app.id}
         expanded={expandedSections.domains ?? false}
         onToggle={() => toggleSection("domains")}
+      />
+
+      <NetworksSection
+        expanded={expandedSections.networks ?? false}
+        onToggle={() => toggleSection("networks")}
+      />
+
+      <VolumesSection
+        expanded={expandedSections.volumes ?? false}
+        onToggle={() => toggleSection("volumes")}
       />
     </div>
   );
