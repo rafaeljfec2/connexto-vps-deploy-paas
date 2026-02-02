@@ -99,9 +99,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
       <tr className="border-b border-border hover:bg-muted/50 transition-colors">
         <td className="py-3 px-4">
           <div className="flex flex-col">
-            <span className="font-medium truncate max-w-[200px]">
-              {container.name}
-            </span>
+            <span className="font-medium break-all">{container.name}</span>
             {container.isFlowDeployManaged && (
               <Badge variant="outline" className="w-fit mt-1 text-[10px]">
                 FlowDeploy

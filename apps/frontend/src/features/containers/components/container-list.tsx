@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Box } from "lucide-react";
+import { ArrowUpDown, Box } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
@@ -8,9 +8,13 @@ import { useContainers } from "../hooks/use-containers";
 import { ContainerCard } from "./container-card";
 import { type ContainerFilter, ContainerFilters } from "./container-filters";
 
+type SortKey = "name" | "state" | "image" | "ip" | "ports" | "resources";
+
 export function ContainerList() {
   const [filter, setFilter] = useState<ContainerFilter>("all");
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const { data: containers, isLoading, error } = useContainers(true);
 
@@ -39,6 +43,57 @@ export function ContainerList() {
       return matchesSearch && matchesFilter;
     });
   }, [containers, filter, search]);
+
+  const sortedContainers = useMemo(() => {
+    const direction = sortDirection === "asc" ? 1 : -1;
+    const sortValue = (container: (typeof filteredContainers)[number]) => {
+      switch (sortKey) {
+        case "name":
+          return container.name.toLowerCase();
+        case "state":
+          return container.state.toLowerCase();
+        case "image":
+          return container.image.toLowerCase();
+        case "ip":
+          return container.ipAddress ?? "";
+        case "ports":
+          return container.ports.length;
+        case "resources":
+          return container.networks.length + container.mounts.length;
+        default:
+          return container.name.toLowerCase();
+      }
+    };
+
+    return [...filteredContainers].sort((a, b) => {
+      const valueA = sortValue(a);
+      const valueB = sortValue(b);
+      if (typeof valueA === "number" && typeof valueB === "number") {
+        return (valueA - valueB) * direction;
+      }
+      return String(valueA).localeCompare(String(valueB)) * direction;
+    });
+  }, [filteredContainers, sortDirection, sortKey]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDirection("asc");
+  };
+
+  const renderSortLabel = (label: string, key: SortKey) => (
+    <button
+      type="button"
+      onClick={() => handleSort(key)}
+      className="inline-flex items-center gap-1 hover:text-foreground"
+    >
+      {label}
+      <ArrowUpDown className="h-3 w-3" />
+    </button>
+  );
 
   if (isLoading) {
     return (
@@ -91,31 +146,31 @@ export function ContainerList() {
               <thead>
                 <tr className="border-b border-border">
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
-                    Name
+                    {renderSortLabel("Name", "name")}
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
-                    State
+                    {renderSortLabel("State", "state")}
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden md:table-cell">
                     Actions
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden lg:table-cell">
-                    Image
+                    {renderSortLabel("Image", "image")}
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden xl:table-cell">
-                    IP
+                    {renderSortLabel("IP", "ip")}
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden xl:table-cell">
-                    Ports
+                    {renderSortLabel("Ports", "ports")}
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden 2xl:table-cell">
-                    Resources
+                    {renderSortLabel("Resources", "resources")}
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground w-10"></th>
                 </tr>
               </thead>
               <tbody>
-                {filteredContainers.map((container) => (
+                {sortedContainers.map((container) => (
                   <ContainerCard key={container.id} container={container} />
                 ))}
               </tbody>
