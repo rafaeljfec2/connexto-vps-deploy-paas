@@ -8,7 +8,6 @@ class SSEClient {
   private eventSource: EventSource | null = null;
   private readonly callbacks: Set<SSECallback> = new Set();
   private reconnectAttempts = 0;
-  private readonly maxReconnectAttempts = 10;
   private reconnectTimeout: NodeJS.Timeout | null = null;
 
   connect(url: string = `${API_URL}/events/deploys`): void {
@@ -55,14 +54,12 @@ class SSEClient {
   private handleError(): void {
     this.disconnect();
 
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-      this.reconnectAttempts++;
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+    this.reconnectAttempts++;
 
-      this.reconnectTimeout = setTimeout(() => {
-        this.connect();
-      }, delay);
-    }
+    this.reconnectTimeout = setTimeout(() => {
+      this.connect();
+    }, delay);
   }
 
   subscribe(callback: SSECallback): () => void {
