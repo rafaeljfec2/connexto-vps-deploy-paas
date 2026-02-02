@@ -113,18 +113,18 @@ export function EnvVarsManager({
   const varsCount = envVars?.length ?? 0;
 
   const content = (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {!isAdding && (
         <div className="flex justify-end">
-          <Button size="sm" onClick={handleAdd}>
-            <Plus className="h-4 w-4 mr-1" />
+          <Button size="sm" className="h-7 px-2 text-xs" onClick={handleAdd}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
             Add Variable
           </Button>
         </div>
       )}
       {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
       {isAdding && (
-        <div className="flex flex-col gap-2 p-3 border rounded-lg bg-muted/50">
+        <div className="flex flex-col gap-2 p-2 border rounded-md bg-muted/50">
           <div className="flex gap-2">
             <Input
               placeholder="KEY_NAME"
@@ -137,7 +137,7 @@ export function EnvVarsManager({
                     .replaceAll(/[^A-Z0-9_]/g, "_"),
                 }))
               }
-              className="font-mono text-sm flex-1"
+              className="font-mono text-xs flex-1 h-8"
             />
             <Input
               placeholder="value"
@@ -146,11 +146,11 @@ export function EnvVarsManager({
               onChange={(e) =>
                 setEditing((prev) => ({ ...prev, value: e.target.value }))
               }
-              className="font-mono text-sm flex-[2]"
+              className="font-mono text-xs flex-[2] h-8"
             />
           </div>
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm">
+            <label className="flex items-center gap-2 text-xs">
               <input
                 type="checkbox"
                 checked={editing.isSecret}
@@ -168,17 +168,19 @@ export function EnvVarsManager({
               <Button
                 size="sm"
                 variant="ghost"
+                className="h-7 w-7 p-0"
                 onClick={handleCancelAdd}
                 disabled={createEnvVar.isPending}
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </Button>
               <Button
                 size="sm"
+                className="h-7 px-2 text-xs"
                 onClick={handleSaveNew}
                 disabled={!editing.key.trim() || createEnvVar.isPending}
               >
-                <Save className="h-4 w-4 mr-1" />
+                <Save className="h-3.5 w-3.5 mr-1" />
                 Save
               </Button>
             </div>
@@ -196,11 +198,11 @@ export function EnvVarsManager({
       {envVars?.map((envVar) => (
         <div
           key={envVar.id}
-          className="flex items-center gap-2 p-3 border rounded-lg"
+          className="flex items-center gap-2 p-2 border rounded-md"
         >
           {editingId === envVar.id ? (
             <>
-              <span className="font-mono text-sm font-medium min-w-[120px]">
+              <span className="font-mono text-xs font-medium min-w-[110px]">
                 {envVar.key}
               </span>
               <Input
@@ -210,9 +212,9 @@ export function EnvVarsManager({
                 onChange={(e) =>
                   setEditing((prev) => ({ ...prev, value: e.target.value }))
                 }
-                className="font-mono text-sm flex-1"
+                className="font-mono text-xs flex-1 h-8"
               />
-              <label className="flex items-center gap-1 text-sm whitespace-nowrap">
+              <label className="flex items-center gap-1 text-xs whitespace-nowrap">
                 <input
                   type="checkbox"
                   checked={editing.isSecret}
@@ -229,25 +231,27 @@ export function EnvVarsManager({
               <Button
                 size="icon"
                 variant="ghost"
+                className="h-7 w-7"
                 onClick={handleCancelEdit}
                 disabled={updateEnvVar.isPending}
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </Button>
               <Button
                 size="icon"
+                className="h-7 w-7"
                 onClick={handleSaveEdit}
                 disabled={updateEnvVar.isPending}
               >
-                <Save className="h-4 w-4" />
+                <Save className="h-3.5 w-3.5" />
               </Button>
             </>
           ) : (
             <>
-              <span className="font-mono text-sm font-medium min-w-[120px]">
+              <span className="font-mono text-xs font-medium min-w-[110px]">
                 {envVar.key}
               </span>
-              <span className="font-mono text-sm text-muted-foreground flex-1 truncate">
+              <span className="font-mono text-xs text-muted-foreground flex-1 truncate">
                 {envVar.isSecret && showSecrets[envVar.id] && envVar.value}
                 {envVar.isSecret && !showSecrets[envVar.id] && "••••••••"}
                 {!envVar.isSecret && envVar.value}
@@ -256,32 +260,34 @@ export function EnvVarsManager({
                 <Button
                   size="icon"
                   variant="ghost"
+                  className="h-7 w-7"
                   onClick={() => toggleShowSecret(envVar.id)}
                 >
                   {showSecrets[envVar.id] ? (
-                    <EyeOff className="h-4 w-4" />
+                    <EyeOff className="h-3.5 w-3.5" />
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-3.5 w-3.5" />
                   )}
                 </Button>
               )}
               <Button
                 size="icon"
                 variant="ghost"
+                className="h-7 w-7"
                 onClick={() =>
                   handleStartEdit(envVar.id, envVar.value, envVar.isSecret)
                 }
               >
-                <Save className="h-4 w-4" />
+                <Save className="h-3.5 w-3.5" />
               </Button>
               <Button
                 size="icon"
                 variant="ghost"
-                className="text-destructive hover:text-destructive"
+                className="h-7 w-7 text-destructive hover:text-destructive"
                 onClick={() => handleDelete(envVar.id)}
                 disabled={deleteEnvVar.isPending}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             </>
           )}
