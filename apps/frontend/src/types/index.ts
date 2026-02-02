@@ -451,3 +451,46 @@ export interface DockerVolume {
   readonly createdAt: string;
   readonly labels: Record<string, string>;
 }
+
+export type NotificationChannelType = "slack" | "discord" | "email";
+
+export interface NotificationChannel {
+  readonly id: string;
+  readonly type: NotificationChannelType;
+  readonly name: string;
+  readonly config: Record<string, unknown>;
+  readonly appId?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface NotificationRule {
+  readonly id: string;
+  readonly eventType: string;
+  readonly channelId: string;
+  readonly appId?: string;
+  readonly enabled: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type NotificationEventType =
+  | "deploy_running"
+  | "deploy_success"
+  | "deploy_failed"
+  | "container_down"
+  | "health_unhealthy";
+
+export interface CreateNotificationChannelInput {
+  readonly type: NotificationChannelType;
+  readonly name: string;
+  readonly config: Record<string, unknown>;
+  readonly appId?: string;
+}
+
+export interface CreateNotificationRuleInput {
+  readonly eventType: NotificationEventType;
+  readonly channelId: string;
+  readonly appId?: string;
+  readonly enabled: boolean;
+}

@@ -408,3 +408,4 @@ flowchart TB
 - [x] Container control
 - [x] DNS Automatico (Cloudflare)
 - [x] Autenticacao GitHub OAuth + App
+- [x] Notificacoes (Discord/Slack/Email)

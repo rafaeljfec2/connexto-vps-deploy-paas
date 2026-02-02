@@ -158,7 +158,7 @@ export function ImageList() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground min-w-[200px]">
                     Repository
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
@@ -170,7 +170,7 @@ export function ImageList() {
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden lg:table-cell">
                     Size
                   </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden xl:table-cell">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden md:table-cell">
                     Created
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground w-10"></th>
@@ -182,12 +182,12 @@ export function ImageList() {
                     key={image.id}
                     className="border-b border-border hover:bg-muted/50 transition-colors"
                   >
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
+                    <td className="py-3 px-4 min-w-0">
+                      <div className="flex items-center gap-2 min-w-0">
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="font-medium truncate max-w-[200px]">
+                              <span className="font-medium truncate block min-w-0">
                                 {image.repository === "<none>" ? (
                                   <span className="text-muted-foreground italic">
                                     none
@@ -197,9 +197,9 @@ export function ImageList() {
                                 )}
                               </span>
                             </TooltipTrigger>
-                            <TooltipContent>
-                              <p className="font-mono text-xs">
-                                {image.repository}
+                            <TooltipContent side="top" className="max-w-md">
+                              <p className="font-mono text-xs break-all">
+                                {image.repository}:{image.tag}
                               </p>
                             </TooltipContent>
                           </Tooltip>
@@ -247,7 +247,7 @@ export function ImageList() {
                         {formatBytes(image.size)}
                       </span>
                     </td>
-                    <td className="py-3 px-4 hidden xl:table-cell">
+                    <td className="py-3 px-4 hidden md:table-cell whitespace-nowrap">
                       <span className="text-sm text-muted-foreground">
                         {formatDate(image.created)}
                       </span>

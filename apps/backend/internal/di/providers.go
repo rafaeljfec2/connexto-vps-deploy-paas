@@ -54,6 +54,10 @@ var RepositorySet = wire.NewSet(
 	wire.Bind(new(domain.CloudflareConnectionRepository), new(*repository.PostgresCloudflareConnectionRepository)),
 	repository.NewPostgresCustomDomainRepository,
 	wire.Bind(new(domain.CustomDomainRepository), new(*repository.PostgresCustomDomainRepository)),
+	repository.NewPostgresNotificationChannelRepository,
+	wire.Bind(new(domain.NotificationChannelRepository), new(*repository.PostgresNotificationChannelRepository)),
+	repository.NewPostgresNotificationRuleRepository,
+	wire.Bind(new(domain.NotificationRuleRepository), new(*repository.PostgresNotificationRuleRepository)),
 )
 
 var AuthSet = wire.NewSet(
@@ -72,6 +76,7 @@ var WebhookSet = wire.NewSet(
 var ServiceSet = wire.NewSet(
 	ProvideAppCleaner,
 	ProvideAppService,
+	ProvideNotificationService,
 )
 
 var EngineSet = wire.NewSet(
@@ -100,6 +105,8 @@ var HandlerSet = wire.NewSet(
 	ProvideCertificateHandler,
 	ProvideAuditService,
 	ProvideAuditHandler,
+	ProvideNotificationHandler,
+	ProvideResourceHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -285,6 +292,8 @@ type Application struct {
 	AuditService            *service.AuditService
 	AuditHandler            *handler.AuditHandler
 	ResourceHandler         *handler.ResourceHandler
+	NotificationService     *service.NotificationService
+	NotificationHandler     *handler.NotificationHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -475,4 +484,22 @@ func ProvideCertificateHandler(cfg *config.Config, logger *slog.Logger) *handler
 		TraefikURL: cfg.Traefik.URL,
 		Logger:     logger,
 	})
+}
+
+func ProvideNotificationService(
+	channelRepo domain.NotificationChannelRepository,
+	ruleRepo domain.NotificationRuleRepository,
+	appRepo domain.AppRepository,
+	logger *slog.Logger,
+) *service.NotificationService {
+	return service.NewNotificationService(channelRepo, ruleRepo, appRepo, logger)
+}
+
+func ProvideNotificationHandler(
+	channelRepo domain.NotificationChannelRepository,
+	ruleRepo domain.NotificationRuleRepository,
+	appRepo domain.AppRepository,
+	logger *slog.Logger,
+) *handler.NotificationHandler {
+	return handler.NewNotificationHandler(channelRepo, ruleRepo, appRepo, logger)
 }

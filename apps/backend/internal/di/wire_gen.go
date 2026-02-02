@@ -68,6 +68,10 @@ func InitializeApplication() (*Application, func(), error) {
 	auditService := ProvideAuditService(db, logger)
 	auditHandler := ProvideAuditHandler(auditService)
 	resourceHandler := ProvideResourceHandler(engineEngine, logger)
+	postgresNotificationChannelRepository := repository.NewPostgresNotificationChannelRepository(db)
+	postgresNotificationRuleRepository := repository.NewPostgresNotificationRuleRepository(db)
+	notificationService := ProvideNotificationService(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
+	notificationHandler := ProvideNotificationHandler(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -95,6 +99,8 @@ func InitializeApplication() (*Application, func(), error) {
 		AuditService:           auditService,
 		AuditHandler:           auditHandler,
 		ResourceHandler:        resourceHandler,
+		NotificationService:    notificationService,
+		NotificationHandler:    notificationHandler,
 	}
 	return application, func() {
 		cleanup()

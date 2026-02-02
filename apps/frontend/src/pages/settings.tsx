@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { CloudflareConnection } from "@/features/settings/components/cloudflare-connection";
+import { NotificationSettings } from "@/features/settings/components/notification-settings";
 
 export function SettingsPage() {
   return (
@@ -47,7 +48,10 @@ export function SettingsPage() {
 
         <section>
           <h2 className="text-lg font-semibold mb-4">Integrations</h2>
-          <CloudflareConnection />
+          <div className="space-y-6">
+            <CloudflareConnection />
+            <NotificationSettings />
+          </div>
         </section>
       </div>
     </div>

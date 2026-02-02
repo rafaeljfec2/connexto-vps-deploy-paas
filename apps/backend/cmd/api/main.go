@@ -53,14 +53,18 @@ func processEvent(app *di.Application, event engine.DeployEvent) {
 	switch event.Type {
 	case engine.EventTypeRunning:
 		app.SSEHandler.EmitDeployRunning(event.DeployID, event.AppID)
+		app.NotificationService.NotifyDeployRunning(event.DeployID, event.AppID)
 	case engine.EventTypeSuccess:
 		app.SSEHandler.EmitDeploySuccess(event.DeployID, event.AppID)
+		app.NotificationService.NotifyDeploySuccess(event.DeployID, event.AppID)
 	case engine.EventTypeFailed:
 		app.SSEHandler.EmitDeployFailed(event.DeployID, event.AppID, event.Message)
+		app.NotificationService.NotifyDeployFailed(event.DeployID, event.AppID, event.Message)
 	case engine.EventTypeLog:
 		app.SSEHandler.EmitLog(event.DeployID, event.AppID, event.Message)
 	case engine.EventTypeHealth:
 		emitHealthEvent(app, event)
+		emitNotificationHealth(app, event)
 	case engine.EventTypeStats:
 		emitStatsEvent(app, event)
 	}
@@ -76,6 +80,13 @@ func emitHealthEvent(app *di.Application, event engine.DeployEvent) {
 		StartedAt: event.Health.StartedAt,
 		Uptime:    event.Health.Uptime,
 	})
+}
+
+func emitNotificationHealth(app *di.Application, event engine.DeployEvent) {
+	if event.Health == nil {
+		return
+	}
+	app.NotificationService.NotifyHealthChange(event.AppID, event.Health.Status, event.Health.Health)
 }
 
 func emitStatsEvent(app *di.Application, event engine.DeployEvent) {
@@ -154,6 +165,7 @@ func registerProtectedRoutes(app *di.Application) {
 	registerOptionalProtectedHandler(app.CloudflareAuthHandler, authRequired)
 	registerOptionalProtectedHandler(app.DomainHandler, authRequired)
 	registerOptionalProtectedHandler(app.MigrationHandler, authRequired)
+	registerOptionalProtectedHandler(app.NotificationHandler, authRequired)
 }
 
 type protectedRegistrar interface {

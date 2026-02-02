@@ -142,10 +142,10 @@ export function ContainerList() {
       ) : (
         <Card>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground min-w-[140px]">
                     {renderSortLabel("Name", "name")}
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
@@ -165,6 +165,9 @@ export function ContainerList() {
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden 2xl:table-cell">
                     {renderSortLabel("Resources", "resources")}
+                  </th>
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden lg:table-cell">
+                    Created
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground w-10"></th>
                 </tr>

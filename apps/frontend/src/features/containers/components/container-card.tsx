@@ -64,6 +64,16 @@ function formatPorts(ports: Container["ports"]): string {
     .join(", ");
 }
 
+function formatContainerCreated(created: string): string {
+  const date = new Date(created);
+  if (Number.isNaN(date.getTime())) return created;
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export function ContainerCard({ container }: ContainerCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showLogsDialog, setShowLogsDialog] = useState(false);
@@ -93,49 +103,82 @@ export function ContainerCard({ container }: ContainerCardProps) {
   const hasNetworks = container.networks && container.networks.length > 0;
   const hasMounts = container.mounts && container.mounts.length > 0;
   const hasDetails = hasNetworks || hasMounts;
+  const portsStr = formatPorts(container.ports);
 
   return (
     <>
-      <tr className="border-b border-border hover:bg-muted/50 transition-colors">
-        <td className="py-3 px-4">
-          <div className="flex flex-col">
-            <span className="font-medium break-all">{container.name}</span>
+      <tr className="border-b border-border hover:bg-muted/50 transition-colors align-middle">
+        <td className="py-3 px-4 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="font-medium truncate block min-w-0">
+                    {container.name}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p className="font-mono break-all">{container.name}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {container.isFlowDeployManaged && (
-              <Badge variant="outline" className="w-fit mt-1 text-[10px]">
-                FlowDeploy
+              <Badge
+                variant="outline"
+                className="shrink-0 text-[10px] px-1.5 py-0"
+              >
+                FD
               </Badge>
             )}
           </div>
         </td>
-        <td className="py-3 px-4">
+        <td className="py-3 px-4 whitespace-nowrap">
           <div className="flex items-center gap-2">
             <ContainerStateBadge state={container.state} />
             <ContainerHealthBadge health={container.health} />
           </div>
         </td>
-        <td className="py-3 px-4 hidden md:table-cell">
+        <td className="py-3 px-4 hidden md:table-cell whitespace-nowrap">
           <ContainerActions
             containerId={container.id}
             isRunning={isRunning}
             onShowLogs={() => setShowLogsDialog(true)}
           />
         </td>
-        <td className="py-3 px-4 hidden lg:table-cell">
-          <span className="text-sm text-muted-foreground truncate block max-w-[250px]">
-            {container.image}
-          </span>
+        <td className="py-3 px-4 hidden lg:table-cell min-w-0 max-w-[200px]">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-sm text-muted-foreground truncate block">
+                  {container.image}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-sm">
+                <p className="font-mono break-all">{container.image}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </td>
-        <td className="py-3 px-4 hidden xl:table-cell">
-          <span className="text-sm text-muted-foreground">
+        <td className="py-3 px-4 hidden xl:table-cell whitespace-nowrap">
+          <span className="text-sm text-muted-foreground font-mono text-xs">
             {container.ipAddress ?? "-"}
           </span>
         </td>
-        <td className="py-3 px-4 hidden xl:table-cell">
-          <span className="text-sm text-muted-foreground font-mono">
-            {formatPorts(container.ports)}
-          </span>
+        <td className="py-3 px-4 hidden xl:table-cell min-w-0 max-w-[140px]">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-sm text-muted-foreground font-mono truncate block text-xs">
+                  {portsStr}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p className="font-mono break-all">{portsStr}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </td>
-        <td className="py-3 px-4 hidden 2xl:table-cell">
+        <td className="py-3 px-4 hidden 2xl:table-cell whitespace-nowrap">
           <div className="flex items-center gap-2">
             {hasNetworks && (
               <TooltipProvider>
@@ -200,7 +243,12 @@ export function ContainerCard({ container }: ContainerCardProps) {
             )}
           </div>
         </td>
-        <td className="py-3 px-4">
+        <td className="py-3 px-4 hidden lg:table-cell whitespace-nowrap">
+          <span className="text-sm text-muted-foreground">
+            {formatContainerCreated(container.created)}
+          </span>
+        </td>
+        <td className="py-3 px-4 whitespace-nowrap">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -291,7 +339,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
 
       {expanded && hasDetails && (
         <tr className="border-b border-border bg-muted/30">
-          <td colSpan={8} className="py-3 px-4">
+          <td colSpan={9} className="py-3 px-4">
             <div className="grid gap-4 md:grid-cols-2">
               {hasNetworks && (
                 <div>
