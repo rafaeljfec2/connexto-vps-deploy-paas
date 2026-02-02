@@ -211,73 +211,76 @@ export function NetworksManager({
             <p>No networks found</p>
           </div>
         ) : (
-          filteredNetworks?.map((network) => (
-            <div
-              key={network.id}
-              className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
-            >
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <Network className="h-4 w-4 text-muted-foreground shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{network.name}</p>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{network.driver}</span>
-                    <span>•</span>
-                    <span>{network.scope}</span>
-                    {network.containers.length > 0 && (
-                      <>
-                        <span>•</span>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="flex items-center gap-1 cursor-help">
-                              <Server className="h-3 w-3" />
-                              {network.containers.length}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="font-medium mb-1">Containers:</p>
-                            <ul className="text-xs">
-                              {network.containers.map((c) => (
-                                <li key={c}>{c}</li>
-                              ))}
-                            </ul>
-                          </TooltipContent>
-                        </Tooltip>
-                      </>
-                    )}
-                    {network.internal && (
-                      <Badge variant="outline" className="text-xs h-5">
-                        Internal
-                      </Badge>
-                    )}
+          filteredNetworks?.map((network) => {
+            const networkContainers = network.containers ?? [];
+            return (
+              <div
+                key={network.id}
+                className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <Network className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{network.name}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{network.driver}</span>
+                      <span>•</span>
+                      <span>{network.scope}</span>
+                      {networkContainers.length > 0 && (
+                        <>
+                          <span>•</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="flex items-center gap-1 cursor-help">
+                                <Server className="h-3 w-3" />
+                                {networkContainers.length}
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="font-medium mb-1">Containers:</p>
+                              <ul className="text-xs">
+                                {networkContainers.map((c) => (
+                                  <li key={c}>{c}</li>
+                                ))}
+                              </ul>
+                            </TooltipContent>
+                          </Tooltip>
+                        </>
+                      )}
+                      {network.internal && (
+                        <Badge variant="outline" className="text-xs h-5">
+                          Internal
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => setNetworkToDelete(network.name)}
+                      disabled={
+                        removeNetwork.isPending ||
+                        networkContainers.length > 0 ||
+                        ["bridge", "host", "none"].includes(network.name)
+                      }
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {getDeleteTooltip(
+                      networkContainers.length > 0,
+                      ["bridge", "host", "none"].includes(network.name),
+                    )}
+                  </TooltipContent>
+                </Tooltip>
               </div>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => setNetworkToDelete(network.name)}
-                    disabled={
-                      removeNetwork.isPending ||
-                      network.containers.length > 0 ||
-                      ["bridge", "host", "none"].includes(network.name)
-                    }
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {getDeleteTooltip(
-                    network.containers.length > 0,
-                    ["bridge", "host", "none"].includes(network.name),
-                  )}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
