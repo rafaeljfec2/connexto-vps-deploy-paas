@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/provisioner"
@@ -14,6 +16,8 @@ type ServerHandler struct {
 	serverRepo     domain.ServerRepository
 	tokenEncryptor *crypto.TokenEncryptor
 	provisioner    *provisioner.SSHProvisioner
+	healthChecker  *agentclient.HealthChecker
+	agentPort      int
 	logger         *slog.Logger
 }
 
@@ -21,12 +25,16 @@ func NewServerHandler(
 	serverRepo domain.ServerRepository,
 	tokenEncryptor *crypto.TokenEncryptor,
 	prov *provisioner.SSHProvisioner,
+	healthChecker *agentclient.HealthChecker,
+	agentPort int,
 	logger *slog.Logger,
 ) *ServerHandler {
 	return &ServerHandler{
 		serverRepo:     serverRepo,
 		tokenEncryptor: tokenEncryptor,
 		provisioner:    prov,
+		healthChecker:  healthChecker,
+		agentPort:      agentPort,
 		logger:         logger.With("handler", "server"),
 	}
 }
@@ -40,6 +48,7 @@ func (h *ServerHandler) Register(app fiber.Router) {
 	servers.Put("/:id", h.Update)
 	servers.Delete("/:id", h.Delete)
 	servers.Post("/:id/provision", h.Provision)
+	servers.Get("/:id/health", h.HealthCheck)
 }
 
 type ServerResponse struct {
@@ -53,6 +62,11 @@ type ServerResponse struct {
 	LastHeartbeatAt *string `json:"lastHeartbeatAt,omitempty"`
 	CreatedAt       string  `json:"createdAt"`
 	UpdatedAt       string  `json:"updatedAt"`
+}
+
+type ServerHealthResponse struct {
+	Status    string `json:"status"`
+	LatencyMs int64  `json:"latencyMs"`
 }
 
 func toServerResponse(s *domain.Server) ServerResponse {
@@ -77,19 +91,21 @@ func toServerResponse(s *domain.Server) ServerResponse {
 }
 
 type CreateServerRequest struct {
-	Name    string `json:"name"`
-	Host    string `json:"host"`
-	SSHPort int    `json:"sshPort"`
-	SSHUser string `json:"sshUser"`
-	SSHKey  string `json:"sshKey"`
+	Name        string `json:"name"`
+	Host        string `json:"host"`
+	SSHPort     int    `json:"sshPort"`
+	SSHUser     string `json:"sshUser"`
+	SSHKey      string `json:"sshKey"`
+	SSHPassword string `json:"sshPassword"`
 }
 
 type UpdateServerRequest struct {
-	Name    *string `json:"name,omitempty"`
-	Host    *string `json:"host,omitempty"`
-	SSHPort *int    `json:"sshPort,omitempty"`
-	SSHUser *string `json:"sshUser,omitempty"`
-	SSHKey  *string `json:"sshKey,omitempty"`
+	Name        *string `json:"name,omitempty"`
+	Host        *string `json:"host,omitempty"`
+	SSHPort     *int    `json:"sshPort,omitempty"`
+	SSHUser     *string `json:"sshUser,omitempty"`
+	SSHKey      *string `json:"sshKey,omitempty"`
+	SSHPassword *string `json:"sshPassword,omitempty"`
 }
 
 func (h *ServerHandler) List(c *fiber.Ctx) error {
@@ -122,28 +138,48 @@ func (h *ServerHandler) Create(c *fiber.Ctx) error {
 		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
-	if req.Name == "" || req.Host == "" || req.SSHUser == "" || req.SSHKey == "" {
-		return response.BadRequest(c, "name, host, sshUser and sshKey are required")
+	if req.Name == "" || req.Host == "" || req.SSHUser == "" {
+		return response.BadRequest(c, "name, host and sshUser are required")
+	}
+	if req.SSHKey == "" && req.SSHPassword == "" {
+		return response.BadRequest(c, "provide sshKey or sshPassword")
 	}
 
 	var sshKeyEncrypted string
-	if h.tokenEncryptor != nil {
-		encrypted, err := h.tokenEncryptor.Encrypt(req.SSHKey)
-		if err != nil {
-			h.logger.Error("failed to encrypt ssh key", "error", err)
-			return response.InternalError(c)
+	if req.SSHKey != "" {
+		if h.tokenEncryptor != nil {
+			encrypted, err := h.tokenEncryptor.Encrypt(req.SSHKey)
+			if err != nil {
+				h.logger.Error("failed to encrypt ssh key", "error", err)
+				return response.InternalError(c)
+			}
+			sshKeyEncrypted = encrypted
+		} else {
+			sshKeyEncrypted = req.SSHKey
 		}
-		sshKeyEncrypted = encrypted
-	} else {
-		sshKeyEncrypted = req.SSHKey
+	}
+
+	var sshPasswordEncrypted string
+	if req.SSHPassword != "" {
+		if h.tokenEncryptor != nil {
+			encrypted, err := h.tokenEncryptor.Encrypt(req.SSHPassword)
+			if err != nil {
+				h.logger.Error("failed to encrypt ssh password", "error", err)
+				return response.InternalError(c)
+			}
+			sshPasswordEncrypted = encrypted
+		} else {
+			sshPasswordEncrypted = req.SSHPassword
+		}
 	}
 
 	input := domain.CreateServerInput{
-		Name:            req.Name,
-		Host:            req.Host,
-		SSHPort:         req.SSHPort,
-		SSHUser:         req.SSHUser,
-		SSHKeyEncrypted: sshKeyEncrypted,
+		Name:                 req.Name,
+		Host:                 req.Host,
+		SSHPort:              req.SSHPort,
+		SSHUser:              req.SSHUser,
+		SSHKeyEncrypted:      sshKeyEncrypted,
+		SSHPasswordEncrypted: sshPasswordEncrypted,
 	}
 
 	server, err := h.serverRepo.Create(input)
@@ -187,8 +223,8 @@ func (h *ServerHandler) Update(c *fiber.Ctx) error {
 	}
 
 	input := domain.UpdateServerInput{
-		Name:   req.Name,
-		Host:   req.Host,
+		Name:    req.Name,
+		Host:    req.Host,
 		SSHPort: req.SSHPort,
 		SSHUser: req.SSHUser,
 	}
@@ -200,6 +236,18 @@ func (h *ServerHandler) Update(c *fiber.Ctx) error {
 			return response.InternalError(c)
 		}
 		input.SSHKeyEncrypted = &encrypted
+	}
+	if req.SSHPassword != nil && *req.SSHPassword != "" {
+		if h.tokenEncryptor != nil {
+			encrypted, err := h.tokenEncryptor.Encrypt(*req.SSHPassword)
+			if err != nil {
+				h.logger.Error("failed to encrypt ssh password", "error", err)
+				return response.InternalError(c)
+			}
+			input.SSHPasswordEncrypted = &encrypted
+		} else {
+			input.SSHPasswordEncrypted = req.SSHPassword
+		}
 	}
 
 	server, err := h.serverRepo.Update(id, input)
@@ -241,7 +289,7 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 	}
 
 	sshKey := server.SSHKeyEncrypted
-	if h.tokenEncryptor != nil {
+	if h.tokenEncryptor != nil && sshKey != "" {
 		decrypted, err := h.tokenEncryptor.Decrypt(server.SSHKeyEncrypted)
 		if err != nil {
 			h.logger.Error("failed to decrypt ssh key", "error", err)
@@ -249,11 +297,24 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 		}
 		sshKey = decrypted
 	}
+	sshPassword := server.SSHPasswordEncrypted
+	if h.tokenEncryptor != nil && sshPassword != "" {
+		decrypted, err := h.tokenEncryptor.Decrypt(server.SSHPasswordEncrypted)
+		if err != nil {
+			h.logger.Error("failed to decrypt ssh password", "error", err)
+			return response.InternalError(c)
+		}
+		sshPassword = decrypted
+	}
+
+	if sshKey == "" && sshPassword == "" {
+		return response.BadRequest(c, "server has no ssh credentials")
+	}
 
 	status := domain.ServerStatusProvisioning
 	_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &status})
 
-	if err := h.provisioner.Provision(server, sshKey); err != nil {
+	if err := h.provisioner.Provision(server, sshKey, sshPassword); err != nil {
 		h.logger.Error("provision failed", "serverId", id, "error", err)
 		errStatus := domain.ServerStatusError
 		_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &errStatus})
@@ -261,4 +322,31 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 	}
 
 	return response.OK(c, map[string]string{"message": "provision completed"})
+}
+
+func (h *ServerHandler) HealthCheck(c *fiber.Ctx) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
+	id := c.Params("id")
+	server, err := h.serverRepo.FindByID(id)
+	if err != nil {
+		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
+	}
+
+	if h.healthChecker == nil || h.agentPort == 0 {
+		return response.BadRequest(c, "health check not available")
+	}
+
+	latency, err := h.healthChecker.Check(context.Background(), server.Host, h.agentPort)
+	if err != nil {
+		return response.BadRequest(c, "health check failed: "+err.Error())
+	}
+
+	return response.OK(c, ServerHealthResponse{
+		Status:    "ok",
+		LatencyMs: latency.Milliseconds(),
+	})
 }

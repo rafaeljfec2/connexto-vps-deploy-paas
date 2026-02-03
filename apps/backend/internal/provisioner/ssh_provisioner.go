@@ -17,17 +17,18 @@ import (
 )
 
 const (
-	agentInstallDir    = "/opt/paasdeploy-agent"
-	agentSystemdUnit   = "paasdeploy-agent.service"
-	defaultSSHPort     = 22
-	sshConnectTimeout  = 30 * time.Second
-	sshSessionTimeout  = 5 * time.Minute
+	agentInstallDir   = "/opt/paasdeploy-agent"
+	agentSystemdUnit  = "paasdeploy-agent.service"
+	defaultSSHPort    = 22
+	sshConnectTimeout = 30 * time.Second
+	sshSessionTimeout = 5 * time.Minute
 )
 
 type SSHProvisionerConfig struct {
 	CA              *pki.CertificateAuthority
 	ServerAddr      string
 	AgentBinaryPath string
+	AgentPort       int
 	Logger          *slog.Logger
 }
 
@@ -39,14 +40,14 @@ func NewSSHProvisioner(cfg SSHProvisionerConfig) *SSHProvisioner {
 	return &SSHProvisioner{cfg: cfg}
 }
 
-func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string) error {
+func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, sshPasswordPlain string) error {
 	port := server.SSHPort
 	if port == 0 {
 		port = defaultSSHPort
 	}
 
 	addr := net.JoinHostPort(server.Host, fmt.Sprintf("%d", port))
-	client, err := p.connect(server.SSHUser, addr, sshKeyPlain)
+	client, err := p.connect(server.SSHUser, addr, sshKeyPlain, sshPasswordPlain)
 	if err != nil {
 		return fmt.Errorf("ssh connect: %w", err)
 	}
@@ -56,7 +57,7 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string) er
 		return err
 	}
 
-	agentCert, err := p.cfg.CA.GenerateAgentCert(server.ID)
+	agentCert, err := p.cfg.CA.GenerateAgentCert(server.ID, server.Host)
 	if err != nil {
 		return fmt.Errorf("generate agent cert: %w", err)
 	}
@@ -83,17 +84,27 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string) er
 	return nil
 }
 
-func (p *SSHProvisioner) connect(user, addr, privateKey string) (*ssh.Client, error) {
-	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
-	if err != nil {
-		return nil, fmt.Errorf("parse private key: %w", err)
+func (p *SSHProvisioner) connect(user, addr, privateKey string, password string) (*ssh.Client, error) {
+	var authMethods []ssh.AuthMethod
+	if privateKey != "" {
+		signer, err := ssh.ParsePrivateKey([]byte(privateKey))
+		if err != nil {
+			return nil, fmt.Errorf("parse private key: %w", err)
+		}
+		authMethods = append(authMethods, ssh.PublicKeys(signer))
+	}
+
+	if password != "" {
+		authMethods = append(authMethods, ssh.Password(password))
+	}
+
+	if len(authMethods) == 0 {
+		return nil, fmt.Errorf("no ssh auth methods configured")
 	}
 
 	config := &ssh.ClientConfig{
-		User: user,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
-		},
+		User:            user,
+		Auth:            authMethods,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         sshConnectTimeout,
 	}
@@ -124,9 +135,9 @@ func (p *SSHProvisioner) createInstallDir(client *ssh.Client) error {
 
 func (p *SSHProvisioner) writeFiles(client *ssh.Client, agentCert *pki.Certificate) error {
 	files := map[string][]byte{
-		filepath.Join(agentInstallDir, "ca.pem"):     p.cfg.CA.GetCACertPEM(),
-		filepath.Join(agentInstallDir, "cert.pem"):   agentCert.CertPEM,
-		filepath.Join(agentInstallDir, "key.pem"):    agentCert.KeyPEM,
+		filepath.Join(agentInstallDir, "ca.pem"):   p.cfg.CA.GetCACertPEM(),
+		filepath.Join(agentInstallDir, "cert.pem"): agentCert.CertPEM,
+		filepath.Join(agentInstallDir, "key.pem"):  agentCert.KeyPEM,
 	}
 
 	for path, content := range files {
@@ -177,6 +188,10 @@ func (p *SSHProvisioner) installSystemdUnit(client *ssh.Client, serverID string)
 	if serverAddr == "" {
 		serverAddr = "localhost:50051"
 	}
+	agentPort := p.cfg.AgentPort
+	if agentPort == 0 {
+		agentPort = 50052
+	}
 
 	unit := fmt.Sprintf(`[Unit]
 Description=PaasDeploy Agent
@@ -184,13 +199,13 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=%s/agent -server-addr=%s -server-id=%s -ca-cert=%s/ca.pem -cert=%s/cert.pem -key=%s/key.pem
+ExecStart=%s/agent -server-addr=%s -server-id=%s -ca-cert=%s/ca.pem -cert=%s/cert.pem -key=%s/key.pem -agent-port=%d
 Restart=always
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-`, agentInstallDir, serverAddr, serverID, agentInstallDir, agentInstallDir, agentInstallDir)
+`, agentInstallDir, serverAddr, serverID, agentInstallDir, agentInstallDir, agentInstallDir, agentPort)
 
 	unitPath := "/etc/systemd/system/" + agentSystemdUnit
 	b64 := base64.StdEncoding.EncodeToString([]byte(unit))

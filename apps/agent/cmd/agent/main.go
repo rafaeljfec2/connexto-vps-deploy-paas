@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/paasdeploy/agent/internal/agent"
+	"github.com/paasdeploy/agent/internal/grpcserver"
 )
 
 func main() {
@@ -18,6 +19,7 @@ func main() {
 	caCert := flag.String("ca-cert", "", "")
 	cert := flag.String("cert", "", "")
 	key := flag.String("key", "", "")
+	agentPort := flag.Int("agent-port", 50052, "")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
@@ -36,8 +38,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	grpcSrv, err := grpcserver.New(grpcserver.Config{
+		Port:     *agentPort,
+		CertPath: *cert,
+		KeyPath:  *key,
+	}, logger)
+	if err != nil {
+		logger.Error("failed to initialize grpc server", "error", err)
+		os.Exit(1)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	go func() {
+		if err := grpcSrv.Start(); err != nil {
+			logger.Error("grpc server stopped", "error", err)
+			cancel()
+		}
+	}()
 
 	go func() {
 		if err := a.Run(ctx); err != nil {
@@ -47,6 +66,7 @@ func main() {
 	}()
 
 	waitForShutdown(cancel)
+	grpcSrv.Stop()
 }
 
 func waitForShutdown(cancel context.CancelFunc) {

@@ -132,6 +132,27 @@ Fluxo:
 
 ---
 
+#### 5. Controles Administrativos do Agent
+
+**Persona:** DevOps + SRE  
+**Valor:** Diagnosticar agents rapidamente, forcar reprovisionamento sem SSH e testar conectividade SaaS ↔ VPS via CLI.
+
+```
+Capacidades:
+- Endpoint admin (backend) para forcar reprovisionamento de um server
+- Comando CLI/Script que autentica e executa health check gRPC contra o agent
+- Historico de ultimos health checks
+```
+
+**Implementacao:**
+
+- Rota protegida `/servers/:id/reprovision` que reutiliza o provisioner com opcao de regenerar certs
+- CLI `flowdeploy agent health --server-id ...` que chama o novo endpoint ou fala direto com o agent
+- Persistir logs de conectividade (latencia, status) para auditoria
+- UI: botao "Reprovision" + "Test Health" no card do servidor
+
+---
+
 ### Media Prioridade - Funcionalidades Avancadas
 
 #### 5. Terminal Web (Exec no Container)

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,18 +24,32 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
   const [sshPort, setSshPort] = useState("22");
   const [sshUser, setSshUser] = useState("");
   const [sshKey, setSshKey] = useState("");
+  const [sshPassword, setSshPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const createServer = useCreateServer();
 
+  useEffect(() => {
+    if (formError) {
+      setFormError(null);
+    }
+  }, [sshKey, sshPassword]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!sshKey && !sshPassword) {
+      setFormError("Provide SSH key or password.");
+      return;
+    }
     try {
       await createServer.mutateAsync({
         name,
         host,
         sshPort: Number.parseInt(sshPort, 10) || 22,
         sshUser,
-        sshKey,
+        ...(sshKey ? { sshKey } : {}),
+        ...(sshPassword ? { sshPassword } : {}),
       });
       setOpen(false);
       setName("");
@@ -43,6 +57,8 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
       setSshPort("22");
       setSshUser("");
       setSshKey("");
+      setSshPassword("");
+      setShowPassword(false);
     } catch {
       // Error handled by mutation
     }
@@ -63,8 +79,8 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
           <DialogHeader>
             <DialogTitle>Add Remote Server</DialogTitle>
             <DialogDescription>
-              Add a server for remote deploy. You will need SSH access with key
-              authentication.
+              Add a server for remote deploy. Provide an SSH key or password
+              (key is recommended).
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -135,7 +151,7 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
                 htmlFor="sshKey"
                 className="text-sm font-medium leading-none"
               >
-                SSH Private Key
+                SSH Private Key (optional)
               </label>
               <textarea
                 id="sshKey"
@@ -144,9 +160,38 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
                 placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
                 rows={4}
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                required
               />
             </div>
+            <div className="grid gap-2">
+              <label
+                htmlFor="sshPassword"
+                className="text-sm font-medium leading-none"
+              >
+                SSH Password (optional)
+              </label>
+              <div className="relative">
+                <Input
+                  id="sshPassword"
+                  type={showPassword ? "text" : "password"}
+                  value={sshPassword}
+                  onChange={(e) => setSshPassword(e.target.value)}
+                  placeholder="Secure password"
+                  className="pr-20"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="absolute inset-y-1 right-1 px-3"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </Button>
+              </div>
+            </div>
+            {formError && (
+              <p className="text-sm text-destructive">{formError}</p>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -159,7 +204,11 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
             <Button
               type="submit"
               disabled={
-                createServer.isPending || !name || !host || !sshUser || !sshKey
+                createServer.isPending ||
+                !name ||
+                !host ||
+                !sshUser ||
+                (!sshKey && !sshPassword)
               }
             >
               {createServer.isPending ? "Adding..." : "Add Server"}

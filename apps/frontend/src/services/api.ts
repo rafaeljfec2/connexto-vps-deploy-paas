@@ -805,6 +805,7 @@ export const api = {
         sshPort?: number;
         sshUser?: string;
         sshKey?: string;
+        sshPassword?: string;
       },
     ): Promise<Server> =>
       fetchApi<Server>(`${API_BASE}/servers/${id}`, {

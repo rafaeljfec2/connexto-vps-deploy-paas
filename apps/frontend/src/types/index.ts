@@ -520,5 +520,6 @@ export interface CreateServerInput {
   readonly host: string;
   readonly sshPort?: number;
   readonly sshUser: string;
-  readonly sshKey: string;
+  readonly sshKey?: string;
+  readonly sshPassword?: string;
 }

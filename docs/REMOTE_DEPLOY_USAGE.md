@@ -28,6 +28,7 @@ BUF_CACHE_DIR=$PWD/../.buf-cache buf generate
 | GRPC_PORT            | Não         | Porta gRPC (default: 50051)                                                 |
 | GRPC_SERVER_ADDR     | Sim\*       | Endereço do backend acessível pelo agent (ex: paasdeploy.example.com:50051) |
 | AGENT_BINARY_PATH    | Não         | Caminho do binário do agent para provisionamento                            |
+| AGENT_GRPC_PORT      | Não         | Porta do agent para health check e controle (default: 50052)                |
 
 \* Necessário quando agent está em outro host
 
@@ -53,12 +54,14 @@ go build -o ../../dist/agent ./cmd/agent
 ### 4.1 Adicionar Servidor
 
 1. Menu **Servers** > **Add Server**
-2. Preencher: Nome, Host, SSH Port (22), SSH User, SSH Private Key
+2. Preencher: Nome, Host, SSH Port (22), SSH User e credenciais
+   - Aceitamos **SSH Private Key** (recomendado) ou **SSH Password** (opcional).
+   - As credenciais são armazenadas criptografadas e não ficam visíveis após o cadastro.
 
 ### 4.2 Provisionar
 
 1. No card do servidor, clicar **Provision**
-2. Backend conecta via SSH, instala certs e agent em `/opt/paasdeploy-agent`
+2. Backend conecta via SSH (usando a chave ou senha fornecida), instala certs e agent em `/opt/paasdeploy-agent`
 3. Agent inicia e conecta ao backend via mTLS
 
 ### 4.3 Associar App ao Servidor
@@ -73,17 +76,34 @@ sudo systemctl status paasdeploy-agent
 sudo journalctl -u paasdeploy-agent -f
 ```
 
+### 4.5 Teste de conectividade (health check)
+
+Endpoint:
+
+```bash
+GET /paas-deploy/v1/servers/:id/health
+```
+
+Resposta esperada:
+
+```json
+{ "status": "ok", "latencyMs": 12 }
+```
+
 ---
 
 ## 5. Limitações Atuais
 
-- **CA em memória**: Reiniciar o backend invalida os certs dos agents. Reprovisionar após restart.
-- **Agent port**: Backend conecta ao agent em `host:50052` para ExecuteDeploy.
+- **Agent port**: Backend conecta ao agent em `host:<AGENT_GRPC_PORT>`.
 - **ExecuteDeploy**: Agent ainda implementa stub; deploy real em desenvolvimento.
 
 ---
 
-## 6. Estrutura de Arquivos Instalados no Servidor
+## 6. Notas
+
+- **CA persistida**: A CA é salva no banco de dados; reinício do backend não invalida os certs.
+
+## 7. Estrutura de Arquivos Instalados no Servidor
 
 ```
 /opt/paasdeploy-agent/
@@ -93,9 +113,9 @@ sudo journalctl -u paasdeploy-agent -f
 └── key.pem        # chave privada
 ```
 
-## 7. Executar Agent Manualmente
+## 8. Executar Agent Manualmente
 
 ```bash
 ./agent -server-addr=backend:50051 -server-id=<UUID_DO_SERVIDOR> \
-  -ca-cert=ca.pem -cert=cert.pem -key=key.pem
+  -ca-cert=ca.pem -cert=cert.pem -key=key.pem -agent-port=50052
 ```

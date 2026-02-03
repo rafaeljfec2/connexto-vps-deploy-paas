@@ -3,6 +3,7 @@ package di
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -12,6 +13,7 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/lmittmann/tint"
 
+	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/config"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
@@ -43,6 +45,8 @@ var DatabaseSet = wire.NewSet(
 var RepositorySet = wire.NewSet(
 	repository.NewPostgresAppRepository,
 	wire.Bind(new(domain.AppRepository), new(*repository.PostgresAppRepository)),
+	repository.NewPostgresCertificateAuthorityRepository,
+	wire.Bind(new(domain.CertificateAuthorityRepository), new(*repository.PostgresCertificateAuthorityRepository)),
 	repository.NewPostgresDeploymentRepository,
 	wire.Bind(new(domain.DeploymentRepository), new(*repository.PostgresDeploymentRepository)),
 	repository.NewPostgresEnvVarRepository,
@@ -112,6 +116,7 @@ var HandlerSet = wire.NewSet(
 	ProvideAuditHandler,
 	ProvideNotificationHandler,
 	ProvideResourceHandler,
+	ProvideAgentHealthChecker,
 	ProvideServerHandler,
 )
 
@@ -279,36 +284,36 @@ func ProvideServerConfig(cfg *config.Config) server.Config {
 }
 
 type Application struct {
-	Config                  *config.Config
-	Logger                  *slog.Logger
-	DB                      *sql.DB
-	Engine                  *engine.Engine
-	Server                  *server.Server
-	GrpcServer              *grpcserver.Server
-	HealthHandler           *handler.HealthHandler
-	AppHandler              *handler.AppHandler
-	SSEHandler              *handler.SSEHandler
-	SwaggerHandler          *handler.SwaggerHandler
-	EnvVarHandler           *handler.EnvVarHandler
-	ContainerHealthHandler  *handler.ContainerHealthHandler
-	AppAdminHandler         *handler.AppAdminHandler
-	WebhookHandler          *github.WebhookHandler
-	AuthHandler             *handler.AuthHandler
-	GitHubHandler           *handler.GitHubHandler
-	AuthMiddleware          *middleware.AuthMiddleware
-	CloudflareAuthHandler   *handler.CloudflareAuthHandler
-	DomainHandler           *handler.DomainHandler
-	MigrationHandler        *handler.MigrationHandler
-	ContainerHandler        *handler.ContainerHandler
-	TemplateHandler         *handler.TemplateHandler
-	ImageHandler            *handler.ImageHandler
-	CertificateHandler      *handler.CertificateHandler
-	AuditService            *service.AuditService
-	AuditHandler            *handler.AuditHandler
-	ResourceHandler         *handler.ResourceHandler
-	NotificationService     *service.NotificationService
-	NotificationHandler     *handler.NotificationHandler
-	ServerHandler           *handler.ServerHandler
+	Config                 *config.Config
+	Logger                 *slog.Logger
+	DB                     *sql.DB
+	Engine                 *engine.Engine
+	Server                 *server.Server
+	GrpcServer             *grpcserver.Server
+	HealthHandler          *handler.HealthHandler
+	AppHandler             *handler.AppHandler
+	SSEHandler             *handler.SSEHandler
+	SwaggerHandler         *handler.SwaggerHandler
+	EnvVarHandler          *handler.EnvVarHandler
+	ContainerHealthHandler *handler.ContainerHealthHandler
+	AppAdminHandler        *handler.AppAdminHandler
+	WebhookHandler         *github.WebhookHandler
+	AuthHandler            *handler.AuthHandler
+	GitHubHandler          *handler.GitHubHandler
+	AuthMiddleware         *middleware.AuthMiddleware
+	CloudflareAuthHandler  *handler.CloudflareAuthHandler
+	DomainHandler          *handler.DomainHandler
+	MigrationHandler       *handler.MigrationHandler
+	ContainerHandler       *handler.ContainerHandler
+	TemplateHandler        *handler.TemplateHandler
+	ImageHandler           *handler.ImageHandler
+	CertificateHandler     *handler.CertificateHandler
+	AuditService           *service.AuditService
+	AuditHandler           *handler.AuditHandler
+	ResourceHandler        *handler.ResourceHandler
+	NotificationService    *service.NotificationService
+	NotificationHandler    *handler.NotificationHandler
+	ServerHandler          *handler.ServerHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -519,13 +524,43 @@ func ProvideNotificationHandler(
 	return handler.NewNotificationHandler(channelRepo, ruleRepo, appRepo, logger)
 }
 
-func ProvidePKI(logger *slog.Logger) (*pki.CertificateAuthority, error) {
+func ProvidePKI(
+	logger *slog.Logger,
+	caRepo domain.CertificateAuthorityRepository,
+) (*pki.CertificateAuthority, error) {
+	record, err := caRepo.GetRoot()
+	if err == nil {
+		ca, loadErr := pki.LoadCA(record.CertPEM, record.KeyPEM)
+		if loadErr != nil {
+			return nil, fmt.Errorf("load CA: %w", loadErr)
+		}
+		logger.Info("PKI CA loaded")
+		return ca, nil
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		return nil, fmt.Errorf("read CA: %w", err)
+	}
+
 	ca, err := pki.NewCA()
 	if err != nil {
 		return nil, fmt.Errorf("create CA: %w", err)
 	}
+	if err := caRepo.UpsertRoot(domain.CertificateAuthorityRecord{
+		CertPEM: ca.GetCACertPEM(),
+		KeyPEM:  ca.GetCAKeyPEM(),
+	}); err != nil {
+		return nil, fmt.Errorf("persist CA: %w", err)
+	}
 	logger.Info("PKI CA initialized")
 	return ca, nil
+}
+
+func ProvideAgentHealthChecker(ca *pki.CertificateAuthority, cfg *config.Config) *agentclient.HealthChecker {
+	timeout := 10 * time.Second
+	if cfg.Deploy.HealthCheckTimeout > 0 {
+		timeout = cfg.Deploy.HealthCheckTimeout
+	}
+	return agentclient.NewHealthChecker(ca, timeout)
 }
 
 func ProvideSSHProvisioner(
@@ -544,6 +579,7 @@ func ProvideSSHProvisioner(
 		CA:              ca,
 		ServerAddr:      serverAddr,
 		AgentBinaryPath: cfg.GRPC.AgentBinaryPath,
+		AgentPort:       cfg.GRPC.AgentPort,
 		Logger:          logger,
 	})
 }
@@ -566,7 +602,9 @@ func ProvideServerHandler(
 	serverRepo domain.ServerRepository,
 	tokenEncryptor *crypto.TokenEncryptor,
 	prov *provisioner.SSHProvisioner,
+	healthChecker *agentclient.HealthChecker,
+	cfg *config.Config,
 	logger *slog.Logger,
 ) *handler.ServerHandler {
-	return handler.NewServerHandler(serverRepo, tokenEncryptor, prov, logger)
+	return handler.NewServerHandler(serverRepo, tokenEncryptor, prov, healthChecker, cfg.GRPC.AgentPort, logger)
 }

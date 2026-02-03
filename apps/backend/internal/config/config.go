@@ -10,16 +10,16 @@ import (
 )
 
 const (
-	DefaultPort               = 8080
-	DefaultDeployWorkers      = 2
-	DefaultDeployTimeoutSec   = 600
-	DefaultHealthTimeoutSec   = 180
-	DefaultHealthRetries      = 5
-	DefaultSessionMaxAgeSec   = 604800
-	DefaultDockerHost         = "unix:///var/run/docker.sock"
-	DefaultFrontendURL        = "http://localhost:3000"
-	DefaultSessionCookieName  = "flowdeploy_session"
-	DefaultAppName            = "FlowDeploy"
+	DefaultPort              = 8080
+	DefaultDeployWorkers     = 2
+	DefaultDeployTimeoutSec  = 600
+	DefaultHealthTimeoutSec  = 180
+	DefaultHealthRetries     = 5
+	DefaultSessionMaxAgeSec  = 604800
+	DefaultDockerHost        = "unix:///var/run/docker.sock"
+	DefaultFrontendURL       = "http://localhost:3000"
+	DefaultSessionCookieName = "flowdeploy_session"
+	DefaultAppName           = "FlowDeploy"
 )
 
 type Config struct {
@@ -39,6 +39,7 @@ type GRPCConfig struct {
 	Port            int
 	ServerAddr      string
 	AgentBinaryPath string
+	AgentPort       int
 }
 
 type ServerConfig struct {
@@ -78,11 +79,11 @@ type GitHubConfig struct {
 	CallbackURL  string
 
 	// GitHub App (for repository access)
-	AppID            int64
-	AppName          string
-	AppPrivateKey    []byte
-	AppInstallURL    string
-	AppSetupURL      string
+	AppID         int64
+	AppName       string
+	AppPrivateKey []byte
+	AppInstallURL string
+	AppSetupURL   string
 }
 
 type AuthConfig struct {
@@ -165,6 +166,7 @@ func Load() *Config {
 			Port:            getEnvInt("GRPC_PORT", 50051),
 			ServerAddr:      getEnv("GRPC_SERVER_ADDR", ""),
 			AgentBinaryPath: getEnv("AGENT_BINARY_PATH", ""),
+			AgentPort:       getEnvInt("AGENT_GRPC_PORT", 50052),
 		},
 	}
 }
