@@ -3,7 +3,6 @@ name: Deploy Backend to Production
 on:
   push:
     branches:
-      - master
       - main
     paths:
       - "apps/backend/**"
