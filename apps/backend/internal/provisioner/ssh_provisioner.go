@@ -21,6 +21,7 @@ import (
 const (
 	agentInstallDirName   = "paasdeploy-agent"
 	agentSystemdUnit      = "paasdeploy-agent.service"
+	dotConfigDir          = ".config"
 	defaultSSHPort        = 22
 	sshConnectTimeout     = 30 * time.Second
 	logKeyStep            = "step"
@@ -295,7 +296,7 @@ func createInstallDir(client *sftp.Client, installDir string) error {
 func resolveSftpPaths(client *sftp.Client, homeDir string) (string, string, error) {
 	absoluteInstallDir := path.Join(homeDir, agentInstallDirName)
 	if err := createInstallDir(client, absoluteInstallDir); err == nil {
-		return absoluteInstallDir, path.Join(homeDir, ".config", "systemd", "user"), nil
+		return absoluteInstallDir, path.Join(homeDir, dotConfigDir, "systemd", "user"), nil
 	}
 
 	relativeInstallDir := agentInstallDirName
@@ -303,7 +304,7 @@ func resolveSftpPaths(client *sftp.Client, homeDir string) (string, string, erro
 		return "", "", err
 	}
 
-	return relativeInstallDir, path.Join(".config", "systemd", "user"), nil
+	return relativeInstallDir, path.Join(dotConfigDir, "systemd", "user"), nil
 }
 
 func writeCertFiles(client *sftp.Client, installDir string, agentCert *pki.Certificate, ca *pki.CertificateAuthority) error {
@@ -440,6 +441,44 @@ WantedBy=multi-user.target
 func startAgent(client *ssh.Client, runtimeDir string) error {
 	cmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user enable %s --now", runtimeDir, agentSystemdUnit)
 	return runCommand(client, cmd)
+}
+
+func (p *SSHProvisioner) Deprovision(server *domain.Server, sshKeyPlain string, sshPasswordPlain string) error {
+	log := p.cfg.Logger.With("serverId", server.ID, "host", server.Host)
+	port := server.SSHPort
+	if port == 0 {
+		port = defaultSSHPort
+	}
+	addr := net.JoinHostPort(server.Host, fmt.Sprintf("%d", port))
+	client, err := p.connect(server.SSHUser, addr, sshKeyPlain, sshPasswordPlain)
+	if err != nil {
+		return fmt.Errorf("ssh connect: %w", err)
+	}
+	defer client.Close()
+
+	homeDir, err := runCommandOutput(client, "printf $HOME")
+	if err != nil {
+		return fmt.Errorf("get remote home: %w", err)
+	}
+	uid, err := runCommandOutput(client, "id -u")
+	if err != nil {
+		return fmt.Errorf("get remote uid: %w", err)
+	}
+	runtimeDir := path.Join("/run/user", uid)
+	installDir := path.Join(homeDir, agentInstallDirName)
+	unitPath := path.Join(homeDir, dotConfigDir, "systemd", "user", agentSystemdUnit)
+
+	stopCmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user stop %s 2>/dev/null || true", runtimeDir, agentSystemdUnit)
+	_ = runCommand(client, stopCmd)
+	disableCmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user disable %s 2>/dev/null || true", runtimeDir, agentSystemdUnit)
+	_ = runCommand(client, disableCmd)
+	rmUnitCmd := fmt.Sprintf("rm -f %q", unitPath)
+	_ = runCommand(client, rmUnitCmd)
+	rmInstallCmd := fmt.Sprintf("rm -rf %q", installDir)
+	_ = runCommand(client, rmInstallCmd)
+
+	log.Info("deprovision completed", "serverId", server.ID, "host", server.Host)
+	return nil
 }
 
 func writeRemoteFile(client *sftp.Client, remotePath string, data []byte, perm os.FileMode) error {

@@ -262,6 +262,21 @@ func (h *ServerHandler) Delete(c *fiber.Ctx) error {
 	}
 
 	id := c.Params("id")
+	server, err := h.serverRepo.FindByID(id)
+	if err != nil {
+		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
+	}
+
+	if h.provisioner != nil {
+		sshKey, sshPassword, decErr := h.decryptProvisionCredentials(server)
+		if decErr == nil && (sshKey != "" || sshPassword != "") {
+			if depErr := h.provisioner.Deprovision(server, sshKey, sshPassword); depErr != nil {
+				h.logger.Warn("deprovision failed, deleting from db anyway",
+					"serverId", id, "host", server.Host, "error", depErr)
+			}
+		}
+	}
+
 	if err := h.serverRepo.Delete(id); err != nil {
 		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
 	}
