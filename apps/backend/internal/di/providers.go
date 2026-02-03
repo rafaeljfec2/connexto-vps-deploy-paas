@@ -117,6 +117,8 @@ var HandlerSet = wire.NewSet(
 	ProvideNotificationHandler,
 	ProvideResourceHandler,
 	ProvideAgentHealthChecker,
+	ProvideAgentClient,
+	ProvideServerHandlerAgentDeps,
 	ProvideServerHandler,
 )
 
@@ -563,6 +565,14 @@ func ProvideAgentHealthChecker(ca *pki.CertificateAuthority, cfg *config.Config)
 	return agentclient.NewHealthChecker(ca, timeout)
 }
 
+func ProvideAgentClient(ca *pki.CertificateAuthority, cfg *config.Config) *agentclient.AgentClient {
+	timeout := 10 * time.Second
+	if cfg.Deploy.HealthCheckTimeout > 0 {
+		timeout = cfg.Deploy.HealthCheckTimeout
+	}
+	return agentclient.NewAgentClient(ca, timeout)
+}
+
 func ProvideSSHProvisioner(
 	ca *pki.CertificateAuthority,
 	cfg *config.Config,
@@ -598,14 +608,32 @@ func ProvideGrpcServer(
 	return server
 }
 
+func ProvideServerHandlerAgentDeps(
+	healthChecker *agentclient.HealthChecker,
+	agentClient *agentclient.AgentClient,
+	cfg *config.Config,
+) handler.ServerHandlerAgentDeps {
+	return handler.ServerHandlerAgentDeps{
+		HealthChecker: healthChecker,
+		AgentClient:   agentClient,
+		AgentPort:     cfg.GRPC.AgentPort,
+	}
+}
+
 func ProvideServerHandler(
 	serverRepo domain.ServerRepository,
 	tokenEncryptor *crypto.TokenEncryptor,
 	prov *provisioner.SSHProvisioner,
 	sseHandler *handler.SSEHandler,
-	healthChecker *agentclient.HealthChecker,
-	cfg *config.Config,
+	agentDeps handler.ServerHandlerAgentDeps,
 	logger *slog.Logger,
 ) *handler.ServerHandler {
-	return handler.NewServerHandler(serverRepo, tokenEncryptor, prov, sseHandler, healthChecker, cfg.GRPC.AgentPort, logger)
+	return handler.NewServerHandler(
+		serverRepo,
+		tokenEncryptor,
+		prov,
+		sseHandler,
+		agentDeps,
+		logger,
+	)
 }

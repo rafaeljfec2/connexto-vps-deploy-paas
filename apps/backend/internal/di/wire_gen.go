@@ -82,7 +82,9 @@ func InitializeApplication() (*Application, func(), error) {
 	notificationHandler := ProvideNotificationHandler(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
 	sshProvisioner := ProvideSSHProvisioner(certificateAuthority, config, logger)
 	healthChecker := ProvideAgentHealthChecker(certificateAuthority, config)
-	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, healthChecker, config, logger)
+	agentClient := ProvideAgentClient(certificateAuthority, config)
+	serverHandlerAgentDeps := ProvideServerHandlerAgentDeps(healthChecker, agentClient, config)
+	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, serverHandlerAgentDeps, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,

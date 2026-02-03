@@ -8,6 +8,7 @@ package flowdeployv1
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -30,6 +31,7 @@ const (
 	AgentService_RestartContainer_FullMethodName  = "/flowdeploy.v1.AgentService/RestartContainer"
 	AgentService_StopContainer_FullMethodName     = "/flowdeploy.v1.AgentService/StopContainer"
 	AgentService_GetSystemInfo_FullMethodName     = "/flowdeploy.v1.AgentService/GetSystemInfo"
+	AgentService_GetSystemMetrics_FullMethodName  = "/flowdeploy.v1.AgentService/GetSystemMetrics"
 	AgentService_GetDockerInfo_FullMethodName     = "/flowdeploy.v1.AgentService/GetDockerInfo"
 )
 
@@ -47,6 +49,7 @@ type AgentServiceClient interface {
 	RestartContainer(ctx context.Context, in *RestartContainerRequest, opts ...grpc.CallOption) (*RestartContainerResponse, error)
 	StopContainer(ctx context.Context, in *StopContainerRequest, opts ...grpc.CallOption) (*StopContainerResponse, error)
 	GetSystemInfo(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*SystemInfo, error)
+	GetSystemMetrics(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*SystemMetrics, error)
 	GetDockerInfo(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*DockerInfo, error)
 }
 
@@ -179,6 +182,16 @@ func (c *agentServiceClient) GetSystemInfo(ctx context.Context, in *emptypb.Empt
 	return out, nil
 }
 
+func (c *agentServiceClient) GetSystemMetrics(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*SystemMetrics, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SystemMetrics)
+	err := c.cc.Invoke(ctx, AgentService_GetSystemMetrics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentServiceClient) GetDockerInfo(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*DockerInfo, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DockerInfo)
@@ -203,6 +216,7 @@ type AgentServiceServer interface {
 	RestartContainer(context.Context, *RestartContainerRequest) (*RestartContainerResponse, error)
 	StopContainer(context.Context, *StopContainerRequest) (*StopContainerResponse, error)
 	GetSystemInfo(context.Context, *emptypb.Empty) (*SystemInfo, error)
+	GetSystemMetrics(context.Context, *emptypb.Empty) (*SystemMetrics, error)
 	GetDockerInfo(context.Context, *emptypb.Empty) (*DockerInfo, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
@@ -243,6 +257,9 @@ func (UnimplementedAgentServiceServer) StopContainer(context.Context, *StopConta
 }
 func (UnimplementedAgentServiceServer) GetSystemInfo(context.Context, *emptypb.Empty) (*SystemInfo, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSystemInfo not implemented")
+}
+func (UnimplementedAgentServiceServer) GetSystemMetrics(context.Context, *emptypb.Empty) (*SystemMetrics, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSystemMetrics not implemented")
 }
 func (UnimplementedAgentServiceServer) GetDockerInfo(context.Context, *emptypb.Empty) (*DockerInfo, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetDockerInfo not implemented")
@@ -423,6 +440,24 @@ func _AgentService_GetSystemInfo_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_GetSystemMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetSystemMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetSystemMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetSystemMetrics(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentService_GetDockerInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
@@ -475,6 +510,10 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSystemInfo",
 			Handler:    _AgentService_GetSystemInfo_Handler,
+		},
+		{
+			MethodName: "GetSystemMetrics",
+			Handler:    _AgentService_GetSystemMetrics_Handler,
 		},
 		{
 			MethodName: "GetDockerInfo",

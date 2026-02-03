@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Check,
   Circle,
@@ -115,48 +116,59 @@ function ServerCard({ server }: { readonly server: Server }) {
 
   return (
     <>
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div className="flex items-center gap-2">
-            <ServerIcon className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <span className="font-medium">{server.name}</span>
-            <StatusBadge status={server.status} />
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleProvision}
-              disabled={isProvisioning}
+      <Link to={`/servers/${server.id}`} className="block">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center gap-2">
+              <ServerIcon
+                className="h-5 w-5 text-muted-foreground"
+                aria-hidden
+              />
+              <span className="font-medium">{server.name}</span>
+              <StatusBadge status={server.status} />
+            </div>
+            <div
+              className="flex gap-2"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
             >
-              {isProvisioning ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              ) : (
-                <Play className="h-4 w-4" aria-hidden />
-              )}
-              <span className="ml-2">Provision</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setDeleteDialogOpen(true)}
-              disabled={deleteMutation.isPending}
-              aria-label={`Delete ${server.name}`}
-            >
-              <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-1">
-          <p>
-            {server.sshUser}@{server.host}:{server.sshPort}
-          </p>
-          {server.agentVersion != null && <p>Agent: {server.agentVersion}</p>}
-          {server.lastHeartbeatAt != null && (
-            <p>Last heartbeat: {formatDate(server.lastHeartbeatAt)}</p>
-          )}
-        </CardContent>
-      </Card>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleProvision}
+                disabled={isProvisioning}
+              >
+                {isProvisioning ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                ) : (
+                  <Play className="h-4 w-4" aria-hidden />
+                )}
+                <span className="ml-2">Provision</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setDeleteDialogOpen(true)}
+                disabled={deleteMutation.isPending}
+                aria-label={`Delete ${server.name}`}
+              >
+                <Trash2 className="h-4 w-4 text-destructive" aria-hidden />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground space-y-1">
+            <p>
+              {server.sshUser}@{server.host}:{server.sshPort}
+            </p>
+            {server.agentVersion != null && <p>Agent: {server.agentVersion}</p>}
+            {server.lastHeartbeatAt != null && (
+              <p>Last heartbeat: {formatDate(server.lastHeartbeatAt)}</p>
+            )}
+          </CardContent>
+        </Card>
+      </Link>
 
       <Dialog
         open={provisionDialogOpen}

@@ -550,3 +550,32 @@ export interface CreateServerInput {
   readonly sshKey?: string;
   readonly sshPassword?: string;
 }
+
+export interface ServerSystemInfo {
+  readonly hostname?: string;
+  readonly os?: string;
+  readonly os_version?: string;
+  readonly architecture?: string;
+  readonly cpu_cores?: number;
+  readonly memory_total_bytes?: number;
+  readonly disk_total_bytes?: number;
+  readonly kernel_version?: string;
+}
+
+export interface ServerSystemMetrics {
+  readonly cpu_usage_percent?: number;
+  readonly memory_used_bytes?: number;
+  readonly memory_available_bytes?: number;
+  readonly disk_used_bytes?: number;
+  readonly disk_available_bytes?: number;
+  readonly load_average_1m?: number;
+  readonly load_average_5m?: number;
+  readonly load_average_15m?: number;
+  readonly network_rx_bytes?: number;
+  readonly network_tx_bytes?: number;
+}
+
+export interface ServerStats {
+  readonly systemInfo: ServerSystemInfo;
+  readonly systemMetrics: ServerSystemMetrics;
+}

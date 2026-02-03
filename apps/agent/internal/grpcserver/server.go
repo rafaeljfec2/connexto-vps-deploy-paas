@@ -11,7 +11,9 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
 	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/paasdeploy/agent/internal/sysinfo"
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
 )
 
@@ -79,4 +81,12 @@ func (s *AgentService) ExecuteDeploy(ctx context.Context, req *pb.DeployRequest)
 		Success: false,
 		Message: "deploy not implemented",
 	}, nil
+}
+
+func (s *AgentService) GetSystemInfo(ctx context.Context, _ *emptypb.Empty) (*pb.SystemInfo, error) {
+	return sysinfo.GetSystemInfo()
+}
+
+func (s *AgentService) GetSystemMetrics(ctx context.Context, _ *emptypb.Empty) (*pb.SystemMetrics, error) {
+	return sysinfo.GetSystemMetrics()
 }

@@ -29,6 +29,7 @@ import type {
   NotificationChannel,
   NotificationRule,
   Server,
+  ServerStats,
   Template,
   TraefikPreview,
   UpdateAppInput,
@@ -828,5 +829,8 @@ export const api = {
       fetchApi<{ message: string }>(`${API_BASE}/servers/${id}/provision`, {
         method: "POST",
       }),
+
+    getStats: (id: string): Promise<ServerStats> =>
+      fetchApi<ServerStats>(`${API_BASE}/servers/${id}/stats`),
   },
 };

@@ -12,12 +12,19 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 )
 
+type ServerHandlerAgentDeps struct {
+	HealthChecker *agentclient.HealthChecker
+	AgentClient   *agentclient.AgentClient
+	AgentPort     int
+}
+
 type ServerHandler struct {
 	serverRepo     domain.ServerRepository
 	tokenEncryptor *crypto.TokenEncryptor
 	provisioner    *provisioner.SSHProvisioner
 	sseHandler     *SSEHandler
 	healthChecker  *agentclient.HealthChecker
+	agentClient    *agentclient.AgentClient
 	agentPort      int
 	logger         *slog.Logger
 }
@@ -27,8 +34,7 @@ func NewServerHandler(
 	tokenEncryptor *crypto.TokenEncryptor,
 	prov *provisioner.SSHProvisioner,
 	sseHandler *SSEHandler,
-	healthChecker *agentclient.HealthChecker,
-	agentPort int,
+	agentDeps ServerHandlerAgentDeps,
 	logger *slog.Logger,
 ) *ServerHandler {
 	return &ServerHandler{
@@ -36,8 +42,9 @@ func NewServerHandler(
 		tokenEncryptor: tokenEncryptor,
 		provisioner:    prov,
 		sseHandler:     sseHandler,
-		healthChecker:  healthChecker,
-		agentPort:      agentPort,
+		healthChecker:  agentDeps.HealthChecker,
+		agentClient:    agentDeps.AgentClient,
+		agentPort:      agentDeps.AgentPort,
 		logger:         logger.With("handler", "server"),
 	}
 }
@@ -47,6 +54,7 @@ func (h *ServerHandler) Register(app fiber.Router) {
 	servers := v1.Group("/servers")
 	servers.Get("/", h.List)
 	servers.Post("/", h.Create)
+	servers.Get("/:id/stats", h.GetStats)
 	servers.Get("/:id", h.Get)
 	servers.Put("/:id", h.Update)
 	servers.Delete("/:id", h.Delete)
@@ -71,6 +79,7 @@ type ServerHealthResponse struct {
 	Status    string `json:"status"`
 	LatencyMs int64  `json:"latencyMs"`
 }
+
 
 func toServerResponse(s *domain.Server) ServerResponse {
 	resp := ServerResponse{
@@ -217,6 +226,41 @@ func (h *ServerHandler) Get(c *fiber.Ctx) error {
 	}
 
 	return response.OK(c, toServerResponse(server))
+}
+
+func (h *ServerHandler) GetStats(c *fiber.Ctx) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
+	id := c.Params("id")
+	server, err := h.serverRepo.FindByID(id)
+	if err != nil {
+		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
+	}
+
+	if h.agentClient == nil || h.agentPort == 0 {
+		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent stats not available")
+	}
+
+	ctx := c.Context()
+	sysInfo, err := h.agentClient.GetSystemInfo(ctx, server.Host, h.agentPort)
+	if err != nil {
+		h.logger.Warn("get system info failed", "serverId", id, "error", err)
+		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent unreachable: "+err.Error())
+	}
+
+	sysMetrics, err := h.agentClient.GetSystemMetrics(ctx, server.Host, h.agentPort)
+	if err != nil {
+		h.logger.Warn("get system metrics failed", "serverId", id, "error", err)
+		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent unreachable: "+err.Error())
+	}
+
+	return response.OK(c, fiber.Map{
+		"systemInfo":   sysInfo,
+		"systemMetrics": sysMetrics,
+	})
 }
 
 func (h *ServerHandler) Update(c *fiber.Ctx) error {

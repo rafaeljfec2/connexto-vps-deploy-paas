@@ -31,5 +31,7 @@ service AgentService {
 
   rpc GetSystemInfo(google.protobuf.Empty) returns (SystemInfo);
 
+  rpc GetSystemMetrics(google.protobuf.Empty) returns (SystemMetrics);
+
   rpc GetDockerInfo(google.protobuf.Empty) returns (DockerInfo);
 }

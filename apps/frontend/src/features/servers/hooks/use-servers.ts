@@ -3,7 +3,7 @@ import { STALE_TIMES } from "@/constants/routes";
 import { api } from "@/services/api";
 import type { CreateServerInput } from "@/types";
 
-const SERVERS_QUERY_KEY = ["servers"] as const;
+export const SERVERS_QUERY_KEY = ["servers"] as const;
 
 export function useServers() {
   return useQuery({
