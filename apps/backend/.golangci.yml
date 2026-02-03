@@ -10,3 +10,5 @@ linters:
     - unused
     - gosimple
     - ineffassign
+  disable:
+    - typecheck

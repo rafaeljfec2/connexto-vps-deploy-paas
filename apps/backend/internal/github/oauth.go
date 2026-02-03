@@ -15,6 +15,11 @@ const (
 	githubAuthorizeURL = "https://github.com/login/oauth/authorize"
 	githubTokenURL     = "https://github.com/login/oauth/access_token"
 	githubAPIURL       = "https://api.github.com"
+
+	errFmtCreateRequest   = "create request: %w"
+	errFmtSendRequest     = "send request: %w"
+	errFmtUnexpectedStatus = "unexpected status %d: %s"
+	errFmtDecodeResponse  = "decode response: %w"
 )
 
 type OAuthClient struct {
@@ -65,10 +70,10 @@ func NewOAuthClient(cfg OAuthConfig) *OAuthClient {
 
 func (c *OAuthClient) GetAuthorizationURL(state string) string {
 	params := url.Values{
-		"client_id":    {c.clientID},
-		"redirect_uri": {c.callbackURL},
-		"scope":        {"user:email"},
-		"state":        {state},
+		"client_id":    []string{c.clientID},
+		"redirect_uri": []string{c.callbackURL},
+		"scope":        []string{"user:email"},
+		"state":        []string{state},
 	}
 	return githubAuthorizeURL + "?" + params.Encode()
 }
@@ -88,7 +93,7 @@ func (c *OAuthClient) ExchangeCodeForToken(ctx context.Context, code string) (*T
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, githubTokenURL, bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errFmtCreateRequest, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -96,7 +101,7 @@ func (c *OAuthClient) ExchangeCodeForToken(ctx context.Context, code string) (*T
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errFmtSendRequest, err)
 	}
 	defer resp.Body.Close()
 
@@ -106,12 +111,12 @@ func (c *OAuthClient) ExchangeCodeForToken(ctx context.Context, code string) (*T
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf(errFmtUnexpectedStatus, resp.StatusCode, string(respBody))
 	}
 
 	var tokenResp TokenResponse
 	if err := json.Unmarshal(respBody, &tokenResp); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errFmtDecodeResponse, err)
 	}
 
 	if tokenResp.AccessToken == "" {
@@ -131,7 +136,7 @@ func (c *OAuthClient) ExchangeCodeForToken(ctx context.Context, code string) (*T
 func (c *OAuthClient) GetUser(ctx context.Context, accessToken string) (*GitHubUser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubAPIURL+"/user", nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errFmtCreateRequest, err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+accessToken)
@@ -140,18 +145,18 @@ func (c *OAuthClient) GetUser(ctx context.Context, accessToken string) (*GitHubU
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errFmtSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf(errFmtUnexpectedStatus, resp.StatusCode, string(body))
 	}
 
 	var user GitHubUser
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errFmtDecodeResponse, err)
 	}
 
 	return &user, nil
@@ -160,7 +165,7 @@ func (c *OAuthClient) GetUser(ctx context.Context, accessToken string) (*GitHubU
 func (c *OAuthClient) GetUserEmails(ctx context.Context, accessToken string) ([]GitHubEmail, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, githubAPIURL+"/user/emails", nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errFmtCreateRequest, err)
 	}
 
 	req.Header.Set("Authorization", "Bearer "+accessToken)
@@ -169,18 +174,18 @@ func (c *OAuthClient) GetUserEmails(ctx context.Context, accessToken string) ([]
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errFmtSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf(errFmtUnexpectedStatus, resp.StatusCode, string(body))
 	}
 
 	var emails []GitHubEmail
 	if err := json.NewDecoder(resp.Body).Decode(&emails); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errFmtDecodeResponse, err)
 	}
 
 	return emails, nil
