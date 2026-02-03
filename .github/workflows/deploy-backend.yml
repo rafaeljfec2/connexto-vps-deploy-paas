@@ -38,12 +38,11 @@ jobs:
           go-version: "1.24"
           cache-dependency-path: apps/backend/go.sum
 
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
+
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.61.0
-          working-directory: apps/backend
-          args: --timeout=5m --concurrency=4
+        run: cd apps/backend && golangci-lint run --timeout=5m --concurrency=4
 
   validate-environment:
     needs: lint
