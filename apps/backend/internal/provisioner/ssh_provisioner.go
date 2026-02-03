@@ -2,14 +2,16 @@ package provisioner
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
-	"path/filepath"
+	"path"
+	"strings"
 	"time"
 
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/paasdeploy/backend/internal/domain"
@@ -17,11 +19,10 @@ import (
 )
 
 const (
-	agentInstallDir   = "/opt/paasdeploy-agent"
-	agentSystemdUnit  = "paasdeploy-agent.service"
-	defaultSSHPort    = 22
-	sshConnectTimeout = 30 * time.Second
-	sshSessionTimeout = 5 * time.Minute
+	agentInstallDirName = "paasdeploy-agent"
+	agentSystemdUnit    = "paasdeploy-agent.service"
+	defaultSSHPort      = 22
+	sshConnectTimeout   = 30 * time.Second
 )
 
 type SSHProvisionerConfig struct {
@@ -53,7 +54,27 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 	}
 	defer client.Close()
 
-	if err := p.createInstallDir(client); err != nil {
+	homeDir, err := runCommandOutput(client, "printf $HOME")
+	if err != nil {
+		return fmt.Errorf("get remote home: %w", err)
+	}
+
+	uid, err := runCommandOutput(client, "id -u")
+	if err != nil {
+		return fmt.Errorf("get remote uid: %w", err)
+	}
+
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return fmt.Errorf("create sftp client: %w", err)
+	}
+	defer sftpClient.Close()
+
+	installDir := path.Join(homeDir, agentInstallDirName)
+	unitDir := path.Join(homeDir, ".config", "systemd", "user")
+	runtimeDir := path.Join("/run/user", uid)
+
+	if err := createInstallDir(sftpClient, installDir); err != nil {
 		return err
 	}
 
@@ -62,21 +83,31 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 		return fmt.Errorf("generate agent cert: %w", err)
 	}
 
-	if err := p.writeFiles(client, agentCert); err != nil {
+	if err := writeCertFiles(sftpClient, installDir, agentCert, p.cfg.CA); err != nil {
 		return err
 	}
 
 	if p.cfg.AgentBinaryPath != "" {
-		if err := p.copyAgentBinary(client); err != nil {
+		if err := copyAgentBinary(sftpClient, installDir, p.cfg.AgentBinaryPath); err != nil {
 			return err
 		}
 	}
 
-	if err := p.installSystemdUnit(client, server.ID); err != nil {
+	unitOpts := systemdUnitOpts{
+		sshClient:   client,
+		sftpClient:  sftpClient,
+		installDir:  installDir,
+		unitDir:     unitDir,
+		runtimeDir:  runtimeDir,
+		serverID:    server.ID,
+		serverAddr:  p.cfg.ServerAddr,
+		agentPort:   p.cfg.AgentPort,
+	}
+	if err := installSystemdUnit(unitOpts); err != nil {
 		return err
 	}
 
-	if err := p.startAgent(client); err != nil {
+	if err := startAgent(client, runtimeDir); err != nil {
 		return err
 	}
 
@@ -117,83 +148,70 @@ func (p *SSHProvisioner) connect(user, addr, privateKey string, password string)
 	return client, nil
 }
 
-func (p *SSHProvisioner) createInstallDir(client *ssh.Client) error {
-	session, err := client.NewSession()
-	if err != nil {
-		return err
+func createInstallDir(client *sftp.Client, installDir string) error {
+	if err := client.MkdirAll(installDir); err != nil {
+		return fmt.Errorf("create install dir: %w", err)
 	}
-	defer session.Close()
-
-	var stderr bytes.Buffer
-	session.Stderr = &stderr
-	cmd := fmt.Sprintf("sudo mkdir -p %s && sudo chmod 755 %s", agentInstallDir, agentInstallDir)
-	if err := session.Run(cmd); err != nil {
-		return fmt.Errorf("create install dir: %w (stderr: %s)", err, stderr.String())
+	if err := client.Chmod(installDir, 0o755); err != nil {
+		return fmt.Errorf("chmod install dir: %w", err)
 	}
 	return nil
 }
 
-func (p *SSHProvisioner) writeFiles(client *ssh.Client, agentCert *pki.Certificate) error {
+func writeCertFiles(client *sftp.Client, installDir string, agentCert *pki.Certificate, ca *pki.CertificateAuthority) error {
 	files := map[string][]byte{
-		filepath.Join(agentInstallDir, "ca.pem"):   p.cfg.CA.GetCACertPEM(),
-		filepath.Join(agentInstallDir, "cert.pem"): agentCert.CertPEM,
-		filepath.Join(agentInstallDir, "key.pem"):  agentCert.KeyPEM,
+		path.Join(installDir, "ca.pem"):   ca.GetCACertPEM(),
+		path.Join(installDir, "cert.pem"): agentCert.CertPEM,
+		path.Join(installDir, "key.pem"):  agentCert.KeyPEM,
 	}
 
-	for path, content := range files {
-		if err := p.writeRemoteFile(client, path, content, "0644"); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
+	for target, content := range files {
+		if err := writeRemoteFile(client, target, content, 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", target, err)
 		}
 	}
 	return nil
 }
 
-func (p *SSHProvisioner) writeRemoteFile(client *ssh.Client, path string, content []byte, _ string) error {
-	session, err := client.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	b64 := base64.StdEncoding.EncodeToString(content)
-	cmd := fmt.Sprintf("echo %s | base64 -d | sudo tee %s > /dev/null", b64, path)
-	return session.Run(cmd)
-}
-
-func (p *SSHProvisioner) copyAgentBinary(client *ssh.Client) error {
-	data, err := os.ReadFile(p.cfg.AgentBinaryPath)
+func copyAgentBinary(client *sftp.Client, installDir string, localPath string) error {
+	data, err := os.ReadFile(localPath)
 	if err != nil {
 		return fmt.Errorf("read agent binary: %w", err)
 	}
 
-	dest := filepath.Join(agentInstallDir, "agent")
-	if err := p.writeRemoteFile(client, dest, data, "0755"); err != nil {
+	target := path.Join(installDir, "agent")
+	if err := writeRemoteFile(client, target, data, 0o755); err != nil {
 		return err
-	}
-
-	session, err := client.NewSession()
-	if err != nil {
-		return err
-	}
-	defer session.Close()
-
-	if err := session.Run(fmt.Sprintf("sudo chmod +x %s", dest)); err != nil {
-		return fmt.Errorf("chmod agent: %w", err)
 	}
 	return nil
 }
 
-func (p *SSHProvisioner) installSystemdUnit(client *ssh.Client, serverID string) error {
-	serverAddr := p.cfg.ServerAddr
+type systemdUnitOpts struct {
+	sshClient  *ssh.Client
+	sftpClient *sftp.Client
+	installDir string
+	unitDir    string
+	runtimeDir string
+	serverID   string
+	serverAddr string
+	agentPort  int
+}
+
+func installSystemdUnit(opts systemdUnitOpts) error {
+	serverAddr := opts.serverAddr
 	if serverAddr == "" {
 		serverAddr = "localhost:50051"
 	}
-	agentPort := p.cfg.AgentPort
+	agentPort := opts.agentPort
 	if agentPort == 0 {
 		agentPort = 50052
 	}
 
-	unit := fmt.Sprintf(`[Unit]
+	if err := opts.sftpClient.MkdirAll(opts.unitDir); err != nil {
+		return fmt.Errorf("create systemd dir: %w", err)
+	}
+
+	unitContent := fmt.Sprintf(`[Unit]
 Description=PaasDeploy Agent
 After=network.target
 
@@ -205,28 +223,69 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-`, agentInstallDir, serverAddr, serverID, agentInstallDir, agentInstallDir, agentInstallDir, agentPort)
+`, opts.installDir, serverAddr, opts.serverID, opts.installDir, opts.installDir, opts.installDir, agentPort)
 
-	unitPath := "/etc/systemd/system/" + agentSystemdUnit
-	b64 := base64.StdEncoding.EncodeToString([]byte(unit))
-	cmd := fmt.Sprintf("echo %s | base64 -d | sudo tee %s > /dev/null && sudo systemctl daemon-reload", b64, unitPath)
-
-	session, err := client.NewSession()
-	if err != nil {
+	unitPath := path.Join(opts.unitDir, agentSystemdUnit)
+	if err := writeRemoteFile(opts.sftpClient, unitPath, []byte(unitContent), 0o644); err != nil {
 		return err
 	}
-	defer session.Close()
 
-	return session.Run(cmd)
+	reloadCmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user daemon-reload", opts.runtimeDir)
+	return runCommand(opts.sshClient, reloadCmd)
 }
 
-func (p *SSHProvisioner) startAgent(client *ssh.Client) error {
+func startAgent(client *ssh.Client, runtimeDir string) error {
+	cmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user enable %s --now", runtimeDir, agentSystemdUnit)
+	return runCommand(client, cmd)
+}
+
+func writeRemoteFile(client *sftp.Client, remotePath string, data []byte, perm os.FileMode) error {
+	file, err := client.OpenFile(remotePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(file, bytes.NewReader(data)); err != nil {
+		return err
+	}
+
+	if err := file.Sync(); err != nil {
+		return err
+	}
+
+	if err := file.Chmod(perm); err != nil {
+		return err
+	}
+	return nil
+}
+
+func runCommand(client *ssh.Client, cmd string) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
 	}
 	defer session.Close()
 
-	cmd := fmt.Sprintf("sudo systemctl enable %s && sudo systemctl start %s", agentSystemdUnit, agentSystemdUnit)
-	return session.Run(cmd)
+	var stderr bytes.Buffer
+	session.Stderr = &stderr
+	if err := session.Run(cmd); err != nil {
+		return fmt.Errorf("command failed: %w (stderr: %s)", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+func runCommandOutput(client *ssh.Client, cmd string) (string, error) {
+	session, err := client.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer session.Close()
+
+	output, err := session.CombinedOutput(cmd)
+	outStr := strings.TrimSpace(string(output))
+	if err != nil {
+		return "", fmt.Errorf("command failed: %w (output: %s)", err, outStr)
+	}
+	return outStr, nil
 }

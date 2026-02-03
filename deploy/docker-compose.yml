@@ -45,8 +45,8 @@ services:
 
   backend:
     build:
-      context: ../apps/backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/backend/Dockerfile
     container_name: paasdeploy-backend
     restart: unless-stopped
     environment:
@@ -59,10 +59,16 @@ services:
       DEPLOY_TIMEOUT: "600"
       HEALTH_CHECK_TIMEOUT: "60"
       DOCKER_BUILDKIT: "1"
+      GRPC_ENABLED: "true"
+      AGENT_BINARY_PATH: "/app/agent"
+      GRPC_SERVER_ADDR: ${GRPC_SERVER_ADDR:-localhost:50051}
+      AGENT_GRPC_PORT: "50052"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - deploy-data:/data/apps
       - buildkit-cache:/var/cache/paasdeploy/buildkit
+    ports:
+      - "50051:50051"
     depends_on:
       postgres:
         condition: service_healthy

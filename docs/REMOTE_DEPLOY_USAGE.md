@@ -1,5 +1,7 @@
 # Deploy Remoto com Agent - Guia de Uso
 
+> **Tutorial passo a passo:** Para um guia detalhado do início ao fim, consulte [REMOTE_SERVER_TUTORIAL.md](./REMOTE_SERVER_TUTORIAL.md).
+
 ## 1. Pré-requisitos
 
 ### 1.1 Instalar buf
@@ -51,6 +53,18 @@ go build -o ../../dist/agent ./cmd/agent
 
 ## 4. Fluxo de Uso
 
+### 4.0 Pré-configuração no servidor remoto
+
+1. Escolha um usuário (ex.: `deploy`) que terá acesso SSH.
+2. Habilite **linger** para permitir systemd em modo usuário (mantém serviços ativos após logout):
+
+```bash
+sudo loginctl enable-linger deploy
+```
+
+3. Confira se o usuário consegue executar `systemctl --user status` sem erro.
+4. Garanta espaço em disco no `$HOME` para instalar o agent em `~/paasdeploy-agent`.
+
 ### 4.1 Adicionar Servidor
 
 1. Menu **Servers** > **Add Server**
@@ -61,8 +75,9 @@ go build -o ../../dist/agent ./cmd/agent
 ### 4.2 Provisionar
 
 1. No card do servidor, clicar **Provision**
-2. Backend conecta via SSH (usando a chave ou senha fornecida), instala certs e agent em `/opt/paasdeploy-agent`
-3. Agent inicia e conecta ao backend via mTLS
+2. Backend conecta via SSH (usando a chave ou senha fornecida), instala certs e agent em `~/paasdeploy-agent`
+3. Uma unidade `systemd --user` é criada em `~/.config/systemd/user/paasdeploy-agent.service`; o serviço é habilitado e iniciado (requer linger habilitado)
+4. Agent inicia e conecta ao backend via mTLS
 
 ### 4.3 Associar App ao Servidor
 
@@ -72,8 +87,8 @@ go build -o ../../dist/agent ./cmd/agent
 ### 4.4 Verificar no servidor remoto
 
 ```bash
-sudo systemctl status paasdeploy-agent
-sudo journalctl -u paasdeploy-agent -f
+systemctl --user status paasdeploy-agent
+journalctl --user -u paasdeploy-agent -f
 ```
 
 ### 4.5 Teste de conectividade (health check)
@@ -106,7 +121,7 @@ Resposta esperada:
 ## 7. Estrutura de Arquivos Instalados no Servidor
 
 ```
-/opt/paasdeploy-agent/
+~/paasdeploy-agent/
 ├── agent          # binário
 ├── ca.pem         # certificado CA
 ├── cert.pem       # certificado do agent
@@ -116,6 +131,7 @@ Resposta esperada:
 ## 8. Executar Agent Manualmente
 
 ```bash
+cd ~/paasdeploy-agent
 ./agent -server-addr=backend:50051 -server-id=<UUID_DO_SERVIDOR> \
   -ca-cert=ca.pem -cert=cert.pem -key=key.pem -agent-port=50052
 ```

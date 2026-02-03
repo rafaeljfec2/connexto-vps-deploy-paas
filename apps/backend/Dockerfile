@@ -1,31 +1,28 @@
-# Stage 1: Build
-FROM golang:1.24-alpine AS builder
-
-WORKDIR /app
-
-# Install build dependencies
+FROM golang:1.24-alpine AS agent-builder
+WORKDIR /build
 RUN apk add --no-cache git ca-certificates
-
-# Copy go mod files
-COPY go.mod go.sum ./
-
-# Download dependencies
+COPY apps/backend/go.mod apps/backend/go.sum ./backend/
+COPY apps/backend/gen ./backend/gen
+COPY apps/agent/ ./agent/
+WORKDIR /build/agent
 RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-w -s" \
+    -o /build/agent-binary \
+    ./cmd/agent
 
-# Copy source files
-COPY . .
-
-# Build the binary
+FROM golang:1.24-alpine AS backend-builder
+WORKDIR /app
+RUN apk add --no-cache git ca-certificates
+COPY apps/backend/go.mod apps/backend/go.sum ./
+RUN go mod download
+COPY apps/backend/ .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
     -o /app/api \
     ./cmd/api
 
-# Stage 2: Production
 FROM alpine:edge AS production
-
-# Install runtime dependencies, create user and directories
-# Using edge to get latest docker-cli with API version 1.44+
 RUN apk add --no-cache \
     ca-certificates \
     git \
@@ -35,27 +32,22 @@ RUN apk add --no-cache \
     tzdata && \
     addgroup -S paasdeploy && \
     adduser -S paasdeploy -G paasdeploy && \
-    mkdir -p /data/apps && \
+    mkdir -p /data/apps /app && \
     chown -R paasdeploy:paasdeploy /data
 
 WORKDIR /app
 
-# Copy binary and migrations from builder
-COPY --from=builder /app/api /app/api
-COPY --from=builder /app/migrations /app/migrations
+COPY --from=agent-builder /build/agent-binary /app/agent
+COPY --from=backend-builder /app/api /app/api
+COPY --from=backend-builder /app/migrations /app/migrations
 
-# Set ownership
 RUN chown -R paasdeploy:paasdeploy /app
 
-# Switch to non-root user
 USER paasdeploy
 
-# Expose port
 EXPOSE 8080
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:8080/health || exit 1
 
-# Run the binary
 CMD ["/app/api"]

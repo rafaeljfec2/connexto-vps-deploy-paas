@@ -133,7 +133,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./apps/backend
+          context: .
           file: ./apps/backend/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -204,6 +204,7 @@ jobs:
           CLOUDFLARE_SERVER_IP: ${{ vars.CLOUDFLARE_SERVER_IP || '' }}
           API_DOMAIN: ${{ env.API_DOMAIN }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
+          GRPC_SERVER_ADDR: ${{ vars.GRPC_SERVER_ADDR || format('{0}:50051', env.API_DOMAIN) }}
           LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'contato@connexto.com.br' }}
 
       - name: Verify deployment

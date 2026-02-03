@@ -108,6 +108,34 @@ type UpdateServerRequest struct {
 	SSHPassword *string `json:"sshPassword,omitempty"`
 }
 
+func encryptCredential(encryptor *crypto.TokenEncryptor, plain string) (string, error) {
+	if plain == "" {
+		return "", nil
+	}
+	if encryptor != nil {
+		return encryptor.Encrypt(plain)
+	}
+	return plain, nil
+}
+
+func applyUpdateSSHCredentials(encryptor *crypto.TokenEncryptor, req *UpdateServerRequest, input *domain.UpdateServerInput) error {
+	if req.SSHKey != nil && *req.SSHKey != "" {
+		encrypted, err := encryptCredential(encryptor, *req.SSHKey)
+		if err != nil {
+			return err
+		}
+		input.SSHKeyEncrypted = &encrypted
+	}
+	if req.SSHPassword != nil && *req.SSHPassword != "" {
+		encrypted, err := encryptCredential(encryptor, *req.SSHPassword)
+		if err != nil {
+			return err
+		}
+		input.SSHPasswordEncrypted = &encrypted
+	}
+	return nil
+}
+
 func (h *ServerHandler) List(c *fiber.Ctx) error {
 	user := GetUserFromContext(c)
 	if user == nil {
@@ -145,32 +173,15 @@ func (h *ServerHandler) Create(c *fiber.Ctx) error {
 		return response.BadRequest(c, "provide sshKey or sshPassword")
 	}
 
-	var sshKeyEncrypted string
-	if req.SSHKey != "" {
-		if h.tokenEncryptor != nil {
-			encrypted, err := h.tokenEncryptor.Encrypt(req.SSHKey)
-			if err != nil {
-				h.logger.Error("failed to encrypt ssh key", "error", err)
-				return response.InternalError(c)
-			}
-			sshKeyEncrypted = encrypted
-		} else {
-			sshKeyEncrypted = req.SSHKey
-		}
+	sshKeyEncrypted, err := encryptCredential(h.tokenEncryptor, req.SSHKey)
+	if err != nil {
+		h.logger.Error("failed to encrypt ssh key", "error", err)
+		return response.InternalError(c)
 	}
-
-	var sshPasswordEncrypted string
-	if req.SSHPassword != "" {
-		if h.tokenEncryptor != nil {
-			encrypted, err := h.tokenEncryptor.Encrypt(req.SSHPassword)
-			if err != nil {
-				h.logger.Error("failed to encrypt ssh password", "error", err)
-				return response.InternalError(c)
-			}
-			sshPasswordEncrypted = encrypted
-		} else {
-			sshPasswordEncrypted = req.SSHPassword
-		}
+	sshPasswordEncrypted, err := encryptCredential(h.tokenEncryptor, req.SSHPassword)
+	if err != nil {
+		h.logger.Error("failed to encrypt ssh password", "error", err)
+		return response.InternalError(c)
 	}
 
 	input := domain.CreateServerInput{
@@ -228,26 +239,9 @@ func (h *ServerHandler) Update(c *fiber.Ctx) error {
 		SSHPort: req.SSHPort,
 		SSHUser: req.SSHUser,
 	}
-
-	if req.SSHKey != nil && *req.SSHKey != "" && h.tokenEncryptor != nil {
-		encrypted, err := h.tokenEncryptor.Encrypt(*req.SSHKey)
-		if err != nil {
-			h.logger.Error("failed to encrypt ssh key", "error", err)
-			return response.InternalError(c)
-		}
-		input.SSHKeyEncrypted = &encrypted
-	}
-	if req.SSHPassword != nil && *req.SSHPassword != "" {
-		if h.tokenEncryptor != nil {
-			encrypted, err := h.tokenEncryptor.Encrypt(*req.SSHPassword)
-			if err != nil {
-				h.logger.Error("failed to encrypt ssh password", "error", err)
-				return response.InternalError(c)
-			}
-			input.SSHPasswordEncrypted = &encrypted
-		} else {
-			input.SSHPasswordEncrypted = req.SSHPassword
-		}
+	if err := applyUpdateSSHCredentials(h.tokenEncryptor, &req, &input); err != nil {
+		h.logger.Error("failed to encrypt ssh credentials", "error", err)
+		return response.InternalError(c)
 	}
 
 	server, err := h.serverRepo.Update(id, input)
@@ -321,6 +315,8 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 		return response.BadRequest(c, "provision failed: "+err.Error())
 	}
 
+	onlineStatus := domain.ServerStatusOnline
+	_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &onlineStatus})
 	return response.OK(c, map[string]string{"message": "provision completed"})
 }
 

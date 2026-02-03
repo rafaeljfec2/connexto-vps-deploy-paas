@@ -160,7 +160,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
           </TooltipProvider>
         </td>
         <td className="py-3 px-4 hidden xl:table-cell whitespace-nowrap">
-          <span className="text-sm text-muted-foreground font-mono text-xs">
+          <span className="text-xs text-muted-foreground font-mono">
             {container.ipAddress ?? "-"}
           </span>
         </td>
@@ -168,7 +168,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <span className="text-sm text-muted-foreground font-mono truncate block text-xs">
+                <span className="text-xs text-muted-foreground font-mono truncate block">
                   {portsStr}
                 </span>
               </TooltipTrigger>

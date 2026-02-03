@@ -36,6 +36,10 @@ set cors_origins $env(CORS_ORIGINS)
 set cloudflare_server_ip [string trim $env(CLOUDFLARE_SERVER_IP)]
 set api_domain [string trim $env(API_DOMAIN)]
 set traefik_network [string trim $env(TRAEFIK_NETWORK)]
+set grpc_server_addr [string trim $env(GRPC_SERVER_ADDR)]
+if {[string length $grpc_server_addr] == 0} {
+  set grpc_server_addr "$api_domain:50051"
+}
 
 puts "🚀 Starting deployment to $host:$port"
 puts "📦 Image: $registry/$image:latest"
@@ -111,6 +115,7 @@ append cmd " --network $traefik_network"
 append cmd " --restart unless-stopped"
 append cmd " --group-add $docker_gid"
 append cmd " -p 9005:8080"
+append cmd " -p 50051:50051"
 append cmd " -v /var/run/docker.sock:/var/run/docker.sock"
 append cmd " -v /opt/flowdeploy:/opt/flowdeploy"
 append cmd " -v flowdeploy-data:/data/apps"
@@ -141,6 +146,11 @@ append cmd " -e 'FRONTEND_URL=$frontend_url'"
 append cmd " -e 'COOKIE_DOMAIN=$cookie_domain'"
 append cmd " -e 'SESSION_SECURE=$session_secure'"
 append cmd " -e 'CORS_ORIGINS=$cors_origins'"
+append cmd " -e GRPC_ENABLED=true"
+append cmd " -e AGENT_BINARY_PATH=/app/agent"
+append cmd " -e GRPC_PORT=50051"
+append cmd " -e AGENT_GRPC_PORT=50052"
+append cmd " -e 'GRPC_SERVER_ADDR=$grpc_server_addr'"
 
 if {[string length $cloudflare_server_ip] > 0} {
   append cmd " -e 'CLOUDFLARE_SERVER_IP=$cloudflare_server_ip'"
