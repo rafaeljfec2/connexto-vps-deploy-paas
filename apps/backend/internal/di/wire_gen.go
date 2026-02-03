@@ -29,7 +29,6 @@ func InitializeApplication() (*Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	postgresCertificateAuthorityRepository := repository.NewPostgresCertificateAuthorityRepository(db)
 	postgresAppRepository := repository.NewPostgresAppRepository(db)
 	postgresEnvVarRepository := repository.NewPostgresEnvVarRepository(db)
 	postgresCustomDomainRepository := repository.NewPostgresCustomDomainRepository(db)
@@ -39,6 +38,7 @@ func InitializeApplication() (*Application, func(), error) {
 	engineEngine := engine.New(config, db, postgresAppRepository, postgresEnvVarRepository, postgresCustomDomainRepository, gitTokenProvider, logger)
 	serverConfig := ProvideServerConfig(config)
 	serverServer := server.New(serverConfig, logger)
+	postgresCertificateAuthorityRepository := repository.NewPostgresCertificateAuthorityRepository(db)
 	certificateAuthority, err := ProvidePKI(logger, postgresCertificateAuthorityRepository)
 	if err != nil {
 		cleanup()
@@ -82,7 +82,7 @@ func InitializeApplication() (*Application, func(), error) {
 	notificationHandler := ProvideNotificationHandler(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
 	sshProvisioner := ProvideSSHProvisioner(certificateAuthority, config, logger)
 	healthChecker := ProvideAgentHealthChecker(certificateAuthority, config)
-	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, healthChecker, config, logger)
+	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, healthChecker, config, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,

@@ -19,11 +19,12 @@ import (
 )
 
 const (
-	agentInstallDirName = "paasdeploy-agent"
-	agentSystemdUnit    = "paasdeploy-agent.service"
-	defaultSSHPort      = 22
-	sshConnectTimeout   = 30 * time.Second
-	logKeyStep          = "step"
+	agentInstallDirName   = "paasdeploy-agent"
+	agentSystemdUnit      = "paasdeploy-agent.service"
+	defaultSSHPort        = 22
+	sshConnectTimeout     = 30 * time.Second
+	logKeyStep            = "step"
+	errReadAgentBinaryFmt = "read agent binary: %w"
 )
 
 type SSHProvisionerConfig struct {
@@ -34,6 +35,11 @@ type SSHProvisionerConfig struct {
 	Logger          *slog.Logger
 }
 
+type ProvisionProgress struct {
+	OnStep func(step, status, message string)
+	OnLog  func(message string)
+}
+
 type SSHProvisioner struct {
 	cfg SSHProvisionerConfig
 }
@@ -42,50 +48,136 @@ func NewSSHProvisioner(cfg SSHProvisionerConfig) *SSHProvisioner {
 	return &SSHProvisioner{cfg: cfg}
 }
 
-func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, sshPasswordPlain string) error {
+func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, sshPasswordPlain string, progress *ProvisionProgress) error {
 	log := p.cfg.Logger.With("serverId", server.ID, "host", server.Host)
+	step := p.makeStepFn(log, progress)
+	logLine := p.makeLogFn(progress)
+
 	port := server.SSHPort
 	if port == 0 {
 		port = defaultSSHPort
 	}
-
 	addr := net.JoinHostPort(server.Host, fmt.Sprintf("%d", port))
-	log.Info("provision", logKeyStep, "ssh_connect", "addr", addr, "user", server.SSHUser)
-	client, err := p.connect(server.SSHUser, addr, sshKeyPlain, sshPasswordPlain)
-	if err != nil {
-		return fmt.Errorf("ssh connect: %w", err)
-	}
-	defer client.Close()
-	log.Info("provision", logKeyStep, "ssh_connect", "status", "ok")
+	logLine(fmt.Sprintf("Conectando a %s como %s", addr, server.SSHUser))
 
-	log.Info("provision", logKeyStep, "remote_env")
-	homeDir, err := runCommandOutput(client, "printf $HOME")
-	if err != nil {
-		return fmt.Errorf("get remote home: %w", err)
-	}
-	uid, err := runCommandOutput(client, "id -u")
-	if err != nil {
-		return fmt.Errorf("get remote uid: %w", err)
-	}
-	log.Info("provision", logKeyStep, "remote_env", "status", "ok", "homeDir", homeDir, "uid", uid)
-
-	log.Info("provision", logKeyStep, "sftp_client")
-	sftpClient, err := sftp.NewClient(client)
-	if err != nil {
-		return fmt.Errorf("create sftp client: %w", err)
-	}
-	defer sftpClient.Close()
-	log.Info("provision", logKeyStep, "sftp_client", "status", "ok")
-
-	log.Info("provision", logKeyStep, "install_dir")
-	installDir, unitDir, err := resolveSftpPaths(sftpClient, homeDir)
+	client, err := p.provisionSSH(server.SSHUser, addr, sshKeyPlain, sshPasswordPlain, step)
 	if err != nil {
 		return err
 	}
-	runtimeDir := path.Join("/run/user", uid)
-	log.Info("provision", logKeyStep, "install_dir", "status", "ok", "installDir", installDir, "unitDir", unitDir)
+	defer client.Close()
 
-	log.Info("provision", logKeyStep, "agent_certs")
+	homeDir, uid, err := p.provisionRemoteEnv(client, step, logLine)
+	if err != nil {
+		return err
+	}
+
+	sftpClient, err := p.provisionSFTP(client, step)
+	if err != nil {
+		return err
+	}
+	defer sftpClient.Close()
+
+	installDir, unitDir, runtimeDir, err := p.provisionInstallDir(sftpClient, homeDir, uid, step, logLine)
+	if err != nil {
+		return err
+	}
+
+	if err := p.provisionCerts(sftpClient, installDir, server, step); err != nil {
+		return err
+	}
+	if err := p.deployAgentBinary(client, sftpClient, installDir, log, step, logLine); err != nil {
+		return err
+	}
+	paths := provisionPaths{installDir: installDir, unitDir: unitDir, runtimeDir: runtimeDir, serverID: server.ID}
+	if err := p.provisionSystemdAndStart(client, sftpClient, paths, step, logLine); err != nil {
+		return err
+	}
+	logLine("Provisionamento concluído")
+	return nil
+}
+
+func (p *SSHProvisioner) makeStepFn(log *slog.Logger, progress *ProvisionProgress) func(string, string, string) {
+	return func(s, status, msg string) {
+		log.Info("provision", logKeyStep, s, "status", status)
+		if progress != nil && progress.OnStep != nil {
+			progress.OnStep(s, status, msg)
+		}
+	}
+}
+
+func (p *SSHProvisioner) makeLogFn(progress *ProvisionProgress) func(string) {
+	return func(msg string) {
+		if progress != nil && progress.OnLog != nil {
+			progress.OnLog(msg)
+		}
+	}
+}
+
+func (p *SSHProvisioner) provisionSSH(user, addr, key, password string, step func(string, string, string)) (*ssh.Client, error) {
+	step("ssh_connect", "running", "Conectando via SSH...")
+	client, err := p.connect(user, addr, key, password)
+	if err != nil {
+		return nil, fmt.Errorf("ssh connect: %w", err)
+	}
+	step("ssh_connect", "ok", "Conectado via SSH")
+	return client, nil
+}
+
+func (p *SSHProvisioner) provisionRemoteEnv(
+	client *ssh.Client,
+	step func(string, string, string),
+	logLine func(string),
+) (string, string, error) {
+	logLine("Verificando ambiente remoto")
+	step("remote_env", "running", "Verificando ambiente...")
+	homeDir, err := runCommandOutput(client, "printf $HOME")
+	if err != nil {
+		return "", "", fmt.Errorf("get remote home: %w", err)
+	}
+	uid, err := runCommandOutput(client, "id -u")
+	if err != nil {
+		return "", "", fmt.Errorf("get remote uid: %w", err)
+	}
+	logLine(fmt.Sprintf("Home: %s, UID: %s", homeDir, uid))
+	step("remote_env", "ok", "Ambiente verificado")
+	return homeDir, uid, nil
+}
+
+func (p *SSHProvisioner) provisionSFTP(client *ssh.Client, step func(string, string, string)) (*sftp.Client, error) {
+	step("sftp_client", "running", "Conectando SFTP...")
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return nil, fmt.Errorf("create sftp client: %w", err)
+	}
+	step("sftp_client", "ok", "SFTP conectado")
+	return sftpClient, nil
+}
+
+func (p *SSHProvisioner) provisionInstallDir(
+	sftpClient *sftp.Client,
+	homeDir, uid string,
+	step func(string, string, string),
+	logLine func(string),
+) (installDir, unitDir, runtimeDir string, err error) {
+	logLine("Criando diretórios")
+	step("install_dir", "running", "Criando diretórios...")
+	installDir, unitDir, err = resolveSftpPaths(sftpClient, homeDir)
+	if err != nil {
+		return "", "", "", err
+	}
+	runtimeDir = path.Join("/run/user", uid)
+	logLine(fmt.Sprintf("Diretório: %s", installDir))
+	step("install_dir", "ok", "Diretórios criados")
+	return installDir, unitDir, runtimeDir, nil
+}
+
+func (p *SSHProvisioner) provisionCerts(
+	sftpClient *sftp.Client,
+	installDir string,
+	server *domain.Server,
+	step func(string, string, string),
+) error {
+	step("agent_certs", "running", "Instalando certificados...")
 	agentCert, err := p.cfg.CA.GenerateAgentCert(server.ID, server.Host)
 	if err != nil {
 		return fmt.Errorf("generate agent cert: %w", err)
@@ -93,51 +185,69 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 	if err := writeCertFiles(sftpClient, installDir, agentCert, p.cfg.CA); err != nil {
 		return err
 	}
-	log.Info("provision", logKeyStep, "agent_certs", "status", "ok")
+	step("agent_certs", "ok", "Certificados instalados")
+	return nil
+}
 
-	if err := p.deployAgentBinary(client, sftpClient, installDir, log); err != nil {
-		return err
-	}
-
-	log.Info("provision", logKeyStep, "systemd_unit")
+func (p *SSHProvisioner) provisionSystemdAndStart(
+	client *ssh.Client,
+	sftpClient *sftp.Client,
+	paths provisionPaths,
+	step func(string, string, string),
+	logLine func(string),
+) error {
+	step("systemd_unit", "running", "Configurando serviço...")
 	unitOpts := systemdUnitOpts{
 		sshClient:  client,
 		sftpClient: sftpClient,
-		installDir: installDir,
-		unitDir:    unitDir,
-		runtimeDir: runtimeDir,
-		serverID:   server.ID,
+		installDir: paths.installDir,
+		unitDir:    paths.unitDir,
+		runtimeDir: paths.runtimeDir,
+		serverID:   paths.serverID,
 		serverAddr: p.cfg.ServerAddr,
 		agentPort:  p.cfg.AgentPort,
 	}
 	if err := installSystemdUnit(unitOpts); err != nil {
 		return err
 	}
-	log.Info("provision", logKeyStep, "systemd_unit", "status", "ok")
-
-	log.Info("provision", logKeyStep, "start_agent", "runtimeDir", runtimeDir)
-	if err := startAgent(client, runtimeDir); err != nil {
+	step("systemd_unit", "ok", "Serviço configurado")
+	logLine("Iniciando agent")
+	step("start_agent", "running", "Iniciando agent...")
+	if err := startAgent(client, paths.runtimeDir); err != nil {
 		return err
 	}
-	log.Info("provision", logKeyStep, "start_agent", "status", "ok")
-
-	log.Info("provision completed", "serverId", server.ID, "host", server.Host)
+	step("start_agent", "ok", "Agent iniciado")
 	return nil
 }
 
-func (p *SSHProvisioner) deployAgentBinary(sshClient *ssh.Client, sftpClient *sftp.Client, installDir string, log *slog.Logger) error {
+func (p *SSHProvisioner) deployAgentBinary(
+	sshClient *ssh.Client,
+	sftpClient *sftp.Client,
+	installDir string,
+	log *slog.Logger,
+	step func(string, string, string),
+	logLine func(string),
+) error {
 	if p.cfg.AgentBinaryPath == "" {
 		log.Info("provision", logKeyStep, "agent_binary", "status", "skipped", "reason", "AGENT_BINARY_PATH empty")
 		return nil
 	}
+	step("agent_binary", "running", "Copiando agent...")
 	log.Info("provision", logKeyStep, "agent_binary", "localPath", p.cfg.AgentBinaryPath)
+	data, err := os.ReadFile(p.cfg.AgentBinaryPath)
+	if err != nil {
+		return fmt.Errorf(errReadAgentBinaryFmt, err)
+	}
+	sizeKB := len(data) / 1024
+	logLine(fmt.Sprintf("Copiando agent (%d KB)...", sizeKB))
 	if err := copyAgentBinary(sftpClient, installDir, p.cfg.AgentBinaryPath); err != nil {
 		log.Info("provision", logKeyStep, "agent_binary", "fallback", "ssh_pipe", "sftp_err", err)
+		logLine("Fallback SSH pipe (SFTP falhou)")
 		if pipeErr := copyAgentBinaryViaSSH(sshClient, installDir, p.cfg.AgentBinaryPath); pipeErr != nil {
 			return fmt.Errorf("sftp: %w; ssh pipe fallback: %w", err, pipeErr)
 		}
 	}
-	log.Info("provision", logKeyStep, "agent_binary", "status", "ok")
+	step("agent_binary", "ok", "Agent copiado")
 	return nil
 }
 
@@ -216,7 +326,7 @@ const binaryWriteChunkSize = 8192
 func copyAgentBinaryViaSSH(sshClient *ssh.Client, installDir string, localPath string) error {
 	data, err := os.ReadFile(localPath)
 	if err != nil {
-		return fmt.Errorf("read agent binary: %w", err)
+		return fmt.Errorf(errReadAgentBinaryFmt, err)
 	}
 	target := path.Join(installDir, "agent")
 	session, err := sshClient.NewSession()
@@ -247,7 +357,7 @@ func copyAgentBinaryViaSSH(sshClient *ssh.Client, installDir string, localPath s
 func copyAgentBinary(client *sftp.Client, installDir string, localPath string) error {
 	data, err := os.ReadFile(localPath)
 	if err != nil {
-		return fmt.Errorf("read agent binary: %w", err)
+		return fmt.Errorf(errReadAgentBinaryFmt, err)
 	}
 
 	target := path.Join(installDir, "agent")
@@ -270,6 +380,13 @@ func copyAgentBinary(client *sftp.Client, installDir string, localPath string) e
 	_ = f.Sync()
 	_ = f.Chmod(0o755)
 	return nil
+}
+
+type provisionPaths struct {
+	installDir string
+	unitDir    string
+	runtimeDir string
+	serverID   string
 }
 
 type systemdUnitOpts struct {

@@ -66,14 +66,41 @@ export interface HealthStatus {
   readonly uptime?: string;
 }
 
+export type SSEEventType =
+  | "RUNNING"
+  | "SUCCESS"
+  | "FAILED"
+  | "LOG"
+  | "HEALTH"
+  | "STATS"
+  | "PROVISION_STEP"
+  | "PROVISION_LOG"
+  | "PROVISION_COMPLETED"
+  | "PROVISION_FAILED";
+
 export interface SSEEvent {
-  readonly type: "RUNNING" | "SUCCESS" | "FAILED" | "LOG" | "HEALTH" | "STATS";
+  readonly type: SSEEventType;
   readonly deployId?: string;
-  readonly appId: string;
+  readonly appId?: string;
+  readonly serverId?: string;
+  readonly step?: string;
+  readonly status?: string;
   readonly message?: string;
   readonly health?: HealthStatus;
   readonly stats?: ContainerStats;
   readonly timestamp: string;
+}
+
+export interface ProvisionStepState {
+  readonly step: string;
+  readonly status: string;
+  readonly message: string;
+}
+
+export interface ProvisionProgressState {
+  readonly steps: readonly ProvisionStepState[];
+  readonly logs: readonly string[];
+  readonly status: "running" | "completed" | "failed";
 }
 
 export interface WebhookSetupResult {

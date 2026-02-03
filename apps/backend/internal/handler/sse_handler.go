@@ -38,6 +38,9 @@ type SSEEvent struct {
 	Type      string             `json:"type"`
 	DeployID  string             `json:"deployId,omitempty"`
 	AppID     string             `json:"appId,omitempty"`
+	ServerID  string             `json:"serverId,omitempty"`
+	Step      string             `json:"step,omitempty"`
+	Status    string             `json:"status,omitempty"`
 	Message   string             `json:"message,omitempty"`
 	Health    *SSEHealthStatus   `json:"health,omitempty"`
 	Stats     *SSEContainerStats `json:"stats,omitempty"`
@@ -93,6 +96,8 @@ func (h *SSEHandler) Stream(c *fiber.Ctx) error {
 				eventType = "health"
 			case "STATS":
 				eventType = "stats"
+			case "PROVISION_STEP", "PROVISION_LOG", "PROVISION_COMPLETED", "PROVISION_FAILED":
+				eventType = "provision"
 			}
 
 			fmt.Fprintf(w, "event: %s\n", eventType)
@@ -197,6 +202,39 @@ func (h *SSEHandler) EmitStats(appID string, stats SSEContainerStats) {
 	})
 }
 
+func (h *SSEHandler) EmitProvisionStep(serverID, step, status, message string) {
+	h.Emit(SSEEvent{
+		Type:     "PROVISION_STEP",
+		ServerID: serverID,
+		Step:     step,
+		Status:   status,
+		Message:  message,
+	})
+}
+
+func (h *SSEHandler) EmitProvisionLog(serverID, message string) {
+	h.Emit(SSEEvent{
+		Type:     "PROVISION_LOG",
+		ServerID: serverID,
+		Message:  message,
+	})
+}
+
+func (h *SSEHandler) EmitProvisionCompleted(serverID string) {
+	h.Emit(SSEEvent{
+		Type:     "PROVISION_COMPLETED",
+		ServerID: serverID,
+	})
+}
+
+func (h *SSEHandler) EmitProvisionFailed(serverID, message string) {
+	h.Emit(SSEEvent{
+		Type:     "PROVISION_FAILED",
+		ServerID: serverID,
+		Message:  message,
+	})
+}
+
 func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 	h.bufMu.RLock()
 	events := make([]SSEEvent, len(h.eventBuf))
@@ -217,6 +255,8 @@ func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 			eventType = "health"
 		case "STATS":
 			eventType = "stats"
+		case "PROVISION_STEP", "PROVISION_LOG", "PROVISION_COMPLETED", "PROVISION_FAILED":
+			eventType = "provision"
 		}
 
 		fmt.Fprintf(w, "event: %s\n", eventType)

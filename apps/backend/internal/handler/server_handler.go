@@ -16,6 +16,7 @@ type ServerHandler struct {
 	serverRepo     domain.ServerRepository
 	tokenEncryptor *crypto.TokenEncryptor
 	provisioner    *provisioner.SSHProvisioner
+	sseHandler     *SSEHandler
 	healthChecker  *agentclient.HealthChecker
 	agentPort      int
 	logger         *slog.Logger
@@ -25,6 +26,7 @@ func NewServerHandler(
 	serverRepo domain.ServerRepository,
 	tokenEncryptor *crypto.TokenEncryptor,
 	prov *provisioner.SSHProvisioner,
+	sseHandler *SSEHandler,
 	healthChecker *agentclient.HealthChecker,
 	agentPort int,
 	logger *slog.Logger,
@@ -33,6 +35,7 @@ func NewServerHandler(
 		serverRepo:     serverRepo,
 		tokenEncryptor: tokenEncryptor,
 		provisioner:    prov,
+		sseHandler:     sseHandler,
 		healthChecker:  healthChecker,
 		agentPort:      agentPort,
 		logger:         logger.With("handler", "server"),
@@ -294,13 +297,31 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 	status := domain.ServerStatusProvisioning
 	_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &status})
 
-	if err := h.provisioner.Provision(server, sshKey, sshPassword); err != nil {
+	progress := (*provisioner.ProvisionProgress)(nil)
+	if h.sseHandler != nil {
+		progress = &provisioner.ProvisionProgress{
+			OnStep: func(step, status, message string) {
+				h.sseHandler.EmitProvisionStep(id, step, status, message)
+			},
+			OnLog: func(message string) {
+				h.sseHandler.EmitProvisionLog(id, message)
+			},
+		}
+	}
+
+	if err := h.provisioner.Provision(server, sshKey, sshPassword, progress); err != nil {
+		if h.sseHandler != nil {
+			h.sseHandler.EmitProvisionFailed(id, err.Error())
+		}
 		h.logProvisionFailure(c, id, err)
 		errStatus := domain.ServerStatusError
 		_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &errStatus})
 		return response.BadRequest(c, "provision failed: "+err.Error())
 	}
 
+	if h.sseHandler != nil {
+		h.sseHandler.EmitProvisionCompleted(id)
+	}
 	onlineStatus := domain.ServerStatusOnline
 	_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &onlineStatus})
 	return response.OK(c, map[string]string{"message": "provision completed"})

@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { applyProvisionEvent } from "@/features/servers/provision-progress-store";
 import { api } from "@/services/api";
 import { sseClient } from "@/services/sse";
 import type {
@@ -73,11 +74,25 @@ export function useSSE() {
           break;
 
         case "STATS":
-          if (event.stats) {
+          if (event.stats && event.appId) {
             queryClient.setQueryData<ContainerStats>(
               ["containerStats", event.appId],
               event.stats,
             );
+          }
+          break;
+
+        case "PROVISION_STEP":
+        case "PROVISION_LOG":
+          if (event.serverId) {
+            applyProvisionEvent(event.serverId, event);
+          }
+          break;
+        case "PROVISION_COMPLETED":
+        case "PROVISION_FAILED":
+          if (event.serverId) {
+            applyProvisionEvent(event.serverId, event);
+            void queryClient.invalidateQueries({ queryKey: ["servers"] });
           }
           break;
       }

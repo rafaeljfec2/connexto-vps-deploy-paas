@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,11 +30,7 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
 
   const createServer = useCreateServer();
 
-  useEffect(() => {
-    if (formError) {
-      setFormError(null);
-    }
-  }, [sshKey, sshPassword]);
+  const clearErrorOnChange = () => setFormError(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,7 +152,10 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
               <textarea
                 id="sshKey"
                 value={sshKey}
-                onChange={(e) => setSshKey(e.target.value)}
+                onChange={(e) => {
+                  setSshKey(e.target.value);
+                  clearErrorOnChange();
+                }}
                 placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
                 rows={4}
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -174,7 +173,10 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
                   id="sshPassword"
                   type={showPassword ? "text" : "password"}
                   value={sshPassword}
-                  onChange={(e) => setSshPassword(e.target.value)}
+                  onChange={(e) => {
+                    setSshPassword(e.target.value);
+                    clearErrorOnChange();
+                  }}
                   placeholder="Secure password"
                   className="pr-20"
                 />

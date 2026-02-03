@@ -602,9 +602,10 @@ func ProvideServerHandler(
 	serverRepo domain.ServerRepository,
 	tokenEncryptor *crypto.TokenEncryptor,
 	prov *provisioner.SSHProvisioner,
+	sseHandler *handler.SSEHandler,
 	healthChecker *agentclient.HealthChecker,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) *handler.ServerHandler {
-	return handler.NewServerHandler(serverRepo, tokenEncryptor, prov, healthChecker, cfg.GRPC.AgentPort, logger)
+	return handler.NewServerHandler(serverRepo, tokenEncryptor, prov, sseHandler, healthChecker, cfg.GRPC.AgentPort, logger)
 }
