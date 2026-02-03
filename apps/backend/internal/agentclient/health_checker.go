@@ -46,7 +46,7 @@ func (c *HealthChecker) Check(ctx context.Context, host string, port int) (time.
 	defer cancel()
 
 	start := time.Now()
-	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithBlock())
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
 		return 0, err
 	}
