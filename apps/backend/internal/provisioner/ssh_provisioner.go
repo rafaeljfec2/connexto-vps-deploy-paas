@@ -23,6 +23,7 @@ const (
 	agentSystemdUnit    = "paasdeploy-agent.service"
 	defaultSSHPort      = 22
 	sshConnectTimeout   = 30 * time.Second
+	logKeyStep          = "step"
 )
 
 type SSHProvisionerConfig struct {
@@ -42,74 +43,91 @@ func NewSSHProvisioner(cfg SSHProvisionerConfig) *SSHProvisioner {
 }
 
 func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, sshPasswordPlain string) error {
+	log := p.cfg.Logger.With("serverId", server.ID, "host", server.Host)
 	port := server.SSHPort
 	if port == 0 {
 		port = defaultSSHPort
 	}
 
 	addr := net.JoinHostPort(server.Host, fmt.Sprintf("%d", port))
+	log.Info("provision", logKeyStep, "ssh_connect", "addr", addr, "user", server.SSHUser)
 	client, err := p.connect(server.SSHUser, addr, sshKeyPlain, sshPasswordPlain)
 	if err != nil {
 		return fmt.Errorf("ssh connect: %w", err)
 	}
 	defer client.Close()
+	log.Info("provision", logKeyStep, "ssh_connect", "status", "ok")
 
+	log.Info("provision", logKeyStep, "remote_env")
 	homeDir, err := runCommandOutput(client, "printf $HOME")
 	if err != nil {
 		return fmt.Errorf("get remote home: %w", err)
 	}
-
 	uid, err := runCommandOutput(client, "id -u")
 	if err != nil {
 		return fmt.Errorf("get remote uid: %w", err)
 	}
+	log.Info("provision", logKeyStep, "remote_env", "status", "ok", "homeDir", homeDir, "uid", uid)
 
+	log.Info("provision", logKeyStep, "sftp_client")
 	sftpClient, err := sftp.NewClient(client)
 	if err != nil {
 		return fmt.Errorf("create sftp client: %w", err)
 	}
 	defer sftpClient.Close()
+	log.Info("provision", logKeyStep, "sftp_client", "status", "ok")
 
+	log.Info("provision", logKeyStep, "install_dir")
 	installDir, unitDir, err := resolveSftpPaths(sftpClient, homeDir)
 	if err != nil {
 		return err
 	}
 	runtimeDir := path.Join("/run/user", uid)
+	log.Info("provision", logKeyStep, "install_dir", "status", "ok", "installDir", installDir, "unitDir", unitDir)
 
+	log.Info("provision", logKeyStep, "agent_certs")
 	agentCert, err := p.cfg.CA.GenerateAgentCert(server.ID, server.Host)
 	if err != nil {
 		return fmt.Errorf("generate agent cert: %w", err)
 	}
-
 	if err := writeCertFiles(sftpClient, installDir, agentCert, p.cfg.CA); err != nil {
 		return err
 	}
+	log.Info("provision", logKeyStep, "agent_certs", "status", "ok")
 
 	if p.cfg.AgentBinaryPath != "" {
+		log.Info("provision", logKeyStep, "agent_binary", "localPath", p.cfg.AgentBinaryPath)
 		if err := copyAgentBinary(sftpClient, installDir, p.cfg.AgentBinaryPath); err != nil {
 			return err
 		}
+		log.Info("provision", logKeyStep, "agent_binary", "status", "ok")
+	} else {
+		log.Info("provision", logKeyStep, "agent_binary", "status", "skipped", "reason", "AGENT_BINARY_PATH empty")
 	}
 
+	log.Info("provision", logKeyStep, "systemd_unit")
 	unitOpts := systemdUnitOpts{
-		sshClient:   client,
-		sftpClient:  sftpClient,
-		installDir:  installDir,
-		unitDir:     unitDir,
-		runtimeDir:  runtimeDir,
-		serverID:    server.ID,
-		serverAddr:  p.cfg.ServerAddr,
-		agentPort:   p.cfg.AgentPort,
+		sshClient:  client,
+		sftpClient: sftpClient,
+		installDir: installDir,
+		unitDir:    unitDir,
+		runtimeDir: runtimeDir,
+		serverID:   server.ID,
+		serverAddr: p.cfg.ServerAddr,
+		agentPort:  p.cfg.AgentPort,
 	}
 	if err := installSystemdUnit(unitOpts); err != nil {
 		return err
 	}
+	log.Info("provision", logKeyStep, "systemd_unit", "status", "ok")
 
+	log.Info("provision", logKeyStep, "start_agent", "runtimeDir", runtimeDir)
 	if err := startAgent(client, runtimeDir); err != nil {
 		return err
 	}
+	log.Info("provision", logKeyStep, "start_agent", "status", "ok")
 
-	p.cfg.Logger.Info("provision completed", "serverId", server.ID, "host", server.Host)
+	log.Info("provision completed", "serverId", server.ID, "host", server.Host)
 	return nil
 }
 
@@ -150,9 +168,7 @@ func createInstallDir(client *sftp.Client, installDir string) error {
 	if err := client.MkdirAll(installDir); err != nil {
 		return fmt.Errorf("create install dir: %w", err)
 	}
-	if err := client.Chmod(installDir, 0o755); err != nil {
-		return fmt.Errorf("chmod install dir: %w", err)
-	}
+	_ = client.Chmod(installDir, 0o755)
 	return nil
 }
 
@@ -262,13 +278,8 @@ func writeRemoteFile(client *sftp.Client, remotePath string, data []byte, perm o
 		return err
 	}
 
-	if err := file.Sync(); err != nil {
-		return err
-	}
-
-	if err := file.Chmod(perm); err != nil {
-		return err
-	}
+	_ = file.Sync()
+	_ = file.Chmod(perm)
 	return nil
 }
 

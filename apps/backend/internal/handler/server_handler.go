@@ -282,23 +282,9 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 		return response.BadRequest(c, "provisioning not available: GRPC and PKI must be configured")
 	}
 
-	sshKey := server.SSHKeyEncrypted
-	if h.tokenEncryptor != nil && sshKey != "" {
-		decrypted, err := h.tokenEncryptor.Decrypt(server.SSHKeyEncrypted)
-		if err != nil {
-			h.logger.Error("failed to decrypt ssh key", "error", err)
-			return response.InternalError(c)
-		}
-		sshKey = decrypted
-	}
-	sshPassword := server.SSHPasswordEncrypted
-	if h.tokenEncryptor != nil && sshPassword != "" {
-		decrypted, err := h.tokenEncryptor.Decrypt(server.SSHPasswordEncrypted)
-		if err != nil {
-			h.logger.Error("failed to decrypt ssh password", "error", err)
-			return response.InternalError(c)
-		}
-		sshPassword = decrypted
+	sshKey, sshPassword, err := h.decryptProvisionCredentials(server)
+	if err != nil {
+		return response.InternalError(c)
 	}
 
 	if sshKey == "" && sshPassword == "" {
@@ -309,7 +295,7 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 	_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &status})
 
 	if err := h.provisioner.Provision(server, sshKey, sshPassword); err != nil {
-		h.logger.Error("provision failed", "serverId", id, "error", err)
+		h.logProvisionFailure(c, id, err)
 		errStatus := domain.ServerStatusError
 		_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &errStatus})
 		return response.BadRequest(c, "provision failed: "+err.Error())
@@ -345,4 +331,32 @@ func (h *ServerHandler) HealthCheck(c *fiber.Ctx) error {
 		Status:    "ok",
 		LatencyMs: latency.Milliseconds(),
 	})
+}
+
+func (h *ServerHandler) decryptProvisionCredentials(server *domain.Server) (sshKey, sshPassword string, err error) {
+	sshKey = server.SSHKeyEncrypted
+	if h.tokenEncryptor != nil && sshKey != "" {
+		sshKey, err = h.tokenEncryptor.Decrypt(server.SSHKeyEncrypted)
+		if err != nil {
+			h.logger.Error("failed to decrypt ssh key", "error", err)
+			return "", "", err
+		}
+	}
+	sshPassword = server.SSHPasswordEncrypted
+	if h.tokenEncryptor != nil && sshPassword != "" {
+		sshPassword, err = h.tokenEncryptor.Decrypt(server.SSHPasswordEncrypted)
+		if err != nil {
+			h.logger.Error("failed to decrypt ssh password", "error", err)
+			return "", "", err
+		}
+	}
+	return sshKey, sshPassword, nil
+}
+
+func (h *ServerHandler) logProvisionFailure(c *fiber.Ctx, serverID string, err error) {
+	attrs := []any{"serverId", serverID, "error", err}
+	if tid, ok := c.Locals("traceId").(string); ok && tid != "" {
+		attrs = append(attrs, "traceId", tid)
+	}
+	h.logger.Error("provision failed", attrs...)
 }
