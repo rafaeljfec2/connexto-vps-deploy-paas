@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - "apps/backend/**"
+      - "apps/agent/**"
+      - "apps/proto/**"
       - ".github/workflows/deploy-backend.yml"
       - ".github/scripts/**"
   workflow_dispatch:
@@ -21,6 +23,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}-backend
   CONTAINER_NAME: flowdeploy-backend
   API_DOMAIN: api-deploy.connexto.com.br
+  GRPC_SERVER_ADDR: deploy.connexto.com.br:50051
   TRAEFIK_NETWORK: traefik-public
 
 jobs:
@@ -204,7 +207,7 @@ jobs:
           CLOUDFLARE_SERVER_IP: ${{ vars.CLOUDFLARE_SERVER_IP || '' }}
           API_DOMAIN: ${{ env.API_DOMAIN }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
-          GRPC_SERVER_ADDR: ${{ vars.GRPC_SERVER_ADDR || format('{0}:50051', env.API_DOMAIN) }}
+          GRPC_SERVER_ADDR: ${{ vars.GRPC_SERVER_ADDR || env.GRPC_SERVER_ADDR }}
           LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'contato@connexto.com.br' }}
 
       - name: Verify deployment
