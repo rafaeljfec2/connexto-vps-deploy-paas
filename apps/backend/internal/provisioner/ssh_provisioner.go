@@ -95,14 +95,8 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 	}
 	log.Info("provision", logKeyStep, "agent_certs", "status", "ok")
 
-	if p.cfg.AgentBinaryPath != "" {
-		log.Info("provision", logKeyStep, "agent_binary", "localPath", p.cfg.AgentBinaryPath)
-		if err := copyAgentBinary(sftpClient, installDir, p.cfg.AgentBinaryPath); err != nil {
-			return err
-		}
-		log.Info("provision", logKeyStep, "agent_binary", "status", "ok")
-	} else {
-		log.Info("provision", logKeyStep, "agent_binary", "status", "skipped", "reason", "AGENT_BINARY_PATH empty")
+	if err := p.deployAgentBinary(client, sftpClient, installDir, log); err != nil {
+		return err
 	}
 
 	log.Info("provision", logKeyStep, "systemd_unit")
@@ -128,6 +122,22 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 	log.Info("provision", logKeyStep, "start_agent", "status", "ok")
 
 	log.Info("provision completed", "serverId", server.ID, "host", server.Host)
+	return nil
+}
+
+func (p *SSHProvisioner) deployAgentBinary(sshClient *ssh.Client, sftpClient *sftp.Client, installDir string, log *slog.Logger) error {
+	if p.cfg.AgentBinaryPath == "" {
+		log.Info("provision", logKeyStep, "agent_binary", "status", "skipped", "reason", "AGENT_BINARY_PATH empty")
+		return nil
+	}
+	log.Info("provision", logKeyStep, "agent_binary", "localPath", p.cfg.AgentBinaryPath)
+	if err := copyAgentBinary(sftpClient, installDir, p.cfg.AgentBinaryPath); err != nil {
+		log.Info("provision", logKeyStep, "agent_binary", "fallback", "ssh_pipe", "sftp_err", err)
+		if pipeErr := copyAgentBinaryViaSSH(sshClient, installDir, p.cfg.AgentBinaryPath); pipeErr != nil {
+			return fmt.Errorf("sftp: %w; ssh pipe fallback: %w", err, pipeErr)
+		}
+	}
+	log.Info("provision", logKeyStep, "agent_binary", "status", "ok")
 	return nil
 }
 
@@ -201,6 +211,39 @@ func writeCertFiles(client *sftp.Client, installDir string, agentCert *pki.Certi
 	return nil
 }
 
+const binaryWriteChunkSize = 8192
+
+func copyAgentBinaryViaSSH(sshClient *ssh.Client, installDir string, localPath string) error {
+	data, err := os.ReadFile(localPath)
+	if err != nil {
+		return fmt.Errorf("read agent binary: %w", err)
+	}
+	target := path.Join(installDir, "agent")
+	session, err := sshClient.NewSession()
+	if err != nil {
+		return fmt.Errorf("new session: %w", err)
+	}
+	defer session.Close()
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("stdin pipe: %w", err)
+	}
+	cmd := fmt.Sprintf("cat > %q && chmod 755 %q", target, target)
+	if err := session.Start(cmd); err != nil {
+		return fmt.Errorf("start cat: %w", err)
+	}
+	if _, err := stdin.Write(data); err != nil {
+		return fmt.Errorf("write stdin: %w", err)
+	}
+	if err := stdin.Close(); err != nil {
+		return fmt.Errorf("close stdin: %w", err)
+	}
+	if err := session.Wait(); err != nil {
+		return fmt.Errorf("session wait: %w", err)
+	}
+	return nil
+}
+
 func copyAgentBinary(client *sftp.Client, installDir string, localPath string) error {
 	data, err := os.ReadFile(localPath)
 	if err != nil {
@@ -208,9 +251,24 @@ func copyAgentBinary(client *sftp.Client, installDir string, localPath string) e
 	}
 
 	target := path.Join(installDir, "agent")
-	if err := writeRemoteFile(client, target, data, 0o755); err != nil {
-		return err
+	_ = client.Remove(target)
+	f, err := client.Create(target)
+	if err != nil {
+		return fmt.Errorf("create agent file: %w", err)
 	}
+	defer f.Close()
+
+	for i := 0; i < len(data); i += binaryWriteChunkSize {
+		end := i + binaryWriteChunkSize
+		if end > len(data) {
+			end = len(data)
+		}
+		if _, err := f.Write(data[i:end]); err != nil {
+			return fmt.Errorf("write agent at offset %d: %w", i, err)
+		}
+	}
+	_ = f.Sync()
+	_ = f.Chmod(0o755)
 	return nil
 }
 
