@@ -13,6 +13,8 @@ entryPoints:
           scheme: https
   websecure:
     address: ":443"
+  grpc:
+    address: ":50051"
   traefik:
     address: ":8081"
 

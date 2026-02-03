@@ -67,8 +67,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - deploy-data:/data/apps
       - buildkit-cache:/var/cache/paasdeploy/buildkit
-    ports:
-      - "50051:50051"
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,6 +77,11 @@ services:
       - "traefik.http.routers.backend.rule=Host(`localhost`) && (PathPrefix(`/api`) || PathPrefix(`/events`) || PathPrefix(`/health`))"
       - "traefik.http.routers.backend.entrypoints=web"
       - "traefik.http.services.backend.loadbalancer.server.port=8080"
+      - "traefik.tcp.routers.backend-grpc.rule=HostSNI(`*`)"
+      - "traefik.tcp.routers.backend-grpc.entrypoints=grpc"
+      - "traefik.tcp.routers.backend-grpc.service=backend-grpc"
+      - "traefik.tcp.routers.backend-grpc.tls.passthrough=true"
+      - "traefik.tcp.services.backend-grpc.loadbalancer.server.port=50051"
 
   frontend:
     build:
