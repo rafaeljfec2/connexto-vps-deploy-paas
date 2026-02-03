@@ -70,13 +70,11 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 	}
 	defer sftpClient.Close()
 
-	installDir := path.Join(homeDir, agentInstallDirName)
-	unitDir := path.Join(homeDir, ".config", "systemd", "user")
-	runtimeDir := path.Join("/run/user", uid)
-
-	if err := createInstallDir(sftpClient, installDir); err != nil {
+	installDir, unitDir, err := resolveSftpPaths(sftpClient, homeDir)
+	if err != nil {
 		return err
 	}
+	runtimeDir := path.Join("/run/user", uid)
 
 	agentCert, err := p.cfg.CA.GenerateAgentCert(server.ID, server.Host)
 	if err != nil {
@@ -156,6 +154,20 @@ func createInstallDir(client *sftp.Client, installDir string) error {
 		return fmt.Errorf("chmod install dir: %w", err)
 	}
 	return nil
+}
+
+func resolveSftpPaths(client *sftp.Client, homeDir string) (string, string, error) {
+	absoluteInstallDir := path.Join(homeDir, agentInstallDirName)
+	if err := createInstallDir(client, absoluteInstallDir); err == nil {
+		return absoluteInstallDir, path.Join(homeDir, ".config", "systemd", "user"), nil
+	}
+
+	relativeInstallDir := agentInstallDirName
+	if err := createInstallDir(client, relativeInstallDir); err != nil {
+		return "", "", err
+	}
+
+	return relativeInstallDir, path.Join(".config", "systemd", "user"), nil
 }
 
 func writeCertFiles(client *sftp.Client, installDir string, agentCert *pki.Certificate, ca *pki.CertificateAuthority) error {
