@@ -8,6 +8,7 @@ import {
   LogOut,
   Plus,
   Rocket,
+  Server,
   Settings,
   User,
 } from "lucide-react";
@@ -115,6 +116,12 @@ export function Header() {
                     <Link to={ROUTES.AUDIT} role="menuitem">
                       <Activity className="mr-2 h-4 w-4" aria-hidden="true" />
                       Audit Logs
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to={ROUTES.SERVERS} role="menuitem">
+                      <Server className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Servers
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">

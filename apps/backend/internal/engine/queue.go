@@ -124,7 +124,7 @@ func (q *Queue) UpdateAppRuntime(appID, runtime string) error {
 
 func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, workdir, config, status, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, server_id, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE id = $1 AND status != 'deleted'
 	`
@@ -132,6 +132,9 @@ func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 	var app domain.App
 	var lastDeployedAt sql.NullTime
 	var workdir sql.NullString
+	var runtime sql.NullString
+	var webhookID sql.NullInt64
+	var serverID sql.NullString
 
 	err := q.db.QueryRow(query, appID).Scan(
 		&app.ID,
@@ -139,8 +142,11 @@ func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 		&app.RepositoryURL,
 		&app.Branch,
 		&workdir,
+		&runtime,
 		&app.Config,
 		&app.Status,
+		&webhookID,
+		&serverID,
 		&lastDeployedAt,
 		&app.CreatedAt,
 		&app.UpdatedAt,
@@ -155,6 +161,15 @@ func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 	app.Workdir = workdir.String
 	if lastDeployedAt.Valid {
 		app.LastDeployedAt = &lastDeployedAt.Time
+	}
+	if runtime.Valid {
+		app.Runtime = &runtime.String
+	}
+	if webhookID.Valid {
+		app.WebhookID = &webhookID.Int64
+	}
+	if serverID.Valid {
+		app.ServerID = &serverID.String
 	}
 
 	return &app, nil

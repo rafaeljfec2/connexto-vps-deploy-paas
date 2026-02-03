@@ -18,6 +18,7 @@ import type {
   CreateEnvVarInput,
   CreateNotificationChannelInput,
   CreateNotificationRuleInput,
+  CreateServerInput,
   CustomDomain,
   DeployTemplateInput,
   Deployment,
@@ -27,6 +28,7 @@ import type {
   MigrationStatus,
   NotificationChannel,
   NotificationRule,
+  Server,
   Template,
   TraefikPreview,
   UpdateAppInput,
@@ -780,5 +782,50 @@ export const api = {
         throw ApiError.fromResponse(envelope, response.status);
       }
     },
+  },
+
+  servers: {
+    list: (): Promise<readonly Server[]> =>
+      fetchApiList<Server>(`${API_BASE}/servers`),
+
+    get: (id: string): Promise<Server> =>
+      fetchApi<Server>(`${API_BASE}/servers/${id}`),
+
+    create: (input: CreateServerInput): Promise<Server> =>
+      fetchApi<Server>(`${API_BASE}/servers`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+
+    update: (
+      id: string,
+      input: {
+        name?: string;
+        host?: string;
+        sshPort?: number;
+        sshUser?: string;
+        sshKey?: string;
+      },
+    ): Promise<Server> =>
+      fetchApi<Server>(`${API_BASE}/servers/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(input),
+      }),
+
+    delete: async (id: string): Promise<void> => {
+      const response = await fetch(`${API_BASE}/servers/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok && response.status !== 204) {
+        const envelope: ApiEnvelope<null> = await response.json();
+        throw ApiError.fromResponse(envelope, response.status);
+      }
+    },
+
+    provision: (id: string): Promise<{ message: string }> =>
+      fetchApi<{ message: string }>(`${API_BASE}/servers/${id}/provision`, {
+        method: "POST",
+      }),
   },
 };

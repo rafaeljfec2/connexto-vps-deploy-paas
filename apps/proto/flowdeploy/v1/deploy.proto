@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+package flowdeploy.v1;
+
+option go_package = "github.com/paasdeploy/backend/gen/go/flowdeploy/v1;flowdeployv1";
+
+import "google/protobuf/timestamp.proto";
+import "flowdeploy/v1/common.proto";
+
+message DeployRequest {
+  string deployment_id = 1;
+  string app_id = 2;
+  string app_name = 3;
+
+  GitConfig git = 4;
+  BuildConfig build = 5;
+  RuntimeConfig runtime = 6;
+
+  map<string, string> env_vars = 7;
+
+  HealthCheckConfig health_check = 8;
+
+  optional string rollback_image = 9;
+}
+
+message GitConfig {
+  string repository_url = 1;
+  string branch = 2;
+  string commit_sha = 3;
+  string workdir = 4;
+
+  oneof auth {
+    string access_token = 5;
+    SSHAuth ssh_auth = 6;
+  }
+}
+
+message SSHAuth {
+  string private_key = 1;
+  string passphrase = 2;
+}
+
+message BuildConfig {
+  string dockerfile = 1;
+  string context = 2;
+  map<string, string> args = 3;
+  string target = 4;
+  repeated string cache_from = 5;
+}
+
+message RuntimeConfig {
+  int32 port = 1;
+  optional int32 host_port = 2;
+
+  ResourceLimits resources = 3;
+
+  repeated string domains = 4;
+
+  int32 replicas = 5;
+
+  string network = 6;
+
+  RestartPolicy restart_policy = 7;
+}
+
+message ResourceLimits {
+  string memory = 1;
+  string cpu = 2;
+  string memory_swap = 3;
+}
+
+enum RestartPolicy {
+  RESTART_POLICY_UNSPECIFIED = 0;
+  RESTART_POLICY_NO = 1;
+  RESTART_POLICY_ALWAYS = 2;
+  RESTART_POLICY_ON_FAILURE = 3;
+  RESTART_POLICY_UNLESS_STOPPED = 4;
+}
+
+message HealthCheckConfig {
+  string path = 1;
+  string interval = 2;
+  string timeout = 3;
+  int32 retries = 4;
+  string start_period = 5;
+}
+
+message DeployResponse {
+  bool success = 1;
+  string message = 2;
+
+  optional DeployResult result = 3;
+
+  optional DeployError error = 4;
+}
+
+message DeployResult {
+  string container_id = 1;
+  string image_id = 2;
+  string image_tag = 3;
+
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp completed_at = 5;
+
+  int64 build_duration_ms = 6;
+  int64 deploy_duration_ms = 7;
+
+  int32 exposed_port = 8;
+  string container_ip = 9;
+}
+
+message DeployError {
+  DeployErrorCode code = 1;
+  string message = 2;
+  string stage = 3;
+  string details = 4;
+}
+
+enum DeployErrorCode {
+  DEPLOY_ERROR_UNSPECIFIED = 0;
+  DEPLOY_ERROR_GIT_CLONE_FAILED = 1;
+  DEPLOY_ERROR_GIT_CHECKOUT_FAILED = 2;
+  DEPLOY_ERROR_DOCKERFILE_NOT_FOUND = 3;
+  DEPLOY_ERROR_BUILD_FAILED = 4;
+  DEPLOY_ERROR_CONTAINER_START_FAILED = 5;
+  DEPLOY_ERROR_HEALTH_CHECK_FAILED = 6;
+  DEPLOY_ERROR_ROLLBACK_FAILED = 7;
+  DEPLOY_ERROR_TIMEOUT = 8;
+  DEPLOY_ERROR_CANCELLED = 9;
+  DEPLOY_ERROR_INTERNAL = 10;
+}
+
+message DeployLogEntry {
+  string deployment_id = 1;
+
+  google.protobuf.Timestamp timestamp = 2;
+
+  DeployLogLevel level = 3;
+  DeployStage stage = 4;
+
+  string message = 5;
+
+  optional DeployProgress progress = 6;
+}
+
+enum DeployLogLevel {
+  DEPLOY_LOG_LEVEL_UNSPECIFIED = 0;
+  DEPLOY_LOG_LEVEL_DEBUG = 1;
+  DEPLOY_LOG_LEVEL_INFO = 2;
+  DEPLOY_LOG_LEVEL_WARN = 3;
+  DEPLOY_LOG_LEVEL_ERROR = 4;
+}
+
+enum DeployStage {
+  DEPLOY_STAGE_UNSPECIFIED = 0;
+  DEPLOY_STAGE_INITIALIZING = 1;
+  DEPLOY_STAGE_GIT_SYNC = 2;
+  DEPLOY_STAGE_BUILD = 3;
+  DEPLOY_STAGE_PUSH = 4;
+  DEPLOY_STAGE_DEPLOY = 5;
+  DEPLOY_STAGE_HEALTH_CHECK = 6;
+  DEPLOY_STAGE_CLEANUP = 7;
+  DEPLOY_STAGE_ROLLBACK = 8;
+  DEPLOY_STAGE_COMPLETE = 9;
+}
+
+message DeployProgress {
+  int32 current_step = 1;
+  int32 total_steps = 2;
+  string step_name = 3;
+  int32 percentage = 4;
+}
+
+message DeployLogControl {
+  DeployLogControlAction action = 1;
+  string reason = 2;
+}
+
+enum DeployLogControlAction {
+  DEPLOY_LOG_CONTROL_UNSPECIFIED = 0;
+  DEPLOY_LOG_CONTROL_CONTINUE = 1;
+  DEPLOY_LOG_CONTROL_CANCEL = 2;
+  DEPLOY_LOG_CONTROL_ACK = 3;
+}

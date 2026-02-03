@@ -38,6 +38,13 @@ func InitializeApplication() (*Application, func(), error) {
 	engineEngine := engine.New(config, db, postgresAppRepository, postgresEnvVarRepository, postgresCustomDomainRepository, gitTokenProvider, logger)
 	serverConfig := ProvideServerConfig(config)
 	serverServer := server.New(serverConfig, logger)
+	certificateAuthority, err := ProvidePKI(logger)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	postgresServerRepository := repository.NewPostgresServerRepository(db)
+	grpcserverServer := ProvideGrpcServer(config, certificateAuthority, postgresServerRepository, logger)
 	healthHandler := ProvideHealthHandler()
 	postgresDeploymentRepository := repository.NewPostgresDeploymentRepository(db)
 	manager := ProvideWebhookManager(config, logger)
@@ -72,12 +79,15 @@ func InitializeApplication() (*Application, func(), error) {
 	postgresNotificationRuleRepository := repository.NewPostgresNotificationRuleRepository(db)
 	notificationService := ProvideNotificationService(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
 	notificationHandler := ProvideNotificationHandler(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
+	sshProvisioner := ProvideSSHProvisioner(certificateAuthority, config, logger)
+	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
 		DB:                     db,
 		Engine:                 engineEngine,
 		Server:                 serverServer,
+		GrpcServer:             grpcserverServer,
 		HealthHandler:          healthHandler,
 		AppHandler:             appHandler,
 		SSEHandler:             sseHandler,
@@ -101,6 +111,7 @@ func InitializeApplication() (*Application, func(), error) {
 		ResourceHandler:        resourceHandler,
 		NotificationService:    notificationService,
 		NotificationHandler:    notificationHandler,
+		ServerHandler:          serverHandler,
 	}
 	return application, func() {
 		cleanup()

@@ -17,8 +17,11 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/github"
+	"github.com/paasdeploy/backend/internal/grpcserver"
 	"github.com/paasdeploy/backend/internal/handler"
 	"github.com/paasdeploy/backend/internal/middleware"
+	"github.com/paasdeploy/backend/internal/pki"
+	"github.com/paasdeploy/backend/internal/provisioner"
 	"github.com/paasdeploy/backend/internal/repository"
 	"github.com/paasdeploy/backend/internal/server"
 	"github.com/paasdeploy/backend/internal/service"
@@ -58,6 +61,8 @@ var RepositorySet = wire.NewSet(
 	wire.Bind(new(domain.NotificationChannelRepository), new(*repository.PostgresNotificationChannelRepository)),
 	repository.NewPostgresNotificationRuleRepository,
 	wire.Bind(new(domain.NotificationRuleRepository), new(*repository.PostgresNotificationRuleRepository)),
+	repository.NewPostgresServerRepository,
+	wire.Bind(new(domain.ServerRepository), new(*repository.PostgresServerRepository)),
 )
 
 var AuthSet = wire.NewSet(
@@ -107,11 +112,18 @@ var HandlerSet = wire.NewSet(
 	ProvideAuditHandler,
 	ProvideNotificationHandler,
 	ProvideResourceHandler,
+	ProvideServerHandler,
 )
 
 var ServerSet = wire.NewSet(
 	ProvideServerConfig,
 	server.New,
+)
+
+var ProvisionerSet = wire.NewSet(
+	ProvidePKI,
+	ProvideSSHProvisioner,
+	ProvideGrpcServer,
 )
 
 var AppSet = wire.NewSet(
@@ -124,6 +136,7 @@ var AppSet = wire.NewSet(
 	EngineSet,
 	GitHubSet,
 	AuthSet,
+	ProvisionerSet,
 	HandlerSet,
 	ServerSet,
 	wire.Struct(new(Application), "*"),
@@ -271,6 +284,7 @@ type Application struct {
 	DB                      *sql.DB
 	Engine                  *engine.Engine
 	Server                  *server.Server
+	GrpcServer              *grpcserver.Server
 	HealthHandler           *handler.HealthHandler
 	AppHandler              *handler.AppHandler
 	SSEHandler              *handler.SSEHandler
@@ -294,6 +308,7 @@ type Application struct {
 	ResourceHandler         *handler.ResourceHandler
 	NotificationService     *service.NotificationService
 	NotificationHandler     *handler.NotificationHandler
+	ServerHandler           *handler.ServerHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -502,4 +517,56 @@ func ProvideNotificationHandler(
 	logger *slog.Logger,
 ) *handler.NotificationHandler {
 	return handler.NewNotificationHandler(channelRepo, ruleRepo, appRepo, logger)
+}
+
+func ProvidePKI(logger *slog.Logger) (*pki.CertificateAuthority, error) {
+	ca, err := pki.NewCA()
+	if err != nil {
+		return nil, fmt.Errorf("create CA: %w", err)
+	}
+	logger.Info("PKI CA initialized")
+	return ca, nil
+}
+
+func ProvideSSHProvisioner(
+	ca *pki.CertificateAuthority,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *provisioner.SSHProvisioner {
+	serverAddr := cfg.GRPC.ServerAddr
+	if serverAddr == "" && cfg.GRPC.Port > 0 {
+		serverAddr = fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.GRPC.Port)
+		if cfg.Server.Host == "0.0.0.0" {
+			serverAddr = fmt.Sprintf("localhost:%d", cfg.GRPC.Port)
+		}
+	}
+	return provisioner.NewSSHProvisioner(provisioner.SSHProvisionerConfig{
+		CA:              ca,
+		ServerAddr:      serverAddr,
+		AgentBinaryPath: cfg.GRPC.AgentBinaryPath,
+		Logger:          logger,
+	})
+}
+
+func ProvideGrpcServer(
+	cfg *config.Config,
+	ca *pki.CertificateAuthority,
+	serverRepo domain.ServerRepository,
+	logger *slog.Logger,
+) *grpcserver.Server {
+	server, err := grpcserver.NewServer(cfg, ca, serverRepo, logger)
+	if err != nil {
+		logger.Error("failed to create gRPC server", "error", err)
+		return nil
+	}
+	return server
+}
+
+func ProvideServerHandler(
+	serverRepo domain.ServerRepository,
+	tokenEncryptor *crypto.TokenEncryptor,
+	prov *provisioner.SSHProvisioner,
+	logger *slog.Logger,
+) *handler.ServerHandler {
+	return handler.NewServerHandler(serverRepo, tokenEncryptor, prov, logger)
 }

@@ -1,0 +1,212 @@
+syntax = "proto3";
+
+package flowdeploy.v1;
+
+option go_package = "github.com/paasdeploy/backend/gen/go/flowdeploy/v1;flowdeployv1";
+
+import "google/protobuf/timestamp.proto";
+import "flowdeploy/v1/deploy.proto";
+
+message RegisterRequest {
+  string agent_id = 1;
+  string agent_version = 2;
+
+  SystemInfo system_info = 3;
+  DockerInfo docker_info = 4;
+}
+
+message RegisterResponse {
+  bool accepted = 1;
+  string message = 2;
+
+  AgentConfig config = 3;
+
+  repeated string pending_deployment_ids = 4;
+}
+
+message AgentConfig {
+  int32 heartbeat_interval_seconds = 1;
+  int32 log_buffer_size = 2;
+  int32 max_concurrent_deploys = 3;
+
+  bool enable_metrics = 4;
+  bool enable_auto_update = 5;
+}
+
+message HeartbeatRequest {
+  string agent_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+
+  AgentStatus status = 3;
+
+  repeated ActiveDeployment active_deployments = 4;
+
+  optional SystemMetrics metrics = 5;
+}
+
+message AgentStatus {
+  AgentState state = 1;
+  int32 active_deploy_count = 2;
+  int32 container_count = 3;
+
+  google.protobuf.Timestamp started_at = 4;
+  int64 uptime_seconds = 5;
+}
+
+enum AgentState {
+  AGENT_STATE_UNSPECIFIED = 0;
+  AGENT_STATE_IDLE = 1;
+  AGENT_STATE_DEPLOYING = 2;
+  AGENT_STATE_ERROR = 3;
+  AGENT_STATE_UPDATING = 4;
+}
+
+message ActiveDeployment {
+  string deployment_id = 1;
+  string app_id = 2;
+  DeployStage stage = 3;
+  google.protobuf.Timestamp started_at = 4;
+}
+
+message HeartbeatResponse {
+  bool acknowledged = 1;
+
+  repeated AgentCommand commands = 2;
+
+  optional AgentConfig updated_config = 3;
+}
+
+message AgentCommand {
+  AgentCommandType type = 1;
+  string payload = 2;
+}
+
+enum AgentCommandType {
+  AGENT_COMMAND_UNSPECIFIED = 0;
+  AGENT_COMMAND_DEPLOY = 1;
+  AGENT_COMMAND_CANCEL_DEPLOY = 2;
+  AGENT_COMMAND_RESTART_CONTAINER = 3;
+  AGENT_COMMAND_UPDATE_AGENT = 4;
+  AGENT_COMMAND_SHUTDOWN = 5;
+}
+
+message SystemInfo {
+  string hostname = 1;
+  string os = 2;
+  string os_version = 3;
+  string architecture = 4;
+
+  int32 cpu_cores = 5;
+  int64 memory_total_bytes = 6;
+  int64 disk_total_bytes = 7;
+
+  string kernel_version = 8;
+}
+
+message DockerInfo {
+  string version = 1;
+  string api_version = 2;
+
+  string storage_driver = 3;
+  int64 images_count = 4;
+  int64 containers_count = 5;
+
+  bool swarm_active = 6;
+}
+
+message SystemMetrics {
+  double cpu_usage_percent = 1;
+  int64 memory_used_bytes = 2;
+  int64 memory_available_bytes = 3;
+  int64 disk_used_bytes = 4;
+  int64 disk_available_bytes = 5;
+
+  double load_average_1m = 6;
+  double load_average_5m = 7;
+  double load_average_15m = 8;
+
+  int64 network_rx_bytes = 9;
+  int64 network_tx_bytes = 10;
+}
+
+message ListContainersRequest {
+  bool all = 1;
+  optional string app_id = 2;
+}
+
+message ListContainersResponse {
+  repeated ContainerInfo containers = 1;
+}
+
+message ContainerInfo {
+  string id = 1;
+  string name = 2;
+  string image = 3;
+  string state = 4;
+  string status = 5;
+
+  google.protobuf.Timestamp created_at = 6;
+
+  map<string, string> labels = 7;
+
+  repeated PortBinding ports = 8;
+}
+
+message PortBinding {
+  int32 container_port = 1;
+  int32 host_port = 2;
+  string protocol = 3;
+}
+
+message ContainerLogsRequest {
+  string container_id = 1;
+  bool follow = 2;
+  int32 tail = 3;
+  bool timestamps = 4;
+  optional google.protobuf.Timestamp since = 5;
+}
+
+message ContainerLogEntry {
+  google.protobuf.Timestamp timestamp = 1;
+  string stream = 2;
+  string message = 3;
+}
+
+message ContainerStatsRequest {
+  string container_id = 1;
+  bool stream = 2;
+}
+
+message ContainerStats {
+  google.protobuf.Timestamp timestamp = 1;
+
+  double cpu_percent = 2;
+  int64 memory_usage_bytes = 3;
+  int64 memory_limit_bytes = 4;
+
+  int64 network_rx_bytes = 5;
+  int64 network_tx_bytes = 6;
+
+  int64 block_read_bytes = 7;
+  int64 block_write_bytes = 8;
+}
+
+message RestartContainerRequest {
+  string container_id = 1;
+  int32 timeout_seconds = 2;
+}
+
+message RestartContainerResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message StopContainerRequest {
+  string container_id = 1;
+  int32 timeout_seconds = 2;
+}
+
+message StopContainerResponse {
+  bool success = 1;
+  string message = 2;
+}

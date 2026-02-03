@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -29,6 +30,7 @@ func main() {
 	runMigrations(app)
 	go handleEngineEvents(app)
 	startEngine(app)
+	startGrpcServer(app)
 	registerHandlers(app)
 	registerProtectedRoutes(app)
 	startServer(app)
@@ -111,6 +113,18 @@ func startEngine(app *di.Application) {
 	}
 }
 
+func startGrpcServer(app *di.Application) {
+	if !app.Config.GRPC.Enabled || app.GrpcServer == nil {
+		return
+	}
+	address := fmt.Sprintf("%s:%d", app.Config.Server.Host, app.Config.GRPC.Port)
+	go func() {
+		if err := app.GrpcServer.Start(address); err != nil {
+			app.Logger.Error("gRPC server error", "error", err)
+		}
+	}()
+}
+
 func registerHandlers(app *di.Application) {
 	app.HealthHandler.Register(app.Server.App())
 	app.SwaggerHandler.Register(app.Server.App())
@@ -166,6 +180,7 @@ func registerProtectedRoutes(app *di.Application) {
 	registerOptionalProtectedHandler(app.DomainHandler, authRequired)
 	registerOptionalProtectedHandler(app.MigrationHandler, authRequired)
 	registerOptionalProtectedHandler(app.NotificationHandler, authRequired)
+	registerOptionalProtectedHandler(app.ServerHandler, authRequired)
 }
 
 type protectedRegistrar interface {

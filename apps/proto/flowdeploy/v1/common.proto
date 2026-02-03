@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package flowdeploy.v1;
+
+option go_package = "github.com/paasdeploy/backend/gen/go/flowdeploy/v1;flowdeployv1";
+
+message Pagination {
+  int32 page = 1;
+  int32 page_size = 2;
+}
+
+message PaginationInfo {
+  int32 total = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int32 total_pages = 4;
+}

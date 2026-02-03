@@ -7,6 +7,7 @@ import { ImagesPage } from "@/pages/images";
 import { LoginPage } from "@/pages/login";
 import { MigrationPage } from "@/pages/migration";
 import { NewAppPage } from "@/pages/new-app";
+import { ServersPage } from "@/pages/servers";
 import { SettingsPage } from "@/pages/settings";
 import { TemplatesPage } from "@/pages/templates";
 import { ProtectedRoute } from "@/components/protected-route";
@@ -44,6 +45,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/servers"
+        element={
+          <ProtectedRoute>
+            <ServersPage />
           </ProtectedRoute>
         }
       />

@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package flowdeploy.v1;
+
+option go_package = "github.com/paasdeploy/backend/gen/go/flowdeploy/v1;flowdeployv1";
+
+import "flowdeploy/v1/deploy.proto";
+import "flowdeploy/v1/server.proto";
+import "flowdeploy/v1/common.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service AgentService {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  rpc ExecuteDeploy(DeployRequest) returns (DeployResponse);
+
+  rpc StreamDeployLogs(stream DeployLogEntry) returns (stream DeployLogControl);
+
+  rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
+
+  rpc GetContainerLogs(ContainerLogsRequest) returns (stream ContainerLogEntry);
+
+  rpc GetContainerStats(ContainerStatsRequest) returns (stream ContainerStats);
+
+  rpc RestartContainer(RestartContainerRequest) returns (RestartContainerResponse);
+
+  rpc StopContainer(StopContainerRequest) returns (StopContainerResponse);
+
+  rpc GetSystemInfo(google.protobuf.Empty) returns (SystemInfo);
+
+  rpc GetDockerInfo(google.protobuf.Empty) returns (DockerInfo);
+}

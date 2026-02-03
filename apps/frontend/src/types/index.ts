@@ -494,3 +494,31 @@ export interface CreateNotificationRuleInput {
   readonly appId?: string;
   readonly enabled: boolean;
 }
+
+export type ServerStatus =
+  | "pending"
+  | "provisioning"
+  | "online"
+  | "offline"
+  | "error";
+
+export interface Server {
+  readonly id: string;
+  readonly name: string;
+  readonly host: string;
+  readonly sshPort: number;
+  readonly sshUser: string;
+  readonly status: ServerStatus;
+  readonly agentVersion?: string;
+  readonly lastHeartbeatAt?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface CreateServerInput {
+  readonly name: string;
+  readonly host: string;
+  readonly sshPort?: number;
+  readonly sshUser: string;
+  readonly sshKey: string;
+}

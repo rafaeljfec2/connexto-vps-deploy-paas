@@ -1,0 +1,3 @@
+ALTER TABLE apps DROP COLUMN IF EXISTS server_id;
+
+DROP TABLE IF EXISTS servers;

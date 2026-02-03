@@ -31,6 +31,14 @@ type Config struct {
 	Auth       AuthConfig
 	Cloudflare CloudflareConfig
 	Traefik    TraefikConfig
+	GRPC       GRPCConfig
+}
+
+type GRPCConfig struct {
+	Enabled         bool
+	Port            int
+	ServerAddr      string
+	AgentBinaryPath string
 }
 
 type ServerConfig struct {
@@ -151,6 +159,12 @@ func Load() *Config {
 		},
 		Traefik: TraefikConfig{
 			URL: getEnv("TRAEFIK_API_URL", "http://paasdeploy-traefik:8081"),
+		},
+		GRPC: GRPCConfig{
+			Enabled:         getEnv("GRPC_ENABLED", "false") == "true",
+			Port:            getEnvInt("GRPC_PORT", 50051),
+			ServerAddr:      getEnv("GRPC_SERVER_ADDR", ""),
+			AgentBinaryPath: getEnv("AGENT_BINARY_PATH", ""),
 		},
 	}
 }

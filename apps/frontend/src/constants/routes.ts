@@ -3,6 +3,7 @@ export const ROUTES = {
   LOGIN: "/login",
   NEW_APP: "/apps/new",
   SETTINGS: "/settings",
+  SERVERS: "/servers",
   CONTAINERS: "/containers",
   TEMPLATES: "/containers/templates",
   IMAGES: "/images",

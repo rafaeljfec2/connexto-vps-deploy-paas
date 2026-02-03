@@ -9,7 +9,7 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
-const appSelectColumns = `id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, last_deployed_at, created_at, updated_at`
+const appSelectColumns = `id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, server_id, last_deployed_at, created_at, updated_at`
 
 type PostgresAppRepository struct {
 	db *sql.DB
@@ -22,6 +22,7 @@ func NewPostgresAppRepository(db *sql.DB) *PostgresAppRepository {
 type appScanFields struct {
 	app            domain.App
 	webhookID      sql.NullInt64
+	serverID       sql.NullString
 	lastDeployedAt sql.NullTime
 	runtime        sql.NullString
 }
@@ -37,6 +38,7 @@ func (f *appScanFields) scanDest() []any {
 		&f.app.Config,
 		&f.app.Status,
 		&f.webhookID,
+		&f.serverID,
 		&f.lastDeployedAt,
 		&f.app.CreatedAt,
 		&f.app.UpdatedAt,
@@ -46,6 +48,9 @@ func (f *appScanFields) scanDest() []any {
 func (f *appScanFields) toApp() *domain.App {
 	if f.webhookID.Valid {
 		f.app.WebhookID = &f.webhookID.Int64
+	}
+	if f.serverID.Valid {
+		f.app.ServerID = &f.serverID.String
 	}
 	if f.lastDeployedAt.Valid {
 		f.app.LastDeployedAt = &f.lastDeployedAt.Time
@@ -167,15 +172,18 @@ func (r *PostgresAppRepository) Update(id string, input domain.UpdateAppInput) (
 	if input.WebhookID != nil {
 		app.WebhookID = input.WebhookID
 	}
+	if input.ServerID != nil {
+		app.ServerID = input.ServerID
+	}
 
 	query := `
 		UPDATE apps
-		SET name = $2, repository_url = $3, branch = $4, workdir = $5, runtime = $6, config = $7, status = $8, webhook_id = $9, updated_at = NOW()
+		SET name = $2, repository_url = $3, branch = $4, workdir = $5, runtime = $6, config = $7, status = $8, webhook_id = $9, server_id = $10, updated_at = NOW()
 		WHERE id = $1
 		RETURNING updated_at
 	`
 
-	err = r.db.QueryRow(query, id, app.Name, app.RepositoryURL, app.Branch, app.Workdir, app.Runtime, app.Config, app.Status, app.WebhookID).Scan(&app.UpdatedAt)
+	err = r.db.QueryRow(query, id, app.Name, app.RepositoryURL, app.Branch, app.Workdir, app.Runtime, app.Config, app.Status, app.WebhookID, app.ServerID).Scan(&app.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}

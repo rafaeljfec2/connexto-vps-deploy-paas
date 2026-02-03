@@ -23,6 +23,7 @@ type App struct {
 	Config         json.RawMessage `json:"config"`
 	Status         AppStatus       `json:"status"`
 	WebhookID      *int64          `json:"webhookId,omitempty"`
+	ServerID       *string         `json:"serverId,omitempty"`
 	LastDeployedAt *time.Time      `json:"lastDeployedAt,omitempty"`
 	CreatedAt      time.Time       `json:"createdAt"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
@@ -45,6 +46,7 @@ type UpdateAppInput struct {
 	Config        *json.RawMessage `json:"config,omitempty"`
 	Status        *AppStatus       `json:"status,omitempty"`
 	WebhookID     *int64           `json:"webhookId,omitempty"`
+	ServerID      *string          `json:"serverId,omitempty"`
 }
 
 type AppRepository interface {
