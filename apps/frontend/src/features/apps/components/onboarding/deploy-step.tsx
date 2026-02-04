@@ -122,8 +122,13 @@ export function DeployStep({ data, onBack }: Readonly<DeployStepProps>) {
         try {
           await api.webhooks.setup(app.id);
           updatePhase("setting_webhook", "success");
-        } catch {
-          updatePhase("setting_webhook", "success");
+        } catch (err) {
+          const errorMessage =
+            err instanceof Error ? err.message : "Webhook setup failed";
+          updatePhase("setting_webhook", "error", errorMessage);
+          setError(errorMessage);
+          setCurrentPhase("error");
+          return;
         }
 
         activePhase = "deploying";

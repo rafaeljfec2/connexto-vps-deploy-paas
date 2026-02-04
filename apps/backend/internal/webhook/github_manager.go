@@ -55,6 +55,17 @@ func (m *GitHubManager) Setup(ctx context.Context, input SetupInput) (*SetupResu
 
 	webhook, err := m.provider.CreateWebhook(ctx, owner, repo, config)
 	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "hook already exists") ||
+			strings.Contains(strings.ToLower(err.Error()), "already exists") {
+			existing, listErr := m.findExistingWebhookByURL(ctx, owner, repo, targetURL)
+			if listErr == nil && existing != nil {
+				return &SetupResult{
+					WebhookID: existing.ID,
+					Provider:  providerGitHub,
+					Active:    existing.Active,
+				}, nil
+			}
+		}
 		return nil, fmt.Errorf("create webhook: %w", err)
 	}
 
@@ -63,6 +74,25 @@ func (m *GitHubManager) Setup(ctx context.Context, input SetupInput) (*SetupResu
 		Provider:  providerGitHub,
 		Active:    webhook.Active,
 	}, nil
+}
+
+func normalizeURL(u string) string {
+	return strings.TrimSuffix(strings.TrimSpace(u), "/")
+}
+
+func (m *GitHubManager) findExistingWebhookByURL(ctx context.Context, owner, repo, targetURL string) (*ghclient.Webhook, error) {
+	hooks, err := m.provider.ListWebhooks(ctx, owner, repo)
+	if err != nil {
+		return nil, err
+	}
+	normalized := normalizeURL(targetURL)
+	for i := range hooks {
+		h := &hooks[i]
+		if normalizeURL(h.Config.URL) == normalized {
+			return h, nil
+		}
+	}
+	return nil, nil
 }
 
 func (m *GitHubManager) Remove(ctx context.Context, input RemoveInput) error {

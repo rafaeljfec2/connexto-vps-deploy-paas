@@ -705,36 +705,45 @@ function WebhookSection({
         )
       }
     >
-      <div className="flex items-center gap-3">
-        {isConfigured ? (
-          <>
-            <CheckCircle className="h-5 w-5 text-green-500" />
-            <div>
-              <p className="font-medium">Webhook configured</p>
-              <p className="text-sm text-muted-foreground">
-                Auto-deploy enabled for push events
-                {webhookStatus?.active === false && (
-                  <span className="text-yellow-500 ml-2">(inactive)</span>
-                )}
-              </p>
-            </div>
-          </>
-        ) : (
-          <>
-            <XCircle className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <p className="font-medium">Webhook not configured</p>
-              <p className="text-sm text-muted-foreground">
-                Configure to enable auto-deploy on push
-              </p>
-              {webhookStatus?.configuredUrl && (
-                <p className="text-xs text-muted-foreground font-mono mt-1 break-all">
-                  URL: {webhookStatus.configuredUrl}
-                </p>
-              )}
-            </div>
-          </>
+      <div className="flex flex-col gap-3">
+        {actions.setupWebhook.isError && (
+          <p className="text-sm text-destructive">
+            {actions.setupWebhook.error instanceof Error
+              ? actions.setupWebhook.error.message
+              : "Failed to setup webhook"}
+          </p>
         )}
+        <div className="flex items-center gap-3">
+          {isConfigured ? (
+            <>
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <div>
+                <p className="font-medium">Webhook configured</p>
+                <p className="text-sm text-muted-foreground">
+                  Auto-deploy enabled for push events
+                  {webhookStatus?.active === false && (
+                    <span className="text-yellow-500 ml-2">(inactive)</span>
+                  )}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <XCircle className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="font-medium">Webhook not configured</p>
+                <p className="text-sm text-muted-foreground">
+                  Configure to enable auto-deploy on push
+                </p>
+                {webhookStatus?.configuredUrl && (
+                  <p className="text-xs text-muted-foreground font-mono mt-1 break-all">
+                    URL: {webhookStatus.configuredUrl}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </CollapsibleSection>
   );

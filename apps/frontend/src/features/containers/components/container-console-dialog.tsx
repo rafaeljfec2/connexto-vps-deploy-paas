@@ -21,7 +21,7 @@ function scheduleTerminalFocus(
     fit: import("@xterm/addon-fit").FitAddon;
   } | null>,
 ): void {
-  setTimeout(() => termRef.current?.terminal.focus(), 150);
+  setTimeout(() => termRef.current?.terminal.focus(), 300);
 }
 
 interface ContainerConsoleDialogProps {
@@ -91,6 +91,7 @@ export function ContainerConsoleDialog({
         terminal.open(terminalRef.current);
         termRef.current = { terminal, fit: fitAddon };
         scheduleTerminalFit(fitAddon);
+        scheduleTerminalFocus(termRef);
 
         const wsUrl = api.containers.consoleUrl(containerId);
         const ws = new WebSocket(wsUrl);
@@ -163,7 +164,10 @@ export function ContainerConsoleDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
+      <DialogContent
+        className="max-w-4xl h-[80vh] flex flex-col p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle className="flex items-center gap-2">
             Console - {containerName}
