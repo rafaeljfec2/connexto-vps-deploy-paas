@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Server,
+  Shield,
   Terminal,
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -77,6 +78,7 @@ const CHECKLIST_REMOTE: ReadonlyArray<string> = [
   "User created or existing",
   "sudo loginctl enable-linger <user> executed",
   "SSH working (key or password)",
+  "Firewall allows 22/tcp (SSH) and 50052/tcp (agent)",
   "systemctl --user status works without error",
 ];
 
@@ -113,6 +115,82 @@ export function HelperServerSetupPage() {
         </AlertDescription>
       </Alert>
 
+      <section aria-labelledby="firewall-heading">
+        <Card>
+          <CardHeader>
+            <CardTitle
+              id="firewall-heading"
+              className="flex items-center gap-2"
+            >
+              <Shield className="h-5 w-5" />
+              Firewall ports to allow
+            </CardTitle>
+            <CardDescription>
+              Open these ports on the right server so agents and the backend can
+              communicate.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full min-w-[320px] text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="px-4 py-2 text-left font-medium">Server</th>
+                    <th className="px-4 py-2 text-left font-medium">Port</th>
+                    <th className="px-4 py-2 text-left font-medium">Purpose</th>
+                    <th className="px-4 py-2 text-left font-medium">
+                      Command (ufw)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="text-muted-foreground">
+                  <tr className="border-b">
+                    <td className="px-4 py-2 font-medium text-foreground">
+                      Backend (API host)
+                    </td>
+                    <td className="px-4 py-2">50051/tcp</td>
+                    <td className="px-4 py-2">
+                      Agents connect to backend gRPC
+                    </td>
+                    <td className="px-4 py-2">
+                      <code className="text-xs">sudo ufw allow 50051/tcp</code>
+                    </td>
+                  </tr>
+                  <tr className="border-b">
+                    <td className="px-4 py-2 font-medium text-foreground">
+                      Remote (agent) server
+                    </td>
+                    <td className="px-4 py-2">50052/tcp</td>
+                    <td className="px-4 py-2">
+                      Backend connects to agent (stats, deploy)
+                    </td>
+                    <td className="px-4 py-2">
+                      <code className="text-xs">sudo ufw allow 50052/tcp</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-4 py-2 font-medium text-foreground">
+                      Remote (agent) server
+                    </td>
+                    <td className="px-4 py-2">22/tcp (or your SSH port)</td>
+                    <td className="px-4 py-2">SSH for provisioning</td>
+                    <td className="px-4 py-2">
+                      <code className="text-xs">sudo ufw allow 22/tcp</code>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              After adding rules, run <code>sudo ufw reload</code>. With
+              firewalld use:{" "}
+              <code>sudo firewall-cmd --permanent --add-port=PORT/tcp</code>{" "}
+              then <code>sudo firewall-cmd --reload</code>.
+            </p>
+          </CardContent>
+        </Card>
+      </section>
+
       <section aria-labelledby="part1-heading">
         <Card>
           <CardHeader>
@@ -132,7 +210,7 @@ export function HelperServerSetupPage() {
               <h4 className="mb-1 font-medium">1.1 Create user (if needed)</h4>
               <CodeBlock>sudo adduser deploy</CodeBlock>
               <p className="mt-1 text-sm text-muted-foreground">
-                Or use an existing user (e.g. oab-api).
+                Or use an existing user (e.g. ubuntu).
               </p>
             </div>
             <div>

@@ -45,13 +45,13 @@ function StatusBadge({ status }: { readonly status: ServerStatus }) {
   const variants: Record<
     ServerStatus,
     {
-      variant: "default" | "secondary" | "destructive" | "outline";
+      variant: "default" | "secondary" | "destructive" | "outline" | "success";
       label: string;
     }
   > = {
     pending: { variant: "secondary", label: "Pending" },
     provisioning: { variant: "default", label: "Provisioning" },
-    online: { variant: "default", label: "Online" },
+    online: { variant: "success", label: "Online" },
     offline: { variant: "outline", label: "Offline" },
     error: { variant: "destructive", label: "Error" },
   };
