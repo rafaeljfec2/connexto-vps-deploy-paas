@@ -38,6 +38,15 @@ type AgentTokenStore interface {
 	Create() (string, error)
 }
 
+func grpcServerCertHostname(cfg *config.Config) string {
+	if cfg.GRPC.ServerAddr != "" {
+		if host, _, err := net.SplitHostPort(cfg.GRPC.ServerAddr); err == nil && host != "" {
+			return host
+		}
+	}
+	return cfg.Server.Host
+}
+
 func NewServer(
 	cfg *config.Config,
 	ca *pki.CertificateAuthority,
@@ -45,7 +54,8 @@ func NewServer(
 	agentTokenStore AgentTokenStore,
 	logger *slog.Logger,
 ) (*Server, error) {
-	serverCert, err := ca.GenerateServerCert(cfg.Server.Host)
+	certHostname := grpcServerCertHostname(cfg)
+	serverCert, err := ca.GenerateServerCert(certHostname)
 	if err != nil {
 		return nil, fmt.Errorf("generate server cert: %w", err)
 	}
