@@ -23,7 +23,8 @@ env:
   CONTAINER_NAME: flowdeploy-backend
   API_DOMAIN: api-deploy.connexto.com.br
   GRPC_SERVER_ADDR: deploy.connexto.com.br:50051
-  TRAEFIK_NETWORK: traefik-public
+  TRAEFIK_NETWORK: paasdeploy
+  TRAEFIK_NETWORK_SECONDARY: traefik-public
 
 jobs:
   validate-environment:
@@ -144,6 +145,7 @@ jobs:
           SERVER_HOST: ${{ vars.SERVER_HOST }}
           SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
+          TRAEFIK_NETWORK_SECONDARY: ${{ env.TRAEFIK_NETWORK_SECONDARY }}
           LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'contato@connexto.com.br' }}
 
       - name: Deploy container
