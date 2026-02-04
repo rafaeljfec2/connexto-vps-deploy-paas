@@ -392,9 +392,32 @@ func (d *DockerClient) GetContainerIP(ctx context.Context, containerName, networ
 	return ip, nil
 }
 
+func (d *DockerClient) IsCurrentContainer(ctx context.Context, containerID string) bool {
+	selfID, err := d.GetCurrentContainerID(ctx)
+	if err != nil {
+		return false
+	}
+	if selfID == "" || containerID == "" {
+		return false
+	}
+	shortSelf := selfID
+	if len(shortSelf) > 12 {
+		shortSelf = shortSelf[:12]
+	}
+	shortTarget := containerID
+	if len(shortTarget) > 12 {
+		shortTarget = shortTarget[:12]
+	}
+	return shortSelf == shortTarget
+}
+
 func (d *DockerClient) RestartContainer(ctx context.Context, containerName string) error {
 	d.logger.Info("Restarting container", "containerName", containerName)
 	d.executor.SetTimeout(2 * time.Minute)
+
+	if d.IsCurrentContainer(ctx, containerName) {
+		return fmt.Errorf("cannot restart FlowDeploy backend from within itself - use SSH or host to restart")
+	}
 
 	_, err := d.executor.Run(ctx, "docker", "restart", containerName)
 	if err != nil {
@@ -407,6 +430,10 @@ func (d *DockerClient) RestartContainer(ctx context.Context, containerName strin
 func (d *DockerClient) StopContainer(ctx context.Context, containerName string) error {
 	d.logger.Info("Stopping container", "containerName", containerName)
 	d.executor.SetTimeout(1 * time.Minute)
+
+	if d.IsCurrentContainer(ctx, containerName) {
+		return fmt.Errorf("cannot stop FlowDeploy backend from within itself - use SSH or host to stop")
+	}
 
 	_, err := d.executor.Run(ctx, "docker", "stop", containerName)
 	if err != nil {
@@ -709,4 +736,3 @@ func (d *DockerClient) PruneImages(ctx context.Context) (*PruneResult, error) {
 
 	return pruneResult, nil
 }
-

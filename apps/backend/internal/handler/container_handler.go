@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,6 +14,15 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/valyala/fasthttp"
 )
+
+func isSelfContainerError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "cannot restart FlowDeploy backend") ||
+		strings.Contains(msg, "cannot stop FlowDeploy backend")
+}
 
 type ContainerHandler struct {
 	docker *engine.DockerClient
@@ -184,6 +194,9 @@ func (h *ContainerHandler) StopContainer(c *fiber.Ctx) error {
 
 	if err := h.docker.StopContainer(c.Context(), id); err != nil {
 		h.logger.Error("Failed to stop container", "id", id, "error", err)
+		if isSelfContainerError(err) {
+			return response.BadRequest(c, err.Error())
+		}
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to stop container")
 	}
 
@@ -195,6 +208,9 @@ func (h *ContainerHandler) RestartContainer(c *fiber.Ctx) error {
 
 	if err := h.docker.RestartContainer(c.Context(), id); err != nil {
 		h.logger.Error("Failed to restart container", "id", id, "error", err)
+		if isSelfContainerError(err) {
+			return response.BadRequest(c, err.Error())
+		}
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to restart container")
 	}
 
