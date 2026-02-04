@@ -1,4 +1,4 @@
-import { Play, RefreshCw, Square, Terminal } from "lucide-react";
+import { Play, RefreshCw, ScrollText, Square, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   useRestartContainer,
@@ -10,12 +10,14 @@ interface ContainerActionsProps {
   readonly containerId: string;
   readonly isRunning: boolean;
   readonly onShowLogs: () => void;
+  readonly onShowConsole: () => void;
 }
 
 export function ContainerActions({
   containerId,
   isRunning,
   onShowLogs,
+  onShowConsole,
 }: ContainerActionsProps) {
   const startContainer = useStartContainer();
   const stopContainer = useStopContainer();
@@ -72,8 +74,19 @@ export function ContainerActions({
         onClick={onShowLogs}
         title="Logs"
       >
-        <Terminal className="h-4 w-4" />
+        <ScrollText className="h-4 w-4" />
       </Button>
+      {isRunning && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={onShowConsole}
+          title="Console (shell)"
+        >
+          <Terminal className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   Network,
   Play,
   RefreshCw,
+  ScrollText,
   Square,
   Terminal,
   Trash2,
@@ -45,6 +46,7 @@ import {
   useStopContainer,
 } from "../hooks/use-containers";
 import { ContainerActions } from "./container-actions";
+import { ContainerConsoleDialog } from "./container-console-dialog";
 import { ContainerLogsDialog } from "./container-logs-dialog";
 import {
   ContainerHealthBadge,
@@ -77,6 +79,7 @@ function formatContainerCreated(created: string): string {
 export function ContainerCard({ container }: ContainerCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showLogsDialog, setShowLogsDialog] = useState(false);
+  const [showConsoleDialog, setShowConsoleDialog] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const startContainer = useStartContainer();
@@ -143,6 +146,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
             containerId={container.id}
             isRunning={isRunning}
             onShowLogs={() => setShowLogsDialog(true)}
+            onShowConsole={() => setShowConsoleDialog(true)}
           />
         </td>
         <td className="py-3 px-4 hidden lg:table-cell min-w-0 max-w-[200px]">
@@ -283,9 +287,15 @@ export function ContainerCard({ container }: ContainerCardProps) {
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem onClick={() => setShowLogsDialog(true)}>
-                <Terminal className="mr-2 h-4 w-4" />
+                <ScrollText className="mr-2 h-4 w-4" />
                 View Logs
               </DropdownMenuItem>
+              {isRunning && (
+                <DropdownMenuItem onClick={() => setShowConsoleDialog(true)}>
+                  <Terminal className="mr-2 h-4 w-4" />
+                  Open Console
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => window.open(dockerHubUrl, "_blank")}
@@ -335,6 +345,13 @@ export function ContainerCard({ container }: ContainerCardProps) {
         containerName={container.name}
         open={showLogsDialog}
         onOpenChange={setShowLogsDialog}
+      />
+
+      <ContainerConsoleDialog
+        containerId={container.id}
+        containerName={container.name}
+        open={showConsoleDialog}
+        onOpenChange={setShowConsoleDialog}
       />
 
       {expanded && hasDetails && (

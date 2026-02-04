@@ -161,6 +161,7 @@ func registerHandlers(app *di.Application) {
 	app.AppAdminHandler.Register(app.Server.App())
 	app.WebhookHandler.Register(app.Server.App())
 	app.ContainerHandler.Register(app.Server.App())
+	app.ContainerExecHandler.Register(app.Server.App())
 	app.TemplateHandler.Register(app.Server.App())
 
 	if app.ImageHandler != nil {

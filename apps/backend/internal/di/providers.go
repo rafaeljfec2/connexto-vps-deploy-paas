@@ -111,6 +111,7 @@ var HandlerSet = wire.NewSet(
 	ProvideDomainHandler,
 	ProvideMigrationHandler,
 	ProvideContainerHandler,
+	ProvideContainerExecHandler,
 	ProvideTemplateHandler,
 	ProvideImageHandler,
 	ProvideCertificateHandler,
@@ -331,6 +332,7 @@ type Application struct {
 	DomainHandler          *handler.DomainHandler
 	MigrationHandler       *handler.MigrationHandler
 	ContainerHandler       *handler.ContainerHandler
+	ContainerExecHandler   *handler.ContainerExecHandler
 	TemplateHandler        *handler.TemplateHandler
 	ImageHandler           *handler.ImageHandler
 	CertificateHandler     *handler.CertificateHandler
@@ -505,6 +507,10 @@ func ProvideMigrationHandler(logger *slog.Logger) *handler.MigrationHandler {
 
 func ProvideContainerHandler(eng *engine.Engine, logger *slog.Logger) *handler.ContainerHandler {
 	return handler.NewContainerHandler(eng.Docker(), logger)
+}
+
+func ProvideContainerExecHandler(logger *slog.Logger) *handler.ContainerExecHandler {
+	return handler.NewContainerExecHandler(logger)
 }
 
 func ProvideTemplateHandler(eng *engine.Engine, logger *slog.Logger) *handler.TemplateHandler {

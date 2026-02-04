@@ -5,6 +5,7 @@ export {
   type ContainerFilter,
 } from "./components/container-filters";
 export { ContainerList } from "./components/container-list";
+export { ContainerConsoleDialog } from "./components/container-console-dialog";
 export { ContainerLogsDialog } from "./components/container-logs-dialog";
 export {
   ContainerHealthBadge,
