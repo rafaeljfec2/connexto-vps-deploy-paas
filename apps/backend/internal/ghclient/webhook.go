@@ -71,8 +71,19 @@ func NewWebhookHandler(
 func (h *WebhookHandler) Register(app *fiber.App) {
 	v1 := app.Group("/paas-deploy/v1")
 	webhooks := v1.Group("/webhooks")
-	webhooks.Get("/github", h.HandleWebhookHealth)
-	webhooks.Post("/github", h.HandleWebhook)
+	webhooks.All("/github", h.handleWebhookRoute)
+}
+
+func (h *WebhookHandler) handleWebhookRoute(c *fiber.Ctx) error {
+	switch c.Method() {
+	case fiber.MethodGet:
+		return h.HandleWebhookHealth(c)
+	case fiber.MethodPost:
+		return h.HandleWebhook(c)
+	default:
+		return fiber.NewError(fiber.StatusMethodNotAllowed,
+			"Use GET for health check, POST for webhook delivery (ping/push)")
+	}
 }
 
 func (h *WebhookHandler) HandleWebhookHealth(c *fiber.Ctx) error {

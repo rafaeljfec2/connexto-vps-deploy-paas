@@ -60,7 +60,7 @@ func (s *Server) setupMiddlewares() {
 	corsConfig := cors.Config{
 		AllowOrigins:  s.config.CorsOrigins,
 		AllowMethods:  "GET,POST,PUT,DELETE,OPTIONS",
-		AllowHeaders:  "Content-Type,Authorization,X-Trace-ID",
+		AllowHeaders:  "Content-Type,Authorization,X-Trace-ID,X-GitHub-Event,X-Hub-Signature-256,X-GitHub-Delivery",
 		ExposeHeaders: "X-Trace-ID",
 	}
 	if s.config.CorsOrigins != "*" && s.config.CorsOrigins != "" {
