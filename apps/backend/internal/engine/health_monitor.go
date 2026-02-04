@@ -11,6 +11,8 @@ import (
 
 const (
 	defaultMonitorInterval = 30 * time.Second
+	dbFetchRetries         = 3
+	dbFetchRetryDelay      = 2 * time.Second
 )
 
 type HealthMonitor struct {
@@ -77,9 +79,26 @@ func (m *HealthMonitor) run(ctx context.Context) {
 }
 
 func (m *HealthMonitor) checkAllApps(ctx context.Context) {
-	apps, err := m.appRepo.FindAll()
+	var apps []domain.App
+	var err error
+	for attempt := 0; attempt < dbFetchRetries; attempt++ {
+		apps, err = m.appRepo.FindAll()
+		if err == nil {
+			break
+		}
+		if attempt < dbFetchRetries-1 {
+			m.logger.Warn("Retrying fetch apps after transient error", "attempt", attempt+1, "error", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-m.stopCh:
+				return
+			case <-time.After(dbFetchRetryDelay):
+			}
+		}
+	}
 	if err != nil {
-		m.logger.Error("Failed to fetch apps for health check", "error", err)
+		m.logger.Error("Failed to fetch apps for health check after retries", "error", err)
 		return
 	}
 

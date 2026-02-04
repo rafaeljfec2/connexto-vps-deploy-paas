@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	defaultStatsInterval = 3 * time.Second
+	defaultStatsInterval  = 3 * time.Second
+	statsFetchRetries     = 3
+	statsFetchRetryDelay  = 2 * time.Second
 )
 
 type StatsMonitor struct {
@@ -74,9 +76,26 @@ func (m *StatsMonitor) run(ctx context.Context) {
 }
 
 func (m *StatsMonitor) collectAllStats(ctx context.Context) {
-	apps, err := m.appRepo.FindAll()
+	var apps []domain.App
+	var err error
+	for attempt := 0; attempt < statsFetchRetries; attempt++ {
+		apps, err = m.appRepo.FindAll()
+		if err == nil {
+			break
+		}
+		if attempt < statsFetchRetries-1 {
+			m.logger.Warn("Retrying fetch apps for stats after transient error", "attempt", attempt+1, "error", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-m.stopCh:
+				return
+			case <-time.After(statsFetchRetryDelay):
+			}
+		}
+	}
 	if err != nil {
-		m.logger.Error("Failed to fetch apps for stats collection", "error", err)
+		m.logger.Error("Failed to fetch apps for stats collection after retries", "error", err)
 		return
 	}
 
