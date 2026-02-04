@@ -188,6 +188,7 @@ jobs:
           CLOUDFLARE_SERVER_IP: ${{ vars.CLOUDFLARE_SERVER_IP || '' }}
           API_DOMAIN: ${{ env.API_DOMAIN }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
+          TRAEFIK_API_URL: ${{ vars.TRAEFIK_API_URL || 'http://traefik:8081' }}
           GRPC_SERVER_ADDR: ${{ vars.GRPC_SERVER_ADDR || env.GRPC_SERVER_ADDR }}
           LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'contato@connexto.com.br' }}
 

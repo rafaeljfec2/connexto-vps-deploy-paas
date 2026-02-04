@@ -40,6 +40,11 @@ set grpc_server_addr [string trim $env(GRPC_SERVER_ADDR)]
 if {[string length $grpc_server_addr] == 0} {
   set grpc_server_addr "$api_domain:50051"
 }
+if {[info exists env(TRAEFIK_API_URL)]} {
+  set traefik_api_url [string trim $env(TRAEFIK_API_URL)]
+} else {
+  set traefik_api_url "http://traefik:8081"
+}
 
 puts "🚀 Starting deployment to $host:$port"
 puts "📦 Image: $registry/$image:latest"
@@ -158,6 +163,7 @@ append cmd " -e AGENT_BINARY_PATH=/app/agent"
 append cmd " -e GRPC_PORT=50051"
 append cmd " -e AGENT_GRPC_PORT=50052"
 append cmd " -e 'GRPC_SERVER_ADDR=$grpc_server_addr'"
+append cmd " -e 'TRAEFIK_API_URL=$traefik_api_url'"
 
 if {[string length $cloudflare_server_ip] > 0} {
   append cmd " -e 'CLOUDFLARE_SERVER_IP=$cloudflare_server_ip'"
