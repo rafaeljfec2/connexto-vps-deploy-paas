@@ -261,13 +261,13 @@ func (h *ServerHandler) GetStats(c *fiber.Ctx) error {
 	sysInfo, err := h.agentClient.GetSystemInfo(ctx, server.Host, h.agentPort)
 	if err != nil {
 		h.logger.Warn("get system info failed", "serverId", id, "error", err)
-		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent unreachable: "+err.Error())
+		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent unreachable; check if the agent is running and port 50052 is reachable")
 	}
 
 	sysMetrics, err := h.agentClient.GetSystemMetrics(ctx, server.Host, h.agentPort)
 	if err != nil {
 		h.logger.Warn("get system metrics failed", "serverId", id, "error", err)
-		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent unreachable: "+err.Error())
+		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent unreachable; check if the agent is running and port 50052 is reachable")
 	}
 
 	return response.OK(c, fiber.Map{
