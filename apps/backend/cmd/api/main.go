@@ -164,6 +164,10 @@ func registerHandlers(app *di.Application) {
 	if app.AuditHandler != nil {
 		app.AuditHandler.Register(app.Server.App().Group(handler.APIPrefix))
 	}
+
+	if app.AgentDownloadHandler != nil {
+		app.Server.App().Get("/paas-deploy/v1/agent/binary", app.AgentDownloadHandler.ServeBinary)
+	}
 }
 
 func registerProtectedRoutes(app *di.Application) {

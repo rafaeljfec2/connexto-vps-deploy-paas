@@ -48,6 +48,7 @@ type ServerConfig struct {
 	Port        int
 	LogLevel    string
 	CorsOrigins string
+	ApiBaseURL  string
 }
 
 type DatabaseConfig struct {
@@ -114,6 +115,7 @@ func Load() *Config {
 			Port:        getEnvInt("PORT", DefaultPort),
 			LogLevel:    getEnv("LOG_LEVEL", "info"),
 			CorsOrigins: getEnv("CORS_ORIGINS", "*"),
+			ApiBaseURL:  getEnv("API_BASE_URL", ""),
 		},
 		Database: DatabaseConfig{
 			URL: getEnv("DATABASE_URL", ""),

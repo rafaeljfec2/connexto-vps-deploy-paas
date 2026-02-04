@@ -7,6 +7,7 @@
 package di
 
 import (
+	"github.com/paasdeploy/backend/internal/agentdownload"
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/handler"
 	"github.com/paasdeploy/backend/internal/repository"
@@ -45,7 +46,8 @@ func InitializeApplication() (*Application, func(), error) {
 		return nil, nil, err
 	}
 	postgresServerRepository := repository.NewPostgresServerRepository(db)
-	grpcserverServer := ProvideGrpcServer(config, certificateAuthority, postgresServerRepository, logger)
+	tokenStore := agentdownload.NewTokenStore()
+	grpcserverServer := ProvideGrpcServer(config, certificateAuthority, postgresServerRepository, tokenStore, logger)
 	healthHandler := ProvideHealthHandler()
 	postgresDeploymentRepository := repository.NewPostgresDeploymentRepository(db)
 	manager := ProvideWebhookManager(config, logger)
@@ -83,8 +85,9 @@ func InitializeApplication() (*Application, func(), error) {
 	sshProvisioner := ProvideSSHProvisioner(certificateAuthority, config, logger)
 	healthChecker := ProvideAgentHealthChecker(certificateAuthority, config)
 	agentClient := ProvideAgentClient(certificateAuthority, config)
-	serverHandlerAgentDeps := ProvideServerHandlerAgentDeps(healthChecker, agentClient, config)
+	serverHandlerAgentDeps := ProvideServerHandlerAgentDeps(healthChecker, agentClient, config, grpcserverServer)
 	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, serverHandlerAgentDeps, logger)
+	agentdownloadHandler := ProvideAgentDownloadHandler(tokenStore, config, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -116,6 +119,7 @@ func InitializeApplication() (*Application, func(), error) {
 		NotificationService:    notificationService,
 		NotificationHandler:    notificationHandler,
 		ServerHandler:          serverHandler,
+		AgentDownloadHandler:   agentdownloadHandler,
 	}
 	return application, func() {
 		cleanup()

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -23,17 +24,25 @@ import (
 type Server struct {
 	pb.UnimplementedAgentServiceServer
 
-	grpcServer *grpc.Server
-	ca         *pki.CertificateAuthority
-	serverRepo domain.ServerRepository
-	hub        *AgentHub
-	logger     *slog.Logger
+	grpcServer        *grpc.Server
+	ca                *pki.CertificateAuthority
+	serverRepo        domain.ServerRepository
+	hub               *AgentHub
+	cmdQueue          *AgentCommandQueue
+	agentTokenStore   AgentTokenStore
+	agentDownloadURL  string
+	logger            *slog.Logger
+}
+
+type AgentTokenStore interface {
+	Create() (string, error)
 }
 
 func NewServer(
 	cfg *config.Config,
 	ca *pki.CertificateAuthority,
 	serverRepo domain.ServerRepository,
+	agentTokenStore AgentTokenStore,
 	logger *slog.Logger,
 ) (*Server, error) {
 	serverCert, err := ca.GenerateServerCert(cfg.Server.Host)
@@ -63,11 +72,14 @@ func NewServer(
 	)
 
 	s := &Server{
-		grpcServer: grpcServer,
-		ca:         ca,
-		serverRepo: serverRepo,
-		hub:        NewAgentHub(),
-		logger:     logger.With("component", "grpc"),
+		grpcServer:       grpcServer,
+		ca:               ca,
+		serverRepo:       serverRepo,
+		hub:              NewAgentHub(),
+		cmdQueue:         NewAgentCommandQueue(),
+		agentTokenStore:  agentTokenStore,
+		agentDownloadURL: buildAgentDownloadURL(cfg),
+		logger:           logger.With("component", "grpc"),
 	}
 
 	pb.RegisterAgentServiceServer(grpcServer, s)
@@ -86,6 +98,26 @@ func (s *Server) Start(address string) error {
 
 func (s *Server) Stop() {
 	s.grpcServer.GracefulStop()
+}
+
+func buildAgentDownloadURL(cfg *config.Config) string {
+	if cfg.Server.ApiBaseURL == "" || cfg.GRPC.AgentBinaryPath == "" {
+		return ""
+	}
+	return strings.TrimSuffix(cfg.Server.ApiBaseURL, "/") + "/paas-deploy/v1/agent/binary"
+}
+
+func (s *Server) EnqueueUpdateAgent(serverID string) {
+	payload := ""
+	if s.agentDownloadURL != "" && s.agentTokenStore != nil {
+		if token, err := s.agentTokenStore.Create(); err == nil {
+			payload = s.agentDownloadURL + "?token=" + token
+		}
+	}
+	s.cmdQueue.Enqueue(serverID, &pb.AgentCommand{
+		Type:    pb.AgentCommandType_AGENT_COMMAND_UPDATE_AGENT,
+		Payload: payload,
+	})
 }
 
 func authInterceptor(

@@ -49,6 +49,10 @@ func Created(c *fiber.Ctx, data interface{}) error {
 	return send(c, fiber.StatusCreated, data, nil)
 }
 
+func Accepted(c *fiber.Ctx, data interface{}) error {
+	return send(c, fiber.StatusAccepted, data, nil)
+}
+
 func NoContent(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }

@@ -43,7 +43,9 @@ func (s *Server) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.H
 	}
 	s.hub.Update(serverID)
 
+	commands := s.cmdQueue.GetAndClear(serverID)
 	return &pb.HeartbeatResponse{
 		Acknowledged: true,
+		Commands:     commands,
 	}, nil
 }

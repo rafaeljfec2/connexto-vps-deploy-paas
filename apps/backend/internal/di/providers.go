@@ -14,6 +14,7 @@ import (
 	"github.com/lmittmann/tint"
 
 	"github.com/paasdeploy/backend/internal/agentclient"
+	"github.com/paasdeploy/backend/internal/agentdownload"
 	"github.com/paasdeploy/backend/internal/config"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
@@ -127,10 +128,16 @@ var ServerSet = wire.NewSet(
 	server.New,
 )
 
+var AgentDownloadSet = wire.NewSet(
+	agentdownload.NewTokenStore,
+	ProvideAgentDownloadHandler,
+)
+
 var ProvisionerSet = wire.NewSet(
 	ProvidePKI,
 	ProvideSSHProvisioner,
 	ProvideGrpcServer,
+	AgentDownloadSet,
 )
 
 var AppSet = wire.NewSet(
@@ -316,6 +323,7 @@ type Application struct {
 	NotificationService    *service.NotificationService
 	NotificationHandler    *handler.NotificationHandler
 	ServerHandler          *handler.ServerHandler
+	AgentDownloadHandler   *agentdownload.Handler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -594,13 +602,22 @@ func ProvideSSHProvisioner(
 	})
 }
 
+func ProvideAgentDownloadHandler(
+	store *agentdownload.TokenStore,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *agentdownload.Handler {
+	return agentdownload.NewHandler(store, cfg.GRPC.AgentBinaryPath, logger)
+}
+
 func ProvideGrpcServer(
 	cfg *config.Config,
 	ca *pki.CertificateAuthority,
 	serverRepo domain.ServerRepository,
+	agentTokenStore *agentdownload.TokenStore,
 	logger *slog.Logger,
 ) *grpcserver.Server {
-	server, err := grpcserver.NewServer(cfg, ca, serverRepo, logger)
+	server, err := grpcserver.NewServer(cfg, ca, serverRepo, agentTokenStore, logger)
 	if err != nil {
 		logger.Error("failed to create gRPC server", "error", err)
 		return nil
@@ -612,11 +629,13 @@ func ProvideServerHandlerAgentDeps(
 	healthChecker *agentclient.HealthChecker,
 	agentClient *agentclient.AgentClient,
 	cfg *config.Config,
+	grpcServer *grpcserver.Server,
 ) handler.ServerHandlerAgentDeps {
 	return handler.ServerHandlerAgentDeps{
-		HealthChecker: healthChecker,
-		AgentClient:   agentClient,
-		AgentPort:     cfg.GRPC.AgentPort,
+		HealthChecker:       healthChecker,
+		AgentClient:         agentClient,
+		AgentPort:           cfg.GRPC.AgentPort,
+		UpdateAgentEnqueuer: grpcServer,
 	}
 }
 

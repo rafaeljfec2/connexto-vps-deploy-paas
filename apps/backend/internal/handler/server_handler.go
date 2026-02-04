@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/agentclient"
@@ -12,21 +13,29 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 )
 
+var agentStatsTimeout = 5 * time.Second
+
+type UpdateAgentEnqueuer interface {
+	EnqueueUpdateAgent(serverID string)
+}
+
 type ServerHandlerAgentDeps struct {
-	HealthChecker *agentclient.HealthChecker
-	AgentClient   *agentclient.AgentClient
-	AgentPort     int
+	HealthChecker        *agentclient.HealthChecker
+	AgentClient          *agentclient.AgentClient
+	AgentPort            int
+	UpdateAgentEnqueuer  UpdateAgentEnqueuer
 }
 
 type ServerHandler struct {
-	serverRepo     domain.ServerRepository
-	tokenEncryptor *crypto.TokenEncryptor
-	provisioner    *provisioner.SSHProvisioner
-	sseHandler     *SSEHandler
-	healthChecker  *agentclient.HealthChecker
-	agentClient    *agentclient.AgentClient
-	agentPort      int
-	logger         *slog.Logger
+	serverRepo          domain.ServerRepository
+	tokenEncryptor       *crypto.TokenEncryptor
+	provisioner          *provisioner.SSHProvisioner
+	sseHandler           *SSEHandler
+	healthChecker        *agentclient.HealthChecker
+	agentClient          *agentclient.AgentClient
+	agentPort            int
+	updateAgentEnqueuer  UpdateAgentEnqueuer
+	logger               *slog.Logger
 }
 
 func NewServerHandler(
@@ -38,14 +47,15 @@ func NewServerHandler(
 	logger *slog.Logger,
 ) *ServerHandler {
 	return &ServerHandler{
-		serverRepo:     serverRepo,
-		tokenEncryptor: tokenEncryptor,
-		provisioner:    prov,
-		sseHandler:     sseHandler,
-		healthChecker:  agentDeps.HealthChecker,
-		agentClient:    agentDeps.AgentClient,
-		agentPort:      agentDeps.AgentPort,
-		logger:         logger.With("handler", "server"),
+		serverRepo:         serverRepo,
+		tokenEncryptor:     tokenEncryptor,
+		provisioner:        prov,
+		sseHandler:         sseHandler,
+		healthChecker:      agentDeps.HealthChecker,
+		agentClient:        agentDeps.AgentClient,
+		agentPort:          agentDeps.AgentPort,
+		updateAgentEnqueuer: agentDeps.UpdateAgentEnqueuer,
+		logger:             logger.With("handler", "server"),
 	}
 }
 
@@ -59,6 +69,7 @@ func (h *ServerHandler) Register(app fiber.Router) {
 	servers.Put("/:id", h.Update)
 	servers.Delete("/:id", h.Delete)
 	servers.Post("/:id/provision", h.Provision)
+	servers.Post("/:id/update-agent", h.UpdateAgent)
 	servers.Get("/:id/health", h.HealthCheck)
 }
 
@@ -244,7 +255,9 @@ func (h *ServerHandler) GetStats(c *fiber.Ctx) error {
 		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent stats not available")
 	}
 
-	ctx := c.Context()
+	ctx, cancel := context.WithTimeout(c.Context(), agentStatsTimeout)
+	defer cancel()
+
 	sysInfo, err := h.agentClient.GetSystemInfo(ctx, server.Host, h.agentPort)
 	if err != nil {
 		h.logger.Warn("get system info failed", "serverId", id, "error", err)
@@ -410,6 +423,28 @@ func (h *ServerHandler) HealthCheck(c *fiber.Ctx) error {
 	return response.OK(c, ServerHealthResponse{
 		Status:    "ok",
 		LatencyMs: latency.Milliseconds(),
+	})
+}
+
+func (h *ServerHandler) UpdateAgent(c *fiber.Ctx) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
+	id := c.Params("id")
+	_, err := h.serverRepo.FindByID(id)
+	if err != nil {
+		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
+	}
+
+	if h.updateAgentEnqueuer == nil {
+		return response.ServerError(c, fiber.StatusServiceUnavailable, "update agent not available")
+	}
+
+	h.updateAgentEnqueuer.EnqueueUpdateAgent(id)
+	return response.Accepted(c, fiber.Map{
+		"message": "update agent command enqueued; agent will receive it on next heartbeat",
 	})
 }
 
