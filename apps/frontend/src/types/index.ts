@@ -114,6 +114,7 @@ export interface WebhookStatus {
   readonly active: boolean;
   readonly lastPingAt: string | null;
   readonly error: string | null;
+  readonly configuredUrl?: string | null;
 }
 
 export type CertificateStatusType =

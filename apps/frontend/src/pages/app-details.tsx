@@ -727,6 +727,11 @@ function WebhookSection({
               <p className="text-sm text-muted-foreground">
                 Configure to enable auto-deploy on push
               </p>
+              {webhookStatus?.configuredUrl && (
+                <p className="text-xs text-muted-foreground font-mono mt-1 break-all">
+                  URL: {webhookStatus.configuredUrl}
+                </p>
+              )}
             </div>
           </>
         )}

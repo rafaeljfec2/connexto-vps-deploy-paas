@@ -115,6 +115,12 @@ func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 	signature := c.Get(HeaderGitHubSignature)
 	body := c.Body()
 
+	h.logger.Info("webhook POST received",
+		slog.String("event", event),
+		slog.String("delivery_id", deliveryID),
+		slog.String("remote_ip", c.IP()),
+	)
+
 	logger := h.logger.With(
 		slog.String("delivery_id", deliveryID),
 		slog.String("event", event),

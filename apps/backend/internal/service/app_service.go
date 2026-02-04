@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -449,12 +450,17 @@ func (s *AppService) GetWebhookStatus(ctx context.Context, appID string) (*webho
 	}
 
 	if app.WebhookID == nil {
-		return &webhook.Status{
-			Exists: false,
-		}, nil
+		st := &webhook.Status{Exists: false}
+		st.ConfiguredURL = s.webhookManager.WebhookURL()
+		return st, nil
 	}
 
-	return s.webhookManager.Status(ctx, app.RepositoryURL, *app.WebhookID)
+	st, err := s.webhookManager.Status(ctx, app.RepositoryURL, *app.WebhookID)
+	if err != nil {
+		return nil, err
+	}
+	st.ConfiguredURL = s.webhookManager.WebhookURL()
+	return st, nil
 }
 
 func mapWebhookSetupError(err error) error {
@@ -469,9 +475,31 @@ func mapWebhookSetupError(err error) error {
 		return fmt.Errorf("%w: insufficient permissions (ensure token has admin:repo_hook scope)", domain.ErrForbidden)
 	}
 	if strings.Contains(errStr, "422") || strings.Contains(strings.ToLower(errStr), "validation failed") {
-		return fmt.Errorf("%w: webhook validation failed - GIT_HUB_WEBHOOK_URL must be publicly reachable. Verify: curl -I <url> returns 200. Check firewall, SSL, Traefik routing", domain.ErrInvalidInput)
+		ghDetail := extractGitHubValidationError(errStr)
+		base := "webhook validation failed - GIT_HUB_WEBHOOK_URL must be publicly reachable. Verify: curl -I <url> returns 200. Check firewall, SSL, Traefik routing"
+		if ghDetail != "" {
+			return fmt.Errorf("%w: %s. GitHub: %s", domain.ErrInvalidInput, base, ghDetail)
+		}
+		return fmt.Errorf("%w: %s", domain.ErrInvalidInput, base)
 	}
 	return err
+}
+
+func extractGitHubValidationError(errStr string) string {
+	idx := strings.Index(errStr, "{")
+	if idx < 0 {
+		return ""
+	}
+	jsonPart := errStr[idx:]
+	var resp struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.Unmarshal([]byte(jsonPart), &resp); err != nil || len(resp.Errors) == 0 {
+		return ""
+	}
+	return resp.Errors[0].Message
 }
 
 func (s *AppService) ListCommits(ctx context.Context, appID string, limit int) ([]ghclient.CommitInfo, error) {

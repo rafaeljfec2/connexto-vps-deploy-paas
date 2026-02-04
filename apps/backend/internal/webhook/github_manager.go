@@ -104,6 +104,10 @@ func (m *GitHubManager) Status(ctx context.Context, repoURL string, webhookID in
 	}, nil
 }
 
+func (m *GitHubManager) WebhookURL() string {
+	return m.webhookURL
+}
+
 func (m *GitHubManager) ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]ghclient.CommitInfo, error) {
 	owner, repo, err := parseGitHubURL(repoURL)
 	if err != nil {

@@ -32,3 +32,7 @@ func (m *NoOpManager) Status(ctx context.Context, repoURL string, webhookID int6
 func (m *NoOpManager) ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]ghclient.CommitInfo, error) {
 	return nil, nil
 }
+
+func (m *NoOpManager) WebhookURL() string {
+	return ""
+}

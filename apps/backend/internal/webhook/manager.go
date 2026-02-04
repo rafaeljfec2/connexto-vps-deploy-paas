@@ -26,10 +26,11 @@ type RemoveInput struct {
 }
 
 type Status struct {
-	Exists     bool
-	Active     bool
-	LastPingAt *time.Time
-	Error      string
+	Exists        bool       `json:"exists"`
+	Active        bool       `json:"active"`
+	LastPingAt    *time.Time `json:"lastPingAt,omitempty"`
+	Error         string     `json:"error,omitempty"`
+	ConfiguredURL string     `json:"configuredUrl,omitempty"`
 }
 
 type Manager interface {
@@ -37,4 +38,5 @@ type Manager interface {
 	Remove(ctx context.Context, input RemoveInput) error
 	Status(ctx context.Context, repoURL string, webhookID int64) (*Status, error)
 	ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]ghclient.CommitInfo, error)
+	WebhookURL() string
 }
