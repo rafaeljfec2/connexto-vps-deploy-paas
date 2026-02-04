@@ -8,9 +8,14 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/response"
 )
+
+type WebhookPayloadStore interface {
+	SavePayload(ctx context.Context, deliveryID, eventType, provider string, payload []byte, outcome string, errMsg *string) error
+}
 
 const (
 	HeaderGitHubEvent     = "X-GitHub-Event"
@@ -40,6 +45,7 @@ type WebhookHandler struct {
 	appFinder         AppFinder
 	deploymentCreator DeploymentCreator
 	deployAudit       DeployAuditLogger
+	payloadStore      WebhookPayloadStore
 	webhookSecret     string
 	logger            *slog.Logger
 }
@@ -48,6 +54,7 @@ func NewWebhookHandler(
 	appFinder AppFinder,
 	deploymentCreator DeploymentCreator,
 	deployAudit DeployAuditLogger,
+	payloadStore WebhookPayloadStore,
 	webhookSecret string,
 	logger *slog.Logger,
 ) *WebhookHandler {
@@ -55,6 +62,7 @@ func NewWebhookHandler(
 		appFinder:         appFinder,
 		deploymentCreator: deploymentCreator,
 		deployAudit:       deployAudit,
+		payloadStore:      payloadStore,
 		webhookSecret:     webhookSecret,
 		logger:            logger,
 	}
@@ -63,7 +71,15 @@ func NewWebhookHandler(
 func (h *WebhookHandler) Register(app *fiber.App) {
 	v1 := app.Group("/paas-deploy/v1")
 	webhooks := v1.Group("/webhooks")
+	webhooks.Get("/github", h.HandleWebhookHealth)
 	webhooks.Post("/github", h.HandleWebhook)
+}
+
+func (h *WebhookHandler) HandleWebhookHealth(c *fiber.Ctx) error {
+	return c.JSON(fiber.Map{
+		"ok":      true,
+		"message": "webhook endpoint ready - POST with X-GitHub-Event for ping/push",
+	})
 }
 
 // HandleWebhook godoc
@@ -86,6 +102,7 @@ func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 	deliveryID := c.Get(HeaderGitHubDelivery)
 	event := c.Get(HeaderGitHubEvent)
 	signature := c.Get(HeaderGitHubSignature)
+	body := c.Body()
 
 	logger := h.logger.With(
 		slog.String("delivery_id", deliveryID),
@@ -94,39 +111,60 @@ func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 
 	if event == EventPing {
 		logger.Info("received ping event")
+		h.savePayload(c.Context(), deliveryID, event, body, "pong", nil)
 		return response.OK(c, map[string]string{"message": "pong"})
 	}
 
 	if event != EventPush {
 		logger.Info("ignoring unsupported event")
+		h.savePayload(c.Context(), deliveryID, event, body, "ignored", nil)
 		return response.OK(c, map[string]string{"message": "event ignored"})
 	}
 
-	body := c.Body()
+	h.savePayload(c.Context(), deliveryID, event, body, "received", nil)
 
 	if !ValidateSignature(body, signature, h.webhookSecret) {
 		logger.Warn("invalid webhook signature")
+		errMsg := "invalid signature"
+		h.savePayload(c.Context(), deliveryID, event, body, "invalid_signature", &errMsg)
 		return response.Unauthorized(c, "invalid signature")
 	}
 
 	var pushEvent PushEvent
 	if err := json.Unmarshal(body, &pushEvent); err != nil {
 		logger.Error("failed to parse push event", slog.String("error", err.Error()))
+		errStr := err.Error()
+		h.savePayload(c.Context(), deliveryID, event, body, "parse_error", &errStr)
 		return response.BadRequest(c, "invalid payload")
 	}
 
-	return h.handlePushEvent(c, logger, &pushEvent)
+	return h.handlePushEvent(c, logger, &pushEvent, deliveryID, event, body)
 }
 
-func (h *WebhookHandler) handlePushEvent(c *fiber.Ctx, logger *slog.Logger, event *PushEvent) error {
+func (h *WebhookHandler) savePayload(ctx context.Context, deliveryID, eventType string, payload []byte, outcome string, errMsg *string) {
+	if h.payloadStore == nil {
+		return
+	}
+	if deliveryID == "" {
+		deliveryID = "unknown-" + uuid.New().String()
+	}
+	if err := h.payloadStore.SavePayload(ctx, deliveryID, eventType, "github", payload, outcome, errMsg); err != nil {
+		h.logger.Warn("failed to save webhook payload", "delivery_id", deliveryID, "error", err)
+	}
+}
+
+func (h *WebhookHandler) handlePushEvent(c *fiber.Ctx, logger *slog.Logger, event *PushEvent, deliveryID, eventType string, body []byte) error {
 	if event.Repository == nil {
 		logger.Warn("push event missing repository data")
+		outcome := "missing_repository"
+		h.savePayload(c.Context(), deliveryID, eventType, body, outcome, nil)
 		return response.OK(c, map[string]string{"message": "missing repository"})
 	}
 
 	branch := extractBranch(event.Ref)
 	if branch == "" {
 		logger.Info("ignoring non-branch push", slog.String("ref", event.Ref))
+		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("non-branch push"))
 		return response.OK(c, map[string]string{"message": "non-branch push ignored"})
 	}
 
@@ -138,32 +176,40 @@ func (h *WebhookHandler) handlePushEvent(c *fiber.Ctx, logger *slog.Logger, even
 
 	if event.Deleted {
 		logger.Info("ignoring branch deletion event")
+		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("branch deleted"))
 		return response.OK(c, map[string]string{"message": "branch deletion ignored"})
 	}
 
 	app, err := h.findAppByRepository(event.Repository, logger)
 	if err != nil {
+		errStr := err.Error()
+		h.savePayload(c.Context(), deliveryID, eventType, body, "error", &errStr)
 		return response.InternalError(c)
 	}
 
 	if app == nil {
 		logger.Info("no app registered for repository")
+		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("repository not registered"))
 		return response.OK(c, map[string]string{"message": "repository not registered"})
 	}
 
 	if app.Branch != branch {
 		logger.Info("push to non-tracked branch", slog.String("app_branch", app.Branch))
+		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("branch not tracked"))
 		return response.OK(c, map[string]string{"message": "branch not tracked"})
 	}
 
 	if hasPending, err := h.hasPendingDeployment(app.ID, logger); err != nil {
+		errStr := err.Error()
+		h.savePayload(c.Context(), deliveryID, eventType, body, "error", &errStr)
 		return response.InternalError(c)
 	} else if hasPending {
 		logger.Info("deployment already pending for app", slog.String("app_id", app.ID))
+		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("deployment pending"))
 		return response.OK(c, map[string]string{"message": "deployment already pending"})
 	}
 
-	return h.createDeployment(c, logger, app, event)
+	return h.createDeployment(c, logger, app, event, deliveryID, eventType, body)
 }
 
 func (h *WebhookHandler) findAppByRepository(repo *Repository, logger *slog.Logger) (*domain.App, error) {
@@ -195,7 +241,11 @@ func (h *WebhookHandler) hasPendingDeployment(appID string, logger *slog.Logger)
 	return pending != nil, nil
 }
 
-func (h *WebhookHandler) createDeployment(c *fiber.Ctx, logger *slog.Logger, app *domain.App, event *PushEvent) error {
+func strPtr(s string) *string {
+	return &s
+}
+
+func (h *WebhookHandler) createDeployment(c *fiber.Ctx, logger *slog.Logger, app *domain.App, event *PushEvent, deliveryID, eventType string, body []byte) error {
 	commitMessage := getCommitMessage(event)
 
 	input := domain.CreateDeploymentInput{
@@ -207,8 +257,12 @@ func (h *WebhookHandler) createDeployment(c *fiber.Ctx, logger *slog.Logger, app
 	deployment, err := h.deploymentCreator.Create(input)
 	if err != nil {
 		logger.Error("failed to create deployment", slog.String("error", err.Error()))
+		errStr := err.Error()
+		h.savePayload(c.Context(), deliveryID, eventType, body, "error", &errStr)
 		return response.InternalError(c)
 	}
+
+	h.savePayload(c.Context(), deliveryID, eventType, body, "deployment_queued", nil)
 
 	if h.deployAudit != nil {
 		h.deployAudit.LogDeployStarted(context.Background(), deployment.ID, app.ID, app.Name, event.After)

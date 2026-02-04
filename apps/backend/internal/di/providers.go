@@ -69,6 +69,8 @@ var RepositorySet = wire.NewSet(
 	wire.Bind(new(domain.NotificationRuleRepository), new(*repository.PostgresNotificationRuleRepository)),
 	repository.NewPostgresServerRepository,
 	wire.Bind(new(domain.ServerRepository), new(*repository.PostgresServerRepository)),
+	repository.NewPostgresWebhookPayloadRepository,
+	wire.Bind(new(ghclient.WebhookPayloadStore), new(*repository.PostgresWebhookPayloadRepository)),
 )
 
 var AuthSet = wire.NewSet(
@@ -228,6 +230,7 @@ func ProvideGitHubWebhookHandler(
 	cfg *config.Config,
 	appRepo *repository.PostgresAppRepository,
 	deploymentRepo *repository.PostgresDeploymentRepository,
+	payloadStore ghclient.WebhookPayloadStore,
 	auditService *service.AuditService,
 	logger *slog.Logger,
 ) *ghclient.WebhookHandler {
@@ -236,6 +239,7 @@ func ProvideGitHubWebhookHandler(
 		appRepo,
 		deploymentRepo,
 		adapter,
+		payloadStore,
 		cfg.GitHub.WebhookSecret,
 		logger,
 	)
