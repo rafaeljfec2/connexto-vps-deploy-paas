@@ -32,6 +32,9 @@ export function DeployTimeline({ appId, onSelectDeploy }: DeployTimelineProps) {
     );
   }
 
+  const currentDeployId =
+    deployments.find((d) => d.status === "success")?.id ?? null;
+
   return (
     <ScrollArea className="h-[450px] w-full">
       <div className="space-y-3 pr-3 max-w-full">
@@ -39,6 +42,7 @@ export function DeployTimeline({ appId, onSelectDeploy }: DeployTimelineProps) {
           <DeployCard
             key={deployment.id}
             deployment={deployment}
+            isCurrent={deployment.id === currentDeployId}
             onClick={
               onSelectDeploy ? () => onSelectDeploy(deployment.id) : undefined
             }

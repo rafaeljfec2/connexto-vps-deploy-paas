@@ -1,4 +1,5 @@
 import { Clock, GitCommit } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorMessage } from "@/components/error-message";
 import { IconText } from "@/components/icon-text";
@@ -8,10 +9,15 @@ import type { Deployment } from "@/types";
 
 interface DeployCardProps {
   readonly deployment: Deployment;
+  readonly isCurrent?: boolean;
   readonly onClick?: () => void;
 }
 
-export function DeployCard({ deployment, onClick }: DeployCardProps) {
+export function DeployCard({
+  deployment,
+  isCurrent = false,
+  onClick,
+}: Readonly<DeployCardProps>) {
   return (
     <Card
       className={
@@ -22,12 +28,17 @@ export function DeployCard({ deployment, onClick }: DeployCardProps) {
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1 min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <GitCommit className="h-4 w-4 text-muted-foreground shrink-0" />
               <code className="text-sm font-mono">
                 {truncateCommitSha(deployment.commitSha)}
               </code>
               <StatusBadge status={deployment.status} />
+              {isCurrent && (
+                <Badge variant="secondary" className="text-xs">
+                  Current
+                </Badge>
+              )}
             </div>
 
             {deployment.commitMessage && (
