@@ -8,6 +8,16 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 )
 
+func isKnownDomainError(err error) bool {
+	return errors.Is(err, domain.ErrNotFound) ||
+		errors.Is(err, domain.ErrAlreadyExists) ||
+		errors.Is(err, domain.ErrInvalidInput) ||
+		errors.Is(err, domain.ErrDeployInProgress) ||
+		errors.Is(err, domain.ErrNoDeployAvailable) ||
+		errors.Is(err, domain.ErrWebhookNotConfigured) ||
+		errors.Is(err, domain.ErrForbidden)
+}
+
 func HandleDomainError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
@@ -22,6 +32,8 @@ func HandleDomainError(c *fiber.Ctx, err error) error {
 		return response.NotFound(c, err.Error())
 	case errors.Is(err, domain.ErrWebhookNotConfigured):
 		return response.BadRequest(c, err.Error())
+	case errors.Is(err, domain.ErrForbidden):
+		return response.Forbidden(c, err.Error())
 	default:
 		return response.InternalError(c)
 	}

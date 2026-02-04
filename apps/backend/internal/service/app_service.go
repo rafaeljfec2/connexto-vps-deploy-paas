@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -386,7 +387,7 @@ func (s *AppService) SetupWebhook(ctx context.Context, appID string) (*webhook.S
 		RepositoryURL: app.RepositoryURL,
 	})
 	if err != nil {
-		return nil, err
+		return nil, mapWebhookSetupError(err)
 	}
 
 	if result != nil {
@@ -454,6 +455,23 @@ func (s *AppService) GetWebhookStatus(ctx context.Context, appID string) (*webho
 	}
 
 	return s.webhookManager.Status(ctx, app.RepositoryURL, *app.WebhookID)
+}
+
+func mapWebhookSetupError(err error) error {
+	if err == nil {
+		return nil
+	}
+	errStr := err.Error()
+	if strings.Contains(errStr, "404") || strings.Contains(strings.ToLower(errStr), "not found") {
+		return fmt.Errorf("%w: repository not found or not accessible", domain.ErrNotFound)
+	}
+	if strings.Contains(errStr, "403") || strings.Contains(strings.ToLower(errStr), "forbidden") {
+		return fmt.Errorf("%w: insufficient permissions (ensure token has admin:repo_hook scope)", domain.ErrForbidden)
+	}
+	if strings.Contains(errStr, "422") || strings.Contains(strings.ToLower(errStr), "validation failed") {
+		return fmt.Errorf("%w: webhook validation failed (check GIT_HUB_WEBHOOK_URL is publicly reachable)", domain.ErrInvalidInput)
+	}
+	return err
 }
 
 func (s *AppService) ListCommits(ctx context.Context, appID string, limit int) ([]ghclient.CommitInfo, error) {

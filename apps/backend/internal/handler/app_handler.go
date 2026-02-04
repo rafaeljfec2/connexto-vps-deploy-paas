@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"log/slog"
+
 	"github.com/gofiber/fiber/v2"
 	_ "github.com/paasdeploy/backend/internal/docs"
 	"github.com/paasdeploy/backend/internal/domain"
@@ -11,16 +13,22 @@ import (
 type AppHandler struct {
 	appService   *service.AppService
 	auditService *service.AuditService
+	logger       *slog.Logger
 }
 
 type RedeployInput struct {
 	CommitSHA string `json:"commitSha,omitempty" example:"abc123def"`
 }
 
-func NewAppHandler(appService *service.AppService, auditService *service.AuditService) *AppHandler {
+func NewAppHandler(
+	appService *service.AppService,
+	auditService *service.AuditService,
+	logger *slog.Logger,
+) *AppHandler {
 	return &AppHandler{
 		appService:   appService,
 		auditService: auditService,
+		logger:       logger,
 	}
 }
 
@@ -326,5 +334,18 @@ func (h *AppHandler) ListCommits(c *fiber.Ctx) error {
 }
 
 func (h *AppHandler) handleError(c *fiber.Ctx, err error) error {
+	if !isKnownDomainError(err) && h.logger != nil {
+		var traceID string
+		if tid := c.Locals("traceId"); tid != nil {
+			if id, ok := tid.(string); ok {
+				traceID = id
+			}
+		}
+		h.logger.Error("unexpected error in app handler",
+			"error", err,
+			"traceId", traceID,
+			"path", c.Path(),
+		)
+	}
 	return HandleDomainError(c, err)
 }

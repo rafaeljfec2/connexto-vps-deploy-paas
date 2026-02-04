@@ -14,10 +14,6 @@ import (
 	"github.com/paasdeploy/backend/internal/server"
 )
 
-import (
-	_ "github.com/jackc/pgx/v5/stdlib"
-)
-
 // Injectors from wire.go:
 
 func InitializeApplication() (*Application, func(), error) {
@@ -54,7 +50,7 @@ func InitializeApplication() (*Application, func(), error) {
 	manager := ProvideWebhookManager(config, logger)
 	appCleaner := ProvideAppCleaner(config, logger)
 	appService := ProvideAppService(postgresAppRepository, postgresDeploymentRepository, postgresEnvVarRepository, manager, appCleaner, logger)
-	appHandler := handler.NewAppHandler(appService, auditService)
+	appHandler := handler.NewAppHandler(appService, auditService, logger)
 	sseHandler := handler.NewSSEHandler()
 	swaggerHandler := handler.NewSwaggerHandler()
 	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository)
