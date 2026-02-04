@@ -73,9 +73,12 @@ export function ContainerConsoleDialog({
         const fitAddon = new FitAddon();
         terminal.loadAddon(fitAddon);
         terminal.open(terminalRef.current);
-        fitAddon.fit();
-
         termRef.current = { terminal, fit: fitAddon };
+
+        requestAnimationFrame(() => {
+          fitAddon.fit();
+          setTimeout(() => fitAddon.fit(), 100);
+        });
 
         const wsUrl = api.containers.consoleUrl(containerId);
         const ws = new WebSocket(wsUrl);

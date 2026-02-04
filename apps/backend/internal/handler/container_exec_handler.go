@@ -67,6 +67,9 @@ func (h *ContainerExecHandler) handleConsole(c *websocket.Conn) {
 		return
 	}
 
+	welcome := []byte("\r\n# FlowDeploy Console (type commands and press Enter)\r\n$ ")
+	_ = c.WriteMessage(websocket.TextMessage, welcome)
+
 	var wg sync.WaitGroup
 	done := make(chan struct{})
 
