@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ErrorMessage } from "@/components/error-message";
 import { IconText } from "@/components/icon-text";
 import { StatusBadge } from "@/components/status-badge";
-import { formatDate, truncateCommitSha } from "@/lib/utils";
+import { formatDate, formatDuration, truncateCommitSha } from "@/lib/utils";
 import type { Deployment } from "@/types";
 
 interface DeployCardProps {
@@ -51,13 +51,13 @@ export function DeployCard({
               <span>{formatDate(deployment.createdAt)}</span>
               {deployment.startedAt && deployment.finishedAt && (
                 <span>
+                  {" "}
                   (
-                  {Math.round(
-                    (new Date(deployment.finishedAt).getTime() -
-                      new Date(deployment.startedAt).getTime()) /
-                      1000,
+                  {formatDuration(
+                    new Date(deployment.finishedAt).getTime() -
+                      new Date(deployment.startedAt).getTime(),
                   )}
-                  s)
+                  )
                 </span>
               )}
             </IconText>
