@@ -10,7 +10,8 @@ import (
 	"time"
 
 	"github.com/google/wire"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/lmittmann/tint"
 
 	"github.com/paasdeploy/backend/internal/agentclient"
@@ -271,16 +272,18 @@ func ProvideLogger(cfg *config.Config) *slog.Logger {
 }
 
 func ProvideDatabase(cfg *config.Config) (*sql.DB, func(), error) {
-	db, err := sql.Open("postgres", cfg.Database.URL)
+	connConfig, err := pgx.ParseConfig(cfg.Database.URL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse database URL: %w", err)
 	}
+	connConfig.ConnectTimeout = 10 * time.Second
 
+	db := stdlib.OpenDB(*connConfig)
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
 	db.SetConnMaxLifetime(5 * time.Minute)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {

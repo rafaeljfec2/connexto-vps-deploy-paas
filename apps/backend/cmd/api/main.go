@@ -19,6 +19,10 @@ import (
 func main() {
 	_ = godotenv.Load()
 
+	if err := runMigrationsFirst(); err != nil {
+		panic(err)
+	}
+
 	app, cleanup, err := di.InitializeApplication()
 	if err != nil {
 		panic(err)
@@ -26,8 +30,6 @@ func main() {
 	defer cleanup()
 
 	app.Logger.Info("Starting FlowDeploy API", "version", di.Version)
-
-	runMigrations(app)
 	go handleEngineEvents(app)
 	startEngine(app)
 	startGrpcServer(app)
@@ -37,12 +39,23 @@ func main() {
 	waitForShutdown(app)
 }
 
-func runMigrations(app *di.Application) {
-	migrationsPath := getMigrationsPath()
-	if err := database.RunMigrations(app.DB, migrationsPath, app.Logger); err != nil {
-		app.Logger.Error("Failed to run migrations", "error", err)
-		os.Exit(1)
+func runMigrationsFirst() error {
+	cfg, err := di.ProvideConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
 	}
+	logger := di.ProvideLogger(cfg)
+	db, cleanup, err := di.ProvideDatabase(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer cleanup()
+
+	migrationsPath := getMigrationsPath()
+	if err := database.RunMigrations(db, migrationsPath, logger); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+	return nil
 }
 
 func handleEngineEvents(app *di.Application) {

@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
@@ -81,8 +81,8 @@ func (r *PostgresCustomDomainRepository) Create(ctx context.Context, input domai
 		input.RecordType,
 	))
 	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, domain.ErrAlreadyExists
 		}
 		return nil, err

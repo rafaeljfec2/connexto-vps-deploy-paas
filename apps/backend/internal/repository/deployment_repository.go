@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/lib/pq"
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
@@ -241,7 +240,7 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (
 		ORDER BY app_id, created_at DESC
 	`
 
-	rows, err := r.db.Query(query, pq.Array(appIDs))
+	rows, err := r.db.Query(query, appIDs)
 	if err != nil {
 		return nil, err
 	}
