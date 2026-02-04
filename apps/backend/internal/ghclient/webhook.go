@@ -122,7 +122,7 @@ func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 
 	if event == EventPing {
 		logger.Info("received ping event")
-		h.savePayload(c.Context(), deliveryID, event, body, "pong", nil)
+		h.savePayloadAsync(c.Context(), deliveryID, event, body, "pong", nil)
 		return response.OK(c, map[string]string{"message": "pong"})
 	}
 
@@ -162,6 +162,22 @@ func (h *WebhookHandler) savePayload(ctx context.Context, deliveryID, eventType 
 	if err := h.payloadStore.SavePayload(ctx, deliveryID, eventType, "github", payload, outcome, errMsg); err != nil {
 		h.logger.Warn("failed to save webhook payload", "delivery_id", deliveryID, "error", err)
 	}
+}
+
+func (h *WebhookHandler) savePayloadAsync(ctx context.Context, deliveryID, eventType string, payload []byte, outcome string, errMsg *string) {
+	if h.payloadStore == nil {
+		return
+	}
+	bodyCopy := make([]byte, len(payload))
+	copy(bodyCopy, payload)
+	var errMsgCopy *string
+	if errMsg != nil {
+		s := *errMsg
+		errMsgCopy = &s
+	}
+	go func() {
+		h.savePayload(context.Background(), deliveryID, eventType, bodyCopy, outcome, errMsgCopy)
+	}()
 }
 
 func (h *WebhookHandler) handlePushEvent(c *fiber.Ctx, logger *slog.Logger, event *PushEvent, deliveryID, eventType string, body []byte) error {
