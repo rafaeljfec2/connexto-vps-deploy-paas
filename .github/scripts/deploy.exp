@@ -100,6 +100,14 @@ send "echo 'traefik.http.routers.$container_name-http.middlewares=redirect-to-ht
 expect "$ "
 send "echo 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https' >> /tmp/labels.txt\r"
 expect "$ "
+send "echo 'traefik.tcp.routers.$container_name-grpc.rule=HostSNI(\`*\`)' >> /tmp/labels.txt\r"
+expect "$ "
+send "echo 'traefik.tcp.routers.$container_name-grpc.entrypoints=grpc' >> /tmp/labels.txt\r"
+expect "$ "
+send "echo 'traefik.tcp.routers.$container_name-grpc.tls.passthrough=true' >> /tmp/labels.txt\r"
+expect "$ "
+send "echo 'traefik.tcp.services.$container_name-grpc.loadbalancer.server.port=50051' >> /tmp/labels.txt\r"
+expect "$ "
 
 # Get docker group GID for socket access
 send "stat -c '%g' /var/run/docker.sock\r"

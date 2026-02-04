@@ -58,17 +58,12 @@ send "  level: INFO\r"
 send "TRAEFIK_CONFIG\r"
 expect "$ "
 
-send "docker ps --filter name=traefik --format '{{.Names}}' | grep -q traefik && echo 'TRAEFIK_RUNNING' || echo 'TRAEFIK_NOT_RUNNING'\r"
-expect {
-  "TRAEFIK_RUNNING" {
-    puts "✅ Traefik is already running"
-  }
-  "TRAEFIK_NOT_RUNNING" {
-    puts "🚀 Starting Traefik..."
-    expect "$ "
-    send "docker run -d --name traefik --network $traefik_network --restart unless-stopped -p 80:80 -p 443:443 -p 50051:50051 -v /var/run/docker.sock:/var/run/docker.sock:ro -v /opt/traefik/traefik.yml:/etc/traefik/traefik.yml:ro -v /opt/traefik/letsencrypt:/letsencrypt traefik:latest\r"
-  }
-}
+send "docker stop traefik 2>/dev/null || true\r"
+expect "$ "
+send "docker rm traefik 2>/dev/null || true\r"
+expect "$ "
+puts "🚀 Starting Traefik (80, 443, 50051)..."
+send "docker run -d --name traefik --network $traefik_network --restart unless-stopped -p 80:80 -p 443:443 -p 50051:50051 -v /var/run/docker.sock:/var/run/docker.sock:ro -v /opt/traefik/traefik.yml:/etc/traefik/traefik.yml:ro -v /opt/traefik/letsencrypt:/letsencrypt traefik:latest\r"
 expect "$ "
 
 send "exit\r"
