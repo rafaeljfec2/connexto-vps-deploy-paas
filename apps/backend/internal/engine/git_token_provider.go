@@ -7,17 +7,17 @@ import (
 	"strings"
 
 	"github.com/paasdeploy/backend/internal/domain"
-	"github.com/paasdeploy/backend/internal/github"
+	"github.com/paasdeploy/backend/internal/ghclient"
 )
 
 type AppGitTokenProvider struct {
-	appClient        *github.AppClient
+	appClient        *ghclient.AppClient
 	installationRepo domain.InstallationRepository
 	logger           *slog.Logger
 }
 
 func NewAppGitTokenProvider(
-	appClient *github.AppClient,
+	appClient *ghclient.AppClient,
 	installationRepo domain.InstallationRepository,
 	logger *slog.Logger,
 ) *AppGitTokenProvider {

@@ -1,4 +1,4 @@
-package github
+package ghclient
 
 import (
 	"bytes"
@@ -47,25 +47,25 @@ func (c *Client) CreateWebhook(ctx context.Context, owner, repo, webhookURL, sec
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errCreateRequest, err)
 	}
 
 	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(respBody))
 	}
 
 	var webhook Webhook
 	if err := json.NewDecoder(resp.Body).Decode(&webhook); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	return &webhook, nil
@@ -76,20 +76,20 @@ func (c *Client) DeleteWebhook(ctx context.Context, owner, repo string, hookID i
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return fmt.Errorf(errCreateRequest, err)
 	}
 
 	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("send request: %w", err)
+		return fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNoContent {
 		respBody, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(respBody))
 	}
 
 	return nil
@@ -100,25 +100,25 @@ func (c *Client) ListWebhooks(ctx context.Context, owner, repo string) ([]Webhoo
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errCreateRequest, err)
 	}
 
 	c.setHeaders(req)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(respBody))
 	}
 
 	var webhooks []Webhook
 	if err := json.NewDecoder(resp.Body).Decode(&webhooks); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	return webhooks, nil

@@ -81,11 +81,17 @@ func (d *DockerClient) Build(ctx context.Context, workDir, dockerfile, tag strin
 	}
 
 	if output != nil {
-		return d.executor.RunWithStreaming(ctx, output, "docker", args...)
+		err := d.executor.RunWithStreaming(ctx, output, "docker", args...)
+		if err != nil {
+			d.logger.Error("Docker build failed", "tag", tag, "workDir", workDir, "error", err)
+			return fmt.Errorf("docker build failed: %w", err)
+		}
+		return nil
 	}
 
 	_, err := d.executor.Run(ctx, "docker", args...)
 	if err != nil {
+		d.logger.Error("Docker build failed", "tag", tag, "workDir", workDir, "error", err)
 		return fmt.Errorf("docker build failed: %w", err)
 	}
 
@@ -111,11 +117,17 @@ func (d *DockerClient) ComposeUp(ctx context.Context, projectDir, projectName st
 	}
 
 	if output != nil {
-		return d.executor.RunWithStreaming(ctx, output, "docker", args...)
+		err := d.executor.RunWithStreaming(ctx, output, "docker", args...)
+		if err != nil {
+			d.logger.Error("Docker compose up failed", "projectName", projectName, "dir", projectDir, "error", err)
+			return fmt.Errorf("docker compose up failed: %w", err)
+		}
+		return nil
 	}
 
 	_, err := d.executor.Run(ctx, "docker", args...)
 	if err != nil {
+		d.logger.Error("Docker compose up failed", "projectName", projectName, "dir", projectDir, "error", err)
 		return fmt.Errorf("docker compose up failed: %w", err)
 	}
 

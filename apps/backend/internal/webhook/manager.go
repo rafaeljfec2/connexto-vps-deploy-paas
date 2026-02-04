@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/paasdeploy/backend/internal/github"
+	"github.com/paasdeploy/backend/internal/ghclient"
 )
 
 type SetupInput struct {
@@ -36,5 +36,5 @@ type Manager interface {
 	Setup(ctx context.Context, input SetupInput) (*SetupResult, error)
 	Remove(ctx context.Context, input RemoveInput) error
 	Status(ctx context.Context, repoURL string, webhookID int64) (*Status, error)
-	ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]github.CommitInfo, error)
+	ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]ghclient.CommitInfo, error)
 }

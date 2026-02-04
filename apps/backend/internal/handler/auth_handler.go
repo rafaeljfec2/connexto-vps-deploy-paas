@@ -9,15 +9,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
-	"github.com/paasdeploy/backend/internal/github"
+	"github.com/paasdeploy/backend/internal/ghclient"
 	"github.com/paasdeploy/backend/internal/response"
+	"github.com/paasdeploy/backend/internal/service"
 )
 
 type AuthHandler struct {
-	oauthClient       *github.OAuthClient
+	oauthClient       *ghclient.OAuthClient
 	userRepo          domain.UserRepository
 	sessionRepo       domain.SessionRepository
 	tokenEncryptor    *crypto.TokenEncryptor
+	auditService      *service.AuditService
 	logger            *slog.Logger
 	sessionCookieName string
 	sessionMaxAge     time.Duration
@@ -27,10 +29,11 @@ type AuthHandler struct {
 }
 
 type AuthHandlerConfig struct {
-	OAuthClient       *github.OAuthClient
+	OAuthClient       *ghclient.OAuthClient
 	UserRepo          domain.UserRepository
 	SessionRepo       domain.SessionRepository
 	TokenEncryptor    *crypto.TokenEncryptor
+	AuditService      *service.AuditService
 	Logger            *slog.Logger
 	SessionCookieName string
 	SessionMaxAge     time.Duration
@@ -45,6 +48,7 @@ func NewAuthHandler(cfg AuthHandlerConfig) *AuthHandler {
 		userRepo:          cfg.UserRepo,
 		sessionRepo:       cfg.SessionRepo,
 		tokenEncryptor:    cfg.TokenEncryptor,
+		auditService:      cfg.AuditService,
 		logger:            cfg.Logger,
 		sessionCookieName: cfg.SessionCookieName,
 		sessionMaxAge:     cfg.SessionMaxAge,
@@ -131,7 +135,7 @@ type tokenData struct {
 	expiresAt             *time.Time
 }
 
-func (h *AuthHandler) exchangeAndEncryptTokens(ctx context.Context, code string) (*github.TokenResponse, *tokenData, error) {
+func (h *AuthHandler) exchangeAndEncryptTokens(ctx context.Context, code string) (*ghclient.TokenResponse, *tokenData, error) {
 	tokenResp, err := h.oauthClient.ExchangeCodeForToken(ctx, code)
 	if err != nil {
 		return nil, nil, err
@@ -161,7 +165,7 @@ func (h *AuthHandler) exchangeAndEncryptTokens(ctx context.Context, code string)
 	return tokenResp, data, nil
 }
 
-func (h *AuthHandler) upsertUser(ctx context.Context, ghUser *github.GitHubUser, email string, tokens *tokenData) (*domain.User, error) {
+func (h *AuthHandler) upsertUser(ctx context.Context, ghUser *ghclient.GitHubUser, email string, tokens *tokenData) (*domain.User, error) {
 	user, err := h.userRepo.FindByGitHubID(ctx, ghUser.ID)
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return nil, err
@@ -263,6 +267,13 @@ func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
 		return h.redirectWithError(c, "session_error")
 	}
 
+	if h.auditService != nil {
+		auditCtx := h.auditService.ExtractContext(c)
+		auditCtx.UserID = &user.ID
+		auditCtx.UserName = &user.Name
+		h.auditService.LogUserLoggedIn(c.Context(), auditCtx, user.ID, user.Name)
+	}
+
 	return c.Redirect(h.frontendURL+"/?login=success", fiber.StatusTemporaryRedirect)
 }
 
@@ -289,6 +300,13 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 		tokenHash := crypto.HashSessionToken(sessionToken)
 		session, err := h.sessionRepo.FindByTokenHash(c.Context(), tokenHash)
 		if err == nil && session != nil {
+			if h.auditService != nil {
+				user, userErr := h.userRepo.FindByID(c.Context(), session.UserID)
+				if userErr == nil && user != nil {
+					auditCtx := h.auditService.ExtractContext(c)
+					h.auditService.LogUserLoggedOut(c.Context(), auditCtx, user.ID, user.Name)
+				}
+			}
 			if delErr := h.sessionRepo.Delete(c.Context(), session.ID); delErr != nil {
 				h.logger.Warn("failed to delete session", "error", delErr)
 			}

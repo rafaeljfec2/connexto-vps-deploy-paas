@@ -9,16 +9,18 @@ import (
 )
 
 type AppHandler struct {
-	appService *service.AppService
+	appService   *service.AppService
+	auditService *service.AuditService
 }
 
 type RedeployInput struct {
 	CommitSHA string `json:"commitSha,omitempty" example:"abc123def"`
 }
 
-func NewAppHandler(appService *service.AppService) *AppHandler {
+func NewAppHandler(appService *service.AppService, auditService *service.AuditService) *AppHandler {
 	return &AppHandler{
-		appService: appService,
+		appService:   appService,
+		auditService: auditService,
 	}
 }
 
@@ -81,6 +83,11 @@ func (h *AppHandler) CreateApp(c *fiber.Ctx) error {
 		return h.handleError(c, err)
 	}
 
+	if h.auditService != nil {
+		auditCtx := h.auditService.ExtractContext(c)
+		h.auditService.LogAppCreated(c.Context(), auditCtx, app.ID, app.Name, app.RepositoryURL)
+	}
+
 	return response.Created(c, app)
 }
 
@@ -119,7 +126,11 @@ func (h *AppHandler) DeleteApp(c *fiber.Ctx) error {
 	id := c.Params("id")
 	purge := c.QueryBool("purge", false)
 
-	var err error
+	app, err := h.appService.GetApp(id)
+	if err != nil {
+		return h.handleError(c, err)
+	}
+
 	if purge {
 		err = h.appService.PurgeApp(c.Context(), id)
 	} else {
@@ -128,6 +139,15 @@ func (h *AppHandler) DeleteApp(c *fiber.Ctx) error {
 
 	if err != nil {
 		return h.handleError(c, err)
+	}
+
+	if h.auditService != nil {
+		auditCtx := h.auditService.ExtractContext(c)
+		if purge {
+			h.auditService.LogAppPurged(c.Context(), auditCtx, app.ID, app.Name)
+		} else {
+			h.auditService.LogAppDeleted(c.Context(), auditCtx, app.ID, app.Name)
+		}
 	}
 
 	return response.NoContent(c)
@@ -180,6 +200,14 @@ func (h *AppHandler) TriggerRedeploy(c *fiber.Ctx) error {
 		return h.handleError(c, err)
 	}
 
+	if h.auditService != nil {
+		app, _ := h.appService.GetApp(appID)
+		if app != nil {
+			auditCtx := h.auditService.ExtractContext(c)
+			h.auditService.LogDeployStarted(c.Context(), auditCtx, deployment.ID, app.ID, app.Name, deployment.CommitSHA)
+		}
+	}
+
 	return response.Created(c, deployment)
 }
 
@@ -199,6 +227,14 @@ func (h *AppHandler) TriggerRollback(c *fiber.Ctx) error {
 	deployment, err := h.appService.TriggerRollback(appID)
 	if err != nil {
 		return h.handleError(c, err)
+	}
+
+	if h.auditService != nil {
+		app, _ := h.appService.GetApp(appID)
+		if app != nil {
+			auditCtx := h.auditService.ExtractContext(c)
+			h.auditService.LogDeployStarted(c.Context(), auditCtx, deployment.ID, app.ID, app.Name, deployment.CommitSHA)
+		}
 	}
 
 	return response.Created(c, deployment)

@@ -445,6 +445,7 @@ func startAgent(client *ssh.Client, runtimeDir string) error {
 
 func (p *SSHProvisioner) Deprovision(server *domain.Server, sshKeyPlain string, sshPasswordPlain string) error {
 	log := p.cfg.Logger.With("serverId", server.ID, "host", server.Host)
+	log.Info("deprovision started")
 	port := server.SSHPort
 	if port == 0 {
 		port = defaultSSHPort

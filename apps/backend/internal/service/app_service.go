@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/paasdeploy/backend/internal/domain"
-	"github.com/paasdeploy/backend/internal/github"
+	"github.com/paasdeploy/backend/internal/ghclient"
 	"github.com/paasdeploy/backend/internal/webhook"
 )
 
@@ -456,7 +456,7 @@ func (s *AppService) GetWebhookStatus(ctx context.Context, appID string) (*webho
 	return s.webhookManager.Status(ctx, app.RepositoryURL, *app.WebhookID)
 }
 
-func (s *AppService) ListCommits(ctx context.Context, appID string, limit int) ([]github.CommitInfo, error) {
+func (s *AppService) ListCommits(ctx context.Context, appID string, limit int) ([]ghclient.CommitInfo, error) {
 	if s.webhookManager == nil {
 		return nil, domain.ErrWebhookNotConfigured
 	}
@@ -472,7 +472,7 @@ func (s *AppService) ListCommits(ctx context.Context, appID string, limit int) (
 	}
 
 	if commits == nil {
-		commits = []github.CommitInfo{}
+		commits = []ghclient.CommitInfo{}
 	}
 
 	return commits, nil

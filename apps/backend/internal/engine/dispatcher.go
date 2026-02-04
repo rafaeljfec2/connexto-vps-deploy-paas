@@ -27,6 +27,7 @@ func NewDispatcher(queue *Queue, locker *Locker, logger *slog.Logger) *Dispatche
 func (d *Dispatcher) Next(ctx context.Context) (*domain.Deployment, *domain.App, error) {
 	deploy, err := d.queue.GetNextPending()
 	if err != nil {
+		d.logger.Error("Failed to get next pending deployment", "error", err)
 		return nil, nil, err
 	}
 	if deploy == nil {
@@ -46,11 +47,13 @@ func (d *Dispatcher) Next(ctx context.Context) (*domain.Deployment, *domain.App,
 	app, err := d.queue.GetAppByID(deploy.AppID)
 	if err != nil {
 		d.locker.Release(deploy.AppID)
+		d.logger.Error("Failed to get app for deployment", "deployId", deploy.ID, "appId", deploy.AppID, "error", err)
 		return nil, nil, err
 	}
 
 	if err := d.queue.MarkAsRunning(deploy.ID); err != nil {
 		d.locker.Release(deploy.AppID)
+		d.logger.Error("Failed to mark deployment as running", "deployId", deploy.ID, "error", err)
 		return nil, nil, err
 	}
 
@@ -73,11 +76,21 @@ func (d *Dispatcher) Release(appID string) error {
 }
 
 func (d *Dispatcher) MarkSuccess(deployID, imageTag string) error {
-	return d.queue.MarkAsSuccess(deployID, imageTag)
+	err := d.queue.MarkAsSuccess(deployID, imageTag)
+	if err == nil {
+		d.logger.Info("Deployment marked as success", "deployId", deployID, "imageTag", imageTag)
+	}
+	return err
 }
 
 func (d *Dispatcher) MarkFailed(deployID, errorMessage string) error {
-	return d.queue.MarkAsFailed(deployID, errorMessage)
+	err := d.queue.MarkAsFailed(deployID, errorMessage)
+	if err == nil {
+		d.logger.Info("Deployment marked as failed", "deployId", deployID, "error", errorMessage)
+	} else {
+		d.logger.Error("Failed to mark deployment as failed", "deployId", deployID, "error", err)
+	}
+	return err
 }
 
 func (d *Dispatcher) AppendLogs(deployID, logs string) error {

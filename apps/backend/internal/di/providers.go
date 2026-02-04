@@ -19,7 +19,7 @@ import (
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/engine"
-	"github.com/paasdeploy/backend/internal/github"
+	"github.com/paasdeploy/backend/internal/ghclient"
 	"github.com/paasdeploy/backend/internal/grpcserver"
 	"github.com/paasdeploy/backend/internal/handler"
 	"github.com/paasdeploy/backend/internal/middleware"
@@ -176,7 +176,7 @@ func ProvideWebhookManager(cfg *config.Config, logger *slog.Logger) webhook.Mana
 		return webhook.NewNoOpManager()
 	}
 
-	provider := github.NewPATProvider(cfg.GitHub.PAT)
+	provider := ghclient.NewPATProvider(cfg.GitHub.PAT)
 	return webhook.NewGitHubManager(provider, cfg.GitHub.WebhookURL, cfg.GitHub.WebhookSecret)
 }
 
@@ -185,7 +185,7 @@ func ProvideAppCleaner(cfg *config.Config, logger *slog.Logger) *engine.AppClean
 }
 
 func ProvideGitTokenProvider(
-	appClient *github.AppClient,
+	appClient *ghclient.AppClient,
 	installationRepo domain.InstallationRepository,
 	logger *slog.Logger,
 ) engine.GitTokenProvider {
@@ -211,15 +211,29 @@ func ProvideAppService(
 	return service.NewAppService(appRepo, deploymentRepo, envVarRepo, webhookManager, appCleaner, logger)
 }
 
+type webhookDeployAuditAdapter struct {
+	audit *service.AuditService
+}
+
+func (a *webhookDeployAuditAdapter) LogDeployStarted(ctx context.Context, deployID, appID, appName, commitSHA string) {
+	if a.audit != nil {
+		auditCtx := service.AuditContext{}
+		a.audit.LogDeployStarted(ctx, auditCtx, deployID, appID, appName, commitSHA)
+	}
+}
+
 func ProvideGitHubWebhookHandler(
 	cfg *config.Config,
 	appRepo *repository.PostgresAppRepository,
 	deploymentRepo *repository.PostgresDeploymentRepository,
+	auditService *service.AuditService,
 	logger *slog.Logger,
-) *github.WebhookHandler {
-	return github.NewWebhookHandler(
+) *ghclient.WebhookHandler {
+	adapter := &webhookDeployAuditAdapter{audit: auditService}
+	return ghclient.NewWebhookHandler(
 		appRepo,
 		deploymentRepo,
+		adapter,
 		cfg.GitHub.WebhookSecret,
 		logger,
 	)
@@ -306,7 +320,7 @@ type Application struct {
 	EnvVarHandler          *handler.EnvVarHandler
 	ContainerHealthHandler *handler.ContainerHealthHandler
 	AppAdminHandler        *handler.AppAdminHandler
-	WebhookHandler         *github.WebhookHandler
+	WebhookHandler         *ghclient.WebhookHandler
 	AuthHandler            *handler.AuthHandler
 	GitHubHandler          *handler.GitHubHandler
 	AuthMiddleware         *middleware.AuthMiddleware
@@ -341,26 +355,26 @@ func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.Toke
 	return encryptor
 }
 
-func ProvideOAuthClient(cfg *config.Config, logger *slog.Logger) *github.OAuthClient {
+func ProvideOAuthClient(cfg *config.Config, logger *slog.Logger) *ghclient.OAuthClient {
 	if cfg.GitHub.ClientID == "" || cfg.GitHub.ClientSecret == "" {
 		logger.Info("GitHub OAuth not configured: GIT_HUB_CLIENT_ID or GIT_HUB_CLIENT_SECRET not set")
 		return nil
 	}
 
-	return github.NewOAuthClient(github.OAuthConfig{
+	return ghclient.NewOAuthClient(ghclient.OAuthConfig{
 		ClientID:     cfg.GitHub.ClientID,
 		ClientSecret: cfg.GitHub.ClientSecret,
 		CallbackURL:  cfg.GitHub.CallbackURL,
 	})
 }
 
-func ProvideGitHubAppClient(cfg *config.Config, logger *slog.Logger) *github.AppClient {
+func ProvideGitHubAppClient(cfg *config.Config, logger *slog.Logger) *ghclient.AppClient {
 	if cfg.GitHub.AppID == 0 || len(cfg.GitHub.AppPrivateKey) == 0 {
 		logger.Info("GitHub App not configured: GIT_HUB_APP_ID or private key not set")
 		return nil
 	}
 
-	client, err := github.NewAppClient(github.AppConfig{
+	client, err := ghclient.NewAppClient(ghclient.AppConfig{
 		AppID:      cfg.GitHub.AppID,
 		PrivateKey: cfg.GitHub.AppPrivateKey,
 	})
@@ -388,10 +402,11 @@ func ProvideAuthMiddleware(
 
 func ProvideAuthHandler(
 	cfg *config.Config,
-	oauthClient *github.OAuthClient,
+	oauthClient *ghclient.OAuthClient,
 	userRepo domain.UserRepository,
 	sessionRepo domain.SessionRepository,
 	tokenEncryptor *crypto.TokenEncryptor,
+	auditService *service.AuditService,
 	logger *slog.Logger,
 ) *handler.AuthHandler {
 	if oauthClient == nil || tokenEncryptor == nil {
@@ -404,6 +419,7 @@ func ProvideAuthHandler(
 		UserRepo:          userRepo,
 		SessionRepo:       sessionRepo,
 		TokenEncryptor:    tokenEncryptor,
+		AuditService:      auditService,
 		Logger:            logger,
 		SessionCookieName: cfg.Auth.SessionCookieName,
 		SessionMaxAge:     cfg.Auth.SessionMaxAge,
@@ -415,7 +431,7 @@ func ProvideAuthHandler(
 
 func ProvideGitHubHandler(
 	cfg *config.Config,
-	appClient *github.AppClient,
+	appClient *ghclient.AppClient,
 	installationRepo domain.InstallationRepository,
 	userRepo domain.UserRepository,
 	logger *slog.Logger,

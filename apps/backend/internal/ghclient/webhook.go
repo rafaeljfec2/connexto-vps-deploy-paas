@@ -1,6 +1,7 @@
-package github
+package ghclient
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -31,9 +32,14 @@ type DeploymentCreator interface {
 	FindPendingByAppID(appID string) (*domain.Deployment, error)
 }
 
+type DeployAuditLogger interface {
+	LogDeployStarted(ctx context.Context, deployID, appID, appName, commitSHA string)
+}
+
 type WebhookHandler struct {
 	appFinder         AppFinder
 	deploymentCreator DeploymentCreator
+	deployAudit       DeployAuditLogger
 	webhookSecret     string
 	logger            *slog.Logger
 }
@@ -41,12 +47,14 @@ type WebhookHandler struct {
 func NewWebhookHandler(
 	appFinder AppFinder,
 	deploymentCreator DeploymentCreator,
+	deployAudit DeployAuditLogger,
 	webhookSecret string,
 	logger *slog.Logger,
 ) *WebhookHandler {
 	return &WebhookHandler{
 		appFinder:         appFinder,
 		deploymentCreator: deploymentCreator,
+		deployAudit:       deployAudit,
 		webhookSecret:     webhookSecret,
 		logger:            logger,
 	}
@@ -200,6 +208,10 @@ func (h *WebhookHandler) createDeployment(c *fiber.Ctx, logger *slog.Logger, app
 	if err != nil {
 		logger.Error("failed to create deployment", slog.String("error", err.Error()))
 		return response.InternalError(c)
+	}
+
+	if h.deployAudit != nil {
+		h.deployAudit.LogDeployStarted(context.Background(), deployment.ID, app.ID, app.Name, event.After)
 	}
 
 	logger.Info("deployment queued",

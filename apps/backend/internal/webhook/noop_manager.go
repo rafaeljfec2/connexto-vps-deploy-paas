@@ -3,7 +3,7 @@ package webhook
 import (
 	"context"
 
-	"github.com/paasdeploy/backend/internal/github"
+	"github.com/paasdeploy/backend/internal/ghclient"
 )
 
 var _ Manager = (*NoOpManager)(nil)
@@ -29,6 +29,6 @@ func (m *NoOpManager) Status(ctx context.Context, repoURL string, webhookID int6
 	}, nil
 }
 
-func (m *NoOpManager) ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]github.CommitInfo, error) {
+func (m *NoOpManager) ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]ghclient.CommitInfo, error) {
 	return nil, nil
 }

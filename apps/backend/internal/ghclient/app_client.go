@@ -1,4 +1,4 @@
-package github
+package ghclient
 
 import (
 	"context"
@@ -85,27 +85,27 @@ func (c *AppClient) GetInstallationToken(ctx context.Context, installationID int
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errCreateRequest, err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+jwt)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("Authorization", authSchemeBearer+jwt)
+	req.Header.Set("Accept", acceptHeader)
+	req.Header.Set(headerGitHubAPIVersion, apiVersion)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(body))
 	}
 
 	var token InstallationToken
 	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	return &token, nil
@@ -130,28 +130,28 @@ func (c *AppClient) listReposWithToken(ctx context.Context, accessToken string) 
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
-			return nil, fmt.Errorf("create request: %w", err)
+			return nil, fmt.Errorf(errCreateRequest, err)
 		}
 
-		req.Header.Set("Authorization", "Bearer "+accessToken)
-		req.Header.Set("Accept", "application/vnd.github+json")
-		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+		req.Header.Set("Authorization", authSchemeBearer+accessToken)
+		req.Header.Set("Accept", acceptHeader)
+		req.Header.Set(headerGitHubAPIVersion, apiVersion)
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
-			return nil, fmt.Errorf("send request: %w", err)
+			return nil, fmt.Errorf(errSendRequest, err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+			return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(body))
 		}
 
 		var reposResp InstallationRepositoriesResponse
 		if err := json.NewDecoder(resp.Body).Decode(&reposResp); err != nil {
 			resp.Body.Close()
-			return nil, fmt.Errorf("decode response: %w", err)
+			return nil, fmt.Errorf(errDecodeResponse, err)
 		}
 		resp.Body.Close()
 
@@ -176,16 +176,16 @@ func (c *AppClient) GetRepository(ctx context.Context, installationID int64, own
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errCreateRequest, err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+token.Token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("Authorization", authSchemeBearer+token.Token)
+	req.Header.Set("Accept", acceptHeader)
+	req.Header.Set(headerGitHubAPIVersion, apiVersion)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
@@ -195,12 +195,12 @@ func (c *AppClient) GetRepository(ctx context.Context, installationID int64, own
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(body))
 	}
 
 	var repository AppRepository
 	if err := json.NewDecoder(resp.Body).Decode(&repository); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	return &repository, nil
@@ -216,27 +216,27 @@ func (c *AppClient) GetInstallation(ctx context.Context, installationID int64) (
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf(errCreateRequest, err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+jwt)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set("Authorization", authSchemeBearer+jwt)
+	req.Header.Set("Accept", acceptHeader)
+	req.Header.Set(headerGitHubAPIVersion, apiVersion)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, fmt.Errorf(errSendRequest, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf(errUnexpectedStatus, resp.StatusCode, string(body))
 	}
 
 	var info InstallationInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, fmt.Errorf(errDecodeResponse, err)
 	}
 
 	return &info, nil

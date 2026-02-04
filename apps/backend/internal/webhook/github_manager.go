@@ -6,23 +6,23 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/paasdeploy/backend/internal/github"
+	"github.com/paasdeploy/backend/internal/ghclient"
 )
 
 const (
-	providerGitHub       = "github"
-	errParseRepoURL      = "parse repository URL: %w"
+	providerGitHub  = "github"
+	errParseRepoURL = "parse repository URL: %w"
 )
 
 var _ Manager = (*GitHubManager)(nil)
 
 type GitHubManager struct {
-	provider      github.Provider
+	provider      ghclient.Provider
 	webhookURL    string
 	webhookSecret string
 }
 
-func NewGitHubManager(provider github.Provider, webhookURL, webhookSecret string) *GitHubManager {
+func NewGitHubManager(provider ghclient.Provider, webhookURL, webhookSecret string) *GitHubManager {
 	return &GitHubManager{
 		provider:      provider,
 		webhookURL:    webhookURL,
@@ -46,7 +46,7 @@ func (m *GitHubManager) Setup(ctx context.Context, input SetupInput) (*SetupResu
 		secret = m.webhookSecret
 	}
 
-	config := github.WebhookConfig{
+	config := ghclient.WebhookConfig{
 		URL:         targetURL,
 		ContentType: "json",
 		Secret:      secret,
@@ -104,7 +104,7 @@ func (m *GitHubManager) Status(ctx context.Context, repoURL string, webhookID in
 	}, nil
 }
 
-func (m *GitHubManager) ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]github.CommitInfo, error) {
+func (m *GitHubManager) ListCommits(ctx context.Context, repoURL, branch string, perPage int) ([]ghclient.CommitInfo, error) {
 	owner, repo, err := parseGitHubURL(repoURL)
 	if err != nil {
 		return nil, fmt.Errorf(errParseRepoURL, err)

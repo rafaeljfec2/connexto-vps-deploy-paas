@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/service"
 )
 
 const (
@@ -64,6 +65,7 @@ type WorkerDeps struct {
 	EnvVarRepo       domain.EnvVarRepository
 	CustomDomainRepo domain.CustomDomainRepository
 	GitTokenProvider GitTokenProvider
+	AuditService     *service.AuditService
 	Logger           *slog.Logger
 }
 
@@ -557,14 +559,21 @@ func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *d
 	w.log(deploy.ID, app.ID, "Rolling back to: %s", deploy.PreviousImageTag)
 
 	if err := w.deps.Docker.ComposeDown(ctx, repoDir, app.ID); err != nil {
-		w.deps.Logger.Warn("Failed to stop containers", "error", err)
+		w.deps.Logger.Warn("Failed to stop containers during rollback", "deployId", deploy.ID, "appName", app.Name, "error", err)
+		return err
 	}
 
+	w.deps.Logger.Info("Rollback completed", "deployId", deploy.ID, "appName", app.Name, "previousImage", deploy.PreviousImageTag)
 	return nil
 }
 
 func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag string) error {
 	w.log(deploy.ID, app.ID, "Deployment completed successfully")
+
+	if w.deps.AuditService != nil {
+		auditCtx := service.AuditContext{}
+		w.deps.AuditService.LogDeploySuccess(context.Background(), auditCtx, deploy.ID, app.ID, app.Name)
+	}
 
 	if err := w.deps.Dispatcher.MarkSuccess(deploy.ID, imageTag); err != nil {
 		w.deps.Logger.Error("Failed to mark deploy as success", "error", err)
@@ -611,6 +620,11 @@ func (w *Worker) cleanupOldImages(deploy *domain.Deployment) {
 
 func (w *Worker) fail(deploy *domain.Deployment, app *domain.App, err error) error {
 	w.log(deploy.ID, app.ID, "Deployment failed: %s", err.Error())
+
+	if w.deps.AuditService != nil {
+		auditCtx := service.AuditContext{}
+		w.deps.AuditService.LogDeployFailed(context.Background(), auditCtx, deploy.ID, app.ID, app.Name, err.Error())
+	}
 
 	if markErr := w.deps.Dispatcher.MarkFailed(deploy.ID, err.Error()); markErr != nil {
 		w.deps.Logger.Error("Failed to mark deploy as failed", "error", markErr)

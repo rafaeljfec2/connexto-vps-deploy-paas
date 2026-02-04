@@ -13,6 +13,7 @@ import (
 
 	"github.com/paasdeploy/backend/internal/config"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/service"
 )
 
 type Engine struct {
@@ -35,7 +36,7 @@ type Engine struct {
 	envVarRepo       domain.EnvVarRepository
 }
 
-func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRepo domain.EnvVarRepository, customDomainRepo domain.CustomDomainRepository, gitTokenProvider GitTokenProvider, logger *slog.Logger) *Engine {
+func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRepo domain.EnvVarRepository, customDomainRepo domain.CustomDomainRepository, gitTokenProvider GitTokenProvider, auditService *service.AuditService, logger *slog.Logger) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	queue := NewQueue(db)
@@ -71,6 +72,7 @@ func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRep
 		EnvVarRepo:       envVarRepo,
 		CustomDomainRepo: customDomainRepo,
 		GitTokenProvider: gitTokenProvider,
+		AuditService:     auditService,
 		Logger:           logger,
 	}
 

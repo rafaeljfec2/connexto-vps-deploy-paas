@@ -1,4 +1,4 @@
-package github
+package ghclient
 
 import (
 	"bytes"
@@ -113,6 +113,7 @@ func TestWebhookHandlerPushToMainBranch(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
 		&mockDeploymentCreator{deployment: testDeployment, pendingErr: domain.ErrNotFound},
+		nil,
 		testSecret,
 		newTestLogger(),
 	)
@@ -147,6 +148,7 @@ func TestWebhookHandlerPushToDifferentBranch(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
 		&mockDeploymentCreator{pendingErr: domain.ErrNotFound},
+		nil,
 		testSecret,
 		newTestLogger(),
 	)
@@ -174,6 +176,7 @@ func TestWebhookHandlerInvalidSignature(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{},
 		&mockDeploymentCreator{},
+		nil,
 		testSecret,
 		newTestLogger(),
 	)
@@ -201,6 +204,7 @@ func TestWebhookHandlerAppNotFound(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{err: domain.ErrNotFound},
 		&mockDeploymentCreator{},
+		nil,
 		testSecret,
 		newTestLogger(),
 	)
@@ -228,6 +232,7 @@ func TestWebhookHandlerPingEvent(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{},
 		&mockDeploymentCreator{},
+		nil,
 		testSecret,
 		newTestLogger(),
 	)
@@ -255,6 +260,7 @@ func TestWebhookHandlerUnsupportedEvent(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{},
 		&mockDeploymentCreator{},
+		nil,
 		testSecret,
 		newTestLogger(),
 	)
@@ -295,6 +301,7 @@ func TestWebhookHandlerDeploymentAlreadyPending(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
 		&mockDeploymentCreator{pending: pendingDeployment},
+		nil,
 		testSecret,
 		newTestLogger(),
 	)

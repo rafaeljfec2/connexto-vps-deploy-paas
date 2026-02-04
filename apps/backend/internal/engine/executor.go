@@ -131,12 +131,12 @@ func (e *Executor) RunWithStreaming(ctx context.Context, output chan<- string, n
 
 	go func() {
 		defer wg.Done()
-		e.streamOutput(stdout, output)
+		e.streamOutput(ctx, stdout, output)
 	}()
 
 	go func() {
 		defer wg.Done()
-		e.streamOutput(stderr, output)
+		e.streamOutput(ctx, stderr, output)
 	}()
 
 	done := make(chan error)
@@ -147,22 +147,40 @@ func (e *Executor) RunWithStreaming(ctx context.Context, output chan<- string, n
 
 	select {
 	case <-ctx.Done():
-		cmd.Process.Kill()
-		return fmt.Errorf("command timed out")
+		_ = cmd.Process.Kill()
+		wg.Wait()
+		e.logger.Error("Command timed out",
+			"command", name,
+			"args", args,
+			"timeout", e.timeout,
+		)
+		return fmt.Errorf("command timed out after %v", e.timeout)
 	case err := <-done:
 		if err != nil {
+			e.logger.Error("Command failed",
+				"command", name,
+				"args", args,
+				"error", err,
+			)
 			return fmt.Errorf("command failed: %w", err)
 		}
 		return nil
 	}
 }
 
-func (e *Executor) streamOutput(reader io.Reader, output chan<- string) {
+func (e *Executor) streamOutput(ctx context.Context, reader io.Reader, output chan<- string) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		line := scanner.Text()
 		select {
 		case output <- line:
+		case <-ctx.Done():
+			return
 		default:
 		}
 	}

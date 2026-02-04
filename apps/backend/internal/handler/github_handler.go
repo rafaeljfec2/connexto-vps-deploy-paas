@@ -13,13 +13,13 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/domain"
-	"github.com/paasdeploy/backend/internal/github"
+	"github.com/paasdeploy/backend/internal/ghclient"
 	"github.com/paasdeploy/backend/internal/response"
 )
 
 
 type GitHubHandler struct {
-	appClient        *github.AppClient
+	appClient        *ghclient.AppClient
 	installationRepo domain.InstallationRepository
 	userRepo         domain.UserRepository
 	logger           *slog.Logger
@@ -29,7 +29,7 @@ type GitHubHandler struct {
 }
 
 type GitHubHandlerConfig struct {
-	AppClient        *github.AppClient
+	AppClient        *ghclient.AppClient
 	InstallationRepo domain.InstallationRepository
 	UserRepo         domain.UserRepository
 	Logger           *slog.Logger
@@ -101,7 +101,7 @@ func (h *GitHubHandler) findInstallation(c *fiber.Ctx, userID, installationIDPar
 	return &installationResult{installation: inst}, nil
 }
 
-func convertRepo(repo github.AppRepository) RepositoryResponse {
+func convertRepo(repo ghclient.AppRepository) RepositoryResponse {
 	return RepositoryResponse{
 		ID:            repo.ID,
 		Name:          repo.Name,
@@ -120,7 +120,7 @@ func convertRepo(repo github.AppRepository) RepositoryResponse {
 	}
 }
 
-func convertRepos(repos []github.AppRepository) []RepositoryResponse {
+func convertRepos(repos []ghclient.AppRepository) []RepositoryResponse {
 	resp := make([]RepositoryResponse, len(repos))
 	for i, repo := range repos {
 		resp[i] = convertRepo(repo)

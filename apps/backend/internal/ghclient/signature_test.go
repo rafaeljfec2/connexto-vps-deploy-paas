@@ -1,8 +1,10 @@
-package github
+package ghclient
 
 import (
 	"testing"
 )
+
+const signatureTestSecret = "test-secret"
 
 func TestValidateSignature(t *testing.T) {
 	tests := []struct {
@@ -15,15 +17,15 @@ func TestValidateSignature(t *testing.T) {
 		{
 			name:      "valid signature",
 			payload:   []byte(`{"test": "payload"}`),
-			signature: GenerateSignature([]byte(`{"test": "payload"}`), "test-secret"),
-			secret:    "test-secret",
+			signature: GenerateSignature([]byte(`{"test": "payload"}`), signatureTestSecret),
+			secret:    signatureTestSecret,
 			want:      true,
 		},
 		{
 			name:      "invalid signature",
 			payload:   []byte(`{"test": "payload"}`),
 			signature: "sha256=0000000000000000000000000000000000000000000000000000000000000000",
-			secret:    "test-secret",
+			secret:    signatureTestSecret,
 			want:      false,
 		},
 		{
@@ -37,28 +39,28 @@ func TestValidateSignature(t *testing.T) {
 			name:      "empty signature",
 			payload:   []byte(`{"test": "payload"}`),
 			signature: "",
-			secret:    "test-secret",
+			secret:    signatureTestSecret,
 			want:      false,
 		},
 		{
 			name:      "missing sha256 prefix",
 			payload:   []byte(`{"test": "payload"}`),
 			signature: "abc123",
-			secret:    "test-secret",
+			secret:    signatureTestSecret,
 			want:      false,
 		},
 		{
 			name:      "wrong hash length",
 			payload:   []byte(`{"test": "payload"}`),
 			signature: "sha256=abc123",
-			secret:    "test-secret",
+			secret:    signatureTestSecret,
 			want:      false,
 		},
 		{
 			name:      "tampered payload",
 			payload:   []byte(`{"test": "tampered"}`),
-			signature: GenerateSignature([]byte(`{"test": "original"}`), "test-secret"),
-			secret:    "test-secret",
+			signature: GenerateSignature([]byte(`{"test": "original"}`), signatureTestSecret),
+			secret:    signatureTestSecret,
 			want:      false,
 		},
 	}
