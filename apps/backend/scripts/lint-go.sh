@@ -28,10 +28,14 @@ run_local() {
   rm -f "$err"
 }
 
+LINT_IMAGE="paasdeploy-golangci-lint:1.61.0"
+
 run_docker() {
-  echo "Running golangci-lint in Docker (Go 1.24)..."
-  docker run --rm -v "$ROOT:/app" -w /app golang:1.24-bookworm bash -c \
-    'go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0 && golangci-lint run --timeout=5m --concurrency=4 ./...'
+  if ! docker image inspect "$LINT_IMAGE" >/dev/null 2>&1; then
+    echo "Building lint image (one-time, ~1 min)..."
+    docker build -t "$LINT_IMAGE" -f "$ROOT/scripts/Dockerfile.lint" "$ROOT/scripts"
+  fi
+  docker run --rm -v "$ROOT:/app" -w /app "$LINT_IMAGE" run --timeout=5m --concurrency=4 ./...
 }
 
 USE_DOCKER=

@@ -26,26 +26,7 @@ env:
   TRAEFIK_NETWORK: traefik-public
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.24"
-          cache-dependency-path: apps/backend/go.sum
-
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0
-
-      - name: Run golangci-lint
-        run: cd apps/backend && golangci-lint run --timeout=5m --concurrency=4
-
   validate-environment:
-    needs: lint
     runs-on: ubuntu-latest
     environment: Prod
     steps:
