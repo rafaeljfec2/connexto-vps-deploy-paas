@@ -3,6 +3,7 @@ import { AppDetailsPage } from "@/pages/app-details";
 import { AuditPage } from "@/pages/audit";
 import { ContainersPage } from "@/pages/containers";
 import { DashboardPage } from "@/pages/dashboard";
+import { HelperServerSetupPage } from "@/pages/helper-server-setup";
 import { ImagesPage } from "@/pages/images";
 import { LoginPage } from "@/pages/login";
 import { MigrationPage } from "@/pages/migration";
@@ -62,6 +63,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <ServerDetailsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/helper/server-setup"
+        element={
+          <ProtectedRoute>
+            <HelperServerSetupPage />
           </ProtectedRoute>
         }
       />

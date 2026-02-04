@@ -4,6 +4,7 @@ export const ROUTES = {
   NEW_APP: "/apps/new",
   SETTINGS: "/settings",
   SERVERS: "/servers",
+  HELPER_SERVER_SETUP: "/helper/server-setup",
   CONTAINERS: "/containers",
   TEMPLATES: "/containers/templates",
   IMAGES: "/images",

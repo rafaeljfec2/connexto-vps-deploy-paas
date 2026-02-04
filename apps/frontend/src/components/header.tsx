@@ -5,6 +5,7 @@ import {
   Activity,
   Box,
   HardDrive,
+  HelpCircle,
   LogOut,
   Plus,
   Rocket,
@@ -122,6 +123,12 @@ export function Header() {
                     <Link to={ROUTES.SERVERS} role="menuitem">
                       <Server className="mr-2 h-4 w-4" aria-hidden="true" />
                       Servers
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link to={ROUTES.HELPER_SERVER_SETUP} role="menuitem">
+                      <HelpCircle className="mr-2 h-4 w-4" aria-hidden="true" />
+                      Helper
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild className="cursor-pointer">
