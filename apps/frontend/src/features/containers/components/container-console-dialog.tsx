@@ -8,6 +8,22 @@ import {
 } from "@/components/ui/dialog";
 import { api } from "@/services/api";
 
+function scheduleTerminalFit(
+  fitAddon: import("@xterm/addon-fit").FitAddon,
+): void {
+  requestAnimationFrame(() => fitAddon.fit());
+  setTimeout(() => fitAddon.fit(), 100);
+}
+
+function scheduleTerminalFocus(
+  termRef: React.RefObject<{
+    terminal: import("@xterm/xterm").Terminal;
+    fit: import("@xterm/addon-fit").FitAddon;
+  } | null>,
+): void {
+  setTimeout(() => termRef.current?.terminal.focus(), 150);
+}
+
 interface ContainerConsoleDialogProps {
   readonly containerId: string | null;
   readonly containerName: string;
@@ -74,11 +90,7 @@ export function ContainerConsoleDialog({
         terminal.loadAddon(fitAddon);
         terminal.open(terminalRef.current);
         termRef.current = { terminal, fit: fitAddon };
-
-        requestAnimationFrame(() => {
-          fitAddon.fit();
-          setTimeout(() => fitAddon.fit(), 100);
-        });
+        scheduleTerminalFit(fitAddon);
 
         const wsUrl = api.containers.consoleUrl(containerId);
         const ws = new WebSocket(wsUrl);
@@ -87,7 +99,10 @@ export function ContainerConsoleDialog({
         ws.binaryType = "arraybuffer";
 
         ws.onopen = () => {
-          if (mounted) setStatus("connected");
+          if (mounted) {
+            setStatus("connected");
+            scheduleTerminalFocus(termRef);
+          }
         };
 
         ws.onmessage = (event) => {
@@ -169,8 +184,11 @@ export function ContainerConsoleDialog({
         )}
         <div
           ref={terminalRef}
-          className="flex-1 min-h-0 p-4 overflow-hidden"
+          role="application"
+          aria-label="Container shell"
+          className="flex-1 min-h-0 p-4 overflow-hidden cursor-text"
           style={{ height: "calc(80vh - 120px)" }}
+          onPointerDown={() => termRef.current?.terminal.focus()}
         />
       </DialogContent>
     </Dialog>
