@@ -530,8 +530,8 @@ func ProvideAuditService(db *sql.DB, logger *slog.Logger) *service.AuditService 
 	return service.NewAuditService(repo, logger)
 }
 
-func ProvideAuditHandler(auditService *service.AuditService) *handler.AuditHandler {
-	return handler.NewAuditHandler(auditService)
+func ProvideAuditHandler(auditService *service.AuditService, webhookPayloadRepo *repository.PostgresWebhookPayloadRepository) *handler.AuditHandler {
+	return handler.NewAuditHandler(auditService, webhookPayloadRepo)
 }
 
 func ProvideResourceHandler(eng *engine.Engine, logger *slog.Logger) *handler.ResourceHandler {

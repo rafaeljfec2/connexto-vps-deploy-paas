@@ -6,23 +6,27 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/repository"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/backend/internal/service"
 )
 
 type AuditHandler struct {
-	auditService *service.AuditService
+	auditService      *service.AuditService
+	webhookPayloadRepo *repository.PostgresWebhookPayloadRepository
 }
 
-func NewAuditHandler(auditService *service.AuditService) *AuditHandler {
+func NewAuditHandler(auditService *service.AuditService, webhookPayloadRepo *repository.PostgresWebhookPayloadRepository) *AuditHandler {
 	return &AuditHandler{
-		auditService: auditService,
+		auditService:       auditService,
+		webhookPayloadRepo: webhookPayloadRepo,
 	}
 }
 
 func (h *AuditHandler) Register(router fiber.Router) {
 	audit := router.Group("/audit")
 	audit.Get("/logs", h.ListLogs)
+	audit.Get("/webhook-payloads", h.ListWebhookPayloads)
 	audit.Post("/cleanup", h.Cleanup)
 }
 
@@ -61,6 +65,54 @@ func (h *AuditHandler) ListLogs(c *fiber.Ctx) error {
 		Total:  total,
 		Limit:  filter.Limit,
 		Offset: filter.Offset,
+	})
+}
+
+type WebhookPayloadResponse struct {
+	ID           string  `json:"id"`
+	DeliveryID   string  `json:"deliveryId"`
+	EventType    string  `json:"eventType"`
+	Provider     string  `json:"provider"`
+	Outcome      string  `json:"outcome"`
+	ErrorMessage *string `json:"errorMessage,omitempty"`
+	CreatedAt    string  `json:"createdAt"`
+}
+
+type WebhookPayloadsResponse struct {
+	Payloads []WebhookPayloadResponse `json:"payloads"`
+	Total    int                     `json:"total"`
+	Limit    int                     `json:"limit"`
+	Offset   int                     `json:"offset"`
+}
+
+func (h *AuditHandler) ListWebhookPayloads(c *fiber.Ctx) error {
+	limit := c.QueryInt("limit", 25)
+	offset := c.QueryInt("offset", 0)
+	filter := repository.WebhookPayloadFilter{Limit: limit, Offset: offset}
+
+	payloads, total, err := h.webhookPayloadRepo.FindAll(c.Context(), filter)
+	if err != nil {
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to fetch webhook payloads")
+	}
+
+	result := make([]WebhookPayloadResponse, len(payloads))
+	for i, p := range payloads {
+		result[i] = WebhookPayloadResponse{
+			ID:           p.ID,
+			DeliveryID:   p.DeliveryID,
+			EventType:    p.EventType,
+			Provider:     p.Provider,
+			Outcome:      p.Outcome,
+			ErrorMessage: p.ErrorMessage,
+			CreatedAt:    p.CreatedAt,
+		}
+	}
+
+	return response.OK(c, WebhookPayloadsResponse{
+		Payloads: result,
+		Total:    total,
+		Limit:    limit,
+		Offset:   offset,
 	})
 }
 

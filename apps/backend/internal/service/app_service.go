@@ -469,7 +469,7 @@ func mapWebhookSetupError(err error) error {
 		return fmt.Errorf("%w: insufficient permissions (ensure token has admin:repo_hook scope)", domain.ErrForbidden)
 	}
 	if strings.Contains(errStr, "422") || strings.Contains(strings.ToLower(errStr), "validation failed") {
-		return fmt.Errorf("%w: webhook validation failed (check GIT_HUB_WEBHOOK_URL is publicly reachable)", domain.ErrInvalidInput)
+		return fmt.Errorf("%w: webhook validation failed - GIT_HUB_WEBHOOK_URL must be publicly reachable. Verify: curl -I <url> returns 200. Check firewall, SSL, Traefik routing", domain.ErrInvalidInput)
 	}
 	return err
 }

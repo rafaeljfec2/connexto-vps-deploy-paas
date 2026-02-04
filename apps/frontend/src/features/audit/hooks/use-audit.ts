@@ -1,3 +1,4 @@
+import type { UseQueryOptions } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -57,10 +58,74 @@ async function fetchAuditLogs(filter: AuditFilter): Promise<AuditLogsResponse> {
   return data.data;
 }
 
-export function useAuditLogs(filter: AuditFilter = {}) {
+export function useAuditLogs(
+  filter: AuditFilter = {},
+  options?: Omit<
+    UseQueryOptions<AuditLogsResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
+) {
   return useQuery({
     queryKey: ["audit-logs", filter],
     queryFn: () => fetchAuditLogs(filter),
     refetchInterval: 30000,
+    ...options,
+  });
+}
+
+export interface WebhookPayload {
+  readonly id: string;
+  readonly deliveryId: string;
+  readonly eventType: string;
+  readonly provider: string;
+  readonly outcome: string;
+  readonly errorMessage?: string;
+  readonly createdAt: string;
+}
+
+export interface WebhookPayloadsResponse {
+  readonly payloads: readonly WebhookPayload[];
+  readonly total: number;
+  readonly limit: number;
+  readonly offset: number;
+}
+
+export interface WebhookPayloadsFilter {
+  readonly limit?: number;
+  readonly offset?: number;
+}
+
+async function fetchWebhookPayloads(
+  filter: WebhookPayloadsFilter = {},
+): Promise<WebhookPayloadsResponse> {
+  const params = new URLSearchParams();
+  if (filter.limit != null) params.set("limit", filter.limit.toString());
+  if (filter.offset != null) params.set("offset", filter.offset.toString());
+
+  const response = await fetch(
+    `${API_BASE}/audit/webhook-payloads?${params.toString()}`,
+    { credentials: "include" },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch webhook payloads");
+  }
+
+  const data = await response.json();
+  return data.data;
+}
+
+export function useWebhookPayloads(
+  filter: WebhookPayloadsFilter = {},
+  options?: Omit<
+    UseQueryOptions<WebhookPayloadsResponse, Error>,
+    "queryKey" | "queryFn"
+  >,
+) {
+  return useQuery({
+    queryKey: ["webhook-payloads", filter],
+    queryFn: () => fetchWebhookPayloads(filter),
+    refetchInterval: 30000,
+    ...options,
   });
 }

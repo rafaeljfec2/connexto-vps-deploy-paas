@@ -74,7 +74,7 @@ func InitializeApplication() (*Application, func(), error) {
 	templateHandler := ProvideTemplateHandler(engineEngine, logger)
 	imageHandler := ProvideImageHandler(engineEngine, logger)
 	certificateHandler := ProvideCertificateHandler(config, logger)
-	auditHandler := ProvideAuditHandler(auditService)
+	auditHandler := ProvideAuditHandler(auditService, postgresWebhookPayloadRepository)
 	resourceHandler := ProvideResourceHandler(engineEngine, logger)
 	postgresNotificationChannelRepository := repository.NewPostgresNotificationChannelRepository(db)
 	postgresNotificationRuleRepository := repository.NewPostgresNotificationRuleRepository(db)

@@ -1,2 +1,2 @@
 export { AuditList } from "./components/audit-list";
-export { useAuditLogs } from "./hooks/use-audit";
+export { useAuditLogs, useWebhookPayloads } from "./hooks/use-audit";
