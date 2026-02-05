@@ -97,7 +97,11 @@ func (w *Worker) Run(ctx context.Context, deploy *domain.Deployment, app *domain
 	w.log(deploy.ID, app.ID, "Starting deployment for %s", app.Name)
 
 	if err := w.loadEnvVars(app.ID); err != nil {
-		w.deps.Logger.Warn("Failed to load env vars", "error", err)
+		w.appEnvVars = nil
+		w.deps.Logger.Warn("Failed to load env vars", "error", err, "appId", app.ID)
+		w.log(deploy.ID, app.ID, "Warning: could not load env vars from configuration (deploy will use paasdeploy.json env only)")
+	} else {
+		w.log(deploy.ID, app.ID, "Loaded %d environment variable(s) from configuration", len(w.appEnvVars))
 	}
 
 	repoDir := filepath.Join(w.dataDir, app.ID)
