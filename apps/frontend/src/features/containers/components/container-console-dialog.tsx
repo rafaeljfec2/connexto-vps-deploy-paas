@@ -16,14 +16,13 @@ function scheduleTerminalFit(
 }
 
 function scheduleTerminalFocus(
-  terminalRef: React.RefObject<HTMLDivElement | null>,
-  _termRef: React.RefObject<{
+  termRef: React.RefObject<{
     terminal: import("@xterm/xterm").Terminal;
     fit: import("@xterm/addon-fit").FitAddon;
   } | null>,
 ): void {
-  setTimeout(() => terminalRef.current?.focus(), 300);
-  setTimeout(() => terminalRef.current?.focus(), 600);
+  setTimeout(() => termRef.current?.terminal.focus(), 300);
+  setTimeout(() => termRef.current?.terminal.focus(), 600);
 }
 
 interface ContainerConsoleDialogProps {
@@ -93,7 +92,7 @@ export function ContainerConsoleDialog({
         terminal.open(terminalRef.current);
         termRef.current = { terminal, fit: fitAddon };
         scheduleTerminalFit(fitAddon);
-        scheduleTerminalFocus(terminalRef, termRef);
+        scheduleTerminalFocus(termRef);
 
         const wsUrl = api.containers.consoleUrl(containerId);
         const ws = new WebSocket(wsUrl);
@@ -104,7 +103,8 @@ export function ContainerConsoleDialog({
         ws.onopen = () => {
           if (mounted) {
             setStatus("connected");
-            scheduleTerminalFocus(terminalRef, termRef);
+            scheduleTerminalFocus(termRef);
+            setTimeout(() => termRef.current?.terminal.focus(), 100);
           }
         };
 
@@ -188,15 +188,19 @@ export function ContainerConsoleDialog({
         {error && (
           <div className="px-6 py-2 text-sm text-destructive">{error}</div>
         )}
+        {/* Focus target for xterm; role=application is correct for terminal widget */}
         <div
           ref={terminalRef}
           role="application"
           aria-label="Container shell"
-          tabIndex={0}
+          tabIndex={0} // NOSONAR - focus target for embedded terminal (role=application)
           className="flex-1 min-h-0 p-4 overflow-hidden cursor-text outline-none"
           style={{ height: "calc(80vh - 120px)" }}
           onFocus={() => termRef.current?.terminal.focus()}
-          onPointerDown={() => terminalRef.current?.focus()}
+          onPointerDownCapture={(e) => {
+            e.preventDefault();
+            termRef.current?.terminal.focus();
+          }}
         />
       </DialogContent>
     </Dialog>
