@@ -76,6 +76,10 @@ func assertStatus(t *testing.T, resp *http.Response, expected int) {
 }
 
 func createPushPayload(ref, after, repoURL, branch string) []byte {
+	return createPushPayloadWithMessage(ref, after, repoURL, branch, "Test commit message")
+}
+
+func createPushPayloadWithMessage(ref, after, repoURL, branch, commitMessage string) []byte {
 	event := PushEvent{
 		Ref:   ref,
 		After: after,
@@ -85,7 +89,7 @@ func createPushPayload(ref, after, repoURL, branch string) []byte {
 			DefaultBranch: branch,
 		},
 		HeadCommit: &Commit{
-			Message: "Test commit message",
+			Message: commitMessage,
 		},
 	}
 	data, _ := json.Marshal(event)
@@ -285,6 +289,69 @@ func TestWebhookHandlerUnsupportedEvent(t *testing.T) {
 	resp, err := app.Test(req)
 	assertNoError(t, err)
 	assertStatus(t, resp, fiber.StatusOK)
+}
+
+func TestCommitMessageSkipsDeploy(t *testing.T) {
+	tests := []struct {
+		msg  string
+		want bool
+	}{
+		{"chore: bump version [skip ci]", true},
+		{"[SKIP CI] release", true},
+		{"  [Skip Ci]  ", true},
+		{"fix: something", false},
+		{"[skipci]", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.msg, func(t *testing.T) {
+			got := commitMessageSkipsDeploy(tt.msg)
+			if got != tt.want {
+				t.Errorf("commitMessageSkipsDeploy(%q) = %v, want %v", tt.msg, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWebhookHandlerPushWithSkipCi(t *testing.T) {
+	app := fiber.New()
+	defer app.Shutdown()
+
+	testApp := &domain.App{
+		ID:            testAppID,
+		Name:          testAppName,
+		RepositoryURL: testRepoURL,
+		Branch:        testBranchMain,
+	}
+
+	handler := NewWebhookHandler(
+		&mockAppFinder{app: testApp},
+		&mockDeploymentCreator{pendingErr: domain.ErrNotFound},
+		nil,
+		nil,
+		testSecret,
+		newTestLogger(),
+	)
+
+	handler.Register(app)
+
+	payload := createPushPayloadWithMessage(testRefMain, "abc123", testRepoURL, testBranchMain, "chore(api): bump version to 1.0.20 [skip ci]")
+	signature := GenerateSignature(payload, testSecret)
+
+	req := httptest.NewRequest(http.MethodPost, webhookPath, bytes.NewReader(payload))
+	req.Header.Set(headerContentType, contentTypeJSON)
+	req.Header.Set(HeaderGitHubEvent, EventPush)
+	req.Header.Set(HeaderGitHubSignature, signature)
+	req.Header.Set(HeaderGitHubDelivery, testDeliveryID)
+
+	resp, err := app.Test(req)
+	assertNoError(t, err)
+	assertStatus(t, resp, fiber.StatusOK)
+
+	body, _ := io.ReadAll(resp.Body)
+	if !bytes.Contains(body, []byte("skipped")) {
+		t.Errorf("expected response body to contain 'skipped', got: %s", string(body))
+	}
 }
 
 func TestWebhookHandlerDeploymentAlreadyPending(t *testing.T) {

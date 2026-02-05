@@ -278,8 +278,22 @@ func strPtr(s string) *string {
 	return &s
 }
 
+func commitMessageSkipsDeploy(msg string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(msg)), "[skip ci]")
+}
+
 func (h *WebhookHandler) createDeployment(c *fiber.Ctx, logger *slog.Logger, app *domain.App, event *PushEvent, deliveryID, eventType string, body []byte) error {
 	commitMessage := getCommitMessage(event)
+
+	if commitMessageSkipsDeploy(commitMessage) {
+		logger.Info("skipping deployment: commit message contains [skip ci]",
+			slog.String("app_id", app.ID),
+			slog.String("app_name", app.Name),
+			slog.String("commit", event.After),
+		)
+		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("skip ci"))
+		return response.OK(c, map[string]string{"message": "deployment skipped (commit contains [skip ci])"})
+	}
 
 	input := domain.CreateDeploymentInput{
 		AppID:         app.ID,
