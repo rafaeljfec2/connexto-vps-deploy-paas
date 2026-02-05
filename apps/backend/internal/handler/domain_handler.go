@@ -153,6 +153,10 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	if customDomain == nil {
+		h.logger.Error("unexpected: custom domain nil after create", "app_id", appID, "domain", domainName)
+		return response.InternalError(c)
+	}
 
 	h.notifyContainerUpdate(c.Context(), app, appID, domainName)
 
@@ -203,7 +207,7 @@ func (h *DomainHandler) createCustomDomainWithDNS(c *fiber.Ctx, appID, domainNam
 	zoneID, err := cfClient.GetZoneID(c.Context(), rootDomain)
 	if err != nil {
 		h.logger.Error("zone not found", "domain", rootDomain, "error", err)
-		return nil, response.BadRequest(c, "Domain not found in your Cloudflare account")
+		return nil, response.BadRequest(c, "Domain/zone not found in your Cloudflare account. Add the zone in Cloudflare first.")
 	}
 
 	recordID, err := cfClient.CreateOrGetARecord(c.Context(), zoneID, domainName, h.serverIP)

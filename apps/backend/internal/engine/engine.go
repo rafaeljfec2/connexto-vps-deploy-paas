@@ -268,6 +268,9 @@ func (e *Engine) Docker() *DockerClient {
 }
 
 func (e *Engine) UpdateContainerDomains(ctx context.Context, app *domain.App) error {
+	if app == nil {
+		return fmt.Errorf("app is required")
+	}
 	e.logger.Info("Updating container domains", "app_id", app.ID, "app_name", app.Name)
 
 	appDir := e.resolveAppDir(app)
