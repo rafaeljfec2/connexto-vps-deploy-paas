@@ -539,7 +539,9 @@ func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app
 	time.Sleep(startDelay)
 
 	var healthURL string
-	if w.deployConfig.HostPort > 0 {
+	selfID, _ := w.deps.Docker.GetCurrentContainerID(ctx)
+	useHostPort := w.deployConfig.HostPort > 0 && selfID == ""
+	if useHostPort {
 		healthURL = fmt.Sprintf("http://127.0.0.1:%d%s", w.deployConfig.HostPort, w.deployConfig.Healthcheck.Path)
 		w.log(deploy.ID, app.ID, "Health check URL (via host port): %s", healthURL)
 	} else {
