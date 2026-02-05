@@ -37,55 +37,84 @@ export function useTerminal(options: TerminalOptions): UseTerminalReturn {
     const { Terminal } = await import("@xterm/xterm");
     const { FitAddon } = await import("@xterm/addon-fit");
 
-    if (!containerRef.current) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const terminal = new Terminal({
-      cursorBlink: true,
-      theme: options.theme ?? DEFAULT_THEME,
-      fontSize: options.fontSize ?? 14,
-      fontFamily: options.fontFamily ?? "ui-monospace, monospace",
-      scrollback: 10000,
-      convertEol: true,
-    });
+    const initTerminal = (): void => {
+      const el = containerRef.current;
+      if (!el) return;
 
-    const fitAddon = new FitAddon();
-    terminal.loadAddon(fitAddon);
-    terminal.open(containerRef.current);
+      const terminal = new Terminal({
+        cursorBlink: true,
+        theme: options.theme ?? DEFAULT_THEME,
+        fontSize: options.fontSize ?? 14,
+        fontFamily: options.fontFamily ?? "ui-monospace, monospace",
+        scrollback: 10000,
+        convertEol: true,
+      });
 
-    terminalRef.current = terminal;
-    fitAddonRef.current = fitAddon;
+      const fitAddon = new FitAddon();
+      terminal.loadAddon(fitAddon);
+      terminal.open(el);
 
-    requestAnimationFrame(() => fitAddon.fit());
+      terminalRef.current = terminal;
+      fitAddonRef.current = fitAddon;
 
-    const ws = new WebSocket(options.wsUrl);
-    wsRef.current = ws;
+      const doFit = (): void => {
+        fitAddon.fit();
+      };
+      requestAnimationFrame(doFit);
+      setTimeout(doFit, 50);
+      setTimeout(doFit, 200);
 
-    ws.onopen = () => {
-      setStatus("connected");
+      const ws = new WebSocket(options.wsUrl);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setStatus("connected");
+        doFit();
+      };
+
+      ws.onmessage = (event) => {
+        terminal.write(typeof event.data === "string" ? event.data : "");
+      };
+
+      ws.onerror = () => {
+        setError("Connection failed");
+        setStatus("error");
+      };
+
+      ws.onclose = () => {
+        setStatus("closed");
+        terminal.writeln("\r\n\x1b[33mConnection closed.\x1b[0m");
+      };
+
+      terminal.onData((data) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(data);
+      });
+
+      const resizeObserver = new ResizeObserver(doFit);
+      resizeObserver.observe(el);
+      resizeCleanupRef.current = () => resizeObserver.disconnect();
     };
 
-    ws.onmessage = (event) => {
-      terminal.write(typeof event.data === "string" ? event.data : "");
-    };
-
-    ws.onerror = () => {
-      setError("Connection failed");
-      setStatus("error");
-    };
-
-    ws.onclose = () => {
-      setStatus("closed");
-      terminal.writeln("\r\n\x1b[33mConnection closed.\x1b[0m");
-    };
-
-    terminal.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(data);
-    });
+    if (container.clientHeight > 0 && container.clientWidth > 0) {
+      initTerminal();
+      return;
+    }
 
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit();
+      if (!containerRef.current) return;
+      if (
+        containerRef.current.clientHeight > 0 &&
+        containerRef.current.clientWidth > 0
+      ) {
+        resizeObserver.disconnect();
+        resizeCleanupRef.current = null;
+        initTerminal();
+      }
     });
-    resizeObserver.observe(containerRef.current);
+    resizeObserver.observe(container);
     resizeCleanupRef.current = () => resizeObserver.disconnect();
   }, [
     options.wsUrl,

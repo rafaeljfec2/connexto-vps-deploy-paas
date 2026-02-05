@@ -32,7 +32,7 @@ export function ContainerConsoleDialog({
           <TerminalView
             wsUrl={wsUrl}
             autoConnect={open}
-            className="flex-1 min-h-0 p-4"
+            className="flex-1 min-h-[240px] p-4"
           />
         )}
       </DialogContent>
