@@ -117,7 +117,11 @@ func (d *DockerClient) parseContainerLine(ctx context.Context, line string) *Con
 	}
 
 	container.Health, _ = d.getContainerHealth(ctx, container.ID)
-	container.IPAddress, _ = d.getContainerIP(ctx, container.ID)
+	if ip, err := d.GetContainerIP(ctx, container.Name, defaultNetworkName); err == nil && ip != "" {
+		container.IPAddress = ip
+	} else {
+		container.IPAddress, _ = d.getContainerIP(ctx, container.ID)
+	}
 	container.Networks, _ = d.getContainerNetworks(ctx, container.ID)
 	container.Mounts, _ = d.getContainerMounts(ctx, container.ID)
 

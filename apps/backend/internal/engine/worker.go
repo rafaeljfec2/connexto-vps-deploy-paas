@@ -538,13 +538,18 @@ func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app
 	w.log(deploy.ID, app.ID, "Waiting %s for container to be ready...", startDelay)
 	time.Sleep(startDelay)
 
-	containerIP, err := w.deps.Docker.GetContainerIP(ctx, app.Name, defaultNetworkName)
-	if err != nil {
-		return fmt.Errorf("failed to get container IP: %w", err)
+	var healthURL string
+	if w.deployConfig.HostPort > 0 {
+		healthURL = fmt.Sprintf("http://127.0.0.1:%d%s", w.deployConfig.HostPort, w.deployConfig.Healthcheck.Path)
+		w.log(deploy.ID, app.ID, "Health check URL (via host port): %s", healthURL)
+	} else {
+		containerIP, err := w.deps.Docker.GetContainerIP(ctx, app.Name, defaultNetworkName)
+		if err != nil {
+			return fmt.Errorf("failed to get container IP: %w", err)
+		}
+		healthURL = fmt.Sprintf("http://%s:%d%s", containerIP, w.deployConfig.Port, w.deployConfig.Healthcheck.Path)
+		w.log(deploy.ID, app.ID, "Health check URL: %s", healthURL)
 	}
-
-	healthURL := fmt.Sprintf("http://%s:%d%s", containerIP, w.deployConfig.Port, w.deployConfig.Healthcheck.Path)
-	w.log(deploy.ID, app.ID, "Health check URL: %s", healthURL)
 
 	if err := w.deps.Health.CheckWithBackoff(ctx, healthURL); err != nil {
 		return err
