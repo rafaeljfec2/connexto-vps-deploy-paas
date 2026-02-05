@@ -66,6 +66,45 @@ export function ContainerConsoleDialog({
 
     let mounted = true;
 
+    function handleWsOpen(): void {
+      if (!mounted) return;
+      setStatus("connected");
+      scheduleTerminalFocus(termRef);
+      setTimeout(() => termRef.current?.terminal.focus(), 100);
+    }
+
+    function handleWsMessage(event: MessageEvent): void {
+      if (termRef.current && typeof event.data === "string") {
+        termRef.current.terminal.write(event.data);
+      }
+    }
+
+    function handleWsError(): void {
+      if (mounted) setError("WebSocket connection failed");
+    }
+
+    function handleWsClose(): void {
+      if (!mounted) return;
+      setStatus("closed");
+      if (termRef.current) {
+        termRef.current.terminal.writeln(
+          "\r\n\x1b[33mConnection closed.\x1b[0m",
+        );
+      }
+    }
+
+    function createOnDataHandler(ws: WebSocket): (data: string) => void {
+      return (data) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(data);
+      };
+    }
+
+    function createResizeCallback(
+      fit: import("@xterm/addon-fit").FitAddon,
+    ): () => void {
+      return () => fit.fit();
+    }
+
     const connect = async () => {
       setError(null);
       setStatus("connecting");
@@ -99,45 +138,16 @@ export function ContainerConsoleDialog({
         wsRef.current = ws;
 
         ws.binaryType = "arraybuffer";
+        ws.onopen = handleWsOpen;
+        ws.onmessage = handleWsMessage;
+        ws.onerror = handleWsError;
+        ws.onclose = handleWsClose;
 
-        ws.onopen = () => {
-          if (mounted) {
-            setStatus("connected");
-            scheduleTerminalFocus(termRef);
-            setTimeout(() => termRef.current?.terminal.focus(), 100);
-          }
-        };
+        terminal.onData(createOnDataHandler(ws));
 
-        ws.onmessage = (event) => {
-          if (termRef.current && typeof event.data === "string") {
-            termRef.current.terminal.write(event.data);
-          }
-        };
-
-        ws.onerror = () => {
-          if (mounted) setError("WebSocket connection failed");
-        };
-
-        ws.onclose = () => {
-          if (mounted) {
-            setStatus("closed");
-            if (termRef.current) {
-              termRef.current.terminal.writeln(
-                "\r\n\x1b[33mConnection closed.\x1b[0m",
-              );
-            }
-          }
-        };
-
-        terminal.onData((data) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(data);
-          }
-        });
-
-        const resizeObserver = new ResizeObserver(() => {
-          fitAddon.fit();
-        });
+        const resizeObserver = new ResizeObserver(
+          createResizeCallback(fitAddon),
+        );
         resizeObserver.observe(terminalRef.current);
       } catch (err) {
         if (mounted) {
