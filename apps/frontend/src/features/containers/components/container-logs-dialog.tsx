@@ -1,1 +1,1 @@
-export { ContainerLogsDialog } from "./logs";
+export { ContainerLogsDialog } from "./logs/container-logs-dialog";
