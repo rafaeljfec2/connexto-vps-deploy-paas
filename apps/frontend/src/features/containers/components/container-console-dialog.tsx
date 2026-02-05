@@ -15,14 +15,39 @@ function scheduleTerminalFit(
   setTimeout(() => fitAddon.fit(), 100);
 }
 
+function keyEventToData(event: KeyboardEvent): string {
+  if (event.ctrlKey || event.altKey || event.metaKey) {
+    if (event.ctrlKey && event.key.length === 1) {
+      const code = (event.key.toUpperCase().codePointAt(0) ?? 0) - 64;
+      if (code >= 1 && code <= 26) return String.fromCodePoint(code);
+    }
+    return "";
+  }
+  switch (event.key) {
+    case "Enter":
+      return "\r";
+    case "Backspace":
+      return "\x7f";
+    case "Tab":
+      return "\t";
+    case "ArrowUp":
+      return "\x1b[A";
+    case "ArrowDown":
+      return "\x1b[B";
+    case "ArrowRight":
+      return "\x1b[C";
+    case "ArrowLeft":
+      return "\x1b[D";
+    default:
+      return event.key.length === 1 ? event.key : "";
+  }
+}
+
 function scheduleTerminalFocus(
-  termRef: React.RefObject<{
-    terminal: import("@xterm/xterm").Terminal;
-    fit: import("@xterm/addon-fit").FitAddon;
-  } | null>,
+  terminalRef: React.RefObject<HTMLDivElement | null>,
 ): void {
-  setTimeout(() => termRef.current?.terminal.focus(), 300);
-  setTimeout(() => termRef.current?.terminal.focus(), 600);
+  setTimeout(() => terminalRef.current?.focus(), 300);
+  setTimeout(() => terminalRef.current?.focus(), 600);
 }
 
 interface ContainerConsoleDialogProps {
@@ -69,8 +94,8 @@ export function ContainerConsoleDialog({
     function handleWsOpen(): void {
       if (!mounted) return;
       setStatus("connected");
-      scheduleTerminalFocus(termRef);
-      setTimeout(() => termRef.current?.terminal.focus(), 100);
+      scheduleTerminalFocus(terminalRef);
+      setTimeout(() => terminalRef.current?.focus(), 100);
     }
 
     function handleWsMessage(event: MessageEvent): void {
@@ -131,7 +156,7 @@ export function ContainerConsoleDialog({
         terminal.open(terminalRef.current);
         termRef.current = { terminal, fit: fitAddon };
         scheduleTerminalFit(fitAddon);
-        scheduleTerminalFocus(termRef);
+        scheduleTerminalFocus(terminalRef);
 
         const wsUrl = api.containers.consoleUrl(containerId);
         const ws = new WebSocket(wsUrl);
@@ -198,8 +223,8 @@ export function ContainerConsoleDialog({
         {error && (
           <div className="px-6 py-2 text-sm text-destructive">{error}</div>
         )}
-        {/* Focus target for xterm; role=application is correct for terminal widget */}
-        <div
+        {/* Focus target; keys forwarded to WebSocket via onKeyDown */}
+        <div // NOSONAR jsx-a11y/no-static-element-interactions - focus target for terminal (role=application)
           ref={terminalRef}
           role="application"
           aria-label="Container shell"
@@ -209,7 +234,18 @@ export function ContainerConsoleDialog({
           onFocus={() => termRef.current?.terminal.focus()}
           onPointerDownCapture={(e) => {
             e.preventDefault();
-            termRef.current?.terminal.focus();
+            terminalRef.current?.focus();
+          }}
+          onKeyDown={(e) => {
+            if (
+              wsRef.current?.readyState !== WebSocket.OPEN ||
+              !termRef.current
+            )
+              return;
+            e.preventDefault();
+            e.stopPropagation();
+            const data = keyEventToData(e.nativeEvent);
+            if (data !== "") wsRef.current.send(data);
           }}
         />
       </DialogContent>
