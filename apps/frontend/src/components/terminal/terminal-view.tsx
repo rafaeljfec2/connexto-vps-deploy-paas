@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import "@xterm/xterm/css/xterm.css";
 import { cn } from "@/lib/utils";
 import { isBrowserShortcut, keyEventToData } from "./terminal-utils";
@@ -32,12 +32,25 @@ export function TerminalView({
     return disconnect;
   }, [autoConnect, connect, disconnect]);
 
+  // Schedule focus after terminal renders
+  useEffect(() => {
+    if (status !== "connected") return;
+    const timers = [
+      setTimeout(() => containerRef.current?.focus(), 100),
+      setTimeout(() => containerRef.current?.focus(), 300),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, [status, containerRef]);
+
+  // Global key listener for when dialog focus trap interferes
   useEffect(() => {
     if (status !== "connected") return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      // Allow xterm's hidden textarea to handle input directly
+      if (target.tagName === "INPUT") return;
+      // Skip browser shortcuts
       if (isBrowserShortcut(event)) return;
 
       const data = keyEventToData(event);
@@ -55,6 +68,22 @@ export function TerminalView({
       });
   }, [status, sendInput]);
 
+  // Fallback handler for keydown on container div
+  const handleContainerKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (status !== "connected") return;
+      if (isBrowserShortcut(e.nativeEvent)) return;
+
+      const data = keyEventToData(e.nativeEvent);
+      if (data === "") return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      sendInput(data);
+    },
+    [status, sendInput],
+  );
+
   return (
     <div className={cn("relative", className)}>
       {error && (
@@ -62,16 +91,17 @@ export function TerminalView({
           <span className="text-destructive">{error}</span>
         </div>
       )}
-      <div
+      <div // NOSONAR jsx-a11y - terminal input container with role="application"
         ref={containerRef}
         role="application"
         aria-label="Terminal"
-        tabIndex={0} // NOSONAR jsx-a11y/no-noninteractive-tabindex - focus target for terminal key input
-        className="h-full w-full outline-none"
+        tabIndex={0}
+        className="h-full w-full outline-none cursor-text"
         onPointerDownCapture={(e) => {
           e.preventDefault();
           containerRef.current?.focus();
         }}
+        onKeyDown={handleContainerKeyDown}
       />
     </div>
   );
