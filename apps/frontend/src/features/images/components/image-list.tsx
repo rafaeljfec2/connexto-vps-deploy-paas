@@ -158,7 +158,7 @@ export function ImageList() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground min-w-[200px]">
+                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground min-w-[320px]">
                     Repository
                   </th>
                   <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">

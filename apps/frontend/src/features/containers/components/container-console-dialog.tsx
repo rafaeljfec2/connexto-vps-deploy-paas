@@ -16,12 +16,14 @@ function scheduleTerminalFit(
 }
 
 function scheduleTerminalFocus(
-  termRef: React.RefObject<{
+  terminalRef: React.RefObject<HTMLDivElement | null>,
+  _termRef: React.RefObject<{
     terminal: import("@xterm/xterm").Terminal;
     fit: import("@xterm/addon-fit").FitAddon;
   } | null>,
 ): void {
-  setTimeout(() => termRef.current?.terminal.focus(), 300);
+  setTimeout(() => terminalRef.current?.focus(), 300);
+  setTimeout(() => terminalRef.current?.focus(), 600);
 }
 
 interface ContainerConsoleDialogProps {
@@ -91,7 +93,7 @@ export function ContainerConsoleDialog({
         terminal.open(terminalRef.current);
         termRef.current = { terminal, fit: fitAddon };
         scheduleTerminalFit(fitAddon);
-        scheduleTerminalFocus(termRef);
+        scheduleTerminalFocus(terminalRef, termRef);
 
         const wsUrl = api.containers.consoleUrl(containerId);
         const ws = new WebSocket(wsUrl);
@@ -102,7 +104,7 @@ export function ContainerConsoleDialog({
         ws.onopen = () => {
           if (mounted) {
             setStatus("connected");
-            scheduleTerminalFocus(termRef);
+            scheduleTerminalFocus(terminalRef, termRef);
           }
         };
 
@@ -190,9 +192,11 @@ export function ContainerConsoleDialog({
           ref={terminalRef}
           role="application"
           aria-label="Container shell"
-          className="flex-1 min-h-0 p-4 overflow-hidden cursor-text"
+          tabIndex={0}
+          className="flex-1 min-h-0 p-4 overflow-hidden cursor-text outline-none"
           style={{ height: "calc(80vh - 120px)" }}
-          onPointerDown={() => termRef.current?.terminal.focus()}
+          onFocus={() => termRef.current?.terminal.focus()}
+          onPointerDown={() => terminalRef.current?.focus()}
         />
       </DialogContent>
     </Dialog>

@@ -50,20 +50,8 @@ services:
       dockerfile: apps/backend/Dockerfile
     container_name: paasdeploy-backend
     restart: unless-stopped
-    environment:
-      DATABASE_URL: postgres://paasdeploy:paasdeploy@postgres:5432/paasdeploy?sslmode=disable
-      PORT: "8080"
-      HOST: "0.0.0.0"
-      LOG_LEVEL: info
-      DEPLOY_DATA_DIR: /data/apps
-      DEPLOY_WORKERS: "2"
-      DEPLOY_TIMEOUT: "600"
-      HEALTH_CHECK_TIMEOUT: "60"
-      DOCKER_BUILDKIT: "1"
-      GRPC_ENABLED: "true"
-      AGENT_BINARY_PATH: "/app/agent"
-      GRPC_SERVER_ADDR: ${GRPC_SERVER_ADDR:-localhost:50051}
-      AGENT_GRPC_PORT: "50052"
+    env_file:
+      - ../apps/backend/.env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - deploy-data:/data/apps
