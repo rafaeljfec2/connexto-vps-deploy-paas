@@ -24,7 +24,11 @@ export function ContainerConsoleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
+      <DialogContent
+        className="max-w-4xl h-[80vh] flex flex-col p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        aria-describedby={undefined}
+      >
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle>Console - {containerName}</DialogTitle>
         </DialogHeader>

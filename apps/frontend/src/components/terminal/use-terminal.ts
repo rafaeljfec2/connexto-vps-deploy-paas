@@ -73,6 +73,7 @@ export function useTerminal(options: TerminalOptions): UseTerminalReturn {
       ws.onopen = () => {
         setStatus("connected");
         doFit();
+        setTimeout(() => terminal.focus(), 100);
       };
 
       ws.onmessage = (event) => {
