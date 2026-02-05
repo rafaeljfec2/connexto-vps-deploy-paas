@@ -74,6 +74,27 @@ const TIMESTAMP_REGEX = /^\[(\d{2}:\d{2}:\d{2})\]\s*/;
 const PREFIX_REGEX = /^\[(build|deploy)\]\s*/i;
 const STEP_REGEX = /^(#\d+)\s+/;
 
+function utcTimeToLocal(utcTime: string): string {
+  const [hours, minutes, seconds] = utcTime.split(":").map(Number);
+  const now = new Date();
+  const utcDate = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      hours,
+      minutes,
+      seconds,
+    ),
+  );
+  return utcDate.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 function determineLogType(content: string, prefix: LogPrefix): LogType {
   const lower = content.toLowerCase();
 
@@ -140,7 +161,7 @@ function parseLogLine(line: string, index: number): ParsedLogLine {
 
   const timestampMatch = TIMESTAMP_REGEX.exec(remaining);
   if (timestampMatch?.[1]) {
-    timestamp = timestampMatch[1];
+    timestamp = utcTimeToLocal(timestampMatch[1]);
     remaining = remaining.slice(timestampMatch[0].length);
   }
 
