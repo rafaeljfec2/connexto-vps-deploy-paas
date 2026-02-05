@@ -4,7 +4,7 @@ import { ImageList } from "@/features/images";
 
 export function ImagesPage() {
   return (
-    <div className="container mx-auto max-w-[2560px] py-6 space-y-6">
+    <div className="py-6 space-y-6">
       <PageHeader
         title="Docker Images"
         description="Manage Docker images on this server"

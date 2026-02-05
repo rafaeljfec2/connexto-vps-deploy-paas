@@ -187,7 +187,7 @@ export function ImageList() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="font-medium truncate block min-w-0">
+                              <span className="font-medium text-sm truncate block min-w-0">
                                 {image.repository === "<none>" ? (
                                   <span className="text-muted-foreground italic">
                                     none
