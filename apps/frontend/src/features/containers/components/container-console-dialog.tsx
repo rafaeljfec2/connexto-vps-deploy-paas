@@ -191,6 +191,44 @@ export function ContainerConsoleDialog({
     };
   }, [open, containerId, cleanup]);
 
+  useEffect(() => {
+    if (!open || status !== "connected") return;
+
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+
+      if (
+        event.ctrlKey &&
+        ["r", "w", "t", "n"].includes(event.key.toLowerCase())
+      )
+        return;
+      if (
+        event.metaKey &&
+        ["r", "w", "t", "n"].includes(event.key.toLowerCase())
+      )
+        return;
+
+      if (wsRef.current?.readyState !== WebSocket.OPEN) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const data = keyEventToData(event);
+      if (data !== "") wsRef.current.send(data);
+    };
+
+    globalThis.addEventListener("keydown", handleGlobalKeyDown, {
+      capture: true,
+    });
+
+    return () => {
+      globalThis.removeEventListener("keydown", handleGlobalKeyDown, {
+        capture: true,
+      });
+    };
+  }, [open, status]);
+
   const handleOpenChange = useCallback(
     (next: boolean) => {
       if (!next) cleanup();
@@ -201,10 +239,7 @@ export function ContainerConsoleDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="max-w-4xl h-[80vh] flex flex-col p-0"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
+      <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle className="flex items-center gap-2">
             Console - {containerName}
@@ -236,6 +271,7 @@ export function ContainerConsoleDialog({
             terminalRef.current?.focus();
           }}
           onKeyDown={(e) => {
+            // Fallback se o listener global nao capturar
             if (
               wsRef.current?.readyState !== WebSocket.OPEN ||
               !termRef.current
