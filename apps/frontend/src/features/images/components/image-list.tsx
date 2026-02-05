@@ -158,22 +158,22 @@ export function ImageList() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground min-w-[480px]">
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground min-w-[480px]">
                     Repository
                   </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground">
                     Tag
                   </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden md:table-cell">
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden md:table-cell">
                     ID
                   </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden lg:table-cell">
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden lg:table-cell">
                     Size
                   </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden md:table-cell">
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground hidden md:table-cell">
                     Created
                   </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground w-10"></th>
+                  <th className="text-left py-3 px-4 text-xs font-medium text-muted-foreground w-10"></th>
                 </tr>
               </thead>
               <tbody>
@@ -227,7 +227,7 @@ export function ImageList() {
                       </div>
                     </td>
                     <td className="py-3 px-4">
-                      <span className="text-sm">
+                      <span className="text-xs">
                         {image.tag === "<none>" ? (
                           <span className="text-muted-foreground italic">
                             none
@@ -238,17 +238,17 @@ export function ImageList() {
                       </span>
                     </td>
                     <td className="py-3 px-4 hidden md:table-cell">
-                      <span className="text-sm text-muted-foreground font-mono">
+                      <span className="text-xs text-muted-foreground font-mono">
                         {image.id.slice(0, 12)}
                       </span>
                     </td>
                     <td className="py-3 px-4 hidden lg:table-cell whitespace-nowrap">
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {formatBytes(image.size)}
                       </span>
                     </td>
                     <td className="py-3 px-4 hidden md:table-cell whitespace-nowrap">
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {formatDate(image.created)}
                       </span>
                     </td>
