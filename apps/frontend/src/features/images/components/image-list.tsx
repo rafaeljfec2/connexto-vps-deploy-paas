@@ -242,7 +242,7 @@ export function ImageList() {
                         {image.id.slice(0, 12)}
                       </span>
                     </td>
-                    <td className="py-3 px-4 hidden lg:table-cell">
+                    <td className="py-3 px-4 hidden lg:table-cell whitespace-nowrap">
                       <span className="text-sm text-muted-foreground">
                         {formatBytes(image.size)}
                       </span>
