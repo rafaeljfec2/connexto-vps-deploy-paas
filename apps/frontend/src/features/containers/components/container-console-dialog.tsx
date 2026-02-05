@@ -231,7 +231,6 @@ export function ContainerConsoleDialog({
           tabIndex={0} // NOSONAR - focus target for embedded terminal (role=application)
           className="flex-1 min-h-0 p-4 overflow-hidden cursor-text outline-none"
           style={{ height: "calc(80vh - 120px)" }}
-          onFocus={() => termRef.current?.terminal.focus()}
           onPointerDownCapture={(e) => {
             e.preventDefault();
             terminalRef.current?.focus();
