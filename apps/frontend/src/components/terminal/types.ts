@@ -32,4 +32,5 @@ export interface UseTerminalReturn {
   readonly write: (data: string) => void;
   readonly sendInput: (data: string) => void;
   readonly clear: () => void;
+  readonly focus: () => void;
 }

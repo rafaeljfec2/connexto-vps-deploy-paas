@@ -20,7 +20,7 @@ export function TerminalView({
   onStatusChange,
   theme,
 }: TerminalViewProps) {
-  const { status, error, containerRef, connect, disconnect, sendInput } =
+  const { status, error, containerRef, connect, disconnect, sendInput, focus } =
     useTerminal({
       wsUrl,
       onStatusChange,
@@ -35,12 +35,9 @@ export function TerminalView({
   // Schedule focus after terminal renders
   useEffect(() => {
     if (status !== "connected") return;
-    const timers = [
-      setTimeout(() => containerRef.current?.focus(), 100),
-      setTimeout(() => containerRef.current?.focus(), 300),
-    ];
+    const timers = [setTimeout(focus, 100), setTimeout(focus, 300)];
     return () => timers.forEach(clearTimeout);
-  }, [status, containerRef]);
+  }, [status, focus]);
 
   // Global key listener for when dialog focus trap interferes
   useEffect(() => {
@@ -97,9 +94,8 @@ export function TerminalView({
         aria-label="Terminal"
         tabIndex={0}
         className="h-full w-full outline-none cursor-text"
-        onPointerDownCapture={(e) => {
-          e.preventDefault();
-          containerRef.current?.focus();
+        onPointerDown={() => {
+          focus();
         }}
         onKeyDown={handleContainerKeyDown}
       />

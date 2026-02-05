@@ -569,6 +569,9 @@ export const api = {
     logs: (id: string, tail = 100): Promise<ContainerLogs> =>
       fetchApi<ContainerLogs>(`${API_BASE}/containers/${id}/logs?tail=${tail}`),
 
+    logsStreamUrl: (id: string): string =>
+      `${API_BASE}/containers/${id}/logs?follow=true`,
+
     consoleUrl: (id: string, shell = "sh"): string => {
       const base = API_URL.replace(/^http/, "ws");
       return `${base}/paas-deploy/v1/containers/${id}/console?shell=${encodeURIComponent(shell)}`;

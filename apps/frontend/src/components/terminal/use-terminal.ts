@@ -143,6 +143,10 @@ export function useTerminal(options: TerminalOptions): UseTerminalReturn {
     terminalRef.current?.clear();
   }, []);
 
+  const focus = useCallback(() => {
+    terminalRef.current?.focus();
+  }, []);
+
   useEffect(() => cleanup, [cleanup]);
 
   useEffect(() => {
@@ -158,5 +162,6 @@ export function useTerminal(options: TerminalOptions): UseTerminalReturn {
     write,
     sendInput,
     clear,
+    focus,
   };
 }
