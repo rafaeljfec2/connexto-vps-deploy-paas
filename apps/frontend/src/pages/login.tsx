@@ -129,9 +129,18 @@ export function LoginPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden md:flex-row">
-      <aside className="relative flex min-h-0 flex-col justify-between overflow-hidden bg-slate-900 bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-8 md:w-[40%] md:py-10 lg:w-1/2 lg:px-12 lg:py-12">
+      <aside className="relative flex min-h-0 flex-col justify-between overflow-hidden bg-slate-100 bg-gradient-to-br from-slate-50 to-slate-200 px-6 py-8 dark:from-slate-900 dark:to-slate-800 dark:bg-slate-900 md:w-[40%] md:py-10 lg:w-1/2 lg:px-12 lg:py-12">
         <div
-          className="pointer-events-none absolute inset-0 opacity-100"
+          className="pointer-events-none absolute inset-0 opacity-100 dark:opacity-0"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100"
           style={{
             backgroundImage:
               "radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)",
@@ -140,33 +149,36 @@ export function LoginPage() {
           aria-hidden
         />
         <div
-          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-emerald-500/20 blur-3xl"
+          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-emerald-400/15 blur-3xl dark:bg-emerald-500/20"
           aria-hidden
         />
         <div className="relative min-h-0 shrink-0">
-          <div className="flex flex-wrap items-center gap-2 text-white">
-            <Rocket className="h-8 w-8 shrink-0" aria-hidden />
+          <div className="flex flex-wrap items-center gap-2 text-slate-900 dark:text-white">
+            <Rocket
+              className="h-8 w-8 shrink-0 text-slate-900 dark:text-white"
+              aria-hidden
+            />
             <span className="text-xl font-semibold tracking-tight">
               FlowDeploy
             </span>
-            <span className="rounded-md border border-slate-600 bg-slate-800/80 px-2 py-0.5 text-xs font-medium text-slate-300">
+            <span className="rounded-md border border-slate-300 bg-slate-200/80 px-2 py-0.5 text-xs font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300">
               Self-hosted
             </span>
           </div>
-          <h1 className="mt-8 text-2xl font-bold text-white sm:text-3xl md:mt-8 lg:mt-10 lg:text-4xl">
+          <h1 className="mt-8 text-2xl font-bold text-slate-900 sm:text-3xl dark:text-white md:mt-8 lg:mt-10 lg:text-4xl">
             Deploy your applications with confidence
           </h1>
-          <p className="mt-2 text-slate-400 text-sm lg:text-base">
+          <p className="mt-2 text-slate-600 text-sm dark:text-slate-400 lg:text-base">
             The self-hosted PaaS that gives you full control
           </p>
           <ul className="mt-6 hidden space-y-3 md:mt-8 md:block lg:mt-8 lg:space-y-4">
             {FEATURES.map((feature) => (
               <li
                 key={feature}
-                className="flex items-center gap-3 text-slate-300 text-sm transition-colors hover:text-slate-200 lg:text-base"
+                className="flex items-center gap-3 text-slate-700 text-sm transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-200 lg:text-base"
               >
                 <Check
-                  className="h-5 w-5 shrink-0 text-emerald-500"
+                  className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-500"
                   aria-hidden
                 />
                 <span>{feature}</span>
@@ -174,9 +186,11 @@ export function LoginPage() {
             ))}
           </ul>
         </div>
-        <div className="relative mt-6 flex shrink-0 flex-wrap items-center justify-center gap-4 border-t border-slate-700/80 pt-6 md:justify-start">
-          <span className="text-slate-500 text-xs">Powered by</span>
-          <div className="flex items-center gap-5 text-slate-400">
+        <div className="relative mt-6 flex shrink-0 flex-wrap items-center justify-center gap-4 border-t border-slate-300 pt-6 dark:border-slate-700/80 md:justify-start">
+          <span className="text-slate-600 text-xs dark:text-slate-500">
+            Powered by
+          </span>
+          <div className="flex items-center gap-5 text-slate-500 dark:text-slate-400">
             <DockerLogo className="h-5 w-5" />
             <GitHubLogo className="h-5 w-5" />
             <CloudflareLogo className="h-5 w-5" />
