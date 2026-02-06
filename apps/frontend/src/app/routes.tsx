@@ -12,12 +12,14 @@ import { ServerDetailsPage } from "@/pages/server-details";
 import { ServersPage } from "@/pages/servers";
 import { SettingsPage } from "@/pages/settings";
 import { TemplatesPage } from "@/pages/templates";
+import { TermsOfServicePage } from "@/pages/terms-of-service";
 import { ProtectedRoute } from "@/components/protected-route";
 
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/terms" element={<TermsOfServicePage />} />
       <Route
         path="/"
         element={

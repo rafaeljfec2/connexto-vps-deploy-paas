@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
@@ -184,8 +184,8 @@ export function LoginPage() {
         </div>
       </aside>
 
-      <main className="flex min-h-0 flex-1 flex-col items-center justify-center bg-background px-6 py-8 md:w-[60%] md:py-10 lg:w-1/2 lg:px-12 lg:py-12">
-        <Card className="w-full max-w-md border-border/80 shadow-md">
+      <main className="flex min-h-0 flex-1 flex-col items-center justify-center bg-slate-50 px-6 py-8 dark:bg-background md:w-[60%] md:py-10 lg:w-1/2 lg:px-12 lg:py-12">
+        <Card className="w-full max-w-md border-slate-200 shadow-lg dark:border-border/80 dark:shadow-md">
           <CardHeader className="space-y-1.5 pb-4">
             <div className="flex justify-center md:justify-start">
               <Rocket className="h-10 w-10 shrink-0 text-primary" aria-hidden />
@@ -218,17 +218,29 @@ export function LoginPage() {
               Continue with GitHub
             </Button>
             <div className="relative flex items-center gap-3 pt-2">
-              <span className="flex-1 border-t border-border" aria-hidden />
+              <span
+                className="flex-1 border-t border-slate-200 dark:border-border"
+                aria-hidden
+              />
               <span className="text-muted-foreground text-xs">or</span>
-              <span className="flex-1 border-t border-border" aria-hidden />
+              <span
+                className="flex-1 border-t border-slate-200 dark:border-border"
+                aria-hidden
+              />
             </div>
             <p className="text-center text-muted-foreground text-xs">
               More sign-in options coming soon
             </p>
           </CardContent>
-          <CardFooter className="flex justify-center border-t border-border/50 pt-6">
+          <CardFooter className="flex justify-center border-t border-slate-200 pt-6 dark:border-border/50">
             <p className="text-center text-muted-foreground text-xs">
-              By signing in, you agree to our Terms of Service
+              By signing in, you agree to our{" "}
+              <Link
+                to={ROUTES.TERMS}
+                className="text-primary underline hover:opacity-90 dark:hover:text-foreground"
+              >
+                Terms of Service
+              </Link>
             </p>
           </CardFooter>
         </Card>

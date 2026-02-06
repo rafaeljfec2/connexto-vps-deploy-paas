@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useSSE } from "@/hooks/use-sse";
 import { Layout } from "./layout";
 import { Providers } from "./providers";
@@ -15,10 +14,6 @@ function AppContent() {
 }
 
 export function App() {
-  useEffect(() => {
-    document.documentElement.classList.add("dark");
-  }, []);
-
   return (
     <Providers>
       <AppContent />
