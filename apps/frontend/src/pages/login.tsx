@@ -1,14 +1,16 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ExclamationTriangleIcon, GitHubLogoIcon } from "@radix-ui/react-icons";
+import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
+import { Check, Rocket } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -43,17 +45,67 @@ function isAuthErrorCode(code: string): code is AuthErrorCode {
   return code in ERROR_MESSAGES;
 }
 
+function getErrorMessage(error: string | null): string | null {
+  if (!error) return null;
+  return isAuthErrorCode(error)
+    ? ERROR_MESSAGES[error]
+    : `An unknown error occurred: ${error}`;
+}
+
+function GitHubLogo({ className }: { readonly className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+    </svg>
+  );
+}
+
+function DockerLogo({ className }: { readonly className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M13.983 10.779h3.782V7.002h-3.782v3.777zm-5.393 0h3.782V7.002H8.59v3.777zm5.393 5.395h3.782v-3.777h-3.782v3.777zm-5.393 0h3.782v-3.777H8.59v3.777zm5.393-10.79h3.782V1.607h-3.782v3.777zM8.59 5.395h3.782V1.607H8.59v3.788zM2.197 10.779h3.782V7.002H2.197v3.777zm0 5.395h3.782v-3.777H2.197v3.777zm15.568 0h3.782v-3.777h-3.782v3.777zM2.197 5.395h3.782V1.607H2.197v3.788z" />
+    </svg>
+  );
+}
+
+function CloudflareLogo({ className }: { readonly className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
+      <path d="M15.8 12.5l-3.5-6c-.2-.3-.5-.5-.8-.5s-.6.2-.8.5l-4 6.9c-.2.3-.2.7 0 1 .2.3.5.5.8.5h2.5v5c0 .3.2.5.5.5h2c.3 0 .5-.2.5-.5v-5h1.5c.3 0 .6-.2.8-.5.1-.3.1-.7-.2-1z" />
+    </svg>
+  );
+}
+
+const FEATURES = [
+  "Git-based automatic deployments",
+  "Automatic SSL certificates",
+  "Real-time logs and monitoring",
+  "Custom domains with Cloudflare",
+  "One-click rollbacks",
+  "Container console access",
+] as const;
+
 export function LoginPage() {
   const { isAuthenticated, isLoading, login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const error = searchParams.get("error");
-  const errorMessage = error
-    ? isAuthErrorCode(error)
-      ? ERROR_MESSAGES[error]
-      : `An unknown error occurred: ${error}`
-    : null;
+  const errorMessage = getErrorMessage(searchParams.get("error"));
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
@@ -63,51 +115,124 @@ export function LoginPage() {
 
   if (isLoading) {
     return (
-      <div
-        className="flex items-center justify-center min-h-dvh px-4"
-        role="status"
-        aria-label="Checking authentication status"
-      >
+      <div className="flex h-full min-h-0 items-center justify-center px-4">
         <div
           className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"
           aria-hidden="true"
         />
-        <span className="sr-only">Loading...</span>
+        <output className="sr-only" aria-live="polite">
+          Checking authentication status
+        </output>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-center min-h-dvh bg-background px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">FlowDeploy</CardTitle>
-          <CardDescription>Sign in to deploy your applications</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {errorMessage && (
-            <Alert variant="destructive" role="alert">
-              <ExclamationTriangleIcon className="h-4 w-4" aria-hidden="true" />
-              <AlertTitle>Authentication Error</AlertTitle>
-              <AlertDescription>{errorMessage}</AlertDescription>
-            </Alert>
-          )}
-
-          <Button
-            onClick={login}
-            className="w-full"
-            size="lg"
-            aria-label="Sign in with GitHub"
-          >
-            <GitHubLogoIcon className="mr-2 h-5 w-5" aria-hidden="true" />
-            Sign in with GitHub
-          </Button>
-
-          <p className="text-xs text-center text-muted-foreground">
-            By signing in, you agree to our terms of service and privacy policy.
+    <div className="flex h-full min-h-0 flex-col overflow-hidden md:flex-row">
+      <aside className="relative flex min-h-0 flex-col justify-between overflow-hidden bg-slate-900 bg-gradient-to-br from-slate-900 to-slate-800 px-6 py-8 md:w-[40%] md:py-10 lg:w-1/2 lg:px-12 lg:py-12">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-100"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-emerald-500/20 blur-3xl"
+          aria-hidden
+        />
+        <div className="relative min-h-0 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 text-white">
+            <Rocket className="h-8 w-8 shrink-0" aria-hidden />
+            <span className="text-xl font-semibold tracking-tight">
+              FlowDeploy
+            </span>
+            <span className="rounded-md border border-slate-600 bg-slate-800/80 px-2 py-0.5 text-xs font-medium text-slate-300">
+              Self-hosted
+            </span>
+          </div>
+          <h1 className="mt-8 text-2xl font-bold text-white sm:text-3xl md:mt-8 lg:mt-10 lg:text-4xl">
+            Deploy your applications with confidence
+          </h1>
+          <p className="mt-2 text-slate-400 text-sm lg:text-base">
+            The self-hosted PaaS that gives you full control
           </p>
-        </CardContent>
-      </Card>
+          <ul className="mt-6 hidden space-y-3 md:mt-8 md:block lg:mt-8 lg:space-y-4">
+            {FEATURES.map((feature) => (
+              <li
+                key={feature}
+                className="flex items-center gap-3 text-slate-300 text-sm transition-colors hover:text-slate-200 lg:text-base"
+              >
+                <Check
+                  className="h-5 w-5 shrink-0 text-emerald-500"
+                  aria-hidden
+                />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="relative mt-6 flex shrink-0 flex-wrap items-center justify-center gap-4 border-t border-slate-700/80 pt-6 md:justify-start">
+          <span className="text-slate-500 text-xs">Powered by</span>
+          <div className="flex items-center gap-5 text-slate-400">
+            <DockerLogo className="h-5 w-5" />
+            <GitHubLogo className="h-5 w-5" />
+            <CloudflareLogo className="h-5 w-5" />
+          </div>
+        </div>
+      </aside>
+
+      <main className="flex min-h-0 flex-1 flex-col items-center justify-center bg-background px-6 py-8 md:w-[60%] md:py-10 lg:w-1/2 lg:px-12 lg:py-12">
+        <Card className="w-full max-w-md border-border/80 shadow-md">
+          <CardHeader className="space-y-1.5 pb-4">
+            <div className="flex justify-center md:justify-start">
+              <Rocket className="h-10 w-10 shrink-0 text-primary" aria-hidden />
+            </div>
+            <CardTitle className="text-2xl">Sign in to FlowDeploy</CardTitle>
+            <CardDescription>
+              Welcome back! Please sign in to continue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {errorMessage && (
+              <Alert variant="destructive" role="alert">
+                <ExclamationTriangleIcon
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                />
+                <AlertTitle>Authentication Error</AlertTitle>
+                <AlertDescription>{errorMessage}</AlertDescription>
+              </Alert>
+            )}
+
+            <Button
+              onClick={login}
+              variant="secondary"
+              className="h-11 w-full bg-zinc-900 text-white transition-[transform,box-shadow] hover:bg-zinc-800 hover:shadow-lg hover:scale-[1.02] active:scale-[0.99] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              size="lg"
+              aria-label="Sign in with GitHub"
+            >
+              <GitHubLogo className="mr-2 h-5 w-5 shrink-0" />
+              Continue with GitHub
+            </Button>
+            <div className="relative flex items-center gap-3 pt-2">
+              <span className="flex-1 border-t border-border" aria-hidden />
+              <span className="text-muted-foreground text-xs">or</span>
+              <span className="flex-1 border-t border-border" aria-hidden />
+            </div>
+            <p className="text-center text-muted-foreground text-xs">
+              More sign-in options coming soon
+            </p>
+          </CardContent>
+          <CardFooter className="flex justify-center border-t border-border/50 pt-6">
+            <p className="text-center text-muted-foreground text-xs">
+              By signing in, you agree to our Terms of Service
+            </p>
+          </CardFooter>
+        </Card>
+      </main>
     </div>
   );
 }
