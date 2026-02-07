@@ -3,7 +3,6 @@ import {
   Activity,
   Cpu,
   HardDrive,
-  Info,
   Network,
   RefreshCw,
   Server as ServerIcon,
@@ -47,21 +46,6 @@ function formatOsInfo(
   return os ?? osVersion ?? "—";
 }
 
-function InfoRow({
-  label,
-  value,
-}: {
-  readonly label: string;
-  readonly value: string | undefined | null;
-}) {
-  return (
-    <div>
-      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 text-sm font-medium">{value ?? "—"}</dd>
-    </div>
-  );
-}
-
 function getStatusBadgeVariant(
   status: string,
 ): "default" | "destructive" | "secondary" {
@@ -70,83 +54,32 @@ function getStatusBadgeVariant(
   return "secondary";
 }
 
-function ServerStatusCard({
-  status,
-  agentVersion,
-  onRefresh,
-  isFetching,
-  statsUnavailable,
-}: {
-  readonly status: string;
-  readonly agentVersion: string | undefined;
-  readonly onRefresh: () => void;
-  readonly isFetching: boolean;
-  readonly statsUnavailable: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant={getStatusBadgeVariant(status)}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </Badge>
-            {agentVersion != null && (
-              <span className="text-sm text-muted-foreground">
-                Agent {agentVersion}
-              </span>
-            )}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRefresh}
-            disabled={isFetching || statsUnavailable}
-          >
-            <RefreshCw
-              className={cn("h-4 w-4 mr-2", isFetching && "animate-spin")}
-            />
-            Refresh
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function SystemInfoSection({ stats }: { readonly stats: ServerStats }) {
+function SystemInfoBar({ stats }: { readonly stats: ServerStats }) {
   const { systemInfo } = stats;
+  const items = [
+    { label: "Host", value: systemInfo.hostname },
+    { label: "OS", value: formatOsInfo(systemInfo.os, systemInfo.os_version) },
+    { label: "Arch", value: systemInfo.architecture },
+    { label: "Cores", value: String(systemInfo.cpu_cores ?? "—") },
+    { label: "Kernel", value: systemInfo.kernel_version },
+    {
+      label: "RAM",
+      value: formatBytes(systemInfo.memory_total_bytes ?? 0),
+    },
+    {
+      label: "Disk",
+      value: formatBytes(systemInfo.disk_total_bytes ?? 0),
+    },
+  ];
+
   return (
-    <div>
-      <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <Info className="h-5 w-5" />
-        System Information
-      </h2>
-      <Card>
-        <CardContent className="pt-6">
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <InfoRow label="Hostname" value={systemInfo.hostname} />
-            <InfoRow
-              label="OS"
-              value={formatOsInfo(systemInfo.os, systemInfo.os_version)}
-            />
-            <InfoRow label="Architecture" value={systemInfo.architecture} />
-            <InfoRow
-              label="CPU cores"
-              value={String(systemInfo.cpu_cores ?? "—")}
-            />
-            <InfoRow label="Kernel" value={systemInfo.kernel_version} />
-            <InfoRow
-              label="Memory total"
-              value={formatBytes(systemInfo.memory_total_bytes ?? 0)}
-            />
-            <InfoRow
-              label="Disk total"
-              value={formatBytes(systemInfo.disk_total_bytes ?? 0)}
-            />
-          </dl>
-        </CardContent>
-      </Card>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      {items.map((item) => (
+        <span key={item.label}>
+          <span className="font-medium text-foreground/70">{item.label}:</span>{" "}
+          {item.value ?? "—"}
+        </span>
+      ))}
     </div>
   );
 }
@@ -183,22 +116,26 @@ function ResourceUsageSection({
 }) {
   if (statsLoading && !hasStats) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Skeleton className="h-24" />
-        <Skeleton className="h-24" />
-        <Skeleton className="h-24" />
-        <Skeleton className="h-24" />
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {["cpu", "mem", "disk", "net", "load"].map((id) => (
+          <Skeleton key={id} className="h-[72px]" />
+        ))}
       </div>
     );
   }
   if (statsUnavailable) {
     return (
       <Card>
-        <CardContent className="py-8 text-center">
-          <p className="text-muted-foreground mb-4">
+        <CardContent className="py-6 text-center">
+          <p className="text-muted-foreground mb-3 text-sm">
             Agent unreachable. Ensure the server is provisioned and online.
           </p>
-          <Button variant="outline" onClick={refetch} disabled={isFetching}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refetch}
+            disabled={isFetching}
+          >
             Try again
           </Button>
         </CardContent>
@@ -218,7 +155,7 @@ function ResourceUsageSection({
     m.load_average_15m != null;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
       <MetricCard
         icon={Cpu}
         title="CPU"
@@ -248,7 +185,7 @@ function ResourceUsageSection({
       {hasLoadAvg && (
         <MetricCard
           icon={Activity}
-          title="Load average"
+          title="Load avg"
           value={`1m: ${(m.load_average_1m ?? 0).toFixed(2)}`}
           subValue={`5m: ${(m.load_average_5m ?? 0).toFixed(2)} · 15m: ${(m.load_average_15m ?? 0).toFixed(2)}`}
         />
@@ -274,13 +211,12 @@ export function ServerDetailsPage() {
 
   if (serverLoading || !id) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-16 w-full" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
+      <div className="space-y-3">
+        <Skeleton className="h-14 w-full" />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {["cpu", "mem", "disk", "net", "load"].map((id) => (
+            <Skeleton key={id} className="h-[72px]" />
+          ))}
         </div>
       </div>
     );
@@ -294,39 +230,53 @@ export function ServerDetailsPage() {
   const statsUnavailable = statsError != null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <PageHeader
         backTo="/servers"
         title={server.name}
         description={`${server.sshUser}@${server.host}:${server.sshPort}`}
         icon={ServerIcon}
+        titleSuffix={
+          <Badge variant={getStatusBadgeVariant(server.status)}>
+            {server.status.charAt(0).toUpperCase() + server.status.slice(1)}
+          </Badge>
+        }
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching || statsUnavailable}
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5 mr-1.5", isFetching && "animate-spin")}
+            />
+            Refresh
+          </Button>
+        }
       />
-      <ServerStatusCard
-        status={server.status}
-        agentVersion={server.agentVersion}
-        onRefresh={refetch}
-        isFetching={isFetching}
-        statsUnavailable={statsUnavailable}
-      />
-      {hasStats && stats != null && <SystemInfoSection stats={stats} />}
-      <div>
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Activity className="h-5 w-5" />
-          Resource Usage
-        </h2>
-        <ResourceUsageSection
-          statsLoading={statsLoading}
-          hasStats={hasStats}
-          statsUnavailable={statsUnavailable}
-          stats={stats ?? null}
-          refetch={refetch}
-          isFetching={isFetching}
-        />
-      </div>
-      <div>
-        <h2 className="text-lg font-semibold mb-4">Apps</h2>
+
+      {hasStats && stats != null && (
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground text-sm">
+          <CardContent className="py-3">
+            <SystemInfoBar stats={stats} />
+          </CardContent>
+        </Card>
+      )}
+
+      <ResourceUsageSection
+        statsLoading={statsLoading}
+        hasStats={hasStats}
+        statsUnavailable={statsUnavailable}
+        stats={stats ?? null}
+        refetch={refetch}
+        isFetching={isFetching}
+      />
+
+      <div>
+        <h2 className="text-sm font-semibold mb-2">Apps</h2>
+        <Card>
+          <CardContent className="py-6 text-center text-muted-foreground text-sm">
             Em breve
           </CardContent>
         </Card>
@@ -352,26 +302,28 @@ function MetricCard({
 }: MetricCardProps) {
   return (
     <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center gap-2 text-muted-foreground mb-2">
-          <Icon className="h-4 w-4" />
-          <span className="text-xs font-medium">{title}</span>
+      <CardContent className="p-3">
+        <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+          <Icon className="h-3.5 w-3.5" />
+          <span className="text-[11px] font-medium">{title}</span>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex items-baseline gap-1.5">
           <span
             className={cn(
-              "text-lg font-semibold",
+              "text-base font-semibold leading-tight",
               percent !== undefined && getUsageTextColor(percent),
             )}
           >
             {value}
           </span>
           {subValue != null && (
-            <span className="text-xs text-muted-foreground">{subValue}</span>
+            <span className="text-[11px] text-muted-foreground">
+              {subValue}
+            </span>
           )}
         </div>
         {percent !== undefined && (
-          <div className="mt-3 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+          <div className="mt-1.5 h-1 w-full bg-muted rounded-full overflow-hidden">
             <div
               className={cn(
                 "h-full rounded-full transition-all",
