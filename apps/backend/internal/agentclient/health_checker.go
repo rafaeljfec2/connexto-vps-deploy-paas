@@ -16,14 +16,16 @@ import (
 )
 
 type HealthChecker struct {
-	rootCA  []byte
-	timeout time.Duration
+	rootCA             []byte
+	timeout            time.Duration
+	insecureSkipVerify bool
 }
 
-func NewHealthChecker(ca *pki.CertificateAuthority, timeout time.Duration) *HealthChecker {
+func NewHealthChecker(ca *pki.CertificateAuthority, timeout time.Duration, insecureSkipVerify bool) *HealthChecker {
 	return &HealthChecker{
-		rootCA:  ca.GetCACertPEM(),
-		timeout: timeout,
+		rootCA:             ca.GetCACertPEM(),
+		timeout:            timeout,
+		insecureSkipVerify: insecureSkipVerify,
 	}
 }
 
@@ -32,14 +34,17 @@ func (c *HealthChecker) Check(ctx context.Context, host string, port int) (time.
 		return 0, fmt.Errorf("invalid agent address")
 	}
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
-	roots := x509.NewCertPool()
-	if ok := roots.AppendCertsFromPEM(c.rootCA); !ok {
-		return 0, fmt.Errorf("invalid CA cert")
-	}
 	tlsConfig := &tls.Config{
-		RootCAs:    roots,
-		ServerName: host,
-		MinVersion: tls.VersionTLS13,
+		ServerName:         host,
+		MinVersion:         tls.VersionTLS13,
+		InsecureSkipVerify: c.insecureSkipVerify,
+	}
+	if !c.insecureSkipVerify {
+		roots := x509.NewCertPool()
+		if ok := roots.AppendCertsFromPEM(c.rootCA); !ok {
+			return 0, fmt.Errorf("invalid CA cert")
+		}
+		tlsConfig.RootCAs = roots
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)

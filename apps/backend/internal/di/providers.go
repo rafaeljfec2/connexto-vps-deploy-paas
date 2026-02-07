@@ -599,7 +599,7 @@ func ProvideAgentHealthChecker(ca *pki.CertificateAuthority, cfg *config.Config)
 	if cfg.Deploy.HealthCheckTimeout > 0 {
 		timeout = cfg.Deploy.HealthCheckTimeout
 	}
-	return agentclient.NewHealthChecker(ca, timeout)
+	return agentclient.NewHealthChecker(ca, timeout, cfg.GRPC.AgentTLSInsecureSkipVerify)
 }
 
 func ProvideAgentClient(ca *pki.CertificateAuthority, cfg *config.Config) *agentclient.AgentClient {
@@ -607,7 +607,7 @@ func ProvideAgentClient(ca *pki.CertificateAuthority, cfg *config.Config) *agent
 	if cfg.Deploy.HealthCheckTimeout > 0 {
 		timeout = cfg.Deploy.HealthCheckTimeout
 	}
-	return agentclient.NewAgentClient(ca, timeout)
+	return agentclient.NewAgentClient(ca, timeout, cfg.GRPC.AgentTLSInsecureSkipVerify)
 }
 
 func ProvideSSHProvisioner(

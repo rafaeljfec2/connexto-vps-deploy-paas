@@ -35,11 +35,12 @@ type Config struct {
 }
 
 type GRPCConfig struct {
-	Enabled         bool
-	Port            int
-	ServerAddr      string
-	AgentBinaryPath string
-	AgentPort       int
+	Enabled                    bool
+	Port                       int
+	ServerAddr                 string
+	AgentBinaryPath            string
+	AgentPort                  int
+	AgentTLSInsecureSkipVerify bool // if true, skip TLS cert verification when connecting to agents (e.g. after CA/DB reset); use only in dev or when re-provisioning is not possible
 }
 
 type ServerConfig struct {
@@ -164,11 +165,12 @@ func Load() *Config {
 			URL: getEnv("TRAEFIK_API_URL", "http://paasdeploy-traefik:8081"),
 		},
 		GRPC: GRPCConfig{
-			Enabled:         getEnv("GRPC_ENABLED", "false") == "true",
-			Port:            getEnvInt("GRPC_PORT", 50051),
-			ServerAddr:      getEnv("GRPC_SERVER_ADDR", ""),
-			AgentBinaryPath: getEnv("AGENT_BINARY_PATH", ""),
-			AgentPort:       getEnvInt("AGENT_GRPC_PORT", 50052),
+			Enabled:                    getEnv("GRPC_ENABLED", "false") == "true",
+			Port:                       getEnvInt("GRPC_PORT", 50051),
+			ServerAddr:                 getEnv("GRPC_SERVER_ADDR", ""),
+			AgentBinaryPath:            getEnv("AGENT_BINARY_PATH", ""),
+			AgentPort:                  getEnvInt("AGENT_GRPC_PORT", 50052),
+			AgentTLSInsecureSkipVerify: getEnv("AGENT_TLS_INSECURE_SKIP_VERIFY", "false") == "true",
 		},
 	}
 }

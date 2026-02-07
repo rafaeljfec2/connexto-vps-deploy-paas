@@ -19,14 +19,16 @@ import (
 const defaultAgentPort = 50052
 
 type AgentClient struct {
-	rootCA  []byte
-	timeout time.Duration
+	rootCA                 []byte
+	timeout                time.Duration
+	insecureSkipVerify     bool
 }
 
-func NewAgentClient(ca *pki.CertificateAuthority, timeout time.Duration) *AgentClient {
+func NewAgentClient(ca *pki.CertificateAuthority, timeout time.Duration, insecureSkipVerify bool) *AgentClient {
 	return &AgentClient{
-		rootCA:  ca.GetCACertPEM(),
-		timeout: timeout,
+		rootCA:             ca.GetCACertPEM(),
+		timeout:            timeout,
+		insecureSkipVerify: insecureSkipVerify,
 	}
 }
 
@@ -35,14 +37,17 @@ func (c *AgentClient) dial(host string, port int) (pb.AgentServiceClient, func()
 		port = defaultAgentPort
 	}
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
-	roots := x509.NewCertPool()
-	if ok := roots.AppendCertsFromPEM(c.rootCA); !ok {
-		return nil, nil, fmt.Errorf("invalid CA cert")
-	}
 	tlsConfig := &tls.Config{
-		RootCAs:    roots,
-		ServerName: host,
-		MinVersion: tls.VersionTLS13,
+		ServerName:         host,
+		MinVersion:         tls.VersionTLS13,
+		InsecureSkipVerify: c.insecureSkipVerify,
+	}
+	if !c.insecureSkipVerify {
+		roots := x509.NewCertPool()
+		if ok := roots.AppendCertsFromPEM(c.rootCA); !ok {
+			return nil, nil, fmt.Errorf("invalid CA cert")
+		}
+		tlsConfig.RootCAs = roots
 	}
 
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
