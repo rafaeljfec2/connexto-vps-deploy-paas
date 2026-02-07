@@ -89,7 +89,8 @@ func (a *Agent) register(ctx context.Context) error {
 
 func (a *Agent) heartbeat(ctx context.Context) error {
 	resp, err := a.client.Heartbeat(ctx, &pb.HeartbeatRequest{
-		AgentId: a.cfg.ServerID,
+		AgentId:      a.cfg.ServerID,
+		AgentVersion: Version,
 		Status: &pb.AgentStatus{
 			State:             pb.AgentState_AGENT_STATE_IDLE,
 			ActiveDeployCount: 0,

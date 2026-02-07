@@ -42,6 +42,8 @@ message HeartbeatRequest {
   repeated ActiveDeployment active_deployments = 4;
 
   optional SystemMetrics metrics = 5;
+
+  string agent_version = 6;
 }
 
 message AgentStatus {

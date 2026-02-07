@@ -38,7 +38,7 @@ func (s *Server) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.H
 		return nil, err
 	}
 
-	if err := s.serverRepo.UpdateHeartbeat(serverID, ""); err != nil {
+	if err := s.serverRepo.UpdateHeartbeat(serverID, req.GetAgentVersion()); err != nil {
 		s.logger.Error("failed to update heartbeat", "serverId", serverID, "error", err)
 	}
 	s.hub.Update(serverID)
