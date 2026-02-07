@@ -198,6 +198,24 @@ function ResourceUsageSection({
   );
 }
 
+function getAgentVersionStatus(server: Server) {
+  const currentVersion = server.agentVersion ?? null;
+  const latestVersion = server.latestAgentVersion;
+  const isUnknown = currentVersion == null;
+  const isUpToDate = !isUnknown && currentVersion === latestVersion;
+  const isOutdated = !isUnknown && !isUpToDate;
+  const needsUpdate = isUnknown || isOutdated;
+
+  return {
+    currentVersion,
+    latestVersion,
+    isUnknown,
+    isUpToDate,
+    isOutdated,
+    needsUpdate,
+  };
+}
+
 function AgentVersionCard({
   server,
   onUpdated,
@@ -209,11 +227,14 @@ function AgentVersionCard({
   const [updateEnqueued, setUpdateEnqueued] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
 
-  const hasVersion = server.agentVersion != null;
-  const isOutdated =
-    hasVersion && server.agentVersion !== server.latestAgentVersion;
-  const isUpToDate =
-    hasVersion && server.agentVersion === server.latestAgentVersion;
+  const {
+    currentVersion,
+    latestVersion,
+    isUnknown,
+    isUpToDate,
+    isOutdated,
+    needsUpdate,
+  } = getAgentVersionStatus(server);
 
   const handleUpdate = useCallback(async () => {
     setIsUpdating(true);
@@ -231,22 +252,25 @@ function AgentVersionCard({
     }
   }, [server.id, onUpdated]);
 
-  if (!hasVersion) return null;
+  if (server.status !== "online") return null;
 
   return (
     <Card>
       <CardContent className="py-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <span className="text-xs font-medium text-muted-foreground">
-              Agent version:
+              Agent:
             </span>
-            <Badge variant={isOutdated ? "destructive" : "default"}>
-              v{server.agentVersion}
-            </Badge>
-            {isOutdated && (
+            {isUnknown && <Badge variant="secondary">Unknown version</Badge>}
+            {!isUnknown && (
+              <Badge variant={isOutdated ? "destructive" : "default"}>
+                v{currentVersion}
+              </Badge>
+            )}
+            {(isOutdated || isUnknown) && latestVersion && (
               <span className="text-xs text-muted-foreground">
-                → v{server.latestAgentVersion} available
+                → v{latestVersion} available
               </span>
             )}
             {isUpToDate && (
@@ -257,7 +281,7 @@ function AgentVersionCard({
             )}
           </div>
 
-          {isOutdated && !updateEnqueued && (
+          {needsUpdate && !updateEnqueued && (
             <Button
               variant="outline"
               size="sm"
