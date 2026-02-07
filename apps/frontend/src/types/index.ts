@@ -57,6 +57,7 @@ export interface CreateAppInput {
   readonly repositoryUrl: string;
   readonly branch?: string;
   readonly workdir?: string;
+  readonly serverId?: string;
 }
 
 export interface HealthStatus {

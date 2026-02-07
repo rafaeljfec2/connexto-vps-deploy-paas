@@ -4,18 +4,18 @@ import (
 	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/response"
+	"github.com/paasdeploy/shared/pkg/docker"
 )
 
 type ImageHandler struct {
-	docker *engine.DockerClient
+	docker *docker.Client
 	logger *slog.Logger
 }
 
 const errListImages = "Failed to list images"
 
-func NewImageHandler(docker *engine.DockerClient, logger *slog.Logger) *ImageHandler {
+func NewImageHandler(docker *docker.Client, logger *slog.Logger) *ImageHandler {
 	return &ImageHandler{
 		docker: docker,
 		logger: logger,

@@ -30,6 +30,7 @@ import (
 	"github.com/paasdeploy/backend/internal/server"
 	"github.com/paasdeploy/backend/internal/service"
 	"github.com/paasdeploy/backend/internal/webhook"
+	"github.com/paasdeploy/shared/pkg/cleaner"
 )
 
 var ConfigSet = wire.NewSet(
@@ -184,8 +185,8 @@ func ProvideWebhookManager(cfg *config.Config, logger *slog.Logger) webhook.Mana
 	return webhook.NewGitHubManager(provider, cfg.GitHub.WebhookURL, cfg.GitHub.WebhookSecret)
 }
 
-func ProvideAppCleaner(cfg *config.Config, logger *slog.Logger) *engine.AppCleaner {
-	return engine.NewAppCleaner(cfg.Deploy.DataDir, logger)
+func ProvideAppCleaner(cfg *config.Config, logger *slog.Logger) *cleaner.Cleaner {
+	return cleaner.New(cfg.Deploy.DataDir, logger)
 }
 
 func ProvideGitTokenProvider(
@@ -209,7 +210,7 @@ func ProvideAppService(
 	deploymentRepo domain.DeploymentRepository,
 	envVarRepo domain.EnvVarRepository,
 	webhookManager webhook.Manager,
-	appCleaner *engine.AppCleaner,
+	appCleaner *cleaner.Cleaner,
 	logger *slog.Logger,
 ) *service.AppService {
 	return service.NewAppService(appRepo, deploymentRepo, envVarRepo, webhookManager, appCleaner, logger)

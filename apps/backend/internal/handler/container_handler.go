@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/response"
+	"github.com/paasdeploy/shared/pkg/docker"
 	"github.com/valyala/fasthttp"
 )
 
@@ -25,11 +25,11 @@ func isSelfContainerError(err error) bool {
 }
 
 type ContainerHandler struct {
-	docker *engine.DockerClient
+	docker *docker.Client
 	logger *slog.Logger
 }
 
-func NewContainerHandler(docker *engine.DockerClient, logger *slog.Logger) *ContainerHandler {
+func NewContainerHandler(docker *docker.Client, logger *slog.Logger) *ContainerHandler {
 	return &ContainerHandler{
 		docker: docker,
 		logger: logger,
@@ -139,7 +139,7 @@ func (h *ContainerHandler) CreateContainer(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Image is required")
 	}
 
-	opts := engine.CreateContainerOptions{
+	opts := docker.CreateContainerOptions{
 		Name:          req.Name,
 		Image:         req.Image,
 		Env:           req.Env,
@@ -149,7 +149,7 @@ func (h *ContainerHandler) CreateContainer(c *fiber.Ctx) error {
 	}
 
 	for _, p := range req.Ports {
-		opts.Ports = append(opts.Ports, engine.PortMapping{
+		opts.Ports = append(opts.Ports, docker.PortMapping{
 			HostPort:      p.HostPort,
 			ContainerPort: p.ContainerPort,
 			Protocol:      p.Protocol,
@@ -157,7 +157,7 @@ func (h *ContainerHandler) CreateContainer(c *fiber.Ctx) error {
 	}
 
 	for _, v := range req.Volumes {
-		opts.Volumes = append(opts.Volumes, engine.VolumeMapping{
+		opts.Volumes = append(opts.Volumes, docker.VolumeMapping{
 			HostPath:      v.HostPath,
 			ContainerPath: v.ContainerPath,
 			ReadOnly:      v.ReadOnly,
@@ -298,7 +298,7 @@ func (h *ContainerHandler) streamContainerLogs(c *fiber.Ctx, ctx context.Context
 	return nil
 }
 
-func (h *ContainerHandler) toContainerResponse(container engine.ContainerInfo) ContainerResponse {
+func (h *ContainerHandler) toContainerResponse(container docker.ContainerInfo) ContainerResponse {
 	ports := make([]ContainerPortResponse, len(container.Ports))
 	for i, p := range container.Ports {
 		ports[i] = ContainerPortResponse{

@@ -96,6 +96,7 @@ export function DeployStep({ data, onBack }: Readonly<DeployStepProps>) {
           repositoryUrl: data.repositoryUrl,
           branch: data.branch || "main",
           workdir: data.workdir || undefined,
+          serverId: data.serverId || undefined,
         });
         setAppId(app.id);
         updatePhase("creating_app", "success");

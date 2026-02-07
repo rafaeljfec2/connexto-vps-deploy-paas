@@ -1,4 +1,4 @@
-package engine
+package cleaner
 
 import (
 	"context"
@@ -7,23 +7,25 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/paasdeploy/shared/pkg/executor"
 )
 
-type AppCleaner struct {
+type Cleaner struct {
 	baseDir  string
-	executor *Executor
+	executor *executor.Executor
 	logger   *slog.Logger
 }
 
-func NewAppCleaner(baseDir string, logger *slog.Logger) *AppCleaner {
-	return &AppCleaner{
+func New(baseDir string, logger *slog.Logger) *Cleaner {
+	return &Cleaner{
 		baseDir:  baseDir,
-		executor: NewExecutor(baseDir, 2*time.Minute, logger),
+		executor: executor.New(baseDir, 2*time.Minute, logger),
 		logger:   logger,
 	}
 }
 
-func (c *AppCleaner) CleanApp(ctx context.Context, appID, appName string) error {
+func (c *Cleaner) CleanApp(ctx context.Context, appID, appName string) error {
 	c.logger.Info("Starting app cleanup", "appID", appID, "appName", appName)
 
 	if err := c.stopAndRemoveContainer(ctx, appName); err != nil {
@@ -42,7 +44,7 @@ func (c *AppCleaner) CleanApp(ctx context.Context, appID, appName string) error 
 	return nil
 }
 
-func (c *AppCleaner) stopAndRemoveContainer(ctx context.Context, appName string) error {
+func (c *Cleaner) stopAndRemoveContainer(ctx context.Context, appName string) error {
 	c.executor.SetTimeout(2 * time.Minute)
 
 	c.logger.Info("Stopping container", "containerName", appName)
@@ -57,7 +59,7 @@ func (c *AppCleaner) stopAndRemoveContainer(ctx context.Context, appName string)
 	return nil
 }
 
-func (c *AppCleaner) removeImages(ctx context.Context, appName string) error {
+func (c *Cleaner) removeImages(ctx context.Context, appName string) error {
 	c.executor.SetTimeout(1 * time.Minute)
 
 	imagePattern := fmt.Sprintf("paasdeploy/%s", appName)
@@ -80,7 +82,7 @@ func (c *AppCleaner) removeImages(ctx context.Context, appName string) error {
 	return nil
 }
 
-func (c *AppCleaner) removeFiles(appID string) error {
+func (c *Cleaner) removeFiles(appID string) error {
 	appDir := filepath.Join(c.baseDir, appID)
 
 	if _, err := os.Stat(appDir); os.IsNotExist(err) {

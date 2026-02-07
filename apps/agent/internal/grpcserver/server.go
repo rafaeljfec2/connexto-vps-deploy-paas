@@ -13,6 +13,7 @@ import (
 	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/paasdeploy/agent/internal/deploy"
 	"github.com/paasdeploy/agent/internal/sysinfo"
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
 )
@@ -49,7 +50,10 @@ func New(cfg Config, logger *slog.Logger) (*Server, error) {
 	healthServer := health.NewServer()
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
-	pb.RegisterAgentServiceServer(grpcServer, &AgentService{})
+	agentService := &AgentService{
+		deployExecutor: deploy.NewExecutor(logger),
+	}
+	pb.RegisterAgentServiceServer(grpcServer, agentService)
 
 	return &Server{
 		cfg:        cfg,
@@ -74,13 +78,11 @@ func (s *Server) Stop() {
 
 type AgentService struct {
 	pb.UnimplementedAgentServiceServer
+	deployExecutor *deploy.Executor
 }
 
 func (s *AgentService) ExecuteDeploy(ctx context.Context, req *pb.DeployRequest) (*pb.DeployResponse, error) {
-	return &pb.DeployResponse{
-		Success: false,
-		Message: "deploy not implemented",
-	}, nil
+	return s.deployExecutor.Execute(ctx, req), nil
 }
 
 func (s *AgentService) GetSystemInfo(ctx context.Context, _ *emptypb.Empty) (*pb.SystemInfo, error) {

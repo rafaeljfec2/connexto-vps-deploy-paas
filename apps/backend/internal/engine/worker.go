@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,60 +9,35 @@ import (
 	"strings"
 	"time"
 
+	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
+	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/service"
+	"github.com/paasdeploy/shared/pkg/compose"
+	"github.com/paasdeploy/shared/pkg/docker"
+	"github.com/paasdeploy/shared/pkg/git"
+	"github.com/paasdeploy/shared/pkg/health"
 )
 
 const (
 	outputChannelBuffer   = 100
 	healthCheckStartDelay = 15 * time.Second
-	defaultAppPort        = 8080
 )
-
-type DomainRoute struct {
-	Domain     string
-	PathPrefix string
-}
-
-type PaasDeployConfig struct {
-	Name    string `json:"name"`
-	Runtime string `json:"runtime,omitempty"`
-	Build   struct {
-		Type       string            `json:"type"`
-		Dockerfile string            `json:"dockerfile"`
-		Context    string            `json:"context"`
-		Args       map[string]string `json:"args,omitempty"`
-		Target     string            `json:"target,omitempty"`
-	} `json:"build"`
-	Healthcheck struct {
-		Path        string `json:"path"`
-		Interval    string `json:"interval"`
-		Timeout     string `json:"timeout"`
-		Retries     int    `json:"retries"`
-		StartPeriod string `json:"startPeriod"`
-	} `json:"healthcheck"`
-	Port      int               `json:"port"`
-	HostPort  int               `json:"hostPort,omitempty"`
-	Env       map[string]string `json:"env,omitempty"`
-	Resources struct {
-		Memory string `json:"memory"`
-		CPU    string `json:"cpu"`
-	} `json:"resources"`
-	Domains []string `json:"domains,omitempty"`
-}
 
 type GitTokenProvider interface {
 	GetToken(ctx context.Context, repoURL string) (string, error)
 }
 
 type WorkerDeps struct {
-	Git              *GitClient
-	Docker           *DockerClient
-	Health           *HealthChecker
+	Git              *git.Client
+	Docker           *docker.Client
+	Health           *health.Checker
 	Notifier         Notifier
 	Dispatcher       *Dispatcher
 	EnvVarRepo       domain.EnvVarRepository
 	CustomDomainRepo domain.CustomDomainRepository
+	ServerRepo       domain.ServerRepository
+	AgentClient      *agentclient.AgentClient
 	GitTokenProvider GitTokenProvider
 	AuditService     *service.AuditService
 	Logger           *slog.Logger
@@ -73,7 +47,7 @@ type Worker struct {
 	id           int
 	dataDir      string
 	deps         WorkerDeps
-	deployConfig *PaasDeployConfig
+	deployConfig *compose.Config
 	appEnvVars   map[string]string
 }
 
@@ -91,8 +65,112 @@ func (w *Worker) Run(ctx context.Context, deploy *domain.Deployment, app *domain
 		"appName", app.Name,
 		"commitSha", deploy.CommitSHA,
 		"workdir", app.Workdir,
+		"serverID", app.ServerID,
 	)
 
+	if app.ServerID != nil && *app.ServerID != "" {
+		return w.runRemoteDeploy(ctx, deploy, app)
+	}
+
+	return w.runLocalDeploy(ctx, deploy, app)
+}
+
+func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
+	w.deps.Notifier.EmitDeployRunning(deploy.ID, app.ID)
+	w.log(deploy.ID, app.ID, "Starting remote deployment for %s on server %s", app.Name, *app.ServerID)
+
+	if w.deps.ServerRepo == nil || w.deps.AgentClient == nil {
+		return w.fail(deploy, app, fmt.Errorf("remote deploy not available: server repository or agent client not configured"))
+	}
+
+	server, err := w.deps.ServerRepo.FindByID(*app.ServerID)
+	if err != nil {
+		return w.fail(deploy, app, fmt.Errorf("failed to find server %s: %w", *app.ServerID, err))
+	}
+
+	if server.Status != domain.ServerStatusOnline {
+		return w.fail(deploy, app, fmt.Errorf("server %s is not online (status: %s)", server.Name, server.Status))
+	}
+
+	if err := w.loadEnvVars(app.ID); err != nil {
+		w.appEnvVars = nil
+		w.deps.Logger.Warn("Failed to load env vars for remote deploy", "error", err, "appId", app.ID)
+	}
+
+	token := w.getGitToken(ctx, app.RepositoryURL)
+
+	domainRoutes := w.collectDomainRoutes(ctx, app.ID)
+	var domains []string
+	for _, d := range domainRoutes {
+		domains = append(domains, d.Domain)
+	}
+
+	req := &pb.DeployRequest{
+		DeploymentId: deploy.ID,
+		AppId:        app.ID,
+		AppName:      app.Name,
+		Git: &pb.GitConfig{
+			RepositoryUrl: app.RepositoryURL,
+			Branch:        app.Branch,
+			CommitSha:     deploy.CommitSHA,
+			Workdir:       app.Workdir,
+		},
+		Build: &pb.BuildConfig{
+			Dockerfile: "./Dockerfile",
+			Context:    ".",
+		},
+		Runtime: &pb.RuntimeConfig{
+			Port:    8080,
+			Domains: domains,
+			Resources: &pb.ResourceLimits{
+				Memory: "512m",
+				Cpu:    "0.5",
+			},
+		},
+		HealthCheck: &pb.HealthCheckConfig{
+			Path:        "/health",
+			Interval:    "30s",
+			Timeout:     "5s",
+			Retries:     3,
+			StartPeriod: "10s",
+		},
+		EnvVars: w.appEnvVars,
+	}
+
+	if token != "" {
+		req.Git.Auth = &pb.GitConfig_AccessToken{AccessToken: token}
+	}
+
+	if deploy.PreviousImageTag != "" {
+		req.RollbackImage = &deploy.PreviousImageTag
+	}
+
+	w.log(deploy.ID, app.ID, "Dispatching deploy to agent at %s:%d", server.Host, server.SSHPort)
+
+	agentPort := 50052
+	resp, err := w.deps.AgentClient.ExecuteDeploy(ctx, server.Host, agentPort, req)
+	if err != nil {
+		return w.fail(deploy, app, fmt.Errorf("remote deploy RPC failed: %w", err))
+	}
+
+	if !resp.Success {
+		errMsg := resp.Message
+		if resp.Error != nil {
+			errMsg = fmt.Sprintf("[%s] %s: %s", resp.Error.Stage, resp.Error.Code, resp.Error.Message)
+		}
+		return w.fail(deploy, app, fmt.Errorf("remote deploy failed: %s", errMsg))
+	}
+
+	imageTag := ""
+	if resp.Result != nil {
+		imageTag = resp.Result.ImageTag
+	}
+
+	w.log(deploy.ID, app.ID, "Remote deployment completed successfully")
+	return w.success(deploy, app, imageTag)
+}
+
+func (w *Worker) runLocalDeploy(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
 	w.deps.Notifier.EmitDeployRunning(deploy.ID, app.ID)
 	w.log(deploy.ID, app.ID, "Starting deployment for %s", app.Name)
 
@@ -210,74 +288,17 @@ func (w *Worker) getGitToken(ctx context.Context, repoURL string) string {
 }
 
 func (w *Worker) loadConfig(appDir string) error {
-	configPath := filepath.Join(appDir, "paasdeploy.json")
-
-	w.deps.Logger.Info("Looking for paasdeploy.json", "configPath", configPath, "appDir", appDir)
-
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		w.deps.Logger.Error("paasdeploy.json not found", "configPath", configPath, "appDir", appDir)
-		return fmt.Errorf("paasdeploy.json not found in repository - this file is required for deployment")
-	}
-
-	data, err := os.ReadFile(configPath)
+	cfg, err := compose.LoadConfig(appDir)
 	if err != nil {
-		return fmt.Errorf("failed to read paasdeploy.json: %w", err)
+		return err
 	}
 
-	var config PaasDeployConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		return fmt.Errorf("invalid paasdeploy.json: %w", err)
+	if err := compose.ValidateDockerfile(appDir, cfg); err != nil {
+		return err
 	}
 
-	if config.Name == "" {
-		return fmt.Errorf("paasdeploy.json: 'name' field is required")
-	}
-
-	applyConfigDefaults(&config)
-
-	dockerfilePath := filepath.Join(appDir, config.Build.Dockerfile)
-	if _, err := os.Stat(dockerfilePath); os.IsNotExist(err) {
-		return fmt.Errorf("Dockerfile not found at %s - this file is required for deployment", config.Build.Dockerfile)
-	}
-
-	w.deployConfig = &config
+	w.deployConfig = cfg
 	return nil
-}
-
-func applyConfigDefaults(config *PaasDeployConfig) {
-	if config.Port == 0 {
-		config.Port = defaultAppPort
-	}
-	if config.Build.Type == "" {
-		config.Build.Type = "dockerfile"
-	}
-	if config.Build.Dockerfile == "" {
-		config.Build.Dockerfile = "./Dockerfile"
-	}
-	if config.Build.Context == "" {
-		config.Build.Context = "."
-	}
-	if config.Healthcheck.Path == "" {
-		config.Healthcheck.Path = "/health"
-	}
-	if config.Healthcheck.Interval == "" {
-		config.Healthcheck.Interval = "30s"
-	}
-	if config.Healthcheck.Timeout == "" {
-		config.Healthcheck.Timeout = "5s"
-	}
-	if config.Healthcheck.Retries == 0 {
-		config.Healthcheck.Retries = 3
-	}
-	if config.Healthcheck.StartPeriod == "" {
-		config.Healthcheck.StartPeriod = "10s"
-	}
-	if config.Resources.Memory == "" {
-		config.Resources.Memory = "512m"
-	}
-	if config.Resources.CPU == "" {
-		config.Resources.CPU = "0.5"
-	}
 }
 
 func (w *Worker) buildDocker(ctx context.Context, deploy *domain.Deployment, app *domain.App, repoDir, imageTag string) error {
@@ -307,7 +328,7 @@ func (w *Worker) buildDocker(ctx context.Context, deploy *domain.Deployment, app
 func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment, app *domain.App, appDir string) error {
 	w.log(deploy.ID, app.ID, "Deploying container...")
 
-	if err := w.deps.Docker.EnsureNetwork(ctx, defaultNetworkName); err != nil {
+	if err := w.deps.Docker.EnsureNetwork(ctx, docker.DefaultNetworkName); err != nil {
 		return fmt.Errorf("failed to ensure network: %w", err)
 	}
 
@@ -318,8 +339,15 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 	}
 
 	imageTag := w.deps.Docker.GetImageTag(app.Name, deploy.CommitSHA)
+	domainRoutes := w.collectDomainRoutes(ctx, app.ID)
 
-	if err := w.generateComposeFile(ctx, appDir, app.Name, app.ID, imageTag); err != nil {
+	if err := compose.WriteComposeFile(appDir, compose.GenerateParams{
+		AppName:  app.Name,
+		ImageTag: imageTag,
+		Config:   w.deployConfig,
+		Domains:  domainRoutes,
+		EnvVars:  w.appEnvVars,
+	}); err != nil {
 		return fmt.Errorf("failed to generate docker-compose.yml: %w", err)
 	}
 
@@ -341,19 +369,18 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 	return nil
 }
 
-func (w *Worker) generateComposeFile(ctx context.Context, appDir, appName, appID, imageTag string) error {
+func (w *Worker) collectDomainRoutes(ctx context.Context, appID string) []compose.DomainRoute {
 	cfg := w.deployConfig
-
-	var domainRoutes []DomainRoute
+	var domainRoutes []compose.DomainRoute
 	for _, d := range cfg.Domains {
-		domainRoutes = append(domainRoutes, DomainRoute{Domain: d})
+		domainRoutes = append(domainRoutes, compose.DomainRoute{Domain: d})
 	}
 
 	if w.deps.CustomDomainRepo != nil {
 		customDomains, err := w.deps.CustomDomainRepo.FindByAppID(ctx, appID)
 		if err == nil {
 			for _, d := range customDomains {
-				domainRoutes = append(domainRoutes, DomainRoute{
+				domainRoutes = append(domainRoutes, compose.DomainRoute{
 					Domain:     d.Domain,
 					PathPrefix: d.PathPrefix,
 				})
@@ -361,168 +388,7 @@ func (w *Worker) generateComposeFile(ctx context.Context, appDir, appName, appID
 		}
 	}
 
-	envVars := w.buildEnvVarsYAML(cfg)
-	labels := buildLabelsYAML(appName, domainRoutes, cfg.Port)
-	portMapping := buildPortMapping(cfg.HostPort, cfg.Port)
-
-	healthCmd := buildHealthCheckCommand(cfg.Runtime, cfg.Port, cfg.Healthcheck.Path)
-
-	composeContent := fmt.Sprintf("services:\n"+
-		"  %s:\n"+
-		"    image: %s\n"+
-		"    container_name: %s\n"+
-		"    restart: unless-stopped\n"+
-		"    ports:\n"+
-		"      - \"%s\"\n"+
-		"%s"+
-		"%s"+
-		"    healthcheck:\n"+
-		"      test:\n"+
-		"        - CMD-SHELL\n"+
-		"        - %s\n"+
-		"      interval: %s\n"+
-		"      timeout: %s\n"+
-		"      retries: %d\n"+
-		"      start_period: %s\n"+
-		"    deploy:\n"+
-		"      resources:\n"+
-		"        limits:\n"+
-		"          memory: %s\n"+
-		"          cpus: '%s'\n"+
-		"    networks:\n"+
-		"      - paasdeploy\n\n"+
-		"networks:\n"+
-		"  paasdeploy:\n"+
-		"    external: true\n",
-		appName,
-		imageTag,
-		appName,
-		portMapping,
-		envVars,
-		labels,
-		healthCmd,
-		cfg.Healthcheck.Interval,
-		cfg.Healthcheck.Timeout,
-		cfg.Healthcheck.Retries,
-		cfg.Healthcheck.StartPeriod,
-		cfg.Resources.Memory,
-		cfg.Resources.CPU,
-	)
-
-	composePath := filepath.Join(appDir, "docker-compose.yml")
-	return os.WriteFile(composePath, []byte(composeContent), 0644)
-}
-
-func (w *Worker) buildEnvVarsYAML(cfg *PaasDeployConfig) string {
-	allEnvVars := make(map[string]string)
-
-	for k, v := range cfg.Env {
-		allEnvVars[k] = v
-	}
-
-	if w.appEnvVars != nil {
-		for k, v := range w.appEnvVars {
-			allEnvVars[k] = v
-		}
-	}
-
-	if len(allEnvVars) == 0 {
-		return ""
-	}
-
-	envVars := "    environment:\n"
-	for k, v := range allEnvVars {
-		escapedValue := escapeEnvValue(v)
-		envVars += fmt.Sprintf("      - %s=%s\n", k, escapedValue)
-	}
-	return envVars
-}
-
-func escapeEnvValue(value string) string {
-	escaped := strings.ReplaceAll(value, "$", "$$")
-	return escaped
-}
-
-func buildHealthCheckCommand(runtime string, port int, path string) string {
-	url := fmt.Sprintf("http://127.0.0.1:%d%s", port, path)
-
-	switch strings.ToLower(runtime) {
-	case "node", "nodejs", "node.js":
-		return fmt.Sprintf(
-			`node -e 'const h=require("http");h.get("%s",(r)=>process.exit(r.statusCode>=200&&r.statusCode<400?0:1)).on("error",()=>process.exit(1))'`,
-			url,
-		)
-	case "python", "python3":
-		return fmt.Sprintf(
-			`python3 -c 'import urllib.request,sys;urllib.request.urlopen("%s");sys.exit(0)' 2>/dev/null || python -c 'import urllib.request,sys;urllib.request.urlopen("%s");sys.exit(0)'`,
-			url, url,
-		)
-	case "go", "golang":
-		return fmt.Sprintf("curl -sf %s || wget -q --spider %s || exit 1", url, url)
-	case "ruby":
-		return fmt.Sprintf(
-			`ruby -e 'require "net/http";exit(Net::HTTP.get_response(URI("%s")).is_a?(Net::HTTPSuccess)?0:1)'`,
-			url,
-		)
-	case "php":
-		return fmt.Sprintf(
-			`php -r 'exit(file_get_contents("%s")!==false?0:1);'`,
-			url,
-		)
-	default:
-		return fmt.Sprintf("curl -sf %s || wget -q --spider %s || exit 1", url, url)
-	}
-}
-
-func buildLabelsYAML(appName string, domains []DomainRoute, port int) string {
-	if len(domains) > 0 {
-		var labels strings.Builder
-		labels.WriteString("    labels:\n")
-		labels.WriteString(fmt.Sprintf("      - \"paasdeploy.app=%s\"\n", appName))
-		labels.WriteString("      - \"traefik.enable=true\"\n")
-		labels.WriteString("      - \"traefik.docker.network=paasdeploy\"\n")
-		labels.WriteString(fmt.Sprintf("      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n", appName, port))
-
-		for i, d := range domains {
-			routerName := appName
-			if i > 0 {
-				routerName = fmt.Sprintf("%s-%d", appName, i)
-			}
-
-			priority := 1
-			if d.PathPrefix != "" {
-				priority = 100 + len(d.PathPrefix)
-			}
-
-			rule := fmt.Sprintf("Host(`%s`)", d.Domain)
-			if d.PathPrefix != "" {
-				rule = fmt.Sprintf("Host(`%s`) && PathPrefix(`%s`)", d.Domain, d.PathPrefix)
-			}
-
-			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.rule=%s\"\n", routerName, rule))
-			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.priority=%d\"\n", routerName, priority))
-			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.tls=true\"\n", routerName))
-			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.tls.certresolver=letsencrypt\"\n", routerName))
-			labels.WriteString(fmt.Sprintf("      - \"traefik.http.routers.%s.service=%s\"\n", routerName, appName))
-		}
-
-		return labels.String()
-	}
-
-	return fmt.Sprintf("    labels:\n"+
-		"      - \"paasdeploy.app=%s\"\n"+
-		"      - \"traefik.enable=true\"\n"+
-		"      - \"traefik.docker.network=paasdeploy\"\n"+
-		"      - \"traefik.http.routers.%s.rule=Host(`%s.localhost`)\"\n"+
-		"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
-		appName, appName, appName, appName, port)
-}
-
-func buildPortMapping(hostPort, port int) string {
-	if hostPort > 0 {
-		return fmt.Sprintf("%d:%d", hostPort, port)
-	}
-	return fmt.Sprintf("%d", port)
+	return domainRoutes
 }
 
 func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
@@ -545,7 +411,7 @@ func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app
 		healthURL = fmt.Sprintf("http://127.0.0.1:%d%s", w.deployConfig.HostPort, w.deployConfig.Healthcheck.Path)
 		w.log(deploy.ID, app.ID, "Health check URL (via host port): %s", healthURL)
 	} else {
-		containerIP, err := w.deps.Docker.GetContainerIP(ctx, app.Name, defaultNetworkName)
+		containerIP, err := w.deps.Docker.GetContainerIP(ctx, app.Name, docker.DefaultNetworkName)
 		if err != nil {
 			return fmt.Errorf("failed to get container IP: %w", err)
 		}

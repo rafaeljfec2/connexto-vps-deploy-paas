@@ -6,11 +6,14 @@ import {
   FolderGit2,
   GitBranch,
   Link,
+  Monitor,
   Package,
+  Server,
   Variable,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { useServers } from "@/features/servers/hooks/use-servers";
 import type { StepProps } from "./types";
 
 interface ReviewItemProps {
@@ -38,6 +41,7 @@ function ReviewItem({ icon, label, value, empty }: Readonly<ReviewItemProps>) {
 }
 
 export function ReviewStep({ data, onNext, onBack }: Readonly<StepProps>) {
+  const { data: servers } = useServers();
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
 
   const toggleShowSecret = (localId: string) => {
@@ -95,6 +99,31 @@ export function ReviewStep({ data, onNext, onBack }: Readonly<StepProps>) {
                 value={data.workdir}
                 empty="root"
               />
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              Deploy Target
+            </h4>
+            <div className="space-y-2">
+              {data.serverId ? (
+                <ReviewItem
+                  icon={<Server className="h-4 w-4" />}
+                  label="Remote Server"
+                  value={
+                    servers?.find((s) => s.id === data.serverId)?.name ??
+                    data.serverId
+                  }
+                />
+              ) : (
+                <ReviewItem
+                  icon={<Monitor className="h-4 w-4" />}
+                  label="Local Server"
+                  value="This machine (default)"
+                />
+              )}
             </div>
           </div>
 

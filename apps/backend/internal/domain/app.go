@@ -34,6 +34,7 @@ type CreateAppInput struct {
 	RepositoryURL string          `json:"repositoryUrl"`
 	Branch        string          `json:"branch"`
 	Workdir       string          `json:"workdir"`
+	ServerID      *string         `json:"serverId,omitempty"`
 	Config        json.RawMessage `json:"config,omitempty"`
 }
 

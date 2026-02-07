@@ -1,4 +1,4 @@
-package engine
+package git
 
 import (
 	"context"
@@ -8,31 +8,33 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/paasdeploy/shared/pkg/executor"
 )
 
-type GitClient struct {
-	executor *Executor
+type Client struct {
+	executor *executor.Executor
 	logger   *slog.Logger
 }
 
-func NewGitClient(baseDir string, logger *slog.Logger) *GitClient {
-	executor := NewExecutor(baseDir, 5*time.Minute, logger)
-	return &GitClient{
-		executor: executor,
+func NewClient(baseDir string, logger *slog.Logger) *Client {
+	exec := executor.New(baseDir, 5*time.Minute, logger)
+	return &Client{
+		executor: exec,
 		logger:   logger,
 	}
 }
 
-func (g *GitClient) Clone(ctx context.Context, repoURL, targetDir string) error {
+func (g *Client) Clone(ctx context.Context, repoURL, targetDir string) error {
 	return g.CloneWithToken(ctx, repoURL, targetDir, "")
 }
 
-func (g *GitClient) CloneWithToken(ctx context.Context, repoURL, targetDir, token string) error {
+func (g *Client) CloneWithToken(ctx context.Context, repoURL, targetDir, token string) error {
 	g.logger.Info("Cloning repository", "url", repoURL, "target", targetDir, "authenticated", token != "")
 
 	cloneURL := repoURL
 	if token != "" {
-		authenticatedURL, err := injectTokenIntoURL(repoURL, token)
+		authenticatedURL, err := InjectTokenIntoURL(repoURL, token)
 		if err != nil {
 			return fmt.Errorf("failed to create authenticated URL: %w", err)
 		}
@@ -49,7 +51,7 @@ func (g *GitClient) CloneWithToken(ctx context.Context, repoURL, targetDir, toke
 	return nil
 }
 
-func injectTokenIntoURL(repoURL, token string) (string, error) {
+func InjectTokenIntoURL(repoURL, token string) (string, error) {
 	parsed, err := url.Parse(repoURL)
 	if err != nil {
 		return "", err
@@ -59,17 +61,17 @@ func injectTokenIntoURL(repoURL, token string) (string, error) {
 	return parsed.String(), nil
 }
 
-func (g *GitClient) Fetch(ctx context.Context, repoDir string) error {
+func (g *Client) Fetch(ctx context.Context, repoDir string) error {
 	return g.FetchWithToken(ctx, repoDir, "", "")
 }
 
-func (g *GitClient) FetchWithToken(ctx context.Context, repoDir, repoURL, token string) error {
+func (g *Client) FetchWithToken(ctx context.Context, repoDir, repoURL, token string) error {
 	g.logger.Info("Fetching updates", "dir", repoDir, "authenticated", token != "")
 
 	g.executor.SetWorkDir(repoDir)
 
 	if token != "" && repoURL != "" {
-		authenticatedURL, err := injectTokenIntoURL(repoURL, token)
+		authenticatedURL, err := InjectTokenIntoURL(repoURL, token)
 		if err != nil {
 			return fmt.Errorf("failed to create authenticated URL: %w", err)
 		}
@@ -91,7 +93,7 @@ func (g *GitClient) FetchWithToken(ctx context.Context, repoDir, repoURL, token 
 	return nil
 }
 
-func (g *GitClient) ResetHard(ctx context.Context, repoDir, commitSHA string) error {
+func (g *Client) ResetHard(ctx context.Context, repoDir, commitSHA string) error {
 	g.logger.Info("Resetting to commit", "dir", repoDir, "commit", commitSHA)
 
 	g.executor.SetWorkDir(repoDir)
@@ -109,7 +111,7 @@ func (g *GitClient) ResetHard(ctx context.Context, repoDir, commitSHA string) er
 	return nil
 }
 
-func (g *GitClient) GetCurrentCommitSHA(ctx context.Context, repoDir string) (string, error) {
+func (g *Client) GetCurrentCommitSHA(ctx context.Context, repoDir string) (string, error) {
 	g.executor.SetWorkDir(repoDir)
 
 	result, err := g.executor.Run(ctx, "git", "rev-parse", "HEAD")
@@ -120,7 +122,7 @@ func (g *GitClient) GetCurrentCommitSHA(ctx context.Context, repoDir string) (st
 	return strings.TrimSpace(result.Stdout), nil
 }
 
-func (g *GitClient) GetCommitMessage(ctx context.Context, repoDir string) (string, error) {
+func (g *Client) GetCommitMessage(ctx context.Context, repoDir string) (string, error) {
 	g.executor.SetWorkDir(repoDir)
 
 	result, err := g.executor.Run(ctx, "git", "log", "-1", "--pretty=%s")
@@ -131,11 +133,11 @@ func (g *GitClient) GetCommitMessage(ctx context.Context, repoDir string) (strin
 	return strings.TrimSpace(result.Stdout), nil
 }
 
-func (g *GitClient) Sync(ctx context.Context, repoDir, commitSHA string) error {
+func (g *Client) Sync(ctx context.Context, repoDir, commitSHA string) error {
 	return g.SyncWithToken(ctx, repoDir, commitSHA, "", "")
 }
 
-func (g *GitClient) SyncWithToken(ctx context.Context, repoDir, commitSHA, repoURL, token string) error {
+func (g *Client) SyncWithToken(ctx context.Context, repoDir, commitSHA, repoURL, token string) error {
 	if err := g.FetchWithToken(ctx, repoDir, repoURL, token); err != nil {
 		return err
 	}
@@ -147,7 +149,7 @@ func (g *GitClient) SyncWithToken(ctx context.Context, repoDir, commitSHA, repoU
 	return nil
 }
 
-func (g *GitClient) GetBranch(ctx context.Context, repoDir string) (string, error) {
+func (g *Client) GetBranch(ctx context.Context, repoDir string) (string, error) {
 	g.executor.SetWorkDir(repoDir)
 
 	result, err := g.executor.Run(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
@@ -158,7 +160,7 @@ func (g *GitClient) GetBranch(ctx context.Context, repoDir string) (string, erro
 	return strings.TrimSpace(result.Stdout), nil
 }
 
-func (g *GitClient) CheckoutBranch(ctx context.Context, repoDir, branch string) error {
+func (g *Client) CheckoutBranch(ctx context.Context, repoDir, branch string) error {
 	g.logger.Info("Checking out branch", "dir", repoDir, "branch", branch)
 
 	g.executor.SetWorkDir(repoDir)

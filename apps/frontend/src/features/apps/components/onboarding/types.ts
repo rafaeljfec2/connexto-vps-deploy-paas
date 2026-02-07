@@ -1,4 +1,10 @@
-import { ClipboardCheck, FolderGit2, Rocket, Variable } from "lucide-react";
+import {
+  ClipboardCheck,
+  FolderGit2,
+  Rocket,
+  Server,
+  Variable,
+} from "lucide-react";
 import type { CreateEnvVarInput } from "@/types";
 
 export interface OnboardingData {
@@ -6,6 +12,7 @@ export interface OnboardingData {
   readonly repositoryUrl: string;
   readonly branch: string;
   readonly workdir: string;
+  readonly serverId: string;
   readonly envVars: readonly LocalEnvVar[];
 }
 
@@ -22,6 +29,7 @@ export interface StepProps {
 
 export const ONBOARDING_STEPS = [
   { id: "repository", title: "Repository", icon: FolderGit2 },
+  { id: "server", title: "Server", icon: Server },
   { id: "environment", title: "Environment", icon: Variable },
   { id: "review", title: "Review", icon: ClipboardCheck },
   { id: "deploy", title: "Deploy", icon: Rocket },
@@ -32,5 +40,6 @@ export const INITIAL_DATA: OnboardingData = {
   repositoryUrl: "",
   branch: "main",
   workdir: "",
+  serverId: "",
   envVars: [],
 };

@@ -1,4 +1,4 @@
-package engine
+package executor
 
 import (
 	"bufio"
@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-type ExecutorResult struct {
+type Result struct {
 	ExitCode int
 	Stdout   string
 	Stderr   string
@@ -26,7 +26,7 @@ type Executor struct {
 	logger  *slog.Logger
 }
 
-func NewExecutor(workDir string, timeout time.Duration, logger *slog.Logger) *Executor {
+func New(workDir string, timeout time.Duration, logger *slog.Logger) *Executor {
 	return &Executor{
 		workDir: workDir,
 		timeout: timeout,
@@ -34,15 +34,15 @@ func NewExecutor(workDir string, timeout time.Duration, logger *slog.Logger) *Ex
 	}
 }
 
-func (e *Executor) Run(ctx context.Context, name string, args ...string) (*ExecutorResult, error) {
+func (e *Executor) Run(ctx context.Context, name string, args ...string) (*Result, error) {
 	return e.run(ctx, true, name, args...)
 }
 
-func (e *Executor) RunQuiet(ctx context.Context, name string, args ...string) (*ExecutorResult, error) {
+func (e *Executor) RunQuiet(ctx context.Context, name string, args ...string) (*Result, error) {
 	return e.run(ctx, false, name, args...)
 }
 
-func (e *Executor) run(ctx context.Context, logErrors bool, name string, args ...string) (*ExecutorResult, error) {
+func (e *Executor) run(ctx context.Context, logErrors bool, name string, args ...string) (*Result, error) {
 	start := time.Now()
 
 	ctx, cancel := context.WithTimeout(ctx, e.timeout)
@@ -63,7 +63,7 @@ func (e *Executor) run(ctx context.Context, logErrors bool, name string, args ..
 
 	err := cmd.Run()
 
-	result := &ExecutorResult{
+	result := &Result{
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 		Duration: time.Since(start),
@@ -131,12 +131,12 @@ func (e *Executor) RunWithStreaming(ctx context.Context, output chan<- string, n
 
 	go func() {
 		defer wg.Done()
-		e.streamOutput(ctx, stdout, output)
+		streamOutput(ctx, stdout, output)
 	}()
 
 	go func() {
 		defer wg.Done()
-		e.streamOutput(ctx, stderr, output)
+		streamOutput(ctx, stderr, output)
 	}()
 
 	done := make(chan error)
@@ -168,7 +168,7 @@ func (e *Executor) RunWithStreaming(ctx context.Context, output chan<- string, n
 	}
 }
 
-func (e *Executor) streamOutput(ctx context.Context, reader io.Reader, output chan<- string) {
+func streamOutput(ctx context.Context, reader io.Reader, output chan<- string) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		select {
@@ -198,11 +198,11 @@ func SanitizePath(path string) string {
 	path = strings.ReplaceAll(path, "..", "")
 	path = strings.ReplaceAll(path, "~", "")
 	path = strings.TrimPrefix(path, "/")
-	
+
 	dangerous := []string{";", "&", "|", "$", "`", "(", ")", "{", "}", "[", "]", "<", ">", "\\", "\n", "\r"}
 	for _, char := range dangerous {
 		path = strings.ReplaceAll(path, char, "")
 	}
-	
+
 	return path
 }

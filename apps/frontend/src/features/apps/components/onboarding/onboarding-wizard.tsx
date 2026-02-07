@@ -7,6 +7,7 @@ import { DeployStep } from "./deploy-step";
 import { EnvironmentStep } from "./environment-step";
 import { RepositoryStep } from "./repository-step";
 import { ReviewStep } from "./review-step";
+import { ServerStep } from "./server-step";
 import { INITIAL_DATA, ONBOARDING_STEPS, type OnboardingData } from "./types";
 
 export function OnboardingWizard() {
@@ -38,10 +39,12 @@ export function OnboardingWizard() {
       case 0:
         return <RepositoryStep {...stepProps} />;
       case 1:
-        return <EnvironmentStep {...stepProps} />;
+        return <ServerStep {...stepProps} />;
       case 2:
-        return <ReviewStep {...stepProps} />;
+        return <EnvironmentStep {...stepProps} />;
       case 3:
+        return <ReviewStep {...stepProps} />;
+      case 4:
         return <DeployStep data={data} onBack={handleBack} />;
       default:
         return null;

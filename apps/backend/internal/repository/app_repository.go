@@ -129,11 +129,16 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 	}
 
 	query := `
-		INSERT INTO apps (name, repository_url, branch, workdir, config, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
+		INSERT INTO apps (name, repository_url, branch, workdir, config, server_id, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW(), NOW())
 		RETURNING ` + appSelectColumns
 
-	row := r.db.QueryRow(query, input.Name, input.RepositoryURL, branch, workdir, config)
+	var serverID interface{}
+	if input.ServerID != nil && *input.ServerID != "" {
+		serverID = *input.ServerID
+	}
+
+	row := r.db.QueryRow(query, input.Name, input.RepositoryURL, branch, workdir, config, serverID)
 
 	var f appScanFields
 	if err := row.Scan(f.scanDest()...); err != nil {

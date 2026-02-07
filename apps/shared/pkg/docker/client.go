@@ -1,4 +1,4 @@
-package engine
+package docker
 
 import (
 	"context"
@@ -8,24 +8,27 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/paasdeploy/shared/pkg/executor"
 )
 
 const (
-	dockerFormatFlag   = "--format"
+	DefaultNetworkName = "paasdeploy"
+	formatFlag         = "--format"
 	errNoSuchContainer = "no such container"
 )
 
-type DockerClient struct {
-	executor        *Executor
+type Client struct {
+	executor        *executor.Executor
 	logger          *slog.Logger
 	registry        string
 	buildxAvailable bool
 }
 
-func NewDockerClient(baseDir string, registry string, logger *slog.Logger) *DockerClient {
-	executor := NewExecutor(baseDir, 15*time.Minute, logger)
-	client := &DockerClient{
-		executor: executor,
+func NewClient(baseDir string, registry string, logger *slog.Logger) *Client {
+	exec := executor.New(baseDir, 15*time.Minute, logger)
+	client := &Client{
+		executor: exec,
 		logger:   logger,
 		registry: registry,
 	}
@@ -33,7 +36,7 @@ func NewDockerClient(baseDir string, registry string, logger *slog.Logger) *Dock
 	return client
 }
 
-func (d *DockerClient) initBuildx() {
+func (d *Client) initBuildx() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -55,7 +58,7 @@ func (d *DockerClient) initBuildx() {
 	d.logger.Info("Buildx default builder not available, using legacy builder")
 }
 
-func (d *DockerClient) Build(ctx context.Context, workDir, dockerfile, tag string, output chan<- string) error {
+func (d *Client) Build(ctx context.Context, workDir, dockerfile, tag string, output chan<- string) error {
 	d.logger.Info("Building Docker image", "workDir", workDir, "dockerfile", dockerfile, "tag", tag)
 
 	d.executor.SetWorkDir(workDir)
@@ -98,7 +101,7 @@ func (d *DockerClient) Build(ctx context.Context, workDir, dockerfile, tag strin
 	return nil
 }
 
-func (d *DockerClient) ComposeUp(ctx context.Context, projectDir, projectName string, output chan<- string) error {
+func (d *Client) ComposeUp(ctx context.Context, projectDir, projectName string, output chan<- string) error {
 	d.logger.Info("Starting containers with docker compose", "dir", projectDir)
 
 	d.executor.SetWorkDir(projectDir)
@@ -134,7 +137,7 @@ func (d *DockerClient) ComposeUp(ctx context.Context, projectDir, projectName st
 	return nil
 }
 
-func (d *DockerClient) ComposeDown(ctx context.Context, projectDir, projectName string) error {
+func (d *Client) ComposeDown(ctx context.Context, projectDir, projectName string) error {
 	d.logger.Info("Stopping containers with docker compose", "dir", projectDir)
 
 	d.executor.SetWorkDir(projectDir)
@@ -150,7 +153,7 @@ func (d *DockerClient) ComposeDown(ctx context.Context, projectDir, projectName 
 	return nil
 }
 
-func (d *DockerClient) Pull(ctx context.Context, image string) error {
+func (d *Client) Pull(ctx context.Context, image string) error {
 	d.logger.Info("Pulling Docker image", "image", image)
 
 	d.executor.SetTimeout(10 * time.Minute)
@@ -163,7 +166,7 @@ func (d *DockerClient) Pull(ctx context.Context, image string) error {
 	return nil
 }
 
-func (d *DockerClient) Push(ctx context.Context, tag string) error {
+func (d *Client) Push(ctx context.Context, tag string) error {
 	d.logger.Info("Pushing Docker image", "tag", tag)
 
 	d.executor.SetTimeout(10 * time.Minute)
@@ -176,7 +179,7 @@ func (d *DockerClient) Push(ctx context.Context, tag string) error {
 	return nil
 }
 
-func (d *DockerClient) Tag(ctx context.Context, source, target string) error {
+func (d *Client) Tag(ctx context.Context, source, target string) error {
 	d.logger.Info("Tagging Docker image", "source", source, "target", target)
 
 	_, err := d.executor.Run(ctx, "docker", "tag", source, target)
@@ -187,7 +190,7 @@ func (d *DockerClient) Tag(ctx context.Context, source, target string) error {
 	return nil
 }
 
-func (d *DockerClient) ImageExists(ctx context.Context, tag string) (bool, error) {
+func (d *Client) ImageExists(ctx context.Context, tag string) (bool, error) {
 	result, err := d.executor.Run(ctx, "docker", "image", "inspect", tag)
 	if err != nil {
 		if strings.Contains(result.Stderr, "No such image") {
@@ -198,7 +201,7 @@ func (d *DockerClient) ImageExists(ctx context.Context, tag string) (bool, error
 	return true, nil
 }
 
-func (d *DockerClient) RemoveImage(ctx context.Context, tag string) error {
+func (d *Client) RemoveImage(ctx context.Context, tag string) error {
 	if tag == "" {
 		return nil
 	}
@@ -214,7 +217,7 @@ func (d *DockerClient) RemoveImage(ctx context.Context, tag string) error {
 	return nil
 }
 
-func (d *DockerClient) EnsureNetwork(ctx context.Context, networkName string) error {
+func (d *Client) EnsureNetwork(ctx context.Context, networkName string) error {
 	d.logger.Info("Checking Docker network", "network", networkName)
 
 	result, err := d.executor.Run(ctx, "docker", "network", "inspect", networkName)
@@ -237,7 +240,7 @@ func (d *DockerClient) EnsureNetwork(ctx context.Context, networkName string) er
 	return nil
 }
 
-func (d *DockerClient) ConnectToNetwork(ctx context.Context, containerName, networkName string) error {
+func (d *Client) ConnectToNetwork(ctx context.Context, containerName, networkName string) error {
 	result, err := d.executor.RunQuiet(ctx, "docker", "network", "connect", networkName, containerName)
 	if err != nil {
 		if strings.Contains(result.Stderr, "already exists") {
@@ -250,7 +253,7 @@ func (d *DockerClient) ConnectToNetwork(ctx context.Context, containerName, netw
 	return nil
 }
 
-func (d *DockerClient) GetCurrentContainerID(ctx context.Context) (string, error) {
+func (d *Client) GetCurrentContainerID(ctx context.Context) (string, error) {
 	result, err := d.executor.RunQuiet(ctx, "cat", "/proc/self/cgroup")
 	if err != nil {
 		return "", fmt.Errorf("failed to read cgroup: %w", err)
@@ -282,14 +285,14 @@ func (d *DockerClient) GetCurrentContainerID(ctx context.Context) (string, error
 	return "", fmt.Errorf("could not determine container ID")
 }
 
-func (d *DockerClient) getImagePrefix() string {
+func (d *Client) getImagePrefix() string {
 	if d.registry != "" {
 		return d.registry + "/paasdeploy"
 	}
 	return "paasdeploy"
 }
 
-func (d *DockerClient) GetImageTag(appName, commitSHA string) string {
+func (d *Client) GetImageTag(appName, commitSHA string) string {
 	tag := commitSHA
 	if len(tag) > 12 {
 		tag = tag[:12]
@@ -297,7 +300,7 @@ func (d *DockerClient) GetImageTag(appName, commitSHA string) string {
 	return fmt.Sprintf("%s/%s:%s", d.getImagePrefix(), appName, tag)
 }
 
-func (d *DockerClient) GetLatestTag(appName string) string {
+func (d *Client) GetLatestTag(appName string) string {
 	return fmt.Sprintf("%s/%s:latest", d.getImagePrefix(), appName)
 }
 
@@ -310,10 +313,10 @@ type ContainerHealth struct {
 	Image     string
 }
 
-func (d *DockerClient) ContainerExists(ctx context.Context, containerName string) (bool, error) {
+func (d *Client) ContainerExists(ctx context.Context, containerName string) (bool, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
-	result, err := d.executor.Run(ctx, "docker", "ps", "-a", "--filter", fmt.Sprintf("name=^%s$", containerName), dockerFormatFlag, "{{.Names}}")
+	result, err := d.executor.Run(ctx, "docker", "ps", "-a", "--filter", fmt.Sprintf("name=^%s$", containerName), formatFlag, "{{.Names}}")
 	if err != nil {
 		return false, fmt.Errorf("failed to check container: %w", err)
 	}
@@ -321,11 +324,11 @@ func (d *DockerClient) ContainerExists(ctx context.Context, containerName string
 	return strings.TrimSpace(result.Stdout) == containerName, nil
 }
 
-func (d *DockerClient) InspectContainer(ctx context.Context, containerName string) (*ContainerHealth, error) {
+func (d *Client) InspectContainer(ctx context.Context, containerName string) (*ContainerHealth, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
 	format := "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.State.StartedAt}}|{{.Config.Image}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatFlag, format, containerName)
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerName)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
 		if strings.Contains(stderrLower, "no such object") || strings.Contains(stderrLower, errNoSuchContainer) {
@@ -354,14 +357,14 @@ func (d *DockerClient) InspectContainer(ctx context.Context, containerName strin
 	if health.Status == "running" && health.StartedAt != "" {
 		startTime, err := time.Parse(time.RFC3339Nano, health.StartedAt)
 		if err == nil {
-			health.Uptime = formatUptime(time.Since(startTime))
+			health.Uptime = FormatUptime(time.Since(startTime))
 		}
 	}
 
 	return health, nil
 }
 
-func formatUptime(d time.Duration) string {
+func FormatUptime(d time.Duration) string {
 	days := int(d.Hours() / 24)
 	hours := int(d.Hours()) % 24
 	minutes := int(d.Minutes()) % 60
@@ -375,11 +378,11 @@ func formatUptime(d time.Duration) string {
 	return fmt.Sprintf("%dm", minutes)
 }
 
-func (d *DockerClient) GetContainerIP(ctx context.Context, containerName, networkName string) (string, error) {
+func (d *Client) GetContainerIP(ctx context.Context, containerName, networkName string) (string, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
 	format := fmt.Sprintf("{{.NetworkSettings.Networks.%s.IPAddress}}", networkName)
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatFlag, format, containerName)
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerName)
 	if err != nil {
 		return "", fmt.Errorf("failed to get container IP: %w", err)
 	}
@@ -392,7 +395,7 @@ func (d *DockerClient) GetContainerIP(ctx context.Context, containerName, networ
 	return ip, nil
 }
 
-func (d *DockerClient) IsCurrentContainer(ctx context.Context, containerID string) bool {
+func (d *Client) IsCurrentContainer(ctx context.Context, containerID string) bool {
 	selfID, err := d.GetCurrentContainerID(ctx)
 	if err != nil {
 		return false
@@ -411,7 +414,7 @@ func (d *DockerClient) IsCurrentContainer(ctx context.Context, containerID strin
 	return shortSelf == shortTarget
 }
 
-func (d *DockerClient) RestartContainer(ctx context.Context, containerName string) error {
+func (d *Client) RestartContainer(ctx context.Context, containerName string) error {
 	d.logger.Info("Restarting container", "containerName", containerName)
 	d.executor.SetTimeout(2 * time.Minute)
 
@@ -427,7 +430,7 @@ func (d *DockerClient) RestartContainer(ctx context.Context, containerName strin
 	return nil
 }
 
-func (d *DockerClient) StopContainer(ctx context.Context, containerName string) error {
+func (d *Client) StopContainer(ctx context.Context, containerName string) error {
 	d.logger.Info("Stopping container", "containerName", containerName)
 	d.executor.SetTimeout(1 * time.Minute)
 
@@ -443,7 +446,7 @@ func (d *DockerClient) StopContainer(ctx context.Context, containerName string) 
 	return nil
 }
 
-func (d *DockerClient) StartContainer(ctx context.Context, containerName string) error {
+func (d *Client) StartContainer(ctx context.Context, containerName string) error {
 	d.logger.Info("Starting container", "containerName", containerName)
 	d.executor.SetTimeout(1 * time.Minute)
 
@@ -455,7 +458,7 @@ func (d *DockerClient) StartContainer(ctx context.Context, containerName string)
 	return nil
 }
 
-func (d *DockerClient) ContainerLogs(ctx context.Context, containerName string, tail int) (string, error) {
+func (d *Client) ContainerLogs(ctx context.Context, containerName string, tail int) (string, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
 	tailArg := "100"
@@ -480,7 +483,7 @@ func (d *DockerClient) ContainerLogs(ctx context.Context, containerName string, 
 	return output, nil
 }
 
-func (d *DockerClient) StreamContainerLogs(ctx context.Context, containerName string, output chan<- string) error {
+func (d *Client) StreamContainerLogs(ctx context.Context, containerName string, output chan<- string) error {
 	d.executor.SetTimeout(10 * time.Minute)
 
 	return d.executor.RunWithStreaming(ctx, output, "docker", "logs", "-f", "--tail", "100", "--timestamps", containerName)
@@ -496,11 +499,11 @@ type ContainerStats struct {
 	PIDs          int     `json:"pids"`
 }
 
-func (d *DockerClient) ContainerStats(ctx context.Context, containerName string) (*ContainerStats, error) {
+func (d *Client) ContainerStats(ctx context.Context, containerName string) (*ContainerStats, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
 	format := "{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.PIDs}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "stats", "--no-stream", dockerFormatFlag, format, containerName)
+	result, err := d.executor.RunQuiet(ctx, "docker", "stats", "--no-stream", formatFlag, format, containerName)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
 		if strings.Contains(stderrLower, errNoSuchContainer) {
@@ -530,8 +533,8 @@ func parseContainerStats(output string) (*ContainerStats, error) {
 
 	memParts := strings.Split(parts[1], " / ")
 	if len(memParts) == 2 {
-		stats.MemoryUsage = parseMemoryValue(strings.TrimSpace(memParts[0]))
-		stats.MemoryLimit = parseMemoryValue(strings.TrimSpace(memParts[1]))
+		stats.MemoryUsage = ParseMemoryValue(strings.TrimSpace(memParts[0]))
+		stats.MemoryLimit = ParseMemoryValue(strings.TrimSpace(memParts[1]))
 	}
 
 	memPercStr := strings.TrimSuffix(parts[2], "%")
@@ -539,8 +542,8 @@ func parseContainerStats(output string) (*ContainerStats, error) {
 
 	netParts := strings.Split(parts[3], " / ")
 	if len(netParts) == 2 {
-		stats.NetworkRx = parseNetworkValue(strings.TrimSpace(netParts[0]))
-		stats.NetworkTx = parseNetworkValue(strings.TrimSpace(netParts[1]))
+		stats.NetworkRx = ParseNetworkValue(strings.TrimSpace(netParts[0]))
+		stats.NetworkTx = ParseNetworkValue(strings.TrimSpace(netParts[1]))
 	}
 
 	fmt.Sscanf(parts[4], "%d", &stats.PIDs)
@@ -548,7 +551,7 @@ func parseContainerStats(output string) (*ContainerStats, error) {
 	return stats, nil
 }
 
-func parseMemoryValue(s string) int64 {
+func ParseMemoryValue(s string) int64 {
 	s = strings.ToUpper(s)
 	var value float64
 	var unit string
@@ -567,7 +570,7 @@ func parseMemoryValue(s string) int64 {
 	return int64(value * float64(multiplier))
 }
 
-func parseNetworkValue(s string) int64 {
+func ParseNetworkValue(s string) int64 {
 	s = strings.ToUpper(s)
 	var value float64
 	var unit string
@@ -586,7 +589,7 @@ func parseNetworkValue(s string) int64 {
 	return int64(value * float64(multiplier))
 }
 
-func (d *DockerClient) PruneUnusedImages(ctx context.Context) error {
+func (d *Client) PruneUnusedImages(ctx context.Context) error {
 	d.logger.Info("Pruning unused Docker images")
 	d.executor.SetTimeout(5 * time.Minute)
 
@@ -610,10 +613,10 @@ type ImageInfo struct {
 	Labels     []string `json:"labels"`
 }
 
-func (d *DockerClient) ListImages(ctx context.Context, all bool) ([]ImageInfo, error) {
+func (d *Client) ListImages(ctx context.Context, all bool) ([]ImageInfo, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
-	args := []string{"images", dockerFormatFlag, "{{.ID}}|{{.Repository}}|{{.Tag}}|{{.Size}}|{{.CreatedAt}}|{{.Containers}}"}
+	args := []string{"images", formatFlag, "{{.ID}}|{{.Repository}}|{{.Tag}}|{{.Size}}|{{.CreatedAt}}|{{.Containers}}"}
 	if all {
 		args = append(args, "-a")
 	}
@@ -626,7 +629,7 @@ func (d *DockerClient) ListImages(ctx context.Context, all bool) ([]ImageInfo, e
 	return d.parseImageList(result.Stdout), nil
 }
 
-func (d *DockerClient) parseImageList(output string) []ImageInfo {
+func (d *Client) parseImageList(output string) []ImageInfo {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	images := make([]ImageInfo, 0, len(lines))
 
@@ -647,7 +650,7 @@ func (d *DockerClient) parseImageList(output string) []ImageInfo {
 			Created:    parts[4],
 		}
 
-		img.Size = parseImageSize(parts[3])
+		img.Size = ParseImageSize(parts[3])
 		img.Containers = parseImageContainers(parts[5])
 		img.Dangling = parts[1] == "<none>" || parts[2] == "<none>"
 
@@ -657,7 +660,7 @@ func (d *DockerClient) parseImageList(output string) []ImageInfo {
 	return images
 }
 
-func parseImageSize(sizeStr string) int64 {
+func ParseImageSize(sizeStr string) int64 {
 	sizeStr = strings.ToUpper(sizeStr)
 	var value float64
 	var unit string
@@ -688,7 +691,7 @@ func parseImageContainers(containersStr string) int {
 	return containers
 }
 
-func (d *DockerClient) RemoveImageByID(ctx context.Context, imageID string, force bool) error {
+func (d *Client) RemoveImageByID(ctx context.Context, imageID string, force bool) error {
 	d.logger.Info("Removing Docker image", "id", imageID, "force", force)
 	d.executor.SetTimeout(2 * time.Minute)
 
@@ -711,7 +714,7 @@ type PruneResult struct {
 	SpaceReclaimed int64
 }
 
-func (d *DockerClient) PruneImages(ctx context.Context) (*PruneResult, error) {
+func (d *Client) PruneImages(ctx context.Context) (*PruneResult, error) {
 	d.logger.Info("Pruning all dangling Docker images")
 	d.executor.SetTimeout(5 * time.Minute)
 
@@ -726,7 +729,7 @@ func (d *DockerClient) PruneImages(ctx context.Context) (*PruneResult, error) {
 		if strings.Contains(line, "Total reclaimed space") {
 			parts := strings.Split(line, ":")
 			if len(parts) > 1 {
-				pruneResult.SpaceReclaimed = parseImageSize(strings.TrimSpace(parts[1]))
+				pruneResult.SpaceReclaimed = ParseImageSize(strings.TrimSpace(parts[1]))
 			}
 		}
 		if strings.HasPrefix(line, "deleted:") || strings.HasPrefix(line, "Deleted:") {

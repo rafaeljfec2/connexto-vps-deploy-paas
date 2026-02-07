@@ -83,3 +83,13 @@ func (c *AgentClient) GetSystemMetrics(ctx context.Context, host string, port in
 
 	return client.GetSystemMetrics(ctx, &emptypb.Empty{})
 }
+
+func (c *AgentClient) ExecuteDeploy(ctx context.Context, host string, port int, req *pb.DeployRequest) (*pb.DeployResponse, error) {
+	client, cleanup, err := c.dial(host, port)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to agent: %w", err)
+	}
+	defer cleanup()
+
+	return client.ExecuteDeploy(ctx, req)
+}

@@ -33,7 +33,6 @@ func InitializeApplication() (*Application, func(), error) {
 	postgresInstallationRepository := repository.NewPostgresInstallationRepository(db)
 	gitTokenProvider := ProvideGitTokenProvider(appClient, postgresInstallationRepository, logger)
 	auditService := ProvideAuditService(db, logger)
-	engineEngine := engine.New(config, db, postgresAppRepository, postgresEnvVarRepository, postgresCustomDomainRepository, gitTokenProvider, auditService, logger)
 	serverConfig := ProvideServerConfig(config)
 	serverServer := server.New(serverConfig, logger)
 	postgresCertificateAuthorityRepository := repository.NewPostgresCertificateAuthorityRepository(db)
@@ -43,6 +42,19 @@ func InitializeApplication() (*Application, func(), error) {
 		return nil, nil, err
 	}
 	postgresServerRepository := repository.NewPostgresServerRepository(db)
+	agentClientForEngine := ProvideAgentClient(certificateAuthority, config)
+	engineEngine := engine.New(engine.Params{
+		Cfg:              config,
+		DB:               db,
+		AppRepo:          postgresAppRepository,
+		EnvVarRepo:       postgresEnvVarRepository,
+		CustomDomainRepo: postgresCustomDomainRepository,
+		ServerRepo:       postgresServerRepository,
+		AgentClient:      agentClientForEngine,
+		GitTokenProvider: gitTokenProvider,
+		AuditService:     auditService,
+		Logger:           logger,
+	})
 	tokenStore := agentdownload.NewTokenStore()
 	grpcserverServer := ProvideGrpcServer(config, certificateAuthority, postgresServerRepository, tokenStore, logger)
 	healthHandler := ProvideHealthHandler()

@@ -6,16 +6,17 @@ import (
 	"time"
 
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/shared/pkg/lock"
 )
 
 type Dispatcher struct {
 	queue    *Queue
-	locker   *Locker
+	locker   *lock.Locker
 	logger   *slog.Logger
 	pollTime time.Duration
 }
 
-func NewDispatcher(queue *Queue, locker *Locker, logger *slog.Logger) *Dispatcher {
+func NewDispatcher(queue *Queue, locker *lock.Locker, logger *slog.Logger) *Dispatcher {
 	return &Dispatcher{
 		queue:    queue,
 		locker:   locker,

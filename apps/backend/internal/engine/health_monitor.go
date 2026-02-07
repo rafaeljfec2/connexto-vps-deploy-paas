@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/shared/pkg/docker"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 )
 
 type HealthMonitor struct {
-	docker     *DockerClient
+	docker     *docker.Client
 	appRepo    domain.AppRepository
 	notifier   Notifier
 	logger     *slog.Logger
@@ -28,13 +29,13 @@ type HealthMonitor struct {
 }
 
 func NewHealthMonitor(
-	docker *DockerClient,
+	dockerClient *docker.Client,
 	appRepo domain.AppRepository,
 	notifier Notifier,
 	logger *slog.Logger,
 ) *HealthMonitor {
 	return &HealthMonitor{
-		docker:     docker,
+		docker:     dockerClient,
 		appRepo:    appRepo,
 		notifier:   notifier,
 		logger:     logger.With("component", "health_monitor"),
@@ -139,11 +140,11 @@ func (m *HealthMonitor) checkAllApps(ctx context.Context) {
 	}
 }
 
-func (m *HealthMonitor) CheckApp(ctx context.Context, appName string) *ContainerHealth {
+func (m *HealthMonitor) CheckApp(ctx context.Context, appName string) *docker.ContainerHealth {
 	health, err := m.docker.InspectContainer(ctx, appName)
 	if err != nil {
 		m.logger.Debug("Failed to inspect container", "appName", appName, "error", err)
-		return &ContainerHealth{
+		return &docker.ContainerHealth{
 			Name:   appName,
 			Status: "not_deployed",
 			Health: "none",

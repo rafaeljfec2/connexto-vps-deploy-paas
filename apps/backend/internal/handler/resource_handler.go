@@ -6,16 +6,16 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/response"
+	"github.com/paasdeploy/shared/pkg/docker"
 )
 
 type ResourceHandler struct {
-	docker *engine.DockerClient
+	docker *docker.Client
 	logger *slog.Logger
 }
 
-func NewResourceHandler(docker *engine.DockerClient, logger *slog.Logger) *ResourceHandler {
+func NewResourceHandler(docker *docker.Client, logger *slog.Logger) *ResourceHandler {
 	return &ResourceHandler{docker: docker, logger: logger}
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/shared/pkg/docker"
 )
 
 const (
@@ -16,7 +17,7 @@ const (
 )
 
 type StatsMonitor struct {
-	docker   *DockerClient
+	docker   *docker.Client
 	appRepo  domain.AppRepository
 	notifier Notifier
 	logger   *slog.Logger
@@ -26,13 +27,13 @@ type StatsMonitor struct {
 }
 
 func NewStatsMonitor(
-	docker *DockerClient,
+	dockerClient *docker.Client,
 	appRepo domain.AppRepository,
 	notifier Notifier,
 	logger *slog.Logger,
 ) *StatsMonitor {
 	return &StatsMonitor{
-		docker:   docker,
+		docker:   dockerClient,
 		appRepo:  appRepo,
 		notifier: notifier,
 		logger:   logger.With("component", "stats_monitor"),

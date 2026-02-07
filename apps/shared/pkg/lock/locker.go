@@ -1,4 +1,4 @@
-package engine
+package lock
 
 import (
 	"fmt"
@@ -13,7 +13,7 @@ type Locker struct {
 	mu       sync.RWMutex
 }
 
-func NewLocker(basePath string) *Locker {
+func New(basePath string) *Locker {
 	return &Locker{
 		basePath: basePath,
 		locks:    make(map[string]*sync.Mutex),
@@ -22,28 +22,28 @@ func NewLocker(basePath string) *Locker {
 
 func (l *Locker) Acquire(appID string) error {
 	l.mu.Lock()
-	lock, exists := l.locks[appID]
+	lk, exists := l.locks[appID]
 	if !exists {
-		lock = &sync.Mutex{}
-		l.locks[appID] = lock
+		lk = &sync.Mutex{}
+		l.locks[appID] = lk
 	}
 	l.mu.Unlock()
 
-	lock.Lock()
+	lk.Lock()
 
 	lockFile := l.lockFilePath(appID)
 	if err := os.MkdirAll(filepath.Dir(lockFile), 0755); err != nil {
-		lock.Unlock()
+		lk.Unlock()
 		return fmt.Errorf("failed to create lock directory: %w", err)
 	}
 
 	f, err := os.OpenFile(lockFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 	if err != nil {
 		if os.IsExist(err) {
-			lock.Unlock()
+			lk.Unlock()
 			return fmt.Errorf("lock already held for app %s", appID)
 		}
-		lock.Unlock()
+		lk.Unlock()
 		return fmt.Errorf("failed to create lock file: %w", err)
 	}
 	f.Close()
@@ -53,7 +53,7 @@ func (l *Locker) Acquire(appID string) error {
 
 func (l *Locker) Release(appID string) error {
 	l.mu.RLock()
-	lock, exists := l.locks[appID]
+	lk, exists := l.locks[appID]
 	l.mu.RUnlock()
 
 	if !exists {
@@ -65,7 +65,7 @@ func (l *Locker) Release(appID string) error {
 		return fmt.Errorf("failed to remove lock file: %w", err)
 	}
 
-	lock.Unlock()
+	lk.Unlock()
 	return nil
 }
 

@@ -4,16 +4,16 @@ import (
 	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/response"
+	"github.com/paasdeploy/shared/pkg/docker"
 )
 
 type TemplateHandler struct {
-	docker *engine.DockerClient
+	docker *docker.Client
 	logger *slog.Logger
 }
 
-func NewTemplateHandler(docker *engine.DockerClient, logger *slog.Logger) *TemplateHandler {
+func NewTemplateHandler(docker *docker.Client, logger *slog.Logger) *TemplateHandler {
 	return &TemplateHandler{
 		docker: docker,
 		logger: logger,
@@ -100,7 +100,7 @@ func (h *TemplateHandler) DeployTemplate(c *fiber.Ctx) error {
 	})
 }
 
-func (h *TemplateHandler) buildContainerOptions(template *Template, req DeployTemplateRequest) engine.CreateContainerOptions {
+func (h *TemplateHandler) buildContainerOptions(template *Template, req DeployTemplateRequest) docker.CreateContainerOptions {
 	name := req.Name
 	if name == "" {
 		name = template.ID
@@ -111,7 +111,7 @@ func (h *TemplateHandler) buildContainerOptions(template *Template, req DeployTe
 		restartPolicy = "unless-stopped"
 	}
 
-	opts := engine.CreateContainerOptions{
+	opts := docker.CreateContainerOptions{
 		Name:          name,
 		Image:         template.Image,
 		Env:           req.Env,
@@ -124,11 +124,11 @@ func (h *TemplateHandler) buildContainerOptions(template *Template, req DeployTe
 	return opts
 }
 
-func (h *TemplateHandler) buildPortMappings(template *Template, requestPorts []PortMappingRequest) []engine.PortMapping {
+func (h *TemplateHandler) buildPortMappings(template *Template, requestPorts []PortMappingRequest) []docker.PortMapping {
 	if len(requestPorts) > 0 {
-		ports := make([]engine.PortMapping, 0, len(requestPorts))
+		ports := make([]docker.PortMapping, 0, len(requestPorts))
 		for _, p := range requestPorts {
-			ports = append(ports, engine.PortMapping{
+			ports = append(ports, docker.PortMapping{
 				HostPort:      p.HostPort,
 				ContainerPort: p.ContainerPort,
 				Protocol:      p.Protocol,
@@ -137,9 +137,9 @@ func (h *TemplateHandler) buildPortMappings(template *Template, requestPorts []P
 		return ports
 	}
 
-	ports := make([]engine.PortMapping, 0, len(template.Ports))
+	ports := make([]docker.PortMapping, 0, len(template.Ports))
 	for i, port := range template.Ports {
-		ports = append(ports, engine.PortMapping{
+		ports = append(ports, docker.PortMapping{
 			HostPort:      port + i,
 			ContainerPort: port,
 			Protocol:      "tcp",

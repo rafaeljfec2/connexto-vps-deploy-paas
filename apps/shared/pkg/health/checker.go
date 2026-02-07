@@ -1,4 +1,4 @@
-package engine
+package health
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-type HealthChecker struct {
+type Checker struct {
 	client   *http.Client
 	logger   *slog.Logger
 	timeout  time.Duration
@@ -16,8 +16,8 @@ type HealthChecker struct {
 	interval time.Duration
 }
 
-func NewHealthChecker(timeout time.Duration, retries int, interval time.Duration, logger *slog.Logger) *HealthChecker {
-	return &HealthChecker{
+func NewChecker(timeout time.Duration, retries int, interval time.Duration, logger *slog.Logger) *Checker {
+	return &Checker{
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -28,7 +28,7 @@ func NewHealthChecker(timeout time.Duration, retries int, interval time.Duration
 	}
 }
 
-func (h *HealthChecker) Check(ctx context.Context, url string) error {
+func (h *Checker) Check(ctx context.Context, url string) error {
 	h.logger.Info("Starting health check", "url", url, "retries", h.retries, "timeout", h.timeout)
 
 	deadline := time.Now().Add(h.timeout)
@@ -69,7 +69,7 @@ func (h *HealthChecker) Check(ctx context.Context, url string) error {
 	return fmt.Errorf("health check failed after %d attempts", h.retries)
 }
 
-func (h *HealthChecker) singleCheck(ctx context.Context, url string) error {
+func (h *Checker) singleCheck(ctx context.Context, url string) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
@@ -88,7 +88,7 @@ func (h *HealthChecker) singleCheck(ctx context.Context, url string) error {
 	return nil
 }
 
-func (h *HealthChecker) CheckWithBackoff(ctx context.Context, url string) error {
+func (h *Checker) CheckWithBackoff(ctx context.Context, url string) error {
 	h.logger.Info("Starting health check with exponential backoff", "url", url)
 
 	deadline := time.Now().Add(h.timeout)
@@ -131,14 +131,14 @@ func (h *HealthChecker) CheckWithBackoff(ctx context.Context, url string) error 
 	}
 }
 
-func (h *HealthChecker) SetTimeout(timeout time.Duration) {
+func (h *Checker) SetTimeout(timeout time.Duration) {
 	h.timeout = timeout
 }
 
-func (h *HealthChecker) SetRetries(retries int) {
+func (h *Checker) SetRetries(retries int) {
 	h.retries = retries
 }
 
-func (h *HealthChecker) SetInterval(interval time.Duration) {
+func (h *Checker) SetInterval(interval time.Duration) {
 	h.interval = interval
 }

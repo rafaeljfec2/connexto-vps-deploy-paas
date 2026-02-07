@@ -1,4 +1,4 @@
-package engine
+package docker
 
 import (
 	"context"
@@ -7,21 +7,19 @@ import (
 	"time"
 )
 
-const dockerFormatArg = "--format"
-
 type ContainerInfo struct {
-	ID        string              `json:"id"`
-	Name      string              `json:"name"`
-	Image     string              `json:"image"`
-	State     string              `json:"state"`
-	Status    string              `json:"status"`
-	Health    string              `json:"health"`
-	Created   string              `json:"created"`
-	IPAddress string              `json:"ipAddress"`
-	Ports     []ContainerPort     `json:"ports"`
-	Labels    map[string]string   `json:"labels"`
-	Networks  []string            `json:"networks"`
-	Mounts    []ContainerMount    `json:"mounts"`
+	ID        string            `json:"id"`
+	Name      string            `json:"name"`
+	Image     string            `json:"image"`
+	State     string            `json:"state"`
+	Status    string            `json:"status"`
+	Health    string            `json:"health"`
+	Created   string            `json:"created"`
+	IPAddress string            `json:"ipAddress"`
+	Ports     []ContainerPort   `json:"ports"`
+	Labels    map[string]string `json:"labels"`
+	Networks  []string          `json:"networks"`
+	Mounts    []ContainerMount  `json:"mounts"`
 }
 
 type ContainerMount struct {
@@ -60,10 +58,10 @@ type VolumeMapping struct {
 	ReadOnly      bool   `json:"readOnly,omitempty"`
 }
 
-func (d *DockerClient) ListContainers(ctx context.Context, all bool) ([]ContainerInfo, error) {
+func (d *Client) ListContainers(ctx context.Context, all bool) ([]ContainerInfo, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
-	args := []string{"ps", dockerFormatArg, "{{.ID}}|{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}|{{.CreatedAt}}|{{.Labels}}"}
+	args := []string{"ps", formatFlag, "{{.ID}}|{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}|{{.CreatedAt}}|{{.Labels}}"}
 	if all {
 		args = append(args, "-a")
 	}
@@ -76,7 +74,7 @@ func (d *DockerClient) ListContainers(ctx context.Context, all bool) ([]Containe
 	return d.parseContainerList(ctx, result.Stdout), nil
 }
 
-func (d *DockerClient) parseContainerList(ctx context.Context, output string) []ContainerInfo {
+func (d *Client) parseContainerList(ctx context.Context, output string) []ContainerInfo {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	containers := make([]ContainerInfo, 0, len(lines))
 
@@ -94,7 +92,7 @@ func (d *DockerClient) parseContainerList(ctx context.Context, output string) []
 	return containers
 }
 
-func (d *DockerClient) parseContainerLine(ctx context.Context, line string) *ContainerInfo {
+func (d *Client) parseContainerLine(ctx context.Context, line string) *ContainerInfo {
 	parts := strings.Split(line, "|")
 	if len(parts) < 7 {
 		return nil
@@ -112,15 +110,15 @@ func (d *DockerClient) parseContainerLine(ctx context.Context, line string) *Con
 		State:   parts[3],
 		Status:  parts[4],
 		Created: parts[6],
-		Labels:  parseLabels(labelsStr),
+		Labels:  ParseLabels(labelsStr),
 		Ports:   parsePorts(parts[5]),
 	}
 
 	container.Health, _ = d.getContainerHealth(ctx, container.ID)
-	if ip, err := d.GetContainerIP(ctx, container.Name, defaultNetworkName); err == nil && ip != "" {
+	if ip, err := d.GetContainerIP(ctx, container.Name, DefaultNetworkName); err == nil && ip != "" {
 		container.IPAddress = ip
 	} else {
-		container.IPAddress, _ = d.getContainerIP(ctx, container.ID)
+		container.IPAddress, _ = d.getContainerIPAny(ctx, container.ID)
 	}
 	container.Networks, _ = d.getContainerNetworks(ctx, container.ID)
 	container.Mounts, _ = d.getContainerMounts(ctx, container.ID)
@@ -128,52 +126,52 @@ func (d *DockerClient) parseContainerLine(ctx context.Context, line string) *Con
 	return container
 }
 
-func (d *DockerClient) getContainerHealth(ctx context.Context, containerID string) (string, error) {
+func (d *Client) getContainerHealth(ctx context.Context, containerID string) (string, error) {
 	format := "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatArg, format, containerID)
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerID)
 	if err != nil {
 		return "none", nil
 	}
 	return strings.TrimSpace(result.Stdout), nil
 }
 
-func (d *DockerClient) getContainerIP(ctx context.Context, containerID string) (string, error) {
+func (d *Client) getContainerIPAny(ctx context.Context, containerID string) (string, error) {
 	format := "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatArg, format, containerID)
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerID)
 	if err != nil {
 		return "", nil
 	}
 	return strings.TrimSpace(result.Stdout), nil
 }
 
-func (d *DockerClient) getContainerNetworks(ctx context.Context, containerID string) ([]string, error) {
+func (d *Client) getContainerNetworks(ctx context.Context, containerID string) ([]string, error) {
 	format := "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatArg, format, containerID)
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerID)
 	if err != nil {
 		return nil, nil
 	}
-	
+
 	networksStr := strings.TrimSpace(result.Stdout)
 	if networksStr == "" {
 		return []string{}, nil
 	}
-	
+
 	networks := strings.Fields(networksStr)
 	return networks, nil
 }
 
-func (d *DockerClient) getContainerMounts(ctx context.Context, containerID string) ([]ContainerMount, error) {
+func (d *Client) getContainerMounts(ctx context.Context, containerID string) ([]ContainerMount, error) {
 	format := "{{range .Mounts}}{{.Type}}|{{.Source}}|{{.Destination}}|{{.RW}};{{end}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", dockerFormatArg, format, containerID)
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerID)
 	if err != nil {
 		return nil, nil
 	}
-	
+
 	mountsStr := strings.TrimSpace(result.Stdout)
 	if mountsStr == "" {
 		return []ContainerMount{}, nil
 	}
-	
+
 	mounts := []ContainerMount{}
 	mountEntries := strings.Split(mountsStr, ";")
 	for _, entry := range mountEntries {
@@ -181,20 +179,20 @@ func (d *DockerClient) getContainerMounts(ctx context.Context, containerID strin
 		if entry == "" {
 			continue
 		}
-		parts := strings.Split(entry, "|")
-		if len(parts) >= 4 {
+		entryParts := strings.Split(entry, "|")
+		if len(entryParts) >= 4 {
 			mounts = append(mounts, ContainerMount{
-				Type:        parts[0],
-				Source:      parts[1],
-				Destination: parts[2],
-				ReadOnly:    parts[3] != "true",
+				Type:        entryParts[0],
+				Source:      entryParts[1],
+				Destination: entryParts[2],
+				ReadOnly:    entryParts[3] != "true",
 			})
 		}
 	}
 	return mounts, nil
 }
 
-func (d *DockerClient) CreateContainer(ctx context.Context, opts CreateContainerOptions) (string, error) {
+func (d *Client) CreateContainer(ctx context.Context, opts CreateContainerOptions) (string, error) {
 	d.logger.Info("Creating container", "name", opts.Name, "image", opts.Image)
 	d.executor.SetTimeout(5 * time.Minute)
 
@@ -202,7 +200,7 @@ func (d *DockerClient) CreateContainer(ctx context.Context, opts CreateContainer
 		d.logger.Warn("Failed to pull image, trying to use local", "image", opts.Image, "error", err)
 	}
 
-	args := d.buildContainerArgs(opts)
+	args := buildContainerArgs(opts)
 
 	result, err := d.executor.Run(ctx, "docker", args...)
 	if err != nil {
@@ -215,7 +213,7 @@ func (d *DockerClient) CreateContainer(ctx context.Context, opts CreateContainer
 	return containerID, nil
 }
 
-func (d *DockerClient) buildContainerArgs(opts CreateContainerOptions) []string {
+func buildContainerArgs(opts CreateContainerOptions) []string {
 	args := []string{"run", "-d"}
 
 	if opts.Name != "" {
@@ -272,7 +270,7 @@ func buildVolumeArgs(volumes []VolumeMapping) []string {
 	return args
 }
 
-func (d *DockerClient) RemoveContainer(ctx context.Context, containerID string, force bool) error {
+func (d *Client) RemoveContainer(ctx context.Context, containerID string, force bool) error {
 	d.logger.Info("Removing container", "id", containerID, "force", force)
 	d.executor.SetTimeout(1 * time.Minute)
 
@@ -290,11 +288,11 @@ func (d *DockerClient) RemoveContainer(ctx context.Context, containerID string, 
 	return nil
 }
 
-func (d *DockerClient) GetContainerDetails(ctx context.Context, containerID string) (*ContainerInfo, error) {
+func (d *Client) GetContainerDetails(ctx context.Context, containerID string) (*ContainerInfo, error) {
 	d.executor.SetTimeout(30 * time.Second)
 
 	format := "{{.ID}}|{{.Name}}|{{.Config.Image}}|{{.State.Status}}|{{.State.StartedAt}}|{{range $k, $v := .Config.Labels}}{{$k}}={{$v}},{{end}}"
-	result, err := d.executor.Run(ctx, "docker", "inspect", dockerFormatArg, format, containerID)
+	result, err := d.executor.Run(ctx, "docker", "inspect", formatFlag, format, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container: %w", err)
 	}
@@ -302,7 +300,7 @@ func (d *DockerClient) GetContainerDetails(ctx context.Context, containerID stri
 	return d.parseContainerDetails(ctx, containerID, result.Stdout)
 }
 
-func (d *DockerClient) parseContainerDetails(ctx context.Context, containerID, output string) (*ContainerInfo, error) {
+func (d *Client) parseContainerDetails(ctx context.Context, containerID, output string) (*ContainerInfo, error) {
 	parts := strings.Split(strings.TrimSpace(output), "|")
 	if len(parts) < 5 {
 		return nil, fmt.Errorf("unexpected inspect output")
@@ -318,11 +316,11 @@ func (d *DockerClient) parseContainerDetails(ctx context.Context, containerID, o
 		Name:   strings.TrimPrefix(parts[1], "/"),
 		Image:  parts[2],
 		State:  parts[3],
-		Labels: parseLabels(labelsStr),
+		Labels: ParseLabels(labelsStr),
 	}
 
 	container.Health, _ = d.getContainerHealth(ctx, containerID)
-	container.IPAddress, _ = d.getContainerIP(ctx, containerID)
+	container.IPAddress, _ = d.getContainerIPAny(ctx, containerID)
 	container.Networks, _ = d.getContainerNetworks(ctx, containerID)
 	container.Mounts, _ = d.getContainerMounts(ctx, containerID)
 
@@ -334,7 +332,7 @@ func (d *DockerClient) parseContainerDetails(ctx context.Context, containerID, o
 	return container, nil
 }
 
-func parseLabels(labelStr string) map[string]string {
+func ParseLabels(labelStr string) map[string]string {
 	labels := make(map[string]string)
 	if labelStr == "" {
 		return labels

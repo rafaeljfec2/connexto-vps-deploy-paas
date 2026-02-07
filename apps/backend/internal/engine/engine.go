@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,9 +10,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/config"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/service"
+	"github.com/paasdeploy/shared/pkg/compose"
+	"github.com/paasdeploy/shared/pkg/docker"
+	"github.com/paasdeploy/shared/pkg/git"
+	"github.com/paasdeploy/shared/pkg/health"
+	"github.com/paasdeploy/shared/pkg/lock"
 )
 
 type Engine struct {
@@ -23,8 +28,8 @@ type Engine struct {
 	notifier         *ChannelNotifier
 	healthMonitor    *HealthMonitor
 	statsMonitor     *StatsMonitor
-	docker           *DockerClient
-	locker           *Locker
+	docker           *docker.Client
+	locker           *lock.Locker
 	workers          []*Worker
 	logger           *slog.Logger
 	ctx              context.Context
@@ -36,55 +41,68 @@ type Engine struct {
 	envVarRepo       domain.EnvVarRepository
 }
 
-func New(cfg *config.Config, db *sql.DB, appRepo domain.AppRepository, envVarRepo domain.EnvVarRepository, customDomainRepo domain.CustomDomainRepository, gitTokenProvider GitTokenProvider, auditService *service.AuditService, logger *slog.Logger) *Engine {
+type Params struct {
+	Cfg              *config.Config
+	DB               *sql.DB
+	AppRepo          domain.AppRepository
+	EnvVarRepo       domain.EnvVarRepository
+	CustomDomainRepo domain.CustomDomainRepository
+	ServerRepo       domain.ServerRepository
+	AgentClient      *agentclient.AgentClient
+	GitTokenProvider GitTokenProvider
+	AuditService     *service.AuditService
+	Logger           *slog.Logger
+}
+
+func New(p Params) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	queue := NewQueue(db)
-	locker := NewLocker(cfg.Deploy.DataDir)
+	queue := NewQueue(p.DB)
+	lk := lock.New(p.Cfg.Deploy.DataDir)
 	notifier := NewChannelNotifier(1000)
-	dispatcher := NewDispatcher(queue, locker, logger)
-	docker := NewDockerClient(cfg.Deploy.DataDir, cfg.Docker.Registry, logger)
-	healthMonitor := NewHealthMonitor(docker, appRepo, notifier, logger)
-	statsMonitor := NewStatsMonitor(docker, appRepo, notifier, logger)
+	dispatcher := NewDispatcher(queue, lk, p.Logger)
+	dockerClient := docker.NewClient(p.Cfg.Deploy.DataDir, p.Cfg.Docker.Registry, p.Logger)
+	healthMonitor := NewHealthMonitor(dockerClient, p.AppRepo, notifier, p.Logger)
+	statsMonitor := NewStatsMonitor(dockerClient, p.AppRepo, notifier, p.Logger)
 
 	engine := &Engine{
-		cfg:              cfg,
-		db:               db,
+		cfg:              p.Cfg,
+		db:               p.DB,
 		dispatcher:       dispatcher,
 		notifier:         notifier,
 		healthMonitor:    healthMonitor,
 		statsMonitor:     statsMonitor,
-		docker:           docker,
-		locker:           locker,
-		logger:           logger.With("component", "engine"),
+		docker:           dockerClient,
+		locker:           lk,
+		logger:           p.Logger.With("component", "engine"),
 		ctx:              ctx,
 		cancel:           cancel,
-		customDomainRepo: customDomainRepo,
-		envVarRepo:       envVarRepo,
+		customDomainRepo: p.CustomDomainRepo,
+		envVarRepo:       p.EnvVarRepo,
 	}
 
 	deps := WorkerDeps{
-		Git:              NewGitClient(cfg.Deploy.DataDir, logger),
-		Docker:           docker,
-		Health:           NewHealthChecker(cfg.Deploy.HealthCheckTimeout, cfg.Deploy.HealthCheckRetries, 5*time.Second, logger),
+		Git:              git.NewClient(p.Cfg.Deploy.DataDir, p.Logger),
+		Docker:           dockerClient,
+		Health:           health.NewChecker(p.Cfg.Deploy.HealthCheckTimeout, p.Cfg.Deploy.HealthCheckRetries, 5*time.Second, p.Logger),
 		Notifier:         notifier,
 		Dispatcher:       dispatcher,
-		EnvVarRepo:       envVarRepo,
-		CustomDomainRepo: customDomainRepo,
-		GitTokenProvider: gitTokenProvider,
-		AuditService:     auditService,
-		Logger:           logger,
+		EnvVarRepo:       p.EnvVarRepo,
+		CustomDomainRepo: p.CustomDomainRepo,
+		ServerRepo:       p.ServerRepo,
+		AgentClient:      p.AgentClient,
+		GitTokenProvider: p.GitTokenProvider,
+		AuditService:     p.AuditService,
+		Logger:           p.Logger,
 	}
 
-	for i := 0; i < cfg.Deploy.Workers; i++ {
-		worker := NewWorker(i, cfg.Deploy.DataDir, deps)
+	for i := 0; i < p.Cfg.Deploy.Workers; i++ {
+		worker := NewWorker(i, p.Cfg.Deploy.DataDir, deps)
 		engine.workers = append(engine.workers, worker)
 	}
 
 	return engine
 }
-
-const defaultNetworkName = "paasdeploy"
 
 func (e *Engine) Start() error {
 	e.mu.Lock()
@@ -99,13 +117,13 @@ func (e *Engine) Start() error {
 
 	e.recoverFromRestart()
 
-	if err := e.docker.EnsureNetwork(e.ctx, defaultNetworkName); err != nil {
-		e.logger.Error("Failed to ensure network", "network", defaultNetworkName, "error", err)
+	if err := e.docker.EnsureNetwork(e.ctx, docker.DefaultNetworkName); err != nil {
+		e.logger.Error("Failed to ensure network", "network", docker.DefaultNetworkName, "error", err)
 	}
 
 	if containerID, err := e.docker.GetCurrentContainerID(e.ctx); err == nil {
-		if err := e.docker.ConnectToNetwork(e.ctx, containerID, defaultNetworkName); err != nil {
-			e.logger.Warn("Failed to connect to network (may already be connected)", "network", defaultNetworkName, "error", err)
+		if err := e.docker.ConnectToNetwork(e.ctx, containerID, docker.DefaultNetworkName); err != nil {
+			e.logger.Warn("Failed to connect to network (may already be connected)", "network", docker.DefaultNetworkName, "error", err)
 		}
 	} else {
 		e.logger.Debug("Not running in container or could not detect container ID", "error", err)
@@ -235,7 +253,7 @@ func (e *Engine) Notifier() Notifier {
 	return e.notifier
 }
 
-func (e *Engine) GetAppHealth(ctx context.Context, appName string) *ContainerHealth {
+func (e *Engine) GetAppHealth(ctx context.Context, appName string) *docker.ContainerHealth {
 	return e.healthMonitor.CheckApp(ctx, appName)
 }
 
@@ -259,11 +277,11 @@ func (e *Engine) StreamContainerLogs(ctx context.Context, containerName string, 
 	return e.docker.StreamContainerLogs(ctx, containerName, output)
 }
 
-func (e *Engine) ContainerStats(ctx context.Context, containerName string) (*ContainerStats, error) {
+func (e *Engine) ContainerStats(ctx context.Context, containerName string) (*docker.ContainerStats, error) {
 	return e.docker.ContainerStats(ctx, containerName)
 }
 
-func (e *Engine) Docker() *DockerClient {
+func (e *Engine) Docker() *docker.Client {
 	return e.docker
 }
 
@@ -275,7 +293,7 @@ func (e *Engine) UpdateContainerDomains(ctx context.Context, app *domain.App) er
 
 	appDir := e.resolveAppDir(app)
 
-	deployConfig, err := e.loadDeployConfig(appDir)
+	deployConfig, err := compose.LoadConfig(appDir)
 	if err != nil {
 		return err
 	}
@@ -288,9 +306,15 @@ func (e *Engine) UpdateContainerDomains(ctx context.Context, app *domain.App) er
 	allDomains := e.collectAllDomains(ctx, app.ID, deployConfig.Domains)
 	envVars := e.collectEnvVars(app.ID)
 
-	composeContent := e.generateComposeContent(app.Name, currentImage, deployConfig, allDomains, envVars)
+	params := compose.GenerateParams{
+		AppName:  app.Name,
+		ImageTag: currentImage,
+		Config:   deployConfig,
+		Domains:  allDomains,
+		EnvVars:  envVars,
+	}
 
-	if err := e.writeAndApplyCompose(ctx, appDir, app.ID, composeContent); err != nil {
+	if err := e.writeAndApplyCompose(ctx, appDir, app.ID, compose.GenerateContent(params)); err != nil {
 		return err
 	}
 
@@ -306,26 +330,6 @@ func (e *Engine) resolveAppDir(app *domain.App) string {
 	return filepath.Join(repoDir, app.Workdir)
 }
 
-func (e *Engine) loadDeployConfig(appDir string) (*PaasDeployConfig, error) {
-	configPath := filepath.Join(appDir, "paasdeploy.json")
-
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("paasdeploy.json not found - app may not have been deployed yet")
-	}
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read paasdeploy.json: %w", err)
-	}
-
-	var config PaasDeployConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse paasdeploy.json: %w", err)
-	}
-
-	return &config, nil
-}
-
 func (e *Engine) getCurrentContainerImage(ctx context.Context, containerName string) (string, error) {
 	containerHealth, err := e.docker.InspectContainer(ctx, containerName)
 	if err != nil {
@@ -337,10 +341,10 @@ func (e *Engine) getCurrentContainerImage(ctx context.Context, containerName str
 	return containerHealth.Image, nil
 }
 
-func (e *Engine) collectAllDomains(ctx context.Context, appID string, configDomains []string) []DomainRoute {
-	var domainRoutes []DomainRoute
+func (e *Engine) collectAllDomains(ctx context.Context, appID string, configDomains []string) []compose.DomainRoute {
+	var domainRoutes []compose.DomainRoute
 	for _, d := range configDomains {
-		domainRoutes = append(domainRoutes, DomainRoute{Domain: d})
+		domainRoutes = append(domainRoutes, compose.DomainRoute{Domain: d})
 	}
 
 	if e.customDomainRepo == nil {
@@ -353,7 +357,7 @@ func (e *Engine) collectAllDomains(ctx context.Context, appID string, configDoma
 	}
 
 	for _, d := range customDomains {
-		domainRoutes = append(domainRoutes, DomainRoute{
+		domainRoutes = append(domainRoutes, compose.DomainRoute{
 			Domain:     d.Domain,
 			PathPrefix: d.PathPrefix,
 		})
@@ -378,48 +382,6 @@ func (e *Engine) collectEnvVars(appID string) map[string]string {
 	return envVars
 }
 
-func (e *Engine) generateComposeContent(appName, image string, cfg *PaasDeployConfig, domains []DomainRoute, envVars map[string]string) string {
-	envYAML := e.buildEnvVarsYAML(cfg, envVars)
-	labels := buildLabelsYAML(appName, domains, cfg.Port)
-	portMapping := buildPortMapping(cfg.HostPort, cfg.Port)
-
-	healthCmd := buildHealthCheckCommand(cfg.Runtime, cfg.Port, cfg.Healthcheck.Path)
-
-	return fmt.Sprintf("services:\n"+
-		"  %s:\n"+
-		"    image: %s\n"+
-		"    container_name: %s\n"+
-		"    restart: unless-stopped\n"+
-		"    ports:\n"+
-		"      - \"%s\"\n"+
-		"%s"+
-		"%s"+
-		"    healthcheck:\n"+
-		"      test:\n"+
-		"        - CMD-SHELL\n"+
-		"        - %s\n"+
-		"      interval: %s\n"+
-		"      timeout: %s\n"+
-		"      retries: %d\n"+
-		"      start_period: %s\n"+
-		"    deploy:\n"+
-		"      resources:\n"+
-		"        limits:\n"+
-		"          memory: %s\n"+
-		"          cpus: '%s'\n"+
-		"    networks:\n"+
-		"      - paasdeploy\n\n"+
-		"networks:\n"+
-		"  paasdeploy:\n"+
-		"    external: true\n",
-		appName, image, appName, portMapping, envYAML, labels,
-		healthCmd,
-		cfg.Healthcheck.Interval, cfg.Healthcheck.Timeout,
-		cfg.Healthcheck.Retries, cfg.Healthcheck.StartPeriod,
-		cfg.Resources.Memory, cfg.Resources.CPU,
-	)
-}
-
 func (e *Engine) writeAndApplyCompose(ctx context.Context, appDir, projectName, content string) error {
 	composePath := filepath.Join(appDir, "docker-compose.yml")
 
@@ -434,25 +396,3 @@ func (e *Engine) writeAndApplyCompose(ctx context.Context, appDir, projectName, 
 	return nil
 }
 
-func (e *Engine) buildEnvVarsYAML(cfg *PaasDeployConfig, appEnvVars map[string]string) string {
-	allEnvVars := make(map[string]string)
-
-	for k, v := range cfg.Env {
-		allEnvVars[k] = v
-	}
-
-	for k, v := range appEnvVars {
-		allEnvVars[k] = v
-	}
-
-	if len(allEnvVars) == 0 {
-		return ""
-	}
-
-	envVars := "    environment:\n"
-	for k, v := range allEnvVars {
-		escapedValue := escapeEnvValue(v)
-		envVars += fmt.Sprintf("      - %s=%s\n", k, escapedValue)
-	}
-	return envVars
-}
