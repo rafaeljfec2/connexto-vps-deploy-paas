@@ -190,6 +190,7 @@ jobs:
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
           TRAEFIK_API_URL: ${{ vars.TRAEFIK_API_URL || 'http://traefik:8081' }}
           GRPC_SERVER_ADDR: ${{ vars.GRPC_SERVER_ADDR || env.GRPC_SERVER_ADDR }}
+          AGENT_TLS_INSECURE_SKIP_VERIFY: ${{ vars.AGENT_TLS_INSECURE_SKIP_VERIFY || 'false' }}
           LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'contato@connexto.com.br' }}
 
       - name: Verify deployment

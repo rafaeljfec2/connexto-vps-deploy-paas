@@ -40,6 +40,11 @@ set grpc_server_addr [string trim $env(GRPC_SERVER_ADDR)]
 if {[string length $grpc_server_addr] == 0} {
   set grpc_server_addr "$api_domain:50051"
 }
+if {[info exists env(AGENT_TLS_INSECURE_SKIP_VERIFY)]} {
+  set agent_tls_insecure_skip_verify [string trim $env(AGENT_TLS_INSECURE_SKIP_VERIFY)]
+} else {
+  set agent_tls_insecure_skip_verify "false"
+}
 if {[info exists env(TRAEFIK_API_URL)]} {
   set traefik_api_url [string trim $env(TRAEFIK_API_URL)]
 } else {
@@ -165,6 +170,7 @@ append cmd " -e GRPC_PORT=50051"
 append cmd " -e AGENT_GRPC_PORT=50052"
 append cmd " -e 'GRPC_SERVER_ADDR=$grpc_server_addr'"
 append cmd " -e 'TRAEFIK_API_URL=$traefik_api_url'"
+append cmd " -e AGENT_TLS_INSECURE_SKIP_VERIFY=$agent_tls_insecure_skip_verify"
 
 if {[string length $cloudflare_server_ip] > 0} {
   append cmd " -e 'CLOUDFLARE_SERVER_IP=$cloudflare_server_ip'"
