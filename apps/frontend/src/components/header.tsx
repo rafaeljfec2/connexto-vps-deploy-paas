@@ -102,7 +102,7 @@ export function Header() {
                         {displayName}
                       </p>
                       <p className="text-xs leading-none text-muted-foreground truncate">
-                        @{user.githubLogin}
+                        {user.githubLogin ? `@${user.githubLogin}` : user.email}
                       </p>
                     </div>
                   </DropdownMenuLabel>

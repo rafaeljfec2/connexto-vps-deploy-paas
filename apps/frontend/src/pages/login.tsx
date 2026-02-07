@@ -1,9 +1,9 @@
-import { useEffect } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
-import { Check, Rocket } from "lucide-react";
+import { Check, Loader2, Rocket } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { api } from "@/services/api";
+import { ApiError } from "@/types";
 
 type AuthErrorCode =
   | "no_code"
@@ -25,7 +29,10 @@ type AuthErrorCode =
   | "user_update_failed"
   | "session_error"
   | "database_error"
-  | "access_denied";
+  | "access_denied"
+  | "github_already_linked"
+  | "link_failed"
+  | "not_authenticated";
 
 const ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   no_code: "GitHub did not return an authorization code.",
@@ -39,6 +46,10 @@ const ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   session_error: "Failed to create a session. Please try again.",
   database_error: "A database error occurred. Please try again.",
   access_denied: "You denied access to your GitHub account.",
+  github_already_linked:
+    "This GitHub account is already linked to another user.",
+  link_failed: "Failed to link your GitHub account. Please try again.",
+  not_authenticated: "You must be logged in to link a GitHub account.",
 };
 
 function isAuthErrorCode(code: string): code is AuthErrorCode {
@@ -100,6 +111,97 @@ const FEATURES = [
   "Container console access",
 ] as const;
 
+function EmailLoginForm({
+  errorMessage,
+  onSuccess,
+}: {
+  readonly errorMessage: string | null;
+  readonly onSuccess: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await api.auth.login({ email, password });
+      onSuccess();
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const displayError = error ?? errorMessage;
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {displayError && (
+        <Alert variant="destructive" role="alert">
+          <ExclamationTriangleIcon className="h-4 w-4" aria-hidden="true" />
+          <AlertTitle>Authentication Error</AlertTitle>
+          <AlertDescription>{displayError}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoComplete="email"
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="password">Password</Label>
+        <Input
+          id="password"
+          type="password"
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={8}
+          autoComplete="current-password"
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <Button
+        type="submit"
+        className="h-11 w-full"
+        size="lg"
+        disabled={isSubmitting}
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+            Signing in...
+          </>
+        ) : (
+          "Sign in"
+        )}
+      </Button>
+    </form>
+  );
+}
+
 export function LoginPage() {
   const { isAuthenticated, isLoading, login } = useAuth();
   const navigate = useNavigate();
@@ -112,6 +214,10 @@ export function LoginPage() {
       navigate(ROUTES.HOME, { replace: true });
     }
   }, [isLoading, isAuthenticated, navigate]);
+
+  const handleLoginSuccess = () => {
+    navigate(ROUTES.HOME, { replace: true });
+  };
 
   if (isLoading) {
     return (
@@ -210,28 +316,12 @@ export function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {errorMessage && (
-              <Alert variant="destructive" role="alert">
-                <ExclamationTriangleIcon
-                  className="h-4 w-4"
-                  aria-hidden="true"
-                />
-                <AlertTitle>Authentication Error</AlertTitle>
-                <AlertDescription>{errorMessage}</AlertDescription>
-              </Alert>
-            )}
+            <EmailLoginForm
+              errorMessage={errorMessage}
+              onSuccess={handleLoginSuccess}
+            />
 
-            <Button
-              onClick={login}
-              variant="secondary"
-              className="h-11 w-full bg-zinc-900 text-white transition-[transform,box-shadow] hover:bg-zinc-800 hover:shadow-lg hover:scale-[1.02] active:scale-[0.99] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-              size="lg"
-              aria-label="Sign in with GitHub"
-            >
-              <GitHubLogo className="mr-2 h-5 w-5 shrink-0" />
-              Continue with GitHub
-            </Button>
-            <div className="relative flex items-center gap-3 pt-2">
+            <div className="relative flex items-center gap-3">
               <span
                 className="flex-1 border-t border-slate-200 dark:border-border"
                 aria-hidden
@@ -242,8 +332,26 @@ export function LoginPage() {
                 aria-hidden
               />
             </div>
-            <p className="text-center text-muted-foreground text-xs">
-              More sign-in options coming soon
+
+            <Button
+              onClick={login}
+              variant="outline"
+              className="h-11 w-full"
+              size="lg"
+              aria-label="Sign in with GitHub"
+            >
+              <GitHubLogo className="mr-2 h-5 w-5 shrink-0" />
+              Continue with GitHub
+            </Button>
+
+            <p className="text-center text-sm text-muted-foreground">
+              Don&apos;t have an account?{" "}
+              <Link
+                to={ROUTES.REGISTER}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Sign up
+              </Link>
             </p>
           </CardContent>
           <CardFooter className="flex justify-center border-t border-slate-200 pt-6 dark:border-border/50">

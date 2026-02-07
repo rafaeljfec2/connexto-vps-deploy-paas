@@ -117,9 +117,37 @@ async function fetchApiList<T>(
   return envelope.data ?? [];
 }
 
+export interface RegisterInput {
+  readonly email: string;
+  readonly password: string;
+  readonly name: string;
+}
+
+export interface LoginInput {
+  readonly email: string;
+  readonly password: string;
+}
+
 export const api = {
   auth: {
     me: (): Promise<User> => fetchApi<User>(`${API_URL}/auth/me`),
+
+    register: (data: RegisterInput): Promise<User> =>
+      fetchApi<User>(`${API_URL}/auth/register`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    login: (data: LoginInput): Promise<User> =>
+      fetchApi<User>(`${API_URL}/auth/login`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    linkGitHub: (): Promise<{ redirectUrl: string }> =>
+      fetchApi<{ redirectUrl: string }>(`${API_URL}/auth/link-github`, {
+        method: "POST",
+      }),
 
     logout: async (): Promise<void> => {
       const response = await fetch(`${API_URL}/auth/logout`, {

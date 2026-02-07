@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { CloudflareConnection } from "@/features/settings/components/cloudflare-connection";
+import { GitHubLinkCard } from "@/features/settings/components/github-link-card";
 import { NotificationSettings } from "@/features/settings/components/notification-settings";
 
 export function SettingsPage() {
@@ -22,6 +23,11 @@ export function SettingsPage() {
       />
 
       <div className="space-y-6">
+        <section>
+          <h2 className="text-lg font-semibold mb-4">Account</h2>
+          <GitHubLinkCard />
+        </section>
+
         <section>
           <h2 className="text-lg font-semibold mb-4">Server</h2>
           <Card>

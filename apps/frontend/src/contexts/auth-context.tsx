@@ -5,18 +5,22 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 import { API_ROUTES, ROUTES } from "@/constants/routes";
 import { api } from "@/services/api";
 
+export type AuthProvider = "email" | "github";
+
 export interface User {
   readonly id: string;
-  readonly githubId: number;
-  readonly githubLogin: string;
+  readonly githubId?: number;
+  readonly githubLogin?: string;
   readonly name: string;
   readonly email: string;
-  readonly avatarUrl: string;
+  readonly avatarUrl?: string;
+  readonly authProvider: AuthProvider;
   readonly createdAt: string;
 }
 
@@ -55,7 +59,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [fetchUser]);
 
   const login = useCallback(() => {
-    window.location.href = API_ROUTES.AUTH.GITHUB;
+    globalThis.location.href = API_ROUTES.AUTH.GITHUB;
   }, []);
 
   const logout = useCallback(async () => {
@@ -63,7 +67,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await api.auth.logout();
     } finally {
       setUser(null);
-      window.location.href = ROUTES.LOGIN;
+      globalThis.location.href = ROUTES.LOGIN;
     }
   }, []);
 
@@ -72,14 +76,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await fetchUser();
   }, [fetchUser]);
 
-  const value: AuthContextType = {
-    user,
-    isLoading,
-    isAuthenticated: user !== null,
-    login,
-    logout,
-    refresh,
-  };
+  const isAuthenticated = user !== null;
+
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      isLoading,
+      isAuthenticated,
+      login,
+      logout,
+      refresh,
+    }),
+    [user, isLoading, isAuthenticated, login, logout, refresh],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/mail"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/ghclient"
+	"github.com/paasdeploy/backend/internal/password"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/backend/internal/service"
 )
@@ -60,6 +62,8 @@ func NewAuthHandler(cfg AuthHandlerConfig) *AuthHandler {
 
 func (h *AuthHandler) Register(app *fiber.App) {
 	auth := app.Group("/auth")
+	auth.Post("/register", h.RegisterEmail)
+	auth.Post("/login", h.LoginEmail)
 	auth.Get("/github", h.InitiateOAuth)
 	auth.Get("/github/callback", h.HandleCallback)
 }
@@ -67,6 +71,7 @@ func (h *AuthHandler) Register(app *fiber.App) {
 func (h *AuthHandler) RegisterProtected(app fiber.Router) {
 	app.Get("/auth/me", h.GetCurrentUser)
 	app.Post("/auth/logout", h.Logout)
+	app.Post("/auth/link-github", h.LinkGitHub)
 }
 
 func (h *AuthHandler) setCookie(c *fiber.Ctx, name, value string, maxAge int) {
@@ -92,6 +97,159 @@ func (h *AuthHandler) clearCookie(c *fiber.Ctx, name string) {
 
 func (h *AuthHandler) redirectWithError(c *fiber.Ctx, errorCode string) error {
 	return c.Redirect(h.frontendURL+"/login?error="+errorCode, fiber.StatusTemporaryRedirect)
+}
+
+const (
+	minPasswordLength     = 8
+	errMsgSessionCreation = "failed to create session"
+	errMsgInvalidCreds    = "invalid email or password"
+)
+
+type registerRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+}
+
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+func (h *AuthHandler) RegisterEmail(c *fiber.Ctx) error {
+	var req registerRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body")
+	}
+
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		return response.BadRequest(c, "invalid email format")
+	}
+
+	if len(req.Password) < minPasswordLength {
+		return response.BadRequest(c, "password must be at least 8 characters")
+	}
+
+	if req.Name == "" {
+		return response.BadRequest(c, "name is required")
+	}
+
+	existing, err := h.userRepo.FindByEmail(c.Context(), req.Email)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		h.logger.Error("failed to check existing email", "error", err)
+		return response.InternalError(c)
+	}
+	if existing != nil {
+		return response.Conflict(c, "email already registered")
+	}
+
+	hash, err := password.Hash(req.Password)
+	if err != nil {
+		h.logger.Error("failed to hash password", "error", err)
+		return response.InternalError(c)
+	}
+
+	user, err := h.userRepo.CreateEmailUser(c.Context(), domain.CreateEmailUserInput{
+		Email:        req.Email,
+		Name:         req.Name,
+		PasswordHash: hash,
+	})
+	if err != nil {
+		h.logger.Error("failed to create email user", "error", err)
+		return response.InternalError(c)
+	}
+
+	if err := h.createSession(c, user.ID); err != nil {
+		h.logger.Error(errMsgSessionCreation, "error", err)
+		return response.InternalError(c)
+	}
+
+	h.logger.Info("email user registered", "user_id", user.ID, "email", req.Email)
+
+	return response.Created(c, UserResponse{
+		ID:           user.ID,
+		GitHubID:     user.GitHubID,
+		GitHubLogin:  user.GitHubLogin,
+		Name:         user.Name,
+		Email:        user.Email,
+		AvatarURL:    user.AvatarURL,
+		AuthProvider: user.AuthProvider,
+		CreatedAt:    user.CreatedAt,
+	})
+}
+
+func (h *AuthHandler) LoginEmail(c *fiber.Ctx) error {
+	var req loginRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "invalid request body")
+	}
+
+	if req.Email == "" || req.Password == "" {
+		return response.BadRequest(c, "email and password are required")
+	}
+
+	user, err := h.userRepo.FindByEmail(c.Context(), req.Email)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return response.Unauthorized(c, errMsgInvalidCreds)
+		}
+		h.logger.Error("failed to find user by email", "error", err)
+		return response.InternalError(c)
+	}
+
+	if user.PasswordHash == "" {
+		return response.Unauthorized(c, errMsgInvalidCreds)
+	}
+
+	if err := password.Verify(user.PasswordHash, req.Password); err != nil {
+		return response.Unauthorized(c, errMsgInvalidCreds)
+	}
+
+	if err := h.createSession(c, user.ID); err != nil {
+		h.logger.Error(errMsgSessionCreation, "error", err)
+		return response.InternalError(c)
+	}
+
+	if h.auditService != nil {
+		auditCtx := h.auditService.ExtractContext(c)
+		auditCtx.UserID = &user.ID
+		auditCtx.UserName = &user.Name
+		h.auditService.LogUserLoggedIn(c.Context(), auditCtx, user.ID, user.Name)
+	}
+
+	return response.OK(c, UserResponse{
+		ID:           user.ID,
+		GitHubID:     user.GitHubID,
+		GitHubLogin:  user.GitHubLogin,
+		Name:         user.Name,
+		Email:        user.Email,
+		AvatarURL:    user.AvatarURL,
+		AuthProvider: user.AuthProvider,
+		CreatedAt:    user.CreatedAt,
+	})
+}
+
+func (h *AuthHandler) LinkGitHub(c *fiber.Ctx) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, "not authenticated")
+	}
+
+	if user.GitHubID != nil {
+		return response.Conflict(c, "GitHub account already linked")
+	}
+
+	state, err := crypto.GenerateState()
+	if err != nil {
+		h.logger.Error("failed to generate state", "error", err)
+		return response.InternalError(c)
+	}
+
+	h.setCookie(c, "oauth_state", state, 600)
+	h.setCookie(c, "oauth_link_mode", "1", 600)
+
+	authURL := h.oauthClient.GetAuthorizationURL(state)
+	return response.OK(c, map[string]string{"redirectUrl": authURL})
 }
 
 func (h *AuthHandler) InitiateOAuth(c *fiber.Ctx) error {
@@ -237,6 +395,9 @@ func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
 
 	h.clearCookie(c, "oauth_state")
 
+	linkMode := c.Cookies("oauth_link_mode") == "1"
+	h.clearCookie(c, "oauth_link_mode")
+
 	ctx := c.Context()
 
 	tokenResp, tokens, err := h.exchangeAndEncryptTokens(ctx, code)
@@ -256,6 +417,10 @@ func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
 		email, _ = h.oauthClient.GetPrimaryEmail(ctx, tokenResp.AccessToken)
 	}
 
+	if linkMode {
+		return h.handleLinkCallback(c, ghUser, email, tokens)
+	}
+
 	user, err := h.upsertUser(ctx, ghUser, email, tokens)
 	if err != nil {
 		h.logger.Error("failed to upsert user", "error", err)
@@ -263,7 +428,7 @@ func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
 	}
 
 	if err := h.createSession(c, user.ID); err != nil {
-		h.logger.Error("failed to create session", "error", err)
+		h.logger.Error(errMsgSessionCreation, "error", err)
 		return h.redirectWithError(c, "session_error")
 	}
 
@@ -277,6 +442,62 @@ func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
 	return c.Redirect(h.frontendURL+"/?login=success", fiber.StatusTemporaryRedirect)
 }
 
+func (h *AuthHandler) handleLinkCallback(c *fiber.Ctx, ghUser *ghclient.GitHubUser, email string, tokens *tokenData) error {
+	currentUser := h.getLoggedInUser(c)
+	if currentUser == nil {
+		return h.redirectWithError(c, "not_authenticated")
+	}
+
+	ctx := c.Context()
+
+	existingGH, err := h.userRepo.FindByGitHubID(ctx, ghUser.ID)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		h.logger.Error("failed to check existing github user", "error", err)
+		return h.redirectWithError(c, "database_error")
+	}
+	if existingGH != nil {
+		return h.redirectWithError(c, "github_already_linked")
+	}
+
+	_, err = h.userRepo.LinkGitHub(ctx, currentUser.ID, domain.LinkGitHubInput{
+		GitHubID:              ghUser.ID,
+		GitHubLogin:           ghUser.Login,
+		Name:                  ghUser.Name,
+		Email:                 email,
+		AvatarURL:             ghUser.AvatarURL,
+		AccessTokenEncrypted:  tokens.accessTokenEncrypted,
+		RefreshTokenEncrypted: tokens.refreshTokenEncrypted,
+		TokenExpiresAt:        tokens.expiresAt,
+	})
+	if err != nil {
+		h.logger.Error("failed to link github", "error", err)
+		return h.redirectWithError(c, "link_failed")
+	}
+
+	h.logger.Info("github linked to user", "user_id", currentUser.ID, "github_login", ghUser.Login)
+	return c.Redirect(h.frontendURL+"/settings?github_linked=true", fiber.StatusTemporaryRedirect)
+}
+
+func (h *AuthHandler) getLoggedInUser(c *fiber.Ctx) *domain.User {
+	sessionToken := c.Cookies(h.sessionCookieName)
+	if sessionToken == "" {
+		return nil
+	}
+
+	tokenHash := crypto.HashSessionToken(sessionToken)
+	session, err := h.sessionRepo.FindByTokenHash(c.Context(), tokenHash)
+	if err != nil || session == nil {
+		return nil
+	}
+
+	user, err := h.userRepo.FindByID(c.Context(), session.UserID)
+	if err != nil {
+		return nil
+	}
+
+	return user
+}
+
 func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 	user := GetUserFromContext(c)
 	if user == nil {
@@ -284,13 +505,14 @@ func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 	}
 
 	return response.OK(c, UserResponse{
-		ID:          user.ID,
-		GitHubID:    user.GitHubID,
-		GitHubLogin: user.GitHubLogin,
-		Name:        user.Name,
-		Email:       user.Email,
-		AvatarURL:   user.AvatarURL,
-		CreatedAt:   user.CreatedAt,
+		ID:           user.ID,
+		GitHubID:     user.GitHubID,
+		GitHubLogin:  user.GitHubLogin,
+		Name:         user.Name,
+		Email:        user.Email,
+		AvatarURL:    user.AvatarURL,
+		AuthProvider: user.AuthProvider,
+		CreatedAt:    user.CreatedAt,
 	})
 }
 
@@ -319,13 +541,14 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 }
 
 type UserResponse struct {
-	ID          string    `json:"id"`
-	GitHubID    int64     `json:"githubId"`
-	GitHubLogin string    `json:"githubLogin"`
-	Name        string    `json:"name"`
-	Email       string    `json:"email"`
-	AvatarURL   string    `json:"avatarUrl"`
-	CreatedAt   time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	GitHubID     *int64    `json:"githubId,omitempty"`
+	GitHubLogin  string    `json:"githubLogin,omitempty"`
+	Name         string    `json:"name"`
+	Email        string    `json:"email"`
+	AvatarURL    string    `json:"avatarUrl,omitempty"`
+	AuthProvider string    `json:"authProvider"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 const userContextKey = "user"
