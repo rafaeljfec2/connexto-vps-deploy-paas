@@ -6,6 +6,7 @@ RUN apk add --no-cache git ca-certificates
 
 COPY apps/backend/go.mod apps/backend/go.sum ./backend/
 COPY apps/backend/gen ./backend/gen
+COPY apps/shared/ ./shared/
 COPY apps/agent/ ./agent/
 
 WORKDIR /build/agent

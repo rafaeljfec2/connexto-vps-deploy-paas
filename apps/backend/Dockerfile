@@ -3,6 +3,7 @@ WORKDIR /build
 RUN apk add --no-cache git ca-certificates
 COPY apps/backend/go.mod apps/backend/go.sum ./backend/
 COPY apps/backend/gen ./backend/gen
+COPY apps/shared/ ./shared/
 COPY apps/agent/ ./agent/
 WORKDIR /build/agent
 RUN go mod download
@@ -12,14 +13,16 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     ./cmd/agent
 
 FROM golang:1.24-alpine AS backend-builder
-WORKDIR /app
+WORKDIR /build
 RUN apk add --no-cache git ca-certificates
-COPY apps/backend/go.mod apps/backend/go.sum ./
+COPY apps/shared/ ./shared/
+COPY apps/backend/go.mod apps/backend/go.sum ./backend/
+WORKDIR /build/backend
 RUN go mod download
 COPY apps/backend/ .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags="-w -s" \
-    -o /app/api \
+    -o /build/api \
     ./cmd/api
 
 FROM alpine:edge AS production
@@ -38,8 +41,8 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 COPY --from=agent-builder /build/agent-binary /app/agent
-COPY --from=backend-builder /app/api /app/api
-COPY --from=backend-builder /app/migrations /app/migrations
+COPY --from=backend-builder /build/api /app/api
+COPY --from=backend-builder /build/backend/migrations /app/migrations
 
 RUN chown -R paasdeploy:paasdeploy /app
 
