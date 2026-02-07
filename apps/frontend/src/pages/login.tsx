@@ -203,7 +203,7 @@ function EmailLoginForm({
 }
 
 export function LoginPage() {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { isAuthenticated, isLoading, login, refresh } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -216,7 +216,7 @@ export function LoginPage() {
   }, [isLoading, isAuthenticated, navigate]);
 
   const handleLoginSuccess = () => {
-    navigate(ROUTES.HOME, { replace: true });
+    refresh();
   };
 
   if (isLoading) {

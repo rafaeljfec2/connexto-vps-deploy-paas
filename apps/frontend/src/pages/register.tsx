@@ -43,7 +43,7 @@ function validateForm(fields: {
 }
 
 export function RegisterPage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, refresh } = useAuth();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
@@ -78,7 +78,7 @@ export function RegisterPage() {
 
     try {
       await api.auth.register({ email, password, name: name.trim() });
-      navigate(ROUTES.HOME, { replace: true });
+      refresh();
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

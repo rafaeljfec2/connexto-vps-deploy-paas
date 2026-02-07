@@ -15,4 +15,5 @@ ALTER TABLE users ADD CONSTRAINT users_github_id_key UNIQUE (github_id);
 
 -- Restore NOT NULL on github fields
 ALTER TABLE users ALTER COLUMN access_token_encrypted SET NOT NULL;
+ALTER TABLE users ALTER COLUMN github_login SET NOT NULL;
 ALTER TABLE users ALTER COLUMN github_id SET NOT NULL;

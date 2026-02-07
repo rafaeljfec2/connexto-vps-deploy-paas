@@ -134,37 +134,48 @@ func (h *AuthHandler) RegisterEmail(c *fiber.Ctx) error {
 		return response.BadRequest(c, "name is required")
 	}
 
-	existing, err := h.userRepo.FindByEmail(c.Context(), req.Email)
-	if err != nil && !errors.Is(err, domain.ErrNotFound) {
-		h.logger.Error("failed to check existing email", "error", err)
-		return response.InternalError(c)
-	}
-	if existing != nil {
-		return response.Conflict(c, "email already registered")
-	}
-
 	hash, err := password.Hash(req.Password)
 	if err != nil {
 		h.logger.Error("failed to hash password", "error", err)
 		return response.InternalError(c)
 	}
 
-	user, err := h.userRepo.CreateEmailUser(c.Context(), domain.CreateEmailUserInput{
-		Email:        req.Email,
-		Name:         req.Name,
-		PasswordHash: hash,
-	})
-	if err != nil {
-		h.logger.Error("failed to create email user", "error", err)
+	existing, err := h.userRepo.FindByEmail(c.Context(), req.Email)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		h.logger.Error("failed to check existing email", "error", err)
 		return response.InternalError(c)
+	}
+
+	var user *domain.User
+
+	if existing != nil {
+		if existing.PasswordHash != "" {
+			return response.Conflict(c, "email already registered")
+		}
+
+		user, err = h.userRepo.SetPassword(c.Context(), existing.ID, hash)
+		if err != nil {
+			h.logger.Error("failed to set password on existing user", "error", err)
+			return response.InternalError(c)
+		}
+		h.logger.Info("password added to existing account", "user_id", user.ID, "email", req.Email)
+	} else {
+		user, err = h.userRepo.CreateEmailUser(c.Context(), domain.CreateEmailUserInput{
+			Email:        req.Email,
+			Name:         req.Name,
+			PasswordHash: hash,
+		})
+		if err != nil {
+			h.logger.Error("failed to create email user", "error", err)
+			return response.InternalError(c)
+		}
+		h.logger.Info("email user registered", "user_id", user.ID, "email", req.Email)
 	}
 
 	if err := h.createSession(c, user.ID); err != nil {
 		h.logger.Error(errMsgSessionCreation, "error", err)
 		return response.InternalError(c)
 	}
-
-	h.logger.Info("email user registered", "user_id", user.ID, "email", req.Email)
 
 	return response.Created(c, UserResponse{
 		ID:           user.ID,
@@ -198,7 +209,7 @@ func (h *AuthHandler) LoginEmail(c *fiber.Ctx) error {
 	}
 
 	if user.PasswordHash == "" {
-		return response.Unauthorized(c, errMsgInvalidCreds)
+		return response.BadRequest(c, "This account uses GitHub sign-in. Please set a password via the Sign Up page to enable email login.")
 	}
 
 	if err := password.Verify(user.PasswordHash, req.Password); err != nil {
@@ -329,6 +340,24 @@ func (h *AuthHandler) upsertUser(ctx context.Context, ghUser *ghclient.GitHubUse
 		return nil, err
 	}
 
+	linkInput := domain.LinkGitHubInput{
+		GitHubID:              ghUser.ID,
+		GitHubLogin:           ghUser.Login,
+		Name:                  ghUser.Name,
+		Email:                 email,
+		AvatarURL:             ghUser.AvatarURL,
+		AccessTokenEncrypted:  tokens.accessTokenEncrypted,
+		RefreshTokenEncrypted: tokens.refreshTokenEncrypted,
+		TokenExpiresAt:        tokens.expiresAt,
+	}
+
+	if user == nil && email != "" {
+		user, err = h.tryLinkByEmail(ctx, email, linkInput)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if user == nil {
 		user, err = h.userRepo.Create(ctx, domain.CreateUserInput{
 			GitHubID:              ghUser.ID,
@@ -344,7 +373,7 @@ func (h *AuthHandler) upsertUser(ctx context.Context, ghUser *ghclient.GitHubUse
 			return nil, err
 		}
 		h.logger.Info("new user created", "user_id", user.ID, "github_login", ghUser.Login)
-	} else {
+	} else if user.GitHubID != nil {
 		user, err = h.userRepo.Update(ctx, user.ID, domain.UpdateUserInput{
 			GitHubLogin:           &ghUser.Login,
 			Name:                  &ghUser.Name,
@@ -361,6 +390,27 @@ func (h *AuthHandler) upsertUser(ctx context.Context, ghUser *ghclient.GitHubUse
 	}
 
 	return user, nil
+}
+
+func (h *AuthHandler) tryLinkByEmail(ctx context.Context, email string, input domain.LinkGitHubInput) (*domain.User, error) {
+	emailUser, err := h.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if emailUser.GitHubID != nil {
+		return nil, nil
+	}
+
+	linked, err := h.userRepo.LinkGitHub(ctx, emailUser.ID, input)
+	if err != nil {
+		return nil, err
+	}
+	h.logger.Info("github linked to existing email user", "user_id", linked.ID, "github_login", input.GitHubLogin)
+	return linked, nil
 }
 
 func (h *AuthHandler) createSession(c *fiber.Ctx, userID string) error {

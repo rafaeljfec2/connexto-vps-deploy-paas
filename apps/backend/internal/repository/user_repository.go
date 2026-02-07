@@ -23,6 +23,7 @@ func NewPostgresUserRepository(db *sql.DB) *PostgresUserRepository {
 type userScanFields struct {
 	user           domain.User
 	githubID       sql.NullInt64
+	githubLogin    sql.NullString
 	name           sql.NullString
 	email          sql.NullString
 	avatarURL      sql.NullString
@@ -36,7 +37,7 @@ func (f *userScanFields) scanDest() []any {
 	return []any{
 		&f.user.ID,
 		&f.githubID,
-		&f.user.GitHubLogin,
+		&f.githubLogin,
 		&f.name,
 		&f.email,
 		&f.avatarURL,
@@ -54,6 +55,7 @@ func (f *userScanFields) toUser() *domain.User {
 	if f.githubID.Valid {
 		f.user.GitHubID = &f.githubID.Int64
 	}
+	f.user.GitHubLogin = fromNullString(f.githubLogin)
 	f.user.Name = fromNullString(f.name)
 	f.user.Email = fromNullString(f.email)
 	f.user.AvatarURL = fromNullString(f.avatarURL)
@@ -161,6 +163,17 @@ func (r *PostgresUserRepository) LinkGitHub(ctx context.Context, userID string, 
 	)
 
 	return r.scanUser(row)
+}
+
+func (r *PostgresUserRepository) SetPassword(ctx context.Context, userID string, passwordHash string) (*domain.User, error) {
+	query := `
+		UPDATE users SET
+			password_hash = $2,
+			updated_at = NOW()
+		WHERE id = $1
+		RETURNING ` + userSelectColumns
+
+	return r.scanUser(r.db.QueryRowContext(ctx, query, userID, passwordHash))
 }
 
 func (r *PostgresUserRepository) Update(ctx context.Context, id string, input domain.UpdateUserInput) (*domain.User, error) {

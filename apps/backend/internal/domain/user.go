@@ -66,6 +66,7 @@ type UserRepository interface {
 	Create(ctx context.Context, input CreateUserInput) (*User, error)
 	CreateEmailUser(ctx context.Context, input CreateEmailUserInput) (*User, error)
 	LinkGitHub(ctx context.Context, userID string, input LinkGitHubInput) (*User, error)
+	SetPassword(ctx context.Context, userID string, passwordHash string) (*User, error)
 	Update(ctx context.Context, id string, input UpdateUserInput) (*User, error)
 	Delete(ctx context.Context, id string) error
 }

@@ -3,6 +3,7 @@
 
 -- Make GitHub fields optional (nullable)
 ALTER TABLE users ALTER COLUMN github_id DROP NOT NULL;
+ALTER TABLE users ALTER COLUMN github_login DROP NOT NULL;
 ALTER TABLE users ALTER COLUMN access_token_encrypted DROP NOT NULL;
 
 -- Replace unique constraint on github_id to allow multiple NULLs
