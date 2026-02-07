@@ -174,6 +174,7 @@ func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, appDir
 	dockerfile := "./Dockerfile"
 	buildContext := "."
 
+	var opts *docker.BuildOptions
 	if req.Build != nil {
 		if req.Build.Dockerfile != "" {
 			dockerfile = req.Build.Dockerfile
@@ -181,13 +182,19 @@ func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, appDir
 		if req.Build.Context != "" {
 			buildContext = req.Build.Context
 		}
+		if len(req.Build.Args) > 0 || req.Build.Target != "" {
+			opts = &docker.BuildOptions{
+				BuildArgs: req.Build.Args,
+				Target:    req.Build.Target,
+			}
+		}
 	}
 
 	fullContext := filepath.Join(appDir, buildContext)
 	fullDockerfile := filepath.Join(appDir, dockerfile)
 
 	e.logger.Info("Building Docker image", "imageTag", imageTag, "dockerfile", fullDockerfile)
-	return e.docker.Build(ctx, fullContext, fullDockerfile, imageTag, nil)
+	return e.docker.BuildWithOptions(ctx, fullContext, fullDockerfile, imageTag, opts, nil)
 }
 
 func (e *Executor) deployContainer(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config, appDir, imageTag string) error {
@@ -195,7 +202,9 @@ func (e *Executor) deployContainer(ctx context.Context, req *pb.DeployRequest, c
 		return fmt.Errorf("failed to ensure network: %w", err)
 	}
 
-	_ = e.docker.RemoveContainer(ctx, req.AppName, true)
+	if err := e.docker.RemoveContainer(ctx, req.AppName, true); err != nil {
+		e.logger.Warn("Failed to remove existing container", "appName", req.AppName, "error", err)
+	}
 
 	var domainRoutes []compose.DomainRoute
 	for _, d := range cfg.Domains {

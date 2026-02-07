@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 )
 
 func (d *Client) ListNetworks(ctx context.Context) ([]string, error) {
-	d.executor.SetTimeout(30 * 1e9)
+	d.executor.SetTimeout(30 * time.Second)
 	result, err := d.executor.RunQuiet(ctx, "docker", "network", "ls", "--format", "{{.Name}}")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list networks: %w", err)
@@ -21,7 +22,7 @@ func (d *Client) ListNetworks(ctx context.Context) ([]string, error) {
 }
 
 func (d *Client) RemoveNetwork(ctx context.Context, network string) error {
-	d.executor.SetTimeout(30 * 1e9)
+	d.executor.SetTimeout(30 * time.Second)
 	_, err := d.executor.Run(ctx, "docker", "network", "rm", network)
 	if err != nil {
 		return fmt.Errorf("failed to remove network: %w", err)
@@ -30,7 +31,7 @@ func (d *Client) RemoveNetwork(ctx context.Context, network string) error {
 }
 
 func (d *Client) DisconnectFromNetwork(ctx context.Context, containerName, networkName string) error {
-	d.executor.SetTimeout(30 * 1e9)
+	d.executor.SetTimeout(30 * time.Second)
 	_, err := d.executor.RunQuiet(ctx, "docker", "network", "disconnect", networkName, containerName)
 	if err != nil {
 		return fmt.Errorf("failed to disconnect container from network: %w", err)
@@ -39,7 +40,7 @@ func (d *Client) DisconnectFromNetwork(ctx context.Context, containerName, netwo
 }
 
 func (d *Client) ListVolumes(ctx context.Context) ([]string, error) {
-	d.executor.SetTimeout(30 * 1e9)
+	d.executor.SetTimeout(30 * time.Second)
 	result, err := d.executor.RunQuiet(ctx, "docker", "volume", "ls", "--format", "{{.Name}}")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list volumes: %w", err)
@@ -53,7 +54,7 @@ func (d *Client) ListVolumes(ctx context.Context) ([]string, error) {
 }
 
 func (d *Client) CreateVolume(ctx context.Context, name string) error {
-	d.executor.SetTimeout(30 * 1e9)
+	d.executor.SetTimeout(30 * time.Second)
 	_, err := d.executor.Run(ctx, "docker", "volume", "create", name)
 	if err != nil {
 		return fmt.Errorf("failed to create volume: %w", err)
@@ -62,7 +63,7 @@ func (d *Client) CreateVolume(ctx context.Context, name string) error {
 }
 
 func (d *Client) RemoveVolume(ctx context.Context, name string) error {
-	d.executor.SetTimeout(30 * 1e9)
+	d.executor.SetTimeout(30 * time.Second)
 	_, err := d.executor.Run(ctx, "docker", "volume", "rm", name)
 	if err != nil {
 		return fmt.Errorf("failed to remove volume: %w", err)

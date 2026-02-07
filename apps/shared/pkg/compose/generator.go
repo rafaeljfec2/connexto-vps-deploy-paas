@@ -17,6 +17,10 @@ type GenerateParams struct {
 
 func GenerateContent(params GenerateParams) string {
 	cfg := params.Config
+	if cfg == nil {
+		cfg = &Config{}
+		ApplyDefaults(cfg)
+	}
 	envYAML := BuildEnvVarsYAML(cfg, params.EnvVars)
 	labels := BuildLabelsYAML(params.AppName, params.Domains, cfg.Port)
 	portMapping := BuildPortMapping(cfg.HostPort, cfg.Port)

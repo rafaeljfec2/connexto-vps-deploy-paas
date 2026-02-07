@@ -58,7 +58,16 @@ func (d *Client) initBuildx() {
 	d.logger.Info("Buildx default builder not available, using legacy builder")
 }
 
+type BuildOptions struct {
+	BuildArgs map[string]string
+	Target    string
+}
+
 func (d *Client) Build(ctx context.Context, workDir, dockerfile, tag string, output chan<- string) error {
+	return d.BuildWithOptions(ctx, workDir, dockerfile, tag, nil, output)
+}
+
+func (d *Client) BuildWithOptions(ctx context.Context, workDir, dockerfile, tag string, opts *BuildOptions, output chan<- string) error {
 	d.logger.Info("Building Docker image", "workDir", workDir, "dockerfile", dockerfile, "tag", tag)
 
 	d.executor.SetWorkDir(workDir)
@@ -72,16 +81,25 @@ func (d *Client) Build(ctx context.Context, workDir, dockerfile, tag string, out
 			"--load",
 			"-t", tag,
 			"-f", dockerfile,
-			".",
 		}
 	} else {
 		args = []string{
 			"build",
 			"-t", tag,
 			"-f", dockerfile,
-			".",
 		}
 	}
+
+	if opts != nil {
+		for k, v := range opts.BuildArgs {
+			args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
+		}
+		if opts.Target != "" {
+			args = append(args, "--target", opts.Target)
+		}
+	}
+
+	args = append(args, ".")
 
 	if output != nil {
 		err := d.executor.RunWithStreaming(ctx, output, "docker", args...)
@@ -419,7 +437,7 @@ func (d *Client) RestartContainer(ctx context.Context, containerName string) err
 	d.executor.SetTimeout(2 * time.Minute)
 
 	if d.IsCurrentContainer(ctx, containerName) {
-		return fmt.Errorf("cannot restart FlowDeploy backend from within itself - use SSH or host to restart")
+		return fmt.Errorf("cannot restart the current container from within itself - use SSH or host to restart")
 	}
 
 	_, err := d.executor.Run(ctx, "docker", "restart", containerName)
@@ -435,7 +453,7 @@ func (d *Client) StopContainer(ctx context.Context, containerName string) error 
 	d.executor.SetTimeout(1 * time.Minute)
 
 	if d.IsCurrentContainer(ctx, containerName) {
-		return fmt.Errorf("cannot stop FlowDeploy backend from within itself - use SSH or host to stop")
+		return fmt.Errorf("cannot stop the current container from within itself - use SSH or host to stop")
 	}
 
 	_, err := d.executor.Run(ctx, "docker", "stop", containerName)

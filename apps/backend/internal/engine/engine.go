@@ -91,6 +91,7 @@ func New(p Params) *Engine {
 		CustomDomainRepo: p.CustomDomainRepo,
 		ServerRepo:       p.ServerRepo,
 		AgentClient:      p.AgentClient,
+		AgentPort:        p.Cfg.GRPC.AgentPort,
 		GitTokenProvider: p.GitTokenProvider,
 		AuditService:     p.AuditService,
 		Logger:           p.Logger,

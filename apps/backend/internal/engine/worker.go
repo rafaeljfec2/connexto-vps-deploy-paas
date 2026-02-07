@@ -38,6 +38,7 @@ type WorkerDeps struct {
 	CustomDomainRepo domain.CustomDomainRepository
 	ServerRepo       domain.ServerRepository
 	AgentClient      *agentclient.AgentClient
+	AgentPort        int
 	GitTokenProvider GitTokenProvider
 	AuditService     *service.AuditService
 	Logger           *slog.Logger
@@ -105,6 +106,9 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 		domains = append(domains, d.Domain)
 	}
 
+	defaults := &compose.Config{}
+	compose.ApplyDefaults(defaults)
+
 	req := &pb.DeployRequest{
 		DeploymentId: deploy.ID,
 		AppId:        app.ID,
@@ -116,23 +120,23 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 			Workdir:       app.Workdir,
 		},
 		Build: &pb.BuildConfig{
-			Dockerfile: "./Dockerfile",
-			Context:    ".",
+			Dockerfile: defaults.Build.Dockerfile,
+			Context:    defaults.Build.Context,
 		},
 		Runtime: &pb.RuntimeConfig{
-			Port:    8080,
+			Port:    int32(defaults.Port),
 			Domains: domains,
 			Resources: &pb.ResourceLimits{
-				Memory: "512m",
-				Cpu:    "0.5",
+				Memory: defaults.Resources.Memory,
+				Cpu:    defaults.Resources.CPU,
 			},
 		},
 		HealthCheck: &pb.HealthCheckConfig{
-			Path:        "/health",
-			Interval:    "30s",
-			Timeout:     "5s",
-			Retries:     3,
-			StartPeriod: "10s",
+			Path:        defaults.Healthcheck.Path,
+			Interval:    defaults.Healthcheck.Interval,
+			Timeout:     defaults.Healthcheck.Timeout,
+			Retries:     int32(defaults.Healthcheck.Retries),
+			StartPeriod: defaults.Healthcheck.StartPeriod,
 		},
 		EnvVars: w.appEnvVars,
 	}
@@ -145,9 +149,12 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 		req.RollbackImage = &deploy.PreviousImageTag
 	}
 
-	w.log(deploy.ID, app.ID, "Dispatching deploy to agent at %s:%d", server.Host, server.SSHPort)
+	agentPort := w.deps.AgentPort
+	if agentPort == 0 {
+		agentPort = 50052
+	}
 
-	agentPort := 50052
+	w.log(deploy.ID, app.ID, "Dispatching deploy to agent at %s:%d", server.Host, agentPort)
 	resp, err := w.deps.AgentClient.ExecuteDeploy(ctx, server.Host, agentPort, req)
 	if err != nil {
 		return w.fail(deploy, app, fmt.Errorf("remote deploy RPC failed: %w", err))
@@ -370,10 +377,12 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 }
 
 func (w *Worker) collectDomainRoutes(ctx context.Context, appID string) []compose.DomainRoute {
-	cfg := w.deployConfig
 	var domainRoutes []compose.DomainRoute
-	for _, d := range cfg.Domains {
-		domainRoutes = append(domainRoutes, compose.DomainRoute{Domain: d})
+
+	if w.deployConfig != nil {
+		for _, d := range w.deployConfig.Domains {
+			domainRoutes = append(domainRoutes, compose.DomainRoute{Domain: d})
+		}
 	}
 
 	if w.deps.CustomDomainRepo != nil {
