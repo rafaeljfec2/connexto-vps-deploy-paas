@@ -10,6 +10,7 @@ type Terminal = import("@xterm/xterm").Terminal;
 type FitAddon = import("@xterm/addon-fit").FitAddon;
 
 export function useTerminal(options: TerminalOptions): UseTerminalReturn {
+  const { onStatusChange } = options;
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -151,8 +152,8 @@ export function useTerminal(options: TerminalOptions): UseTerminalReturn {
   useEffect(() => cleanup, [cleanup]);
 
   useEffect(() => {
-    options.onStatusChange?.(status);
-  }, [status, options.onStatusChange]);
+    onStatusChange?.(status);
+  }, [status, onStatusChange]);
 
   return {
     status,
