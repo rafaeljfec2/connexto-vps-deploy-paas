@@ -539,6 +539,7 @@ export interface Server {
   readonly sshUser: string;
   readonly status: ServerStatus;
   readonly agentVersion?: string;
+  readonly latestAgentVersion: string;
   readonly lastHeartbeatAt?: string;
   readonly createdAt: string;
   readonly updatedAt: string;

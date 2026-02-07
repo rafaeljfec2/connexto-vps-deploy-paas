@@ -868,5 +868,10 @@ export const api = {
 
     getStats: (id: string): Promise<ServerStats> =>
       fetchApi<ServerStats>(`${API_BASE}/servers/${id}/stats`),
+
+    updateAgent: (id: string): Promise<{ message: string }> =>
+      fetchApi<{ message: string }>(`${API_BASE}/servers/${id}/update-agent`, {
+        method: "POST",
+      }),
   },
 };

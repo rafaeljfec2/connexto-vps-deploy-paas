@@ -15,6 +15,10 @@ import (
 
 var agentStatsTimeout = 5 * time.Second
 
+// LatestAgentVersion is the version of the agent binary available on the backend.
+// Update this constant when a new agent binary is released.
+const LatestAgentVersion = "0.2.0"
+
 type UpdateAgentEnqueuer interface {
 	EnqueueUpdateAgent(serverID string)
 }
@@ -74,16 +78,17 @@ func (h *ServerHandler) Register(app fiber.Router) {
 }
 
 type ServerResponse struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	Host            string  `json:"host"`
-	SSHPort         int     `json:"sshPort"`
-	SSHUser         string  `json:"sshUser"`
-	Status          string  `json:"status"`
-	AgentVersion    *string `json:"agentVersion,omitempty"`
-	LastHeartbeatAt *string `json:"lastHeartbeatAt,omitempty"`
-	CreatedAt       string  `json:"createdAt"`
-	UpdatedAt       string  `json:"updatedAt"`
+	ID                   string  `json:"id"`
+	Name                 string  `json:"name"`
+	Host                 string  `json:"host"`
+	SSHPort              int     `json:"sshPort"`
+	SSHUser              string  `json:"sshUser"`
+	Status               string  `json:"status"`
+	AgentVersion         *string `json:"agentVersion,omitempty"`
+	LatestAgentVersion   string  `json:"latestAgentVersion"`
+	LastHeartbeatAt      *string `json:"lastHeartbeatAt,omitempty"`
+	CreatedAt            string  `json:"createdAt"`
+	UpdatedAt            string  `json:"updatedAt"`
 }
 
 type ServerHealthResponse struct {
@@ -94,14 +99,15 @@ type ServerHealthResponse struct {
 
 func toServerResponse(s *domain.Server) ServerResponse {
 	resp := ServerResponse{
-		ID:        s.ID,
-		Name:      s.Name,
-		Host:      s.Host,
-		SSHPort:   s.SSHPort,
-		SSHUser:   s.SSHUser,
-		Status:    string(s.Status),
-		CreatedAt: s.CreatedAt.Format(DateTimeFormatISO8601),
-		UpdatedAt: s.UpdatedAt.Format(DateTimeFormatISO8601),
+		ID:                 s.ID,
+		Name:               s.Name,
+		Host:               s.Host,
+		SSHPort:            s.SSHPort,
+		SSHUser:            s.SSHUser,
+		Status:             string(s.Status),
+		LatestAgentVersion: LatestAgentVersion,
+		CreatedAt:          s.CreatedAt.Format(DateTimeFormatISO8601),
+		UpdatedAt:          s.UpdatedAt.Format(DateTimeFormatISO8601),
 	}
 	if s.AgentVersion != nil {
 		resp.AgentVersion = s.AgentVersion

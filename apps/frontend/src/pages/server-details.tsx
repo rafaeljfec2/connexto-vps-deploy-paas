@@ -1,6 +1,9 @@
+import { useCallback, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   Activity,
+  ArrowUpCircle,
+  CheckCircle2,
   Cpu,
   HardDrive,
   Network,
@@ -16,7 +19,8 @@ import { PageHeader } from "@/components/page-header";
 import { useServerStats } from "@/features/servers/hooks/use-server-stats";
 import { useServer } from "@/features/servers/hooks/use-servers";
 import { cn } from "@/lib/utils";
-import type { ServerStats } from "@/types";
+import { api } from "@/services/api";
+import type { Server, ServerStats } from "@/types";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -194,20 +198,117 @@ function ResourceUsageSection({
   );
 }
 
+function AgentVersionCard({
+  server,
+  onUpdated,
+}: {
+  readonly server: Server;
+  readonly onUpdated: () => void;
+}) {
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateEnqueued, setUpdateEnqueued] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  const hasVersion = server.agentVersion != null;
+  const isOutdated =
+    hasVersion && server.agentVersion !== server.latestAgentVersion;
+  const isUpToDate =
+    hasVersion && server.agentVersion === server.latestAgentVersion;
+
+  const handleUpdate = useCallback(async () => {
+    setIsUpdating(true);
+    setUpdateError(null);
+    try {
+      await api.servers.updateAgent(server.id);
+      setUpdateEnqueued(true);
+      setTimeout(() => {
+        onUpdated();
+      }, 35000);
+    } catch {
+      setUpdateError("Failed to enqueue agent update");
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [server.id, onUpdated]);
+
+  if (!hasVersion) return null;
+
+  return (
+    <Card>
+      <CardContent className="py-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-muted-foreground">
+              Agent version:
+            </span>
+            <Badge variant={isOutdated ? "destructive" : "default"}>
+              v{server.agentVersion}
+            </Badge>
+            {isOutdated && (
+              <span className="text-xs text-muted-foreground">
+                → v{server.latestAgentVersion} available
+              </span>
+            )}
+            {isUpToDate && (
+              <span className="flex items-center gap-1 text-xs text-emerald-500">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Up to date
+              </span>
+            )}
+          </div>
+
+          {isOutdated && !updateEnqueued && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleUpdate}
+              disabled={isUpdating}
+            >
+              <ArrowUpCircle
+                className={cn(
+                  "h-3.5 w-3.5 mr-1.5",
+                  isUpdating && "animate-spin",
+                )}
+              />
+              {isUpdating ? "Sending..." : "Update Agent"}
+            </Button>
+          )}
+
+          {updateEnqueued && (
+            <span className="text-xs text-muted-foreground">
+              Update enqueued. Agent will update on next heartbeat (~30s).
+            </span>
+          )}
+
+          {updateError != null && (
+            <span className="text-xs text-red-500">{updateError}</span>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ServerDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const {
     data: server,
     isLoading: serverLoading,
     error: serverError,
+    refetch: refetchServer,
   } = useServer(id);
   const {
     data: stats,
     isLoading: statsLoading,
     error: statsError,
-    refetch,
+    refetch: refetchStats,
     isFetching,
   } = useServerStats(id);
+
+  const refetchAll = useCallback(() => {
+    refetchServer();
+    refetchStats();
+  }, [refetchServer, refetchStats]);
 
   if (serverLoading || !id) {
     return (
@@ -245,7 +346,7 @@ export function ServerDetailsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetch()}
+            onClick={refetchAll}
             disabled={isFetching || statsUnavailable}
           >
             <RefreshCw
@@ -264,12 +365,14 @@ export function ServerDetailsPage() {
         </Card>
       )}
 
+      <AgentVersionCard server={server} onUpdated={refetchAll} />
+
       <ResourceUsageSection
         statsLoading={statsLoading}
         hasStats={hasStats}
         statsUnavailable={statsUnavailable}
         stats={stats ?? null}
-        refetch={refetch}
+        refetch={refetchStats}
         isFetching={isFetching}
       />
 
