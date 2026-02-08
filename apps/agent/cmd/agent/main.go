@@ -59,20 +59,23 @@ func main() {
 	}()
 
 	go func() {
-		if err := a.Run(ctx); err != nil {
+		if err := a.Run(ctx); err != nil && ctx.Err() == nil {
 			logger.Error("agent stopped", "error", err)
 			cancel()
 		}
 	}()
 
-	waitForShutdown(cancel)
+	waitForShutdown(ctx, cancel)
 	grpcSrv.Stop()
 }
 
-func waitForShutdown(cancel context.CancelFunc) {
+func waitForShutdown(ctx context.Context, cancel context.CancelFunc) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-	cancel()
+	select {
+	case <-quit:
+		cancel()
+	case <-ctx.Done():
+	}
 	time.Sleep(1 * time.Second)
 }

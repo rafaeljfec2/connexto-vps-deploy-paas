@@ -54,7 +54,7 @@ func New(cfg Config, logger *slog.Logger) (*Agent, error) {
 }
 
 func (a *Agent) Run(ctx context.Context) error {
-	if err := a.register(ctx); err != nil {
+	if err := a.registerWithRetry(ctx); err != nil {
 		return err
 	}
 
@@ -70,6 +70,32 @@ func (a *Agent) Run(ctx context.Context) error {
 			if err := a.heartbeat(ctx); err != nil {
 				a.logger.Error("heartbeat failed", "error", err)
 			}
+		}
+	}
+}
+
+func (a *Agent) registerWithRetry(ctx context.Context) error {
+	const maxBackoff = 30 * time.Second
+	backoff := time.Second
+
+	for {
+		err := a.register(ctx)
+		if err == nil {
+			a.logger.Info("registered with backend")
+			return nil
+		}
+
+		a.logger.Warn("register failed, retrying", "error", err, "retryIn", backoff)
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+		}
+
+		backoff *= 2
+		if backoff > maxBackoff {
+			backoff = maxBackoff
 		}
 	}
 }
