@@ -439,8 +439,13 @@ WantedBy=multi-user.target
 }
 
 func startAgent(client *ssh.Client, runtimeDir string) error {
-	cmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user enable %s --now", runtimeDir, agentSystemdUnit)
-	return runCommand(client, cmd)
+	enableCmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user enable %s", runtimeDir, agentSystemdUnit)
+	if err := runCommand(client, enableCmd); err != nil {
+		return fmt.Errorf("enable agent: %w", err)
+	}
+
+	restartCmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user restart %s", runtimeDir, agentSystemdUnit)
+	return runCommand(client, restartCmd)
 }
 
 func (p *SSHProvisioner) Deprovision(server *domain.Server, sshKeyPlain string, sshPasswordPlain string) error {
