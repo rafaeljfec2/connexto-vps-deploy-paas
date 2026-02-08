@@ -21,8 +21,15 @@ export function useRemoveImage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, force = false }: { id: string; force?: boolean }) =>
-      api.images.remove(id, force),
+    mutationFn: ({
+      id,
+      force = false,
+      ref,
+    }: {
+      readonly id: string;
+      readonly force?: boolean;
+      readonly ref?: string;
+    }) => api.images.remove(id, force, ref),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["images"] });
     },

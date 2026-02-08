@@ -46,7 +46,10 @@ export function ImageList() {
   const [search, setSearch] = useState("");
   const [showDanglingOnly, setShowDanglingOnly] = useState(false);
   const [showPruneDialog, setShowPruneDialog] = useState(false);
-  const [imageToDelete, setImageToDelete] = useState<string | null>(null);
+  const [imageToDelete, setImageToDelete] = useState<{
+    readonly id: string;
+    readonly ref: string;
+  } | null>(null);
 
   const { data: images, isLoading, error } = useImages();
   const removeImage = useRemoveImage();
@@ -179,7 +182,7 @@ export function ImageList() {
               <tbody>
                 {filteredImages?.map((image) => (
                   <tr
-                    key={image.id}
+                    key={`${image.repository}:${image.tag}`}
                     className="border-b border-border hover:bg-muted/50 transition-colors"
                   >
                     <td className="py-3 px-4 min-w-0">
@@ -257,7 +260,12 @@ export function ImageList() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setImageToDelete(image.id)}
+                        onClick={() =>
+                          setImageToDelete({
+                            id: image.id,
+                            ref: `${image.repository}:${image.tag}`,
+                          })
+                        }
                         disabled={removeImage.isPending}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -305,10 +313,9 @@ export function ImageList() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove image?</AlertDialogTitle>
+            <AlertDialogTitle>Remove image tag?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove the image. If the image is being used by a
-              container, you may need to force removal.
+              {`This will remove the tag "${imageToDelete?.ref ?? ""}". If other tags reference the same image, only this tag will be removed.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -319,7 +326,11 @@ export function ImageList() {
               onClick={() => {
                 if (imageToDelete) {
                   removeImage.mutate(
-                    { id: imageToDelete, force: true },
+                    {
+                      id: imageToDelete.id,
+                      ref: imageToDelete.ref,
+                      force: false,
+                    },
                     { onSuccess: () => setImageToDelete(null) },
                   );
                 }

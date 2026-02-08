@@ -93,10 +93,16 @@ func (h *ImageHandler) ListDanglingImages(c *fiber.Ctx) error {
 
 func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 	id := c.Params("id")
+	ref := c.Query("ref", "")
 	force := c.Query("force", "false") == "true"
 
-	if err := h.docker.RemoveImageByID(c.Context(), id, force); err != nil {
-		h.logger.Error("Failed to remove image", "id", id, "error", err)
+	target := id
+	if ref != "" {
+		target = ref
+	}
+
+	if err := h.docker.RemoveImageByID(c.Context(), target, force); err != nil {
+		h.logger.Error("Failed to remove image", "target", target, "force", force, "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove image: "+err.Error())
 	}
 

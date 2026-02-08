@@ -651,11 +651,16 @@ export const api = {
       }[]
     > => fetchApiList(`${API_BASE}/images/dangling`),
 
-    remove: async (id: string, force = false): Promise<void> => {
-      const response = await fetch(
-        `${API_BASE}/images/${encodeURIComponent(id)}?force=${force}`,
-        { method: "DELETE", credentials: "include" },
-      );
+    remove: async (id: string, force = false, ref?: string): Promise<void> => {
+      let url = `${API_BASE}/images/${encodeURIComponent(id)}?force=${force}`;
+      if (ref) {
+        url += `&ref=${encodeURIComponent(ref)}`;
+      }
+
+      const response = await fetch(url, {
+        method: "DELETE",
+        credentials: "include",
+      });
 
       if (!response.ok && response.status !== 204) {
         const envelope: ApiEnvelope<null> = await response.json();
