@@ -12,10 +12,20 @@ func (s *Server) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.Reg
 		return nil, err
 	}
 
+	var previousVersion string
+	if srv, findErr := s.serverRepo.FindByID(serverID); findErr == nil && srv.AgentVersion != nil {
+		previousVersion = *srv.AgentVersion
+	}
+
 	if err := s.serverRepo.UpdateHeartbeat(serverID, req.AgentVersion); err != nil {
 		s.logger.Error("failed to update heartbeat", "serverId", serverID, "error", err)
 	}
 	s.hub.Update(serverID)
+
+	newVersion := req.GetAgentVersion()
+	if s.agentUpdateNotifier != nil && newVersion != "" && newVersion != previousVersion {
+		s.agentUpdateNotifier.NotifyUpdateCompleted(serverID, newVersion)
+	}
 
 	resp := &pb.RegisterResponse{
 		Accepted: true,
@@ -60,17 +70,24 @@ func (s *Server) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.H
 
 func (s *Server) emitAgentUpdateEvents(serverID, previousVersion, newVersion string, commands []*pb.AgentCommand) {
 	if s.agentUpdateNotifier == nil {
+		if len(commands) > 0 {
+			s.logger.Warn("agentUpdateNotifier is nil, cannot emit agent update SSE events",
+				"serverId", serverID, "commandCount", len(commands))
+		}
 		return
 	}
 
 	for _, cmd := range commands {
 		if cmd.GetType() == pb.AgentCommandType_AGENT_COMMAND_UPDATE_AGENT {
+			s.logger.Info("agent update command delivered via heartbeat", "serverId", serverID)
 			s.agentUpdateNotifier.NotifyUpdateDelivered(serverID)
 			break
 		}
 	}
 
 	if newVersion != "" && newVersion != previousVersion {
+		s.logger.Info("agent version changed", "serverId", serverID,
+			"previousVersion", previousVersion, "newVersion", newVersion)
 		s.agentUpdateNotifier.NotifyUpdateCompleted(serverID, newVersion)
 	}
 }
