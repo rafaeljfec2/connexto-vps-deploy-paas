@@ -98,6 +98,8 @@ func (h *SSEHandler) Stream(c *fiber.Ctx) error {
 				eventType = "stats"
 			case "PROVISION_STEP", "PROVISION_LOG", "PROVISION_COMPLETED", "PROVISION_FAILED":
 				eventType = "provision"
+			case "AGENT_UPDATE_STEP":
+				eventType = "agent_update"
 			}
 
 			fmt.Fprintf(w, "event: %s\n", eventType)
@@ -235,6 +237,36 @@ func (h *SSEHandler) EmitProvisionFailed(serverID, message string) {
 	})
 }
 
+func (h *SSEHandler) EmitAgentUpdateEnqueued(serverID string) {
+	h.Emit(SSEEvent{
+		Type:     "AGENT_UPDATE_STEP",
+		ServerID: serverID,
+		Step:     "enqueued",
+		Status:   "running",
+		Message:  "Update command enqueued",
+	})
+}
+
+func (h *SSEHandler) NotifyUpdateDelivered(serverID string) {
+	h.Emit(SSEEvent{
+		Type:     "AGENT_UPDATE_STEP",
+		ServerID: serverID,
+		Step:     "delivered",
+		Status:   "running",
+		Message:  "Command delivered to agent",
+	})
+}
+
+func (h *SSEHandler) NotifyUpdateCompleted(serverID, newVersion string) {
+	h.Emit(SSEEvent{
+		Type:     "AGENT_UPDATE_STEP",
+		ServerID: serverID,
+		Step:     "updated",
+		Status:   "ok",
+		Message:  newVersion,
+	})
+}
+
 func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 	h.bufMu.RLock()
 	events := make([]SSEEvent, len(h.eventBuf))
@@ -257,6 +289,8 @@ func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 			eventType = "stats"
 		case "PROVISION_STEP", "PROVISION_LOG", "PROVISION_COMPLETED", "PROVISION_FAILED":
 			eventType = "provision"
+		case "AGENT_UPDATE_STEP":
+			eventType = "agent_update"
 		}
 
 		fmt.Fprintf(w, "event: %s\n", eventType)

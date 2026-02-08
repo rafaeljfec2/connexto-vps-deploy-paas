@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   Activity,
@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Cpu,
   HardDrive,
+  Loader2,
   Network,
   RefreshCw,
   Server as ServerIcon,
@@ -16,6 +17,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorMessage } from "@/components/error-message";
 import { PageHeader } from "@/components/page-header";
+import { clearAgentUpdateState } from "@/features/servers/agent-update-store";
+import { useAgentUpdate } from "@/features/servers/hooks/use-agent-update";
 import { useServerStats } from "@/features/servers/hooks/use-server-stats";
 import { useServer } from "@/features/servers/hooks/use-servers";
 import { cn } from "@/lib/utils";
@@ -216,6 +219,12 @@ function getAgentVersionStatus(server: Server) {
   };
 }
 
+const AGENT_UPDATE_STEP_LABELS: Record<string, string> = {
+  enqueued: "Waiting for agent heartbeat...",
+  delivered: "Agent downloading update...",
+  updated: "Update completed!",
+};
+
 function AgentVersionCard({
   server,
   onUpdated,
@@ -223,9 +232,9 @@ function AgentVersionCard({
   readonly server: Server;
   readonly onUpdated: () => void;
 }) {
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [updateEnqueued, setUpdateEnqueued] = useState(false);
-  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const agentUpdate = useAgentUpdate(server.id);
 
   const {
     currentVersion,
@@ -236,21 +245,32 @@ function AgentVersionCard({
     needsUpdate,
   } = getAgentVersionStatus(server);
 
+  const isUpdateInProgress = agentUpdate?.status === "running";
+  const isUpdateCompleted = agentUpdate?.status === "completed";
+
+  useEffect(() => {
+    if (!isUpdateCompleted) return;
+
+    onUpdated();
+
+    const timeout = globalThis.setTimeout(() => {
+      clearAgentUpdateState(server.id);
+    }, 5000);
+
+    return () => globalThis.clearTimeout(timeout);
+  }, [isUpdateCompleted, onUpdated, server.id]);
+
   const handleUpdate = useCallback(async () => {
-    setIsUpdating(true);
-    setUpdateError(null);
+    setIsSending(true);
+    setSendError(null);
     try {
       await api.servers.updateAgent(server.id);
-      setUpdateEnqueued(true);
-      setTimeout(() => {
-        onUpdated();
-      }, 35000);
     } catch {
-      setUpdateError("Failed to enqueue agent update");
+      setSendError("Failed to enqueue agent update");
     } finally {
-      setIsUpdating(false);
+      setIsSending(false);
     }
-  }, [server.id, onUpdated]);
+  }, [server.id]);
 
   if (server.status !== "online") return null;
 
@@ -268,12 +288,15 @@ function AgentVersionCard({
                 v{currentVersion}
               </Badge>
             )}
-            {(isOutdated || isUnknown) && latestVersion && (
-              <span className="text-xs text-muted-foreground">
-                → v{latestVersion} available
-              </span>
-            )}
-            {isUpToDate && (
+            {(isOutdated || isUnknown) &&
+              latestVersion &&
+              !isUpdateInProgress &&
+              !isUpdateCompleted && (
+                <span className="text-xs text-muted-foreground">
+                  v{latestVersion} available
+                </span>
+              )}
+            {isUpToDate && !isUpdateCompleted && (
               <span className="flex items-center gap-1 text-xs text-emerald-500">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Up to date
@@ -281,31 +304,39 @@ function AgentVersionCard({
             )}
           </div>
 
-          {needsUpdate && !updateEnqueued && (
+          {isUpdateInProgress && agentUpdate != null && (
+            <span className="flex items-center gap-1.5 text-xs text-blue-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {AGENT_UPDATE_STEP_LABELS[agentUpdate.step] ?? agentUpdate.step}
+            </span>
+          )}
+
+          {isUpdateCompleted && agentUpdate != null && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-500">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Updated to v{agentUpdate.version}
+            </span>
+          )}
+
+          {!isUpdateInProgress && !isUpdateCompleted && needsUpdate && (
             <Button
               variant="outline"
               size="sm"
               onClick={handleUpdate}
-              disabled={isUpdating}
+              disabled={isSending}
             >
               <ArrowUpCircle
                 className={cn(
                   "h-3.5 w-3.5 mr-1.5",
-                  isUpdating && "animate-spin",
+                  isSending && "animate-spin",
                 )}
               />
-              {isUpdating ? "Sending..." : "Update Agent"}
+              {isSending ? "Sending..." : "Update Agent"}
             </Button>
           )}
 
-          {updateEnqueued && (
-            <span className="text-xs text-muted-foreground">
-              Update enqueued. Agent will update on next heartbeat (~30s).
-            </span>
-          )}
-
-          {updateError != null && (
-            <span className="text-xs text-red-500">{updateError}</span>
+          {sendError != null && (
+            <span className="text-xs text-red-500">{sendError}</span>
           )}
         </div>
       </CardContent>

@@ -645,9 +645,10 @@ func ProvideGrpcServer(
 	ca *pki.CertificateAuthority,
 	serverRepo domain.ServerRepository,
 	agentTokenStore *agentdownload.TokenStore,
+	sseHandler *handler.SSEHandler,
 	logger *slog.Logger,
 ) *grpcserver.Server {
-	server, err := grpcserver.NewServer(cfg, ca, serverRepo, agentTokenStore, logger)
+	server, err := grpcserver.NewServer(cfg, ca, serverRepo, agentTokenStore, sseHandler, logger)
 	if err != nil {
 		logger.Error("failed to create gRPC server", "error", err)
 		return nil

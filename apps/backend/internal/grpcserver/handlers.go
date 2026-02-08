@@ -38,14 +38,39 @@ func (s *Server) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.H
 		return nil, err
 	}
 
-	if err := s.serverRepo.UpdateHeartbeat(serverID, req.GetAgentVersion()); err != nil {
-		s.logger.Error("failed to update heartbeat", "serverId", serverID, "error", err)
+	var previousVersion string
+	if srv, findErr := s.serverRepo.FindByID(serverID); findErr == nil && srv.AgentVersion != nil {
+		previousVersion = *srv.AgentVersion
+	}
+
+	if hbErr := s.serverRepo.UpdateHeartbeat(serverID, req.GetAgentVersion()); hbErr != nil {
+		s.logger.Error("failed to update heartbeat", "serverId", serverID, "error", hbErr)
 	}
 	s.hub.Update(serverID)
 
 	commands := s.cmdQueue.GetAndClear(serverID)
+
+	s.emitAgentUpdateEvents(serverID, previousVersion, req.GetAgentVersion(), commands)
+
 	return &pb.HeartbeatResponse{
 		Acknowledged: true,
 		Commands:     commands,
 	}, nil
+}
+
+func (s *Server) emitAgentUpdateEvents(serverID, previousVersion, newVersion string, commands []*pb.AgentCommand) {
+	if s.agentUpdateNotifier == nil {
+		return
+	}
+
+	for _, cmd := range commands {
+		if cmd.GetType() == pb.AgentCommandType_AGENT_COMMAND_UPDATE_AGENT {
+			s.agentUpdateNotifier.NotifyUpdateDelivered(serverID)
+			break
+		}
+	}
+
+	if newVersion != "" && newVersion != previousVersion {
+		s.agentUpdateNotifier.NotifyUpdateCompleted(serverID, newVersion)
+	}
 }

@@ -37,6 +37,10 @@ class SSEClient {
       this.handleEvent(event);
     });
 
+    this.eventSource.addEventListener("agent_update", (event) => {
+      this.handleEvent(event);
+    });
+
     this.eventSource.onopen = () => {
       this.reconnectAttempts = 0;
     };

@@ -449,6 +449,11 @@ func (h *ServerHandler) UpdateAgent(c *fiber.Ctx) error {
 	}
 
 	h.updateAgentEnqueuer.EnqueueUpdateAgent(id)
+
+	if h.sseHandler != nil {
+		h.sseHandler.EmitAgentUpdateEnqueued(id)
+	}
+
 	return response.Accepted(c, fiber.Map{
 		"message": "update agent command enqueued; agent will receive it on next heartbeat",
 	})

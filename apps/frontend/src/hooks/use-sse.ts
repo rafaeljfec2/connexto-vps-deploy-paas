@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { applyAgentUpdateEvent } from "@/features/servers/agent-update-store";
 import { applyProvisionEvent } from "@/features/servers/provision-progress-store";
 import { api } from "@/services/api";
 import { sseClient } from "@/services/sse";
@@ -93,6 +94,20 @@ export function useSSE() {
           if (event.serverId) {
             applyProvisionEvent(event.serverId, event);
             void queryClient.invalidateQueries({ queryKey: ["servers"] });
+          }
+          break;
+
+        case "AGENT_UPDATE_STEP":
+          if (event.serverId) {
+            applyAgentUpdateEvent(event.serverId, event);
+            if (event.step === "updated") {
+              void queryClient.invalidateQueries({
+                queryKey: ["server", event.serverId],
+              });
+              void queryClient.invalidateQueries({
+                queryKey: ["servers"],
+              });
+            }
           }
           break;
       }

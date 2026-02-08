@@ -77,7 +77,17 @@ export type SSEEventType =
   | "PROVISION_STEP"
   | "PROVISION_LOG"
   | "PROVISION_COMPLETED"
-  | "PROVISION_FAILED";
+  | "PROVISION_FAILED"
+  | "AGENT_UPDATE_STEP";
+
+export type AgentUpdateStep = "enqueued" | "delivered" | "updated";
+
+export interface AgentUpdateState {
+  readonly step: AgentUpdateStep;
+  readonly status: "running" | "completed";
+  readonly version?: string;
+  readonly startedAt: number;
+}
 
 export interface SSEEvent {
   readonly type: SSEEventType;

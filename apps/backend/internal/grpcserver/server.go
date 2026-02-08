@@ -24,18 +24,25 @@ import (
 type Server struct {
 	pb.UnimplementedAgentServiceServer
 
-	grpcServer        *grpc.Server
-	ca                *pki.CertificateAuthority
-	serverRepo        domain.ServerRepository
-	hub               *AgentHub
-	cmdQueue          *AgentCommandQueue
-	agentTokenStore   AgentTokenStore
-	agentDownloadURL  string
-	logger            *slog.Logger
+	grpcServer           *grpc.Server
+	ca                   *pki.CertificateAuthority
+	serverRepo           domain.ServerRepository
+	hub                  *AgentHub
+	cmdQueue             *AgentCommandQueue
+	agentTokenStore      AgentTokenStore
+	agentDownloadURL     string
+	agentUpdateNotifier  AgentUpdateNotifier
+	logger               *slog.Logger
 }
 
 type AgentTokenStore interface {
 	Create() (string, error)
+}
+
+// AgentUpdateNotifier sends real-time notifications about agent update progress.
+type AgentUpdateNotifier interface {
+	NotifyUpdateDelivered(serverID string)
+	NotifyUpdateCompleted(serverID, newVersion string)
 }
 
 func grpcServerCertHostname(cfg *config.Config) string {
@@ -52,6 +59,7 @@ func NewServer(
 	ca *pki.CertificateAuthority,
 	serverRepo domain.ServerRepository,
 	agentTokenStore AgentTokenStore,
+	agentUpdateNotifier AgentUpdateNotifier,
 	logger *slog.Logger,
 ) (*Server, error) {
 	certHostname := grpcServerCertHostname(cfg)
@@ -82,14 +90,15 @@ func NewServer(
 	)
 
 	s := &Server{
-		grpcServer:       grpcServer,
-		ca:               ca,
-		serverRepo:       serverRepo,
-		hub:              NewAgentHub(),
-		cmdQueue:         NewAgentCommandQueue(),
-		agentTokenStore:  agentTokenStore,
-		agentDownloadURL: buildAgentDownloadURL(cfg),
-		logger:           logger.With("component", "grpc"),
+		grpcServer:          grpcServer,
+		ca:                  ca,
+		serverRepo:          serverRepo,
+		hub:                 NewAgentHub(),
+		cmdQueue:            NewAgentCommandQueue(),
+		agentTokenStore:     agentTokenStore,
+		agentDownloadURL:    buildAgentDownloadURL(cfg),
+		agentUpdateNotifier: agentUpdateNotifier,
+		logger:              logger.With("component", "grpc"),
 	}
 
 	pb.RegisterAgentServiceServer(grpcServer, s)

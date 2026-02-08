@@ -55,15 +55,15 @@ func InitializeApplication() (*Application, func(), error) {
 		AuditService:     auditService,
 		Logger:           logger,
 	})
+	sseHandler := handler.NewSSEHandler()
 	tokenStore := agentdownload.NewTokenStore()
-	grpcserverServer := ProvideGrpcServer(config, certificateAuthority, postgresServerRepository, tokenStore, logger)
+	grpcserverServer := ProvideGrpcServer(config, certificateAuthority, postgresServerRepository, tokenStore, sseHandler, logger)
 	healthHandler := ProvideHealthHandler()
 	postgresDeploymentRepository := repository.NewPostgresDeploymentRepository(db)
 	manager := ProvideWebhookManager(config, logger)
 	appCleaner := ProvideAppCleaner(config, logger)
 	appService := ProvideAppService(postgresAppRepository, postgresDeploymentRepository, postgresEnvVarRepository, manager, appCleaner, logger)
 	appHandler := handler.NewAppHandler(appService, auditService, logger)
-	sseHandler := handler.NewSSEHandler()
 	swaggerHandler := handler.NewSwaggerHandler()
 	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository)
 	containerHealthHandler := handler.NewContainerHealthHandler(postgresAppRepository, engineEngine)
