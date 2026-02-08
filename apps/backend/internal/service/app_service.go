@@ -86,6 +86,37 @@ func (s *AppService) ListAppsWithDeployments() ([]domain.AppWithDeployment, erro
 	return result, nil
 }
 
+func (s *AppService) ListAppsByServerID(serverID string) ([]domain.AppWithDeployment, error) {
+	apps, err := s.appRepo.FindByServerID(serverID)
+	if err != nil {
+		return nil, err
+	}
+	if len(apps) == 0 {
+		return []domain.AppWithDeployment{}, nil
+	}
+
+	appIDs := make([]string, len(apps))
+	for i, app := range apps {
+		appIDs[i] = app.ID
+	}
+
+	deployments, err := s.deploymentRepo.FindMostRecentByAppIDs(appIDs)
+	if err != nil {
+		s.logger.Warn("failed to fetch deployments for server apps", "error", err)
+		deployments = make(map[string]*domain.Deployment)
+	}
+
+	result := make([]domain.AppWithDeployment, len(apps))
+	for i, app := range apps {
+		result[i] = domain.AppWithDeployment{App: app}
+		if deploy := deployments[app.ID]; deploy != nil {
+			result[i].LastDeployment = s.toDeploymentSummary(deploy)
+		}
+	}
+
+	return result, nil
+}
+
 func (s *AppService) toDeploymentSummary(d *domain.Deployment) *domain.DeploymentSummary {
 	summary := &domain.DeploymentSummary{
 		ID:            d.ID,

@@ -676,6 +676,7 @@ func ProvideServerHandler(
 	prov *provisioner.SSHProvisioner,
 	sseHandler *handler.SSEHandler,
 	agentDeps handler.ServerHandlerAgentDeps,
+	appService *service.AppService,
 	logger *slog.Logger,
 ) *handler.ServerHandler {
 	return handler.NewServerHandler(
@@ -684,6 +685,7 @@ func ProvideServerHandler(
 		prov,
 		sseHandler,
 		agentDeps,
+		appService,
 		logger,
 	)
 }

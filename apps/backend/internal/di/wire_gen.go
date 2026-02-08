@@ -96,7 +96,7 @@ func InitializeApplication() (*Application, func(), error) {
 	healthChecker := ProvideAgentHealthChecker(certificateAuthority, config)
 	agentClient := ProvideAgentClient(certificateAuthority, config)
 	serverHandlerAgentDeps := ProvideServerHandlerAgentDeps(healthChecker, agentClient, config, grpcserverServer)
-	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, serverHandlerAgentDeps, logger)
+	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, serverHandlerAgentDeps, appService, logger)
 	agentdownloadHandler := ProvideAgentDownloadHandler(tokenStore, config, logger)
 	application := &Application{
 		Config:                 config,

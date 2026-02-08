@@ -55,6 +55,7 @@ type AppRepository interface {
 	FindByID(id string) (*App, error)
 	FindByName(name string) (*App, error)
 	FindByRepoURL(repoURL string) (*App, error)
+	FindByServerID(serverID string) ([]App, error)
 	Create(input CreateAppInput) (*App, error)
 	Update(id string, input UpdateAppInput) (*App, error)
 	Delete(id string) error

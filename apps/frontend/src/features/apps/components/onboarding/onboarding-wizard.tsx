@@ -10,10 +10,17 @@ import { ReviewStep } from "./review-step";
 import { ServerStep } from "./server-step";
 import { INITIAL_DATA, ONBOARDING_STEPS, type OnboardingData } from "./types";
 
-export function OnboardingWizard() {
+interface OnboardingWizardProps {
+  readonly initialServerId?: string;
+}
+
+export function OnboardingWizard({ initialServerId }: OnboardingWizardProps) {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
-  const [data, setData] = useState<OnboardingData>(INITIAL_DATA);
+  const [data, setData] = useState<OnboardingData>(() => ({
+    ...INITIAL_DATA,
+    ...(initialServerId ? { serverId: initialServerId } : {}),
+  }));
 
   const handleUpdate = (updates: Partial<OnboardingData>) => {
     setData((prev) => ({ ...prev, ...updates }));

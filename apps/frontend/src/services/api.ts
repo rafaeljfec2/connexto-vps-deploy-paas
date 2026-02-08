@@ -873,5 +873,8 @@ export const api = {
       fetchApi<{ message: string }>(`${API_BASE}/servers/${id}/update-agent`, {
         method: "POST",
       }),
+
+    apps: (id: string): Promise<readonly App[]> =>
+      fetchApiList<App>(`${API_BASE}/servers/${id}/apps`),
   },
 };

@@ -39,7 +39,12 @@ type ServerHandler struct {
 	agentClient          *agentclient.AgentClient
 	agentPort            int
 	updateAgentEnqueuer  UpdateAgentEnqueuer
+	appService           AppsByServerLister
 	logger               *slog.Logger
+}
+
+type AppsByServerLister interface {
+	ListAppsByServerID(serverID string) ([]domain.AppWithDeployment, error)
 }
 
 func NewServerHandler(
@@ -48,6 +53,7 @@ func NewServerHandler(
 	prov *provisioner.SSHProvisioner,
 	sseHandler *SSEHandler,
 	agentDeps ServerHandlerAgentDeps,
+	appService AppsByServerLister,
 	logger *slog.Logger,
 ) *ServerHandler {
 	return &ServerHandler{
@@ -59,6 +65,7 @@ func NewServerHandler(
 		agentClient:        agentDeps.AgentClient,
 		agentPort:          agentDeps.AgentPort,
 		updateAgentEnqueuer: agentDeps.UpdateAgentEnqueuer,
+		appService:         appService,
 		logger:             logger.With("handler", "server"),
 	}
 }
@@ -75,6 +82,7 @@ func (h *ServerHandler) Register(app fiber.Router) {
 	servers.Post("/:id/provision", h.Provision)
 	servers.Post("/:id/update-agent", h.UpdateAgent)
 	servers.Get("/:id/health", h.HealthCheck)
+	servers.Get("/:id/apps", h.ListServerApps)
 }
 
 type ServerResponse struct {
@@ -485,4 +493,16 @@ func (h *ServerHandler) logProvisionFailure(c *fiber.Ctx, serverID string, err e
 		attrs = append(attrs, "traceId", tid)
 	}
 	h.logger.Error("provision failed", attrs...)
+}
+
+func (h *ServerHandler) ListServerApps(c *fiber.Ctx) error {
+	id := c.Params("id")
+
+	apps, err := h.appService.ListAppsByServerID(id)
+	if err != nil {
+		h.logger.Error("failed to list server apps", "serverId", id, "error", err)
+		return response.InternalError(c)
+	}
+
+	return response.OK(c, apps)
 }

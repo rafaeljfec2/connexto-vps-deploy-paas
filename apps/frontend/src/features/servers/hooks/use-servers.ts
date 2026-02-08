@@ -22,6 +22,18 @@ export function useServer(id: string | undefined) {
   });
 }
 
+export const SERVER_APPS_QUERY_KEY = (id: string) =>
+  [...SERVERS_QUERY_KEY, id, "apps"] as const;
+
+export function useServerApps(serverId: string | undefined) {
+  return useQuery({
+    queryKey: SERVER_APPS_QUERY_KEY(serverId ?? ""),
+    queryFn: () => api.servers.apps(serverId!),
+    enabled: Boolean(serverId),
+    staleTime: STALE_TIMES.SHORT,
+  });
+}
+
 export function useCreateServer() {
   const queryClient = useQueryClient();
   return useMutation({
