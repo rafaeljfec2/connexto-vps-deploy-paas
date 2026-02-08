@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
@@ -79,6 +80,8 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest) *pb.Deplo
 		e.rollback(ctx, req, appDir)
 		return e.failResponse(req, pb.DeployErrorCode_DEPLOY_ERROR_HEALTH_CHECK_FAILED, "health_check", err, startedAt)
 	}
+
+	go e.cleanupOldImages(req.AppName, imageTag)
 
 	completedAt := time.Now()
 	e.logger.Info("Deployment completed successfully",
@@ -257,6 +260,37 @@ func (e *Executor) rollback(ctx context.Context, req *pb.DeployRequest, appDir s
 	if err := e.docker.ComposeDown(ctx, appDir, req.AppId); err != nil {
 		e.logger.Error("Rollback compose down failed", "error", err)
 	}
+}
+
+func (e *Executor) cleanupOldImages(appName, currentTag string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	images, err := e.docker.ListImages(ctx, false)
+	if err != nil {
+		e.logger.Warn("Failed to list images for cleanup", "error", err)
+		return
+	}
+
+	parts := strings.SplitN(currentTag, ":", 2)
+	if len(parts) != 2 {
+		return
+	}
+	currentRepo := parts[0]
+
+	for _, img := range images {
+		if img.Repository != currentRepo {
+			continue
+		}
+		fullTag := img.Repository + ":" + img.Tag
+		if fullTag == currentTag {
+			continue
+		}
+		e.logger.Info("Removing old image", "tag", fullTag)
+		_ = e.docker.RemoveImage(ctx, fullTag)
+	}
+
+	_ = e.docker.PruneUnusedImages(ctx)
 }
 
 func (e *Executor) failResponse(req *pb.DeployRequest, code pb.DeployErrorCode, stage string, err error, startedAt time.Time) *pb.DeployResponse {
