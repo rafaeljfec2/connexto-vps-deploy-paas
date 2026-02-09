@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
-import { Check, Loader2, Rocket } from "lucide-react";
+import { Loader2, Rocket } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { api } from "@/services/api";
 import { ApiError } from "@/types";
 
@@ -75,41 +76,6 @@ function GitHubLogo({ className }: { readonly className?: string }) {
     </svg>
   );
 }
-
-function DockerLogo({ className }: { readonly className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden
-    >
-      <path d="M13.983 10.779h3.782V7.002h-3.782v3.777zm-5.393 0h3.782V7.002H8.59v3.777zm5.393 5.395h3.782v-3.777h-3.782v3.777zm-5.393 0h3.782v-3.777H8.59v3.777zm5.393-10.79h3.782V1.607h-3.782v3.777zM8.59 5.395h3.782V1.607H8.59v3.788zM2.197 10.779h3.782V7.002H2.197v3.777zm0 5.395h3.782v-3.777H2.197v3.777zm15.568 0h3.782v-3.777h-3.782v3.777zM2.197 5.395h3.782V1.607H2.197v3.788z" />
-    </svg>
-  );
-}
-
-function CloudflareLogo({ className }: { readonly className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden
-    >
-      <path d="M15.8 12.5l-3.5-6c-.2-.3-.5-.5-.8-.5s-.6.2-.8.5l-4 6.9c-.2.3-.2.7 0 1 .2.3.5.5.8.5h2.5v5c0 .3.2.5.5.5h2c.3 0 .5-.2.5-.5v-5h1.5c.3 0 .6-.2.8-.5.1-.3.1-.7-.2-1z" />
-    </svg>
-  );
-}
-
-const FEATURES = [
-  "Git-based automatic deployments",
-  "Automatic SSL certificates",
-  "Real-time logs and monitoring",
-  "Custom domains with Cloudflare",
-  "One-click rollbacks",
-  "Container console access",
-] as const;
 
 function EmailLoginForm({
   errorMessage,
@@ -221,95 +187,32 @@ export function LoginPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full min-h-0 items-center justify-center px-4">
+      <div className="flex h-dvh items-center justify-center">
         <div
           className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"
           aria-hidden="true"
         />
-        <output className="sr-only" aria-live="polite">
-          Checking authentication status
-        </output>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden md:flex-row">
-      <aside className="relative flex min-h-0 flex-col justify-between overflow-hidden bg-slate-100 bg-gradient-to-br from-slate-50 to-slate-200 px-6 py-8 dark:from-slate-900 dark:to-slate-800 dark:bg-slate-900 md:w-[40%] md:py-10 lg:w-1/2 lg:px-12 lg:py-12">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-100 dark:opacity-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
-          }}
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-0 opacity-0 dark:opacity-100"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)",
-            backgroundSize: "24px 24px",
-          }}
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-emerald-400/15 blur-3xl dark:bg-emerald-500/20"
-          aria-hidden
-        />
-        <div className="relative min-h-0 shrink-0">
-          <div className="flex flex-wrap items-center gap-2 text-slate-900 dark:text-white">
-            <Rocket
-              className="h-8 w-8 shrink-0 text-slate-900 dark:text-white"
-              aria-hidden
-            />
-            <span className="text-xl font-semibold tracking-tight">
-              FlowDeploy
-            </span>
-            <span className="rounded-md border border-slate-300 bg-slate-200/80 px-2 py-0.5 text-xs font-medium text-slate-700 dark:border-slate-600 dark:bg-slate-800/80 dark:text-slate-300">
-              Self-hosted
-            </span>
-          </div>
-          <h1 className="mt-8 text-2xl font-bold text-slate-900 sm:text-3xl dark:text-white md:mt-8 lg:mt-10 lg:text-4xl">
-            Deploy your applications with confidence
-          </h1>
-          <p className="mt-2 text-slate-600 text-sm dark:text-slate-400 lg:text-base">
-            The self-hosted PaaS that gives you full control
-          </p>
-          <ul className="mt-6 hidden space-y-3 md:mt-8 md:block lg:mt-8 lg:space-y-4">
-            {FEATURES.map((feature) => (
-              <li
-                key={feature}
-                className="flex items-center gap-3 text-slate-700 text-sm transition-colors hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-200 lg:text-base"
-              >
-                <Check
-                  className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-500"
-                  aria-hidden
-                />
-                <span>{feature}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="relative mt-6 flex shrink-0 flex-wrap items-center justify-center gap-4 border-t border-slate-300 pt-6 dark:border-slate-700/80 md:justify-start">
-          <span className="text-slate-600 text-xs dark:text-slate-500">
-            Powered by
-          </span>
-          <div className="flex items-center gap-5 text-slate-500 dark:text-slate-400">
-            <DockerLogo className="h-5 w-5" />
-            <GitHubLogo className="h-5 w-5" />
-            <CloudflareLogo className="h-5 w-5" />
-          </div>
-        </div>
-      </aside>
+    <div className="flex min-h-dvh flex-col bg-background">
+      <header className="flex items-center justify-between px-4 py-4 sm:px-6">
+        <Link
+          to={ROUTES.LANDING}
+          className="flex items-center gap-2 text-lg font-semibold"
+          aria-label="FlowDeploy - Home"
+        >
+          <Rocket className="h-6 w-6" aria-hidden="true" />
+          <span>FlowDeploy</span>
+        </Link>
+        <ThemeToggle />
+      </header>
 
-      <main className="flex min-h-0 flex-1 flex-col items-center justify-center bg-slate-50 px-6 py-8 dark:bg-background md:w-[60%] md:py-10 lg:w-1/2 lg:px-12 lg:py-12">
-        <Card className="w-full max-w-md border-slate-200 shadow-lg dark:border-border/80 dark:shadow-md">
+      <main className="flex flex-1 items-center justify-center px-4 py-8">
+        <Card className="w-full max-w-md shadow-lg">
           <CardHeader className="space-y-1.5 pb-4">
-            <div className="flex justify-center md:justify-start">
-              <Rocket className="h-10 w-10 shrink-0 text-primary" aria-hidden />
-            </div>
             <CardTitle className="text-2xl">Sign in to FlowDeploy</CardTitle>
             <CardDescription>
               Welcome back! Please sign in to continue.
@@ -322,15 +225,9 @@ export function LoginPage() {
             />
 
             <div className="relative flex items-center gap-3">
-              <span
-                className="flex-1 border-t border-slate-200 dark:border-border"
-                aria-hidden
-              />
+              <span className="flex-1 border-t border-border" aria-hidden />
               <span className="text-muted-foreground text-xs">or</span>
-              <span
-                className="flex-1 border-t border-slate-200 dark:border-border"
-                aria-hidden
-              />
+              <span className="flex-1 border-t border-border" aria-hidden />
             </div>
 
             <Button
@@ -354,12 +251,12 @@ export function LoginPage() {
               </Link>
             </p>
           </CardContent>
-          <CardFooter className="flex justify-center border-t border-slate-200 pt-6 dark:border-border/50">
+          <CardFooter className="flex justify-center border-t pt-6">
             <p className="text-center text-muted-foreground text-xs">
               By signing in, you agree to our{" "}
               <Link
                 to={ROUTES.TERMS}
-                className="text-primary underline hover:opacity-90 dark:hover:text-foreground"
+                className="text-primary underline hover:opacity-90"
               >
                 Terms of Service
               </Link>

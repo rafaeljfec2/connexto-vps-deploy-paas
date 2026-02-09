@@ -34,7 +34,7 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-[env(safe-area-inset-top)]">
       <div className="container flex h-14 sm:h-16 items-center">
         <Link
-          to={ROUTES.HOME}
+          to={isAuthenticated ? ROUTES.HOME : ROUTES.LANDING}
           className="flex items-center gap-2 font-semibold text-lg"
           aria-label="FlowDeploy - Go to home"
         >

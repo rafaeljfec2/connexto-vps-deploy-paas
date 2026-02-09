@@ -92,7 +92,7 @@ export function RegisterPage() {
 
   if (isLoading) {
     return (
-      <div className="flex h-full min-h-0 items-center justify-center px-4">
+      <div className="flex min-h-dvh items-center justify-center px-4">
         <div
           className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"
           aria-hidden="true"
@@ -105,7 +105,7 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 items-center justify-center bg-slate-50 px-4 dark:bg-background">
+    <div className="flex min-h-dvh items-center justify-center bg-slate-50 px-4 py-8 dark:bg-background">
       <Card className="w-full max-w-md border-slate-200 shadow-lg dark:border-border/80 dark:shadow-md">
         <CardHeader className="space-y-1.5 pb-4">
           <div className="flex justify-center">
