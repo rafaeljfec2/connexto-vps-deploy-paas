@@ -1,6 +1,7 @@
 {
   "name": "@paasdeploy/backend",
   "private": true,
+  "license": "UNLICENSED",
   "version": "0.1.2",
   "scripts": {
     "dev": "air",

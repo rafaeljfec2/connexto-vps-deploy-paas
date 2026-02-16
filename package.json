@@ -2,6 +2,7 @@
   "name": "paasdeploy",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "description": "A lightweight, self-hosted PaaS for automatic deployments",
   "scripts": {
     "prepare": "husky",
