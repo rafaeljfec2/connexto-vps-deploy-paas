@@ -20,7 +20,7 @@ func NewContainerExecHandler(logger *slog.Logger) *ContainerExecHandler {
 	return &ContainerExecHandler{logger: logger}
 }
 
-func (h *ContainerExecHandler) Register(app *fiber.App) {
+func (h *ContainerExecHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/containers/:id/console", websocket.New(h.handleConsole,
 		websocket.Config{

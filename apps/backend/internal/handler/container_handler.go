@@ -36,7 +36,7 @@ func NewContainerHandler(docker *docker.Client, logger *slog.Logger) *ContainerH
 	}
 }
 
-func (h *ContainerHandler) Register(app *fiber.App) {
+func (h *ContainerHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/containers", h.ListContainers)
 	v1.Get("/containers/:id", h.GetContainer)

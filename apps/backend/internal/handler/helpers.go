@@ -54,6 +54,18 @@ func EnsureAppExists(c *fiber.Ctx, appRepo domain.AppRepository, appID string) e
 	return nil
 }
 
+func EnsureAppOwnership(c *fiber.Ctx, appRepo domain.AppRepository, appID string) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+	_, err := appRepo.FindByIDAndUserID(appID, user.ID)
+	if err != nil {
+		return HandleNotFoundOrInternal(c, err, MsgAppNotFound)
+	}
+	return nil
+}
+
 func ToEnvVarResponses(vars []domain.EnvVar) []domain.EnvVarResponse {
 	responses := make([]domain.EnvVarResponse, len(vars))
 	for i, v := range vars {

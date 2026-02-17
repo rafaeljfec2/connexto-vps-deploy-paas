@@ -32,7 +32,7 @@ func NewAppHandler(
 	}
 }
 
-func (h *AppHandler) Register(app *fiber.App) {
+func (h *AppHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 
 	apps := v1.Group("/apps")
@@ -50,6 +50,14 @@ func (h *AppHandler) Register(app *fiber.App) {
 	apps.Get("/:id/commits", h.ListCommits)
 }
 
+func (h *AppHandler) requireAuth(c *fiber.Ctx) (*domain.User, error) {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return nil, response.Unauthorized(c, MsgNotAuthenticated)
+	}
+	return user, nil
+}
+
 // ListApps godoc
 //
 //	@Summary		Lista todas as aplicacoes
@@ -60,7 +68,12 @@ func (h *AppHandler) Register(app *fiber.App) {
 //	@Failure		500	{object}	docs.ErrorInfo
 //	@Router			/apps [get]
 func (h *AppHandler) ListApps(c *fiber.Ctx) error {
-	apps, err := h.appService.ListAppsWithDeployments()
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
+	apps, err := h.appService.ListAppsWithDeployments(user.ID)
 	if err != nil {
 		return h.handleError(c, err)
 	}
@@ -81,10 +94,17 @@ func (h *AppHandler) ListApps(c *fiber.Ctx) error {
 //	@Failure		409		{object}	docs.ErrorInfo
 //	@Router			/apps [post]
 func (h *AppHandler) CreateApp(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	var input domain.CreateAppInput
 	if err := c.BodyParser(&input); err != nil {
 		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
+
+	input.UserID = user.ID
 
 	app, err := h.appService.CreateApp(c.Context(), input)
 	if err != nil {
@@ -110,9 +130,14 @@ func (h *AppHandler) CreateApp(c *fiber.Ctx) error {
 //	@Failure		404	{object}	docs.ErrorInfo
 //	@Router			/apps/{id} [get]
 func (h *AppHandler) GetApp(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	id := c.Params("id")
 
-	app, err := h.appService.GetApp(id)
+	app, err := h.appService.GetAppForUser(id, user.ID)
 	if err != nil {
 		return h.handleError(c, err)
 	}
@@ -131,10 +156,15 @@ func (h *AppHandler) GetApp(c *fiber.Ctx) error {
 //	@Failure		404	{object}	docs.ErrorInfo
 //	@Router			/apps/{id} [delete]
 func (h *AppHandler) DeleteApp(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	id := c.Params("id")
 	purge := c.QueryBool("purge", false)
 
-	app, err := h.appService.GetApp(id)
+	app, err := h.appService.GetAppForUser(id, user.ID)
 	if err != nil {
 		return h.handleError(c, err)
 	}
@@ -172,7 +202,16 @@ func (h *AppHandler) DeleteApp(c *fiber.Ctx) error {
 //	@Failure		404	{object}	docs.ErrorInfo
 //	@Router			/apps/{id}/deployments [get]
 func (h *AppHandler) ListDeployments(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	appID := c.Params("id")
+
+	if _, err := h.appService.GetAppForUser(appID, user.ID); err != nil {
+		return h.handleError(c, err)
+	}
 
 	deployments, err := h.appService.ListDeployments(appID)
 	if err != nil {
@@ -196,7 +235,17 @@ func (h *AppHandler) ListDeployments(c *fiber.Ctx) error {
 //	@Failure		409		{object}	docs.ErrorInfo
 //	@Router			/apps/{id}/redeploy [post]
 func (h *AppHandler) TriggerRedeploy(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	appID := c.Params("id")
+
+	app, err := h.appService.GetAppForUser(appID, user.ID)
+	if err != nil {
+		return h.handleError(c, err)
+	}
 
 	var input struct {
 		CommitSHA string `json:"commitSha,omitempty"`
@@ -209,11 +258,8 @@ func (h *AppHandler) TriggerRedeploy(c *fiber.Ctx) error {
 	}
 
 	if h.auditService != nil {
-		app, _ := h.appService.GetApp(appID)
-		if app != nil {
-			auditCtx := h.auditService.ExtractContext(c)
-			h.auditService.LogDeployStarted(c.Context(), auditCtx, deployment.ID, app.ID, app.Name, deployment.CommitSHA)
-		}
+		auditCtx := h.auditService.ExtractContext(c)
+		h.auditService.LogDeployStarted(c.Context(), auditCtx, deployment.ID, app.ID, app.Name, deployment.CommitSHA)
 	}
 
 	return response.Created(c, deployment)
@@ -230,7 +276,17 @@ func (h *AppHandler) TriggerRedeploy(c *fiber.Ctx) error {
 //	@Failure		404	{object}	docs.ErrorInfo
 //	@Router			/apps/{id}/rollback [post]
 func (h *AppHandler) TriggerRollback(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	appID := c.Params("id")
+
+	app, err := h.appService.GetAppForUser(appID, user.ID)
+	if err != nil {
+		return h.handleError(c, err)
+	}
 
 	deployment, err := h.appService.TriggerRollback(appID)
 	if err != nil {
@@ -238,11 +294,8 @@ func (h *AppHandler) TriggerRollback(c *fiber.Ctx) error {
 	}
 
 	if h.auditService != nil {
-		app, _ := h.appService.GetApp(appID)
-		if app != nil {
-			auditCtx := h.auditService.ExtractContext(c)
-			h.auditService.LogDeployStarted(c.Context(), auditCtx, deployment.ID, app.ID, app.Name, deployment.CommitSHA)
-		}
+		auditCtx := h.auditService.ExtractContext(c)
+		h.auditService.LogDeployStarted(c.Context(), auditCtx, deployment.ID, app.ID, app.Name, deployment.CommitSHA)
 	}
 
 	return response.Created(c, deployment)
@@ -260,7 +313,16 @@ func (h *AppHandler) TriggerRollback(c *fiber.Ctx) error {
 //	@Failure		404	{object}	docs.ErrorInfo
 //	@Router			/apps/{id}/webhook [post]
 func (h *AppHandler) SetupWebhook(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	id := c.Params("id")
+
+	if _, err := h.appService.GetAppForUser(id, user.ID); err != nil {
+		return h.handleError(c, err)
+	}
 
 	result, err := h.appService.SetupWebhook(c.Context(), id)
 	if err != nil {
@@ -280,7 +342,16 @@ func (h *AppHandler) SetupWebhook(c *fiber.Ctx) error {
 //	@Failure		404	{object}	docs.ErrorInfo
 //	@Router			/apps/{id}/webhook [delete]
 func (h *AppHandler) RemoveWebhook(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	id := c.Params("id")
+
+	if _, err := h.appService.GetAppForUser(id, user.ID); err != nil {
+		return h.handleError(c, err)
+	}
 
 	if err := h.appService.RemoveWebhook(c.Context(), id); err != nil {
 		return h.handleError(c, err)
@@ -300,7 +371,16 @@ func (h *AppHandler) RemoveWebhook(c *fiber.Ctx) error {
 //	@Failure		404	{object}	docs.ErrorInfo
 //	@Router			/apps/{id}/webhook/status [get]
 func (h *AppHandler) GetWebhookStatus(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	id := c.Params("id")
+
+	if _, err := h.appService.GetAppForUser(id, user.ID); err != nil {
+		return h.handleError(c, err)
+	}
 
 	status, err := h.appService.GetWebhookStatus(c.Context(), id)
 	if err != nil {
@@ -322,8 +402,17 @@ func (h *AppHandler) GetWebhookStatus(c *fiber.Ctx) error {
 //	@Failure		404		{object}	docs.ErrorInfo
 //	@Router			/apps/{id}/commits [get]
 func (h *AppHandler) ListCommits(c *fiber.Ctx) error {
+	user, err := h.requireAuth(c)
+	if err != nil {
+		return err
+	}
+
 	id := c.Params("id")
 	limit := c.QueryInt("limit", 20)
+
+	if _, err := h.appService.GetAppForUser(id, user.ID); err != nil {
+		return h.handleError(c, err)
+	}
 
 	commits, err := h.appService.ListCommits(c.Context(), id, limit)
 	if err != nil {

@@ -22,7 +22,7 @@ func NewImageHandler(docker *docker.Client, logger *slog.Logger) *ImageHandler {
 	}
 }
 
-func (h *ImageHandler) Register(app *fiber.App) {
+func (h *ImageHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/images", h.ListImages)
 	v1.Get("/images/dangling", h.ListDanglingImages)

@@ -26,7 +26,7 @@ func NewAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, dataDi
 	}
 }
 
-func (h *AppAdminHandler) Register(app *fiber.App) {
+func (h *AppAdminHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 
 	apps := v1.Group("/apps")
@@ -38,6 +38,20 @@ func (h *AppAdminHandler) Register(app *fiber.App) {
 	apps.Patch("/:id", h.UpdateApp)
 }
 
+func (h *AppAdminHandler) requireAppForUser(c *fiber.Ctx) (*domain.App, error) {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return nil, response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
+	id := c.Params("id")
+	app, err := h.appRepo.FindByIDAndUserID(id, user.ID)
+	if err != nil {
+		return nil, response.NotFound(c, MsgAppNotFound)
+	}
+	return app, nil
+}
+
 type AppURLResponse struct {
 	URL      string `json:"url"`
 	Port     int    `json:"port"`
@@ -45,11 +59,9 @@ type AppURLResponse struct {
 }
 
 func (h *AppAdminHandler) GetAppURL(c *fiber.Ctx) error {
-	id := c.Params("id")
-
-	app, err := h.appRepo.FindByID(id)
+	app, err := h.requireAppForUser(c)
 	if err != nil {
-		return response.NotFound(c, MsgAppNotFound)
+		return err
 	}
 
 	config, err := h.readAppConfig(app.ID, app.Workdir)
@@ -99,11 +111,9 @@ type ResourcesConfig struct {
 }
 
 func (h *AppAdminHandler) GetAppConfig(c *fiber.Ctx) error {
-	id := c.Params("id")
-
-	app, err := h.appRepo.FindByID(id)
+	app, err := h.requireAppForUser(c)
 	if err != nil {
-		return response.NotFound(c, MsgAppNotFound)
+		return err
 	}
 
 	config, err := h.readAppConfig(app.ID, app.Workdir)
@@ -136,11 +146,9 @@ type ContainerActionResponse struct {
 }
 
 func (h *AppAdminHandler) RestartContainer(c *fiber.Ctx) error {
-	id := c.Params("id")
-
-	app, err := h.appRepo.FindByID(id)
+	app, err := h.requireAppForUser(c)
 	if err != nil {
-		return response.NotFound(c, MsgAppNotFound)
+		return err
 	}
 
 	if err := h.engine.RestartContainer(c.Context(), app.Name); err != nil {
@@ -157,11 +165,9 @@ func (h *AppAdminHandler) RestartContainer(c *fiber.Ctx) error {
 }
 
 func (h *AppAdminHandler) StopContainer(c *fiber.Ctx) error {
-	id := c.Params("id")
-
-	app, err := h.appRepo.FindByID(id)
+	app, err := h.requireAppForUser(c)
 	if err != nil {
-		return response.NotFound(c, MsgAppNotFound)
+		return err
 	}
 
 	if err := h.engine.StopContainer(c.Context(), app.Name); err != nil {
@@ -178,11 +184,9 @@ func (h *AppAdminHandler) StopContainer(c *fiber.Ctx) error {
 }
 
 func (h *AppAdminHandler) StartContainer(c *fiber.Ctx) error {
-	id := c.Params("id")
-
-	app, err := h.appRepo.FindByID(id)
+	app, err := h.requireAppForUser(c)
 	if err != nil {
-		return response.NotFound(c, MsgAppNotFound)
+		return err
 	}
 
 	if err := h.engine.StartContainer(c.Context(), app.Name); err != nil {
@@ -204,16 +208,14 @@ type UpdateAppInput struct {
 }
 
 func (h *AppAdminHandler) UpdateApp(c *fiber.Ctx) error {
-	id := c.Params("id")
+	app, err := h.requireAppForUser(c)
+	if err != nil {
+		return err
+	}
 
 	var input UpdateAppInput
 	if err := c.BodyParser(&input); err != nil {
 		return response.BadRequest(c, MsgInvalidRequestBody)
-	}
-
-	app, err := h.appRepo.FindByID(id)
-	if err != nil {
-		return response.NotFound(c, MsgAppNotFound)
 	}
 
 	updateInput := domain.UpdateAppInput{}

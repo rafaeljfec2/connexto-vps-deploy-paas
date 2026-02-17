@@ -15,6 +15,7 @@ const (
 
 type App struct {
 	ID             string          `json:"id"`
+	UserID         string          `json:"userId"`
 	Name           string          `json:"name"`
 	RepositoryURL  string          `json:"repositoryUrl"`
 	Branch         string          `json:"branch"`
@@ -30,6 +31,7 @@ type App struct {
 }
 
 type CreateAppInput struct {
+	UserID        string          `json:"-"`
 	Name          string          `json:"name"`
 	RepositoryURL string          `json:"repositoryUrl"`
 	Branch        string          `json:"branch"`
@@ -52,7 +54,9 @@ type UpdateAppInput struct {
 
 type AppRepository interface {
 	FindAll() ([]App, error)
+	FindAllByUserID(userID string) ([]App, error)
 	FindByID(id string) (*App, error)
+	FindByIDAndUserID(id, userID string) (*App, error)
 	FindByName(name string) (*App, error)
 	FindByRepoURL(repoURL string) (*App, error)
 	FindByServerID(serverID string) ([]App, error)

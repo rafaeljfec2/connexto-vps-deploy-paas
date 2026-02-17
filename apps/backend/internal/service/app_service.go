@@ -55,8 +55,8 @@ func (s *AppService) ListApps() ([]domain.App, error) {
 	return apps, nil
 }
 
-func (s *AppService) ListAppsWithDeployments() ([]domain.AppWithDeployment, error) {
-	apps, err := s.appRepo.FindAll()
+func (s *AppService) ListAppsWithDeployments(userID string) ([]domain.AppWithDeployment, error) {
+	apps, err := s.appRepo.FindAllByUserID(userID)
 	if err != nil {
 		return nil, err
 	}
@@ -86,11 +86,19 @@ func (s *AppService) ListAppsWithDeployments() ([]domain.AppWithDeployment, erro
 	return result, nil
 }
 
-func (s *AppService) ListAppsByServerID(serverID string) ([]domain.AppWithDeployment, error) {
-	apps, err := s.appRepo.FindByServerID(serverID)
+func (s *AppService) ListAppsByServerID(serverID, userID string) ([]domain.AppWithDeployment, error) {
+	allApps, err := s.appRepo.FindByServerID(serverID)
 	if err != nil {
 		return nil, err
 	}
+
+	var apps []domain.App
+	for _, app := range allApps {
+		if app.UserID == userID {
+			apps = append(apps, app)
+		}
+	}
+
 	if len(apps) == 0 {
 		return []domain.AppWithDeployment{}, nil
 	}
@@ -138,6 +146,10 @@ func (s *AppService) toDeploymentSummary(d *domain.Deployment) *domain.Deploymen
 
 func (s *AppService) GetApp(id string) (*domain.App, error) {
 	return s.appRepo.FindByID(id)
+}
+
+func (s *AppService) GetAppForUser(id, userID string) (*domain.App, error) {
+	return s.appRepo.FindByIDAndUserID(id, userID)
 }
 
 func (s *AppService) CreateApp(ctx context.Context, input domain.CreateAppInput) (*domain.App, error) {

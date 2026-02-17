@@ -19,7 +19,7 @@ func NewResourceHandler(docker *docker.Client, logger *slog.Logger) *ResourceHan
 	return &ResourceHandler{docker: docker, logger: logger}
 }
 
-func (h *ResourceHandler) Register(app *fiber.App) {
+func (h *ResourceHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/networks", h.ListNetworks)
 	v1.Post("/networks", h.CreateNetwork)

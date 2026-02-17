@@ -63,7 +63,7 @@ func NewSSEHandler() *SSEHandler {
 	}
 }
 
-func (h *SSEHandler) Register(app *fiber.App) {
+func (h *SSEHandler) Register(app fiber.Router) {
 	app.Get("/events/deploys", h.Stream)
 }
 

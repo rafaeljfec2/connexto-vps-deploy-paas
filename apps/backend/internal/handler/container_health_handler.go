@@ -34,7 +34,7 @@ func NewContainerHealthHandler(appRepo domain.AppRepository, eng *engine.Engine)
 	}
 }
 
-func (h *ContainerHealthHandler) Register(app *fiber.App) {
+func (h *ContainerHealthHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/apps/:id/health", h.GetAppHealth)
 	v1.Get("/apps/:id/container/logs", h.GetContainerLogs)
@@ -43,6 +43,10 @@ func (h *ContainerHealthHandler) Register(app *fiber.App) {
 
 func (h *ContainerHealthHandler) GetAppHealth(c *fiber.Ctx) error {
 	id := c.Params("id")
+
+	if err := EnsureAppOwnership(c, h.appRepo, id); err != nil {
+		return err
+	}
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {
@@ -80,6 +84,10 @@ func (h *ContainerHealthHandler) GetContainerLogs(c *fiber.Ctx) error {
 	tail, err := strconv.Atoi(tailStr)
 	if err != nil {
 		tail = 100
+	}
+
+	if err := EnsureAppOwnership(c, h.appRepo, id); err != nil {
+		return err
 	}
 
 	app, err := h.appRepo.FindByID(id)
@@ -153,6 +161,10 @@ type ContainerStatsResponse struct {
 
 func (h *ContainerHealthHandler) GetContainerStats(c *fiber.Ctx) error {
 	id := c.Params("id")
+
+	if err := EnsureAppOwnership(c, h.appRepo, id); err != nil {
+		return err
+	}
 
 	app, err := h.appRepo.FindByID(id)
 	if err != nil {

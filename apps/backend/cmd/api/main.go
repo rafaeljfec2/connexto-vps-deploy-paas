@@ -154,30 +154,7 @@ func registerHandlers(app *di.Application) {
 		app.Server.App().Use(app.AuthMiddleware.Optional())
 	}
 
-	app.AppHandler.Register(app.Server.App())
-	app.EnvVarHandler.Register(app.Server.App())
-	app.SSEHandler.Register(app.Server.App())
-	app.ContainerHealthHandler.Register(app.Server.App())
-	app.AppAdminHandler.Register(app.Server.App())
 	app.WebhookHandler.Register(app.Server.App())
-	app.ContainerHandler.Register(app.Server.App())
-	app.ContainerExecHandler.Register(app.Server.App())
-	app.TemplateHandler.Register(app.Server.App())
-
-	if app.ImageHandler != nil {
-		app.ImageHandler.Register(app.Server.App())
-	}
-	if app.ResourceHandler != nil {
-		app.ResourceHandler.Register(app.Server.App())
-	}
-
-	if app.CertificateHandler != nil {
-		app.CertificateHandler.RegisterRoutes(app.Server.App().Group("/api"))
-	}
-
-	if app.AuditHandler != nil {
-		app.AuditHandler.Register(app.Server.App().Group(handler.APIPrefix))
-	}
 
 	if app.AgentDownloadHandler != nil {
 		app.Server.App().Get("/paas-deploy/v1/agent/binary", app.AgentDownloadHandler.ServeBinary)
@@ -199,6 +176,26 @@ func registerProtectedRoutes(app *di.Application) {
 	registerOptionalProtectedHandler(app.MigrationHandler, authRequired)
 	registerOptionalProtectedHandler(app.NotificationHandler, authRequired)
 	registerOptionalProtectedHandler(app.ServerHandler, authRequired)
+
+	app.AppHandler.Register(authRequired)
+	app.EnvVarHandler.Register(authRequired)
+	app.SSEHandler.Register(authRequired)
+	app.ContainerHealthHandler.Register(authRequired)
+	app.AppAdminHandler.Register(authRequired)
+	app.ContainerHandler.Register(authRequired)
+	app.ContainerExecHandler.Register(authRequired)
+	app.TemplateHandler.Register(authRequired)
+
+	registerOptionalProtectedHandler(app.ImageHandler, authRequired)
+	registerOptionalProtectedHandler(app.ResourceHandler, authRequired)
+
+	if app.CertificateHandler != nil {
+		app.CertificateHandler.RegisterRoutes(authRequired.Group("/api"))
+	}
+
+	if app.AuditHandler != nil {
+		app.AuditHandler.Register(authRequired.Group(handler.APIPrefix))
+	}
 }
 
 type protectedRegistrar interface {

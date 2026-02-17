@@ -44,7 +44,7 @@ type ServerHandler struct {
 }
 
 type AppsByServerLister interface {
-	ListAppsByServerID(serverID string) ([]domain.AppWithDeployment, error)
+	ListAppsByServerID(serverID, userID string) ([]domain.AppWithDeployment, error)
 }
 
 func NewServerHandler(
@@ -496,9 +496,14 @@ func (h *ServerHandler) logProvisionFailure(c *fiber.Ctx, serverID string, err e
 }
 
 func (h *ServerHandler) ListServerApps(c *fiber.Ctx) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
 	id := c.Params("id")
 
-	apps, err := h.appService.ListAppsByServerID(id)
+	apps, err := h.appService.ListAppsByServerID(id, user.ID)
 	if err != nil {
 		h.logger.Error("failed to list server apps", "serverId", id, "error", err)
 		return response.InternalError(c)

@@ -20,7 +20,7 @@ func NewTemplateHandler(docker *docker.Client, logger *slog.Logger) *TemplateHan
 	}
 }
 
-func (h *TemplateHandler) Register(app *fiber.App) {
+func (h *TemplateHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/templates", h.ListTemplates)
 	v1.Get("/templates/:id", h.GetTemplate)

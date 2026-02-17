@@ -18,7 +18,7 @@ func NewEnvVarHandler(envVarRepo domain.EnvVarRepository, appRepo domain.AppRepo
 	}
 }
 
-func (h *EnvVarHandler) Register(app *fiber.App) {
+func (h *EnvVarHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	apps := v1.Group("/apps")
 
@@ -32,7 +32,7 @@ func (h *EnvVarHandler) Register(app *fiber.App) {
 func (h *EnvVarHandler) ListEnvVars(c *fiber.Ctx) error {
 	appID := c.Params("id")
 
-	if err := EnsureAppExists(c, h.appRepo, appID); err != nil {
+	if err := EnsureAppOwnership(c, h.appRepo, appID); err != nil {
 		return err
 	}
 
@@ -47,7 +47,7 @@ func (h *EnvVarHandler) ListEnvVars(c *fiber.Ctx) error {
 func (h *EnvVarHandler) CreateEnvVar(c *fiber.Ctx) error {
 	appID := c.Params("id")
 
-	if err := EnsureAppExists(c, h.appRepo, appID); err != nil {
+	if err := EnsureAppOwnership(c, h.appRepo, appID); err != nil {
 		return err
 	}
 
@@ -71,7 +71,7 @@ func (h *EnvVarHandler) CreateEnvVar(c *fiber.Ctx) error {
 func (h *EnvVarHandler) BulkUpsertEnvVars(c *fiber.Ctx) error {
 	appID := c.Params("id")
 
-	if err := EnsureAppExists(c, h.appRepo, appID); err != nil {
+	if err := EnsureAppOwnership(c, h.appRepo, appID); err != nil {
 		return err
 	}
 

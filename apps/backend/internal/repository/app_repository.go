@@ -9,7 +9,7 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
-const appSelectColumns = `id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, server_id, last_deployed_at, created_at, updated_at`
+const appSelectColumns = `id, user_id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, server_id, last_deployed_at, created_at, updated_at`
 
 type PostgresAppRepository struct {
 	db *sql.DB
@@ -30,6 +30,7 @@ type appScanFields struct {
 func (f *appScanFields) scanDest() []any {
 	return []any{
 		&f.app.ID,
+		&f.app.UserID,
 		&f.app.Name,
 		&f.app.RepositoryURL,
 		&f.app.Branch,
@@ -97,9 +98,39 @@ func (r *PostgresAppRepository) FindAll() ([]domain.App, error) {
 	return apps, nil
 }
 
+func (r *PostgresAppRepository) FindAllByUserID(userID string) ([]domain.App, error) {
+	query := `SELECT ` + appSelectColumns + ` FROM apps WHERE user_id = $1 AND status != 'deleted' ORDER BY created_at DESC`
+
+	rows, err := r.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var apps []domain.App
+	for rows.Next() {
+		var f appScanFields
+		if err := rows.Scan(f.scanDest()...); err != nil {
+			return nil, err
+		}
+		apps = append(apps, *f.toApp())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return apps, nil
+}
+
 func (r *PostgresAppRepository) FindByID(id string) (*domain.App, error) {
 	query := `SELECT ` + appSelectColumns + ` FROM apps WHERE id = $1 AND status != 'deleted'`
 	return r.scanApp(r.db.QueryRow(query, id))
+}
+
+func (r *PostgresAppRepository) FindByIDAndUserID(id, userID string) (*domain.App, error) {
+	query := `SELECT ` + appSelectColumns + ` FROM apps WHERE id = $1 AND user_id = $2 AND status != 'deleted'`
+	return r.scanApp(r.db.QueryRow(query, id, userID))
 }
 
 func (r *PostgresAppRepository) FindByName(name string) (*domain.App, error) {
@@ -154,8 +185,8 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 	}
 
 	query := `
-		INSERT INTO apps (name, repository_url, branch, workdir, config, server_id, status, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW(), NOW())
+		INSERT INTO apps (user_id, name, repository_url, branch, workdir, config, server_id, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW(), NOW())
 		RETURNING ` + appSelectColumns
 
 	var serverID interface{}
@@ -163,7 +194,7 @@ func (r *PostgresAppRepository) Create(input domain.CreateAppInput) (*domain.App
 		serverID = *input.ServerID
 	}
 
-	row := r.db.QueryRow(query, input.Name, input.RepositoryURL, branch, workdir, config, serverID)
+	row := r.db.QueryRow(query, input.UserID, input.Name, input.RepositoryURL, branch, workdir, config, serverID)
 
 	var f appScanFields
 	if err := row.Scan(f.scanDest()...); err != nil {
