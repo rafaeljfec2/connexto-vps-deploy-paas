@@ -41,7 +41,7 @@ interface WebhookActions {
 
 interface WebhookStatusData {
   readonly active?: boolean;
-  readonly configuredUrl?: string;
+  readonly configuredUrl?: string | null;
 }
 
 interface DeploymentConfigSectionProps {
@@ -312,10 +312,10 @@ function VolumesSection({
 }
 
 export interface AppSettingsSectionProps {
-  readonly appConfig: UseAppConfigReturn["data"];
+  readonly appConfig: AppConfigData | undefined;
   readonly webhookId: number | null;
-  readonly webhookStatus: UseWebhookStatusReturn["data"];
-  readonly actions: UseAppActionsReturn;
+  readonly webhookStatus: WebhookStatusData | null | undefined;
+  readonly actions: WebhookActions;
   readonly appId: string;
   readonly containerId?: string;
   readonly containerNetworks?: readonly string[];

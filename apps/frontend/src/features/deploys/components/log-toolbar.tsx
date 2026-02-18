@@ -39,17 +39,8 @@ const FILTER_LABELS: Record<DeployLogType, string> = {
 };
 
 export interface LogToolbarProps {
-  readonly search: string;
-  readonly onSearchChange: (value: string) => void;
   readonly showSearch: boolean;
   readonly onShowSearchToggle: () => void;
-  readonly filterTypes: readonly DeployLogType[];
-  readonly onFilterTypeToggle: (type: DeployLogType) => void;
-  readonly onClearFilters: () => void;
-  readonly matchingLineNumbers: readonly number[];
-  readonly currentMatchIndex: number;
-  readonly onPreviousMatch: () => void;
-  readonly onNextMatch: () => void;
   readonly onCopy: () => void;
   readonly copied: boolean;
   readonly onExpand?: () => void;
@@ -58,17 +49,8 @@ export interface LogToolbarProps {
 }
 
 export function LogToolbar({
-  search,
-  onSearchChange,
   showSearch,
   onShowSearchToggle,
-  filterTypes,
-  onFilterTypeToggle,
-  onClearFilters,
-  matchingLineNumbers,
-  currentMatchIndex,
-  onPreviousMatch,
-  onNextMatch,
   onCopy,
   copied,
   onExpand,

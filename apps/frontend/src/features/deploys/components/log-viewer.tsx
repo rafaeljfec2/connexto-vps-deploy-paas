@@ -231,19 +231,8 @@ export function LogViewer({
         <div className="relative">
           <div className="absolute top-2 right-2 z-10 flex gap-1">
             <LogToolbar
-              search={filters.search}
-              onSearchChange={(v) =>
-                setFilters((prev) => ({ ...prev, search: v }))
-              }
               showSearch={showSearch}
               onShowSearchToggle={() => setShowSearch(!showSearch)}
-              filterTypes={filters.types}
-              onFilterTypeToggle={toggleTypeFilter}
-              onClearFilters={clearFilters}
-              matchingLineNumbers={matchingLineNumbers}
-              currentMatchIndex={currentMatchIndex}
-              onPreviousMatch={goToPreviousMatch}
-              onNextMatch={goToNextMatch}
               onCopy={handleCopy}
               copied={copied}
               onExpand={() => setIsExpanded(true)}
@@ -274,19 +263,8 @@ export function LogViewer({
               </DialogTitle>
               <div className="flex items-center gap-1">
                 <LogToolbar
-                  search={filters.search}
-                  onSearchChange={(v) =>
-                    setFilters((prev) => ({ ...prev, search: v }))
-                  }
                   showSearch={showSearch}
                   onShowSearchToggle={() => setShowSearch(!showSearch)}
-                  filterTypes={filters.types}
-                  onFilterTypeToggle={toggleTypeFilter}
-                  onClearFilters={clearFilters}
-                  matchingLineNumbers={matchingLineNumbers}
-                  currentMatchIndex={currentMatchIndex}
-                  onPreviousMatch={goToPreviousMatch}
-                  onNextMatch={goToNextMatch}
                   onCopy={handleCopy}
                   copied={copied}
                   onMinimize={() => setIsExpanded(false)}
