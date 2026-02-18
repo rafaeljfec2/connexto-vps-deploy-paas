@@ -16,6 +16,7 @@ const (
 
 type Server struct {
 	ID                   string       `json:"id"`
+	UserID               string       `json:"userId"`
 	Name                 string       `json:"name"`
 	Host                 string       `json:"host"`
 	SSHPort              int          `json:"sshPort"`
@@ -31,6 +32,7 @@ type Server struct {
 }
 
 type CreateServerInput struct {
+	UserID               string  `json:"-"`
 	Name                 string  `json:"name"`
 	Host                 string  `json:"host"`
 	SSHPort              int     `json:"sshPort"`
@@ -54,7 +56,9 @@ type UpdateServerInput struct {
 type ServerRepository interface {
 	Create(input CreateServerInput) (*Server, error)
 	FindByID(id string) (*Server, error)
+	FindByIDForUser(id string, userID string) (*Server, error)
 	FindAll() ([]Server, error)
+	FindAllByUserID(userID string) ([]Server, error)
 	Update(id string, input UpdateServerInput) (*Server, error)
 	UpdateHeartbeat(id string, agentVersion string) error
 	Delete(id string) error

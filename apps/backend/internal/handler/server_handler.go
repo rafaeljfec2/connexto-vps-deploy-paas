@@ -177,13 +177,27 @@ func applyUpdateSSHCredentials(encryptor *crypto.TokenEncryptor, req *UpdateServ
 	return nil
 }
 
+func (h *ServerHandler) requireServerForUser(c *fiber.Ctx) (*domain.Server, *domain.User, error) {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return nil, nil, response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
+	id := c.Params("id")
+	server, err := h.serverRepo.FindByIDForUser(id, user.ID)
+	if err != nil {
+		return nil, nil, HandleNotFoundOrInternal(c, err, MsgServerNotFound)
+	}
+	return server, user, nil
+}
+
 func (h *ServerHandler) List(c *fiber.Ctx) error {
 	user := GetUserFromContext(c)
 	if user == nil {
 		return response.Unauthorized(c, MsgNotAuthenticated)
 	}
 
-	servers, err := h.serverRepo.FindAll()
+	servers, err := h.serverRepo.FindAllByUserID(user.ID)
 	if err != nil {
 		h.logger.Error("failed to list servers", "error", err)
 		return response.InternalError(c)
@@ -226,6 +240,7 @@ func (h *ServerHandler) Create(c *fiber.Ctx) error {
 	}
 
 	input := domain.CreateServerInput{
+		UserID:               user.ID,
 		Name:                 req.Name,
 		Host:                 req.Host,
 		SSHPort:              req.SSHPort,
@@ -244,30 +259,18 @@ func (h *ServerHandler) Create(c *fiber.Ctx) error {
 }
 
 func (h *ServerHandler) Get(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
-	}
-
-	id := c.Params("id")
-	server, err := h.serverRepo.FindByID(id)
+	server, _, err := h.requireServerForUser(c)
 	if err != nil {
-		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
+		return err
 	}
 
 	return response.OK(c, toServerResponse(server))
 }
 
 func (h *ServerHandler) GetStats(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
-	}
-
-	id := c.Params("id")
-	server, err := h.serverRepo.FindByID(id)
+	server, _, err := h.requireServerForUser(c)
 	if err != nil {
-		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
+		return err
 	}
 
 	if h.agentClient == nil || h.agentPort == 0 {
@@ -279,13 +282,13 @@ func (h *ServerHandler) GetStats(c *fiber.Ctx) error {
 
 	sysInfo, err := h.agentClient.GetSystemInfo(ctx, server.Host, h.agentPort)
 	if err != nil {
-		h.logger.Warn("get system info failed", "serverId", id, "error", err)
+		h.logger.Warn("get system info failed", "serverId", server.ID, "error", err)
 		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent unreachable; check if the agent is running and port 50052 is reachable")
 	}
 
 	sysMetrics, err := h.agentClient.GetSystemMetrics(ctx, server.Host, h.agentPort)
 	if err != nil {
-		h.logger.Warn("get system metrics failed", "serverId", id, "error", err)
+		h.logger.Warn("get system metrics failed", "serverId", server.ID, "error", err)
 		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent unreachable; check if the agent is running and port 50052 is reachable")
 	}
 
@@ -296,17 +299,12 @@ func (h *ServerHandler) GetStats(c *fiber.Ctx) error {
 }
 
 func (h *ServerHandler) Update(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
-	}
-
-	id := c.Params("id")
-	_, err := h.serverRepo.FindByID(id)
+	server, _, err := h.requireServerForUser(c)
 	if err != nil {
-		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
+		return err
 	}
 
+	id := server.ID
 	var req UpdateServerRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, MsgInvalidRequestBody)
@@ -324,25 +322,21 @@ func (h *ServerHandler) Update(c *fiber.Ctx) error {
 		return response.InternalError(c)
 	}
 
-	server, err := h.serverRepo.Update(id, input)
+	updated, err := h.serverRepo.Update(id, input)
 	if err != nil {
 		return HandleDomainError(c, err)
 	}
 
-	return response.OK(c, toServerResponse(server))
+	return response.OK(c, toServerResponse(updated))
 }
 
 func (h *ServerHandler) Delete(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
+	server, _, err := h.requireServerForUser(c)
+	if err != nil {
+		return err
 	}
 
-	id := c.Params("id")
-	server, err := h.serverRepo.FindByID(id)
-	if err != nil {
-		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
-	}
+	id := server.ID
 
 	if h.provisioner != nil {
 		sshKey, sshPassword, decErr := h.decryptProvisionCredentials(server)
@@ -362,16 +356,12 @@ func (h *ServerHandler) Delete(c *fiber.Ctx) error {
 }
 
 func (h *ServerHandler) Provision(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
+	server, _, err := h.requireServerForUser(c)
+	if err != nil {
+		return err
 	}
 
-	id := c.Params("id")
-	server, err := h.serverRepo.FindByID(id)
-	if err != nil {
-		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
-	}
+	id := server.ID
 
 	if h.provisioner == nil {
 		return response.BadRequest(c, "provisioning not available: GRPC and PKI must be configured")
@@ -420,15 +410,9 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 }
 
 func (h *ServerHandler) HealthCheck(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
-	}
-
-	id := c.Params("id")
-	server, err := h.serverRepo.FindByID(id)
+	server, _, err := h.requireServerForUser(c)
 	if err != nil {
-		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
+		return err
 	}
 
 	if h.healthChecker == nil || h.agentPort == 0 {
@@ -447,16 +431,12 @@ func (h *ServerHandler) HealthCheck(c *fiber.Ctx) error {
 }
 
 func (h *ServerHandler) UpdateAgent(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
+	server, _, err := h.requireServerForUser(c)
+	if err != nil {
+		return err
 	}
 
-	id := c.Params("id")
-	_, err := h.serverRepo.FindByID(id)
-	if err != nil {
-		return HandleNotFoundOrInternal(c, err, MsgServerNotFound)
-	}
+	id := server.ID
 
 	if h.updateAgentEnqueuer == nil {
 		return response.ServerError(c, fiber.StatusServiceUnavailable, "update agent not available")
@@ -502,16 +482,14 @@ func (h *ServerHandler) logProvisionFailure(c *fiber.Ctx, serverID string, err e
 }
 
 func (h *ServerHandler) ListServerApps(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
+	server, user, err := h.requireServerForUser(c)
+	if err != nil {
+		return err
 	}
 
-	id := c.Params("id")
-
-	apps, err := h.appService.ListAppsByServerID(id, user.ID)
+	apps, err := h.appService.ListAppsByServerID(server.ID, user.ID)
 	if err != nil {
-		h.logger.Error("failed to list server apps", "serverId", id, "error", err)
+		h.logger.Error("failed to list server apps", "serverId", server.ID, "error", err)
 		return response.InternalError(c)
 	}
 

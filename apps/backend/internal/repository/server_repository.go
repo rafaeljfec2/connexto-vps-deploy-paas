@@ -7,7 +7,7 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
-const serverSelectColumns = `id, name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, acme_email, status, agent_version, last_heartbeat_at, created_at, updated_at`
+const serverSelectColumns = `id, user_id, name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, acme_email, status, agent_version, last_heartbeat_at, created_at, updated_at`
 
 type PostgresServerRepository struct {
 	db *sql.DB
@@ -25,6 +25,7 @@ func (r *PostgresServerRepository) scanServer(row *sql.Row) (*domain.Server, err
 	var acmeEmail sql.NullString
 	err := row.Scan(
 		&s.ID,
+		&s.UserID,
 		&s.Name,
 		&s.Host,
 		&s.SSHPort,
@@ -60,8 +61,8 @@ func (r *PostgresServerRepository) scanServer(row *sql.Row) (*domain.Server, err
 }
 
 func (r *PostgresServerRepository) Create(input domain.CreateServerInput) (*domain.Server, error) {
-	query := `INSERT INTO servers (name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, acme_email, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+	query := `INSERT INTO servers (user_id, name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, acme_email, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
 		RETURNING ` + serverSelectColumns
 
 	sshPort := input.SSHPort
@@ -69,7 +70,7 @@ func (r *PostgresServerRepository) Create(input domain.CreateServerInput) (*doma
 		sshPort = 22
 	}
 
-	return r.scanServer(r.db.QueryRow(query, input.Name, input.Host, sshPort, input.SSHUser, input.SSHKeyEncrypted, input.SSHPasswordEncrypted, input.AcmeEmail))
+	return r.scanServer(r.db.QueryRow(query, input.UserID, input.Name, input.Host, sshPort, input.SSHUser, input.SSHKeyEncrypted, input.SSHPasswordEncrypted, input.AcmeEmail))
 }
 
 func (r *PostgresServerRepository) FindByID(id string) (*domain.Server, error) {
@@ -77,14 +78,7 @@ func (r *PostgresServerRepository) FindByID(id string) (*domain.Server, error) {
 	return r.scanServer(r.db.QueryRow(query, id))
 }
 
-func (r *PostgresServerRepository) FindAll() ([]domain.Server, error) {
-	query := `SELECT ` + serverSelectColumns + ` FROM servers ORDER BY created_at DESC`
-	rows, err := r.db.Query(query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
+func (r *PostgresServerRepository) scanServerRows(rows *sql.Rows) ([]domain.Server, error) {
 	var servers []domain.Server
 	for rows.Next() {
 		var s domain.Server
@@ -94,6 +88,7 @@ func (r *PostgresServerRepository) FindAll() ([]domain.Server, error) {
 		var acmeEmail sql.NullString
 		if err := rows.Scan(
 			&s.ID,
+			&s.UserID,
 			&s.Name,
 			&s.Host,
 			&s.SSHPort,
@@ -124,6 +119,31 @@ func (r *PostgresServerRepository) FindAll() ([]domain.Server, error) {
 		servers = append(servers, s)
 	}
 	return servers, rows.Err()
+}
+
+func (r *PostgresServerRepository) FindAll() ([]domain.Server, error) {
+	query := `SELECT ` + serverSelectColumns + ` FROM servers ORDER BY created_at DESC`
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return r.scanServerRows(rows)
+}
+
+func (r *PostgresServerRepository) FindAllByUserID(userID string) ([]domain.Server, error) {
+	query := `SELECT ` + serverSelectColumns + ` FROM servers WHERE user_id = $1 ORDER BY created_at DESC`
+	rows, err := r.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return r.scanServerRows(rows)
+}
+
+func (r *PostgresServerRepository) FindByIDForUser(id string, userID string) (*domain.Server, error) {
+	query := `SELECT ` + serverSelectColumns + ` FROM servers WHERE id = $1 AND user_id = $2`
+	return r.scanServer(r.db.QueryRow(query, id, userID))
 }
 
 func (r *PostgresServerRepository) Update(id string, input domain.UpdateServerInput) (*domain.Server, error) {
@@ -186,8 +206,8 @@ func (r *PostgresServerRepository) Delete(id string) error {
 	if err != nil {
 		return err
 	}
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
 		return domain.ErrNotFound
 	}
 	return nil
