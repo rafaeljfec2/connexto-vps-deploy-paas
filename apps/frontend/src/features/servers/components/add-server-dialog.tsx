@@ -25,6 +25,7 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
   const [sshUser, setSshUser] = useState("");
   const [sshKey, setSshKey] = useState("");
   const [sshPassword, setSshPassword] = useState("");
+  const [acmeEmail, setAcmeEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -46,6 +47,7 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
         sshUser,
         ...(sshKey ? { sshKey } : {}),
         ...(sshPassword ? { sshPassword } : {}),
+        ...(acmeEmail ? { acmeEmail } : {}),
       });
       setOpen(false);
       setName("");
@@ -54,6 +56,7 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
       setSshUser("");
       setSshKey("");
       setSshPassword("");
+      setAcmeEmail("");
       setShowPassword(false);
     } catch {
       // Error handled by mutation
@@ -190,6 +193,24 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
                   {showPassword ? "Hide" : "Show"}
                 </Button>
               </div>
+            </div>
+            <div className="grid gap-2">
+              <label
+                htmlFor="acmeEmail"
+                className="text-sm font-medium leading-none"
+              >
+                ACME Email (Let&apos;s Encrypt)
+              </label>
+              <Input
+                id="acmeEmail"
+                type="email"
+                value={acmeEmail}
+                onChange={(e) => setAcmeEmail(e.target.value)}
+                placeholder="admin@example.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Required for automatic TLS certificate provisioning via Traefik.
+              </p>
             </div>
             {formError && (
               <p className="text-sm text-destructive">{formError}</p>

@@ -547,6 +547,7 @@ export interface Server {
   readonly host: string;
   readonly sshPort: number;
   readonly sshUser: string;
+  readonly acmeEmail?: string;
   readonly status: ServerStatus;
   readonly agentVersion?: string;
   readonly latestAgentVersion: string;
@@ -562,6 +563,7 @@ export interface CreateServerInput {
   readonly sshUser: string;
   readonly sshKey?: string;
   readonly sshPassword?: string;
+  readonly acmeEmail?: string;
 }
 
 export interface ServerSystemInfo {

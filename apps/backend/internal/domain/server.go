@@ -22,6 +22,7 @@ type Server struct {
 	SSHUser              string       `json:"sshUser"`
 	SSHKeyEncrypted      string       `json:"-"`
 	SSHPasswordEncrypted string       `json:"-"`
+	AcmeEmail            *string      `json:"acmeEmail,omitempty"`
 	Status               ServerStatus `json:"status"`
 	AgentVersion         *string      `json:"agentVersion,omitempty"`
 	LastHeartbeatAt      *time.Time   `json:"lastHeartbeatAt,omitempty"`
@@ -30,12 +31,13 @@ type Server struct {
 }
 
 type CreateServerInput struct {
-	Name                 string `json:"name"`
-	Host                 string `json:"host"`
-	SSHPort              int    `json:"sshPort"`
-	SSHUser              string `json:"sshUser"`
-	SSHKeyEncrypted      string `json:"-"`
-	SSHPasswordEncrypted string `json:"-"`
+	Name                 string  `json:"name"`
+	Host                 string  `json:"host"`
+	SSHPort              int     `json:"sshPort"`
+	SSHUser              string  `json:"sshUser"`
+	SSHKeyEncrypted      string  `json:"-"`
+	SSHPasswordEncrypted string  `json:"-"`
+	AcmeEmail            *string `json:"acmeEmail,omitempty"`
 }
 
 type UpdateServerInput struct {
@@ -45,6 +47,7 @@ type UpdateServerInput struct {
 	SSHUser              *string       `json:"sshUser,omitempty"`
 	SSHKeyEncrypted      *string       `json:"-"`
 	SSHPasswordEncrypted *string       `json:"-"`
+	AcmeEmail            *string       `json:"acmeEmail,omitempty"`
 	Status               *ServerStatus `json:"status,omitempty"`
 }
 

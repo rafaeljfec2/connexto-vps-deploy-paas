@@ -7,7 +7,7 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
-const serverSelectColumns = `id, name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, status, agent_version, last_heartbeat_at, created_at, updated_at`
+const serverSelectColumns = `id, name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, acme_email, status, agent_version, last_heartbeat_at, created_at, updated_at`
 
 type PostgresServerRepository struct {
 	db *sql.DB
@@ -22,6 +22,7 @@ func (r *PostgresServerRepository) scanServer(row *sql.Row) (*domain.Server, err
 	var agentVersion sql.NullString
 	var lastHeartbeatAt sql.NullTime
 	var sshPassword sql.NullString
+	var acmeEmail sql.NullString
 	err := row.Scan(
 		&s.ID,
 		&s.Name,
@@ -30,6 +31,7 @@ func (r *PostgresServerRepository) scanServer(row *sql.Row) (*domain.Server, err
 		&s.SSHUser,
 		&s.SSHKeyEncrypted,
 		&sshPassword,
+		&acmeEmail,
 		&s.Status,
 		&agentVersion,
 		&lastHeartbeatAt,
@@ -51,12 +53,15 @@ func (r *PostgresServerRepository) scanServer(row *sql.Row) (*domain.Server, err
 	if sshPassword.Valid {
 		s.SSHPasswordEncrypted = sshPassword.String
 	}
+	if acmeEmail.Valid {
+		s.AcmeEmail = &acmeEmail.String
+	}
 	return &s, nil
 }
 
 func (r *PostgresServerRepository) Create(input domain.CreateServerInput) (*domain.Server, error) {
-	query := `INSERT INTO servers (name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, status)
-		VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+	query := `INSERT INTO servers (name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, acme_email, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
 		RETURNING ` + serverSelectColumns
 
 	sshPort := input.SSHPort
@@ -64,7 +69,7 @@ func (r *PostgresServerRepository) Create(input domain.CreateServerInput) (*doma
 		sshPort = 22
 	}
 
-	return r.scanServer(r.db.QueryRow(query, input.Name, input.Host, sshPort, input.SSHUser, input.SSHKeyEncrypted, input.SSHPasswordEncrypted))
+	return r.scanServer(r.db.QueryRow(query, input.Name, input.Host, sshPort, input.SSHUser, input.SSHKeyEncrypted, input.SSHPasswordEncrypted, input.AcmeEmail))
 }
 
 func (r *PostgresServerRepository) FindByID(id string) (*domain.Server, error) {
@@ -86,6 +91,7 @@ func (r *PostgresServerRepository) FindAll() ([]domain.Server, error) {
 		var agentVersion sql.NullString
 		var lastHeartbeatAt sql.NullTime
 		var sshPassword sql.NullString
+		var acmeEmail sql.NullString
 		if err := rows.Scan(
 			&s.ID,
 			&s.Name,
@@ -94,6 +100,7 @@ func (r *PostgresServerRepository) FindAll() ([]domain.Server, error) {
 			&s.SSHUser,
 			&s.SSHKeyEncrypted,
 			&sshPassword,
+			&acmeEmail,
 			&s.Status,
 			&agentVersion,
 			&lastHeartbeatAt,
@@ -111,6 +118,9 @@ func (r *PostgresServerRepository) FindAll() ([]domain.Server, error) {
 		if sshPassword.Valid {
 			s.SSHPasswordEncrypted = sshPassword.String
 		}
+		if acmeEmail.Valid {
+			s.AcmeEmail = &acmeEmail.String
+		}
 		servers = append(servers, s)
 	}
 	return servers, rows.Err()
@@ -124,13 +134,15 @@ func (r *PostgresServerRepository) Update(id string, input domain.UpdateServerIn
 		ssh_user = COALESCE($5, ssh_user),
 		ssh_key_encrypted = COALESCE($6, ssh_key_encrypted),
 		ssh_password_encrypted = COALESCE($7, ssh_password_encrypted),
-		status = COALESCE($8, status),
+		acme_email = COALESCE($8, acme_email),
+		status = COALESCE($9, status),
 		updated_at = NOW()
 		WHERE id = $1
 		RETURNING ` + serverSelectColumns
 
 	var name, host, sshUser, sshKeyEncrypted *string
 	var sshPasswordEncrypted *string
+	var acmeEmail *string
 	var sshPort *int
 	var status *domain.ServerStatus
 
@@ -152,11 +164,14 @@ func (r *PostgresServerRepository) Update(id string, input domain.UpdateServerIn
 	if input.SSHPasswordEncrypted != nil {
 		sshPasswordEncrypted = input.SSHPasswordEncrypted
 	}
+	if input.AcmeEmail != nil {
+		acmeEmail = input.AcmeEmail
+	}
 	if input.Status != nil {
 		status = input.Status
 	}
 
-	return r.scanServer(r.db.QueryRow(query, id, name, host, sshPort, sshUser, sshKeyEncrypted, sshPasswordEncrypted, status))
+	return r.scanServer(r.db.QueryRow(query, id, name, host, sshPort, sshUser, sshKeyEncrypted, sshPasswordEncrypted, acmeEmail, status))
 }
 
 func (r *PostgresServerRepository) UpdateHeartbeat(id string, agentVersion string) error {

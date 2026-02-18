@@ -91,6 +91,7 @@ type ServerResponse struct {
 	Host                 string  `json:"host"`
 	SSHPort              int     `json:"sshPort"`
 	SSHUser              string  `json:"sshUser"`
+	AcmeEmail            *string `json:"acmeEmail,omitempty"`
 	Status               string  `json:"status"`
 	AgentVersion         *string `json:"agentVersion,omitempty"`
 	LatestAgentVersion   string  `json:"latestAgentVersion"`
@@ -112,6 +113,7 @@ func toServerResponse(s *domain.Server) ServerResponse {
 		Host:               s.Host,
 		SSHPort:            s.SSHPort,
 		SSHUser:            s.SSHUser,
+		AcmeEmail:          s.AcmeEmail,
 		Status:             string(s.Status),
 		LatestAgentVersion: LatestAgentVersion,
 		CreatedAt:          s.CreatedAt.Format(DateTimeFormatISO8601),
@@ -128,12 +130,13 @@ func toServerResponse(s *domain.Server) ServerResponse {
 }
 
 type CreateServerRequest struct {
-	Name        string `json:"name"`
-	Host        string `json:"host"`
-	SSHPort     int    `json:"sshPort"`
-	SSHUser     string `json:"sshUser"`
-	SSHKey      string `json:"sshKey"`
-	SSHPassword string `json:"sshPassword"`
+	Name        string  `json:"name"`
+	Host        string  `json:"host"`
+	SSHPort     int     `json:"sshPort"`
+	SSHUser     string  `json:"sshUser"`
+	SSHKey      string  `json:"sshKey"`
+	SSHPassword string  `json:"sshPassword"`
+	AcmeEmail   *string `json:"acmeEmail,omitempty"`
 }
 
 type UpdateServerRequest struct {
@@ -143,6 +146,7 @@ type UpdateServerRequest struct {
 	SSHUser     *string `json:"sshUser,omitempty"`
 	SSHKey      *string `json:"sshKey,omitempty"`
 	SSHPassword *string `json:"sshPassword,omitempty"`
+	AcmeEmail   *string `json:"acmeEmail,omitempty"`
 }
 
 func encryptCredential(encryptor *crypto.TokenEncryptor, plain string) (string, error) {
@@ -228,6 +232,7 @@ func (h *ServerHandler) Create(c *fiber.Ctx) error {
 		SSHUser:              req.SSHUser,
 		SSHKeyEncrypted:      sshKeyEncrypted,
 		SSHPasswordEncrypted: sshPasswordEncrypted,
+		AcmeEmail:            req.AcmeEmail,
 	}
 
 	server, err := h.serverRepo.Create(input)
@@ -308,10 +313,11 @@ func (h *ServerHandler) Update(c *fiber.Ctx) error {
 	}
 
 	input := domain.UpdateServerInput{
-		Name:    req.Name,
-		Host:    req.Host,
-		SSHPort: req.SSHPort,
-		SSHUser: req.SSHUser,
+		Name:      req.Name,
+		Host:      req.Host,
+		SSHPort:   req.SSHPort,
+		SSHUser:   req.SSHUser,
+		AcmeEmail: req.AcmeEmail,
 	}
 	if err := applyUpdateSSHCredentials(h.tokenEncryptor, &req, &input); err != nil {
 		h.logger.Error("failed to encrypt ssh credentials", "error", err)

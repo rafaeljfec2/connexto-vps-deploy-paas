@@ -26,6 +26,11 @@ const (
 	sshConnectTimeout     = 30 * time.Second
 	logKeyStep            = "step"
 	errReadAgentBinaryFmt = "read agent binary: %w"
+
+	timeoutDockerInstall = 10 * time.Minute
+	timeoutDockerCheck   = 30 * time.Second
+	timeoutTraefikSetup  = 5 * time.Minute
+	timeoutNetworkSetup  = 30 * time.Second
 )
 
 type SSHProvisionerConfig struct {
@@ -70,6 +75,23 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 	homeDir, uid, err := p.provisionRemoteEnv(client, step, logLine)
 	if err != nil {
 		return err
+	}
+
+	if err := p.provisionDocker(client, uid, step, logLine); err != nil {
+		return err
+	}
+	if err := p.provisionDockerNetwork(client, step, logLine); err != nil {
+		return err
+	}
+
+	acmeEmail := ""
+	if server.AcmeEmail != nil {
+		acmeEmail = *server.AcmeEmail
+	}
+	if acmeEmail != "" {
+		if err := p.provisionTraefik(client, uid, acmeEmail, step, logLine); err != nil {
+			return err
+		}
 	}
 
 	sftpClient, err := p.provisionSFTP(client, step)
@@ -503,7 +525,40 @@ func writeRemoteFile(client *sftp.Client, remotePath string, data []byte, perm o
 	return nil
 }
 
+var runCommandFn = runCommandDefault
+var runCommandOutputFn = runCommandOutputDefault
+
 func runCommand(client *ssh.Client, cmd string) error {
+	return runCommandFn(client, cmd)
+}
+
+func runCommandOutput(client *ssh.Client, cmd string) (string, error) {
+	return runCommandOutputFn(client, cmd)
+}
+
+func runCommandWithTimeout(client *ssh.Client, cmd string, timeout time.Duration) error {
+	done := make(chan error, 1)
+	go func() {
+		done <- runCommand(client, cmd)
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(timeout):
+		return fmt.Errorf("command timed out after %s: %s", timeout, cmd)
+	}
+}
+
+func runPrivilegedCommandWithTimeout(client *ssh.Client, uid string, cmd string, timeout time.Duration) error {
+	if uid == "0" {
+		return runCommandWithTimeout(client, cmd, timeout)
+	}
+	sudoCmd := fmt.Sprintf("sudo -n %s", cmd)
+	return runCommandWithTimeout(client, sudoCmd, timeout)
+}
+
+func runCommandDefault(client *ssh.Client, cmd string) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return err
@@ -518,7 +573,7 @@ func runCommand(client *ssh.Client, cmd string) error {
 	return nil
 }
 
-func runCommandOutput(client *ssh.Client, cmd string) (string, error) {
+func runCommandOutputDefault(client *ssh.Client, cmd string) (string, error) {
 	session, err := client.NewSession()
 	if err != nil {
 		return "", err

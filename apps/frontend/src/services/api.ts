@@ -848,6 +848,7 @@ export const api = {
         sshUser?: string;
         sshKey?: string;
         sshPassword?: string;
+        acmeEmail?: string;
       },
     ): Promise<Server> =>
       fetchApi<Server>(`${API_BASE}/servers/${id}`, {
