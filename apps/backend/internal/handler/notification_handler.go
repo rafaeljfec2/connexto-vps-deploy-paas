@@ -104,24 +104,45 @@ func toRuleResponse(r *domain.NotificationRule) RuleResponse {
 	return resp
 }
 
+func (h *NotificationHandler) requireChannelForUser(c *fiber.Ctx) (*domain.NotificationChannel, error) {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return nil, response.Unauthorized(c, MsgNotAuthenticated)
+	}
+	id := c.Params("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, response.NotFound(c, MsgChannelNotFound)
+	}
+	ch, err := h.channelRepo.FindByIDAndUserID(id, user.ID)
+	if err != nil {
+		return nil, response.NotFound(c, MsgChannelNotFound)
+	}
+	return ch, nil
+}
+
+func (h *NotificationHandler) requireRuleForUser(c *fiber.Ctx) (*domain.NotificationRule, error) {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return nil, response.Unauthorized(c, MsgNotAuthenticated)
+	}
+	id := c.Params("id")
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, response.NotFound(c, MsgRuleNotFound)
+	}
+	rule, err := h.ruleRepo.FindByIDAndUserID(id, user.ID)
+	if err != nil {
+		return nil, response.NotFound(c, MsgRuleNotFound)
+	}
+	return rule, nil
+}
+
 func (h *NotificationHandler) ListChannels(c *fiber.Ctx) error {
 	user := GetUserFromContext(c)
 	if user == nil {
 		return response.Unauthorized(c, MsgNotAuthenticated)
 	}
 
-	appID := c.Query("appId")
-	var channels []domain.NotificationChannel
-	var err error
-	if appID != "" {
-		_, err = h.appRepo.FindByID(appID)
-		if err != nil {
-			return response.NotFound(c, MsgAppNotFound)
-		}
-		channels, err = h.channelRepo.FindByAppID(appID)
-	} else {
-		channels, err = h.channelRepo.FindAll()
-	}
+	channels, err := h.channelRepo.FindAllByUserID(user.ID)
 	if err != nil {
 		h.logger.Error("failed to list channels", "error", err)
 		return response.InternalError(c)
@@ -168,14 +189,14 @@ func (h *NotificationHandler) CreateChannel(c *fiber.Ctx) error {
 	}
 
 	input := domain.CreateNotificationChannelInput{
+		UserID: user.ID,
 		Type:   chType,
 		Name:   body.Name,
 		Config: configJSON,
 	}
 	if body.AppID != "" {
-		_, err = h.appRepo.FindByID(body.AppID)
-		if err != nil {
-			return response.NotFound(c, MsgAppNotFound)
+		if err := EnsureAppOwnership(c, h.appRepo, body.AppID); err != nil {
+			return err
 		}
 		input.AppID = &body.AppID
 	}
@@ -189,19 +210,9 @@ func (h *NotificationHandler) CreateChannel(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) GetChannel(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
-	}
-
-	id := c.Params("id")
-	if _, err := uuid.Parse(id); err != nil {
-		return response.NotFound(c, MsgChannelNotFound)
-	}
-
-	ch, err := h.channelRepo.FindByID(id)
+	ch, err := h.requireChannelForUser(c)
 	if err != nil {
-		return response.NotFound(c, MsgChannelNotFound)
+		return err
 	}
 	return response.OK(c, toChannelResponse(ch))
 }
@@ -212,20 +223,12 @@ type UpdateChannelRequest struct {
 }
 
 func (h *NotificationHandler) UpdateChannel(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
+	_, err := h.requireChannelForUser(c)
+	if err != nil {
+		return err
 	}
 
 	id := c.Params("id")
-	if _, err := uuid.Parse(id); err != nil {
-		return response.NotFound(c, "channel not found")
-	}
-
-	_, err := h.channelRepo.FindByID(id)
-	if err != nil {
-		return response.NotFound(c, "channel not found")
-	}
 
 	var body UpdateChannelRequest
 	if err := c.BodyParser(&body); err != nil {
@@ -254,39 +257,26 @@ func (h *NotificationHandler) UpdateChannel(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) DeleteChannel(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
+	_, err := h.requireChannelForUser(c)
+	if err != nil {
+		return err
 	}
 
 	id := c.Params("id")
-	if _, err := uuid.Parse(id); err != nil {
-		return response.NotFound(c, "channel not found")
-	}
 
 	if err := h.channelRepo.Delete(id); err != nil {
-		return response.NotFound(c, "channel not found")
+		return response.NotFound(c, MsgChannelNotFound)
 	}
 	return response.NoContent(c)
 }
 
 func (h *NotificationHandler) ListRulesByChannel(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
-	}
-
-	channelID := c.Params("id")
-	if _, err := uuid.Parse(channelID); err != nil {
-		return response.NotFound(c, MsgChannelNotFound)
-	}
-
-	_, err := h.channelRepo.FindByID(channelID)
+	ch, err := h.requireChannelForUser(c)
 	if err != nil {
-		return response.NotFound(c, MsgChannelNotFound)
+		return err
 	}
 
-	rules, err := h.ruleRepo.FindByChannelID(channelID)
+	rules, err := h.ruleRepo.FindByChannelID(ch.ID)
 	if err != nil {
 		h.logger.Error("failed to list rules", "error", err)
 		return response.InternalError(c)
@@ -305,14 +295,7 @@ func (h *NotificationHandler) ListRules(c *fiber.Ctx) error {
 		return response.Unauthorized(c, MsgNotAuthenticated)
 	}
 
-	channelID := c.Query("channelId")
-	var rules []domain.NotificationRule
-	var err error
-	if channelID != "" {
-		rules, err = h.ruleRepo.FindByChannelID(channelID)
-	} else {
-		rules, err = h.ruleRepo.FindAll()
-	}
+	rules, err := h.ruleRepo.FindAllByUserID(user.ID)
 	if err != nil {
 		h.logger.Error("failed to list rules", "error", err)
 		return response.InternalError(c)
@@ -333,10 +316,10 @@ type CreateRuleRequest struct {
 }
 
 var validEventTypes = map[string]bool{
-	domain.EventTypeDeployRunning:   true,
-	domain.EventTypeDeploySuccess:   true,
-	domain.EventTypeDeployFailed:    true,
-	domain.EventTypeContainerDown:   true,
+	domain.EventTypeDeployRunning:    true,
+	domain.EventTypeDeploySuccess:    true,
+	domain.EventTypeDeployFailed:     true,
+	domain.EventTypeContainerDown:    true,
 	domain.EventTypeHealthUnhealthy:  true,
 }
 
@@ -357,20 +340,20 @@ func (h *NotificationHandler) CreateRule(c *fiber.Ctx) error {
 		return response.BadRequest(c, "invalid eventType")
 	}
 
-	_, err := h.channelRepo.FindByID(body.ChannelID)
+	_, err := h.channelRepo.FindByIDAndUserID(body.ChannelID, user.ID)
 	if err != nil {
 		return response.NotFound(c, MsgChannelNotFound)
 	}
 
 	input := domain.CreateNotificationRuleInput{
+		UserID:    user.ID,
 		EventType: body.EventType,
 		ChannelID: body.ChannelID,
 		Enabled:   body.Enabled,
 	}
 	if body.AppID != "" {
-		_, err = h.appRepo.FindByID(body.AppID)
-		if err != nil {
-			return response.NotFound(c, MsgAppNotFound)
+		if err := EnsureAppOwnership(c, h.appRepo, body.AppID); err != nil {
+			return err
 		}
 		input.AppID = &body.AppID
 	}
@@ -384,19 +367,9 @@ func (h *NotificationHandler) CreateRule(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) GetRule(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
-	}
-
-	id := c.Params("id")
-	if _, err := uuid.Parse(id); err != nil {
-		return response.NotFound(c, MsgRuleNotFound)
-	}
-
-	rule, err := h.ruleRepo.FindByID(id)
+	rule, err := h.requireRuleForUser(c)
 	if err != nil {
-		return response.NotFound(c, MsgRuleNotFound)
+		return err
 	}
 	return response.OK(c, toRuleResponse(rule))
 }
@@ -407,20 +380,12 @@ type UpdateRuleRequest struct {
 }
 
 func (h *NotificationHandler) UpdateRule(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
+	_, err := h.requireRuleForUser(c)
+	if err != nil {
+		return err
 	}
 
 	id := c.Params("id")
-	if _, err := uuid.Parse(id); err != nil {
-		return response.NotFound(c, MsgRuleNotFound)
-	}
-
-	_, err := h.ruleRepo.FindByID(id)
-	if err != nil {
-		return response.NotFound(c, MsgRuleNotFound)
-	}
 
 	var body UpdateRuleRequest
 	if err := c.BodyParser(&body); err != nil {
@@ -447,15 +412,12 @@ func (h *NotificationHandler) UpdateRule(c *fiber.Ctx) error {
 }
 
 func (h *NotificationHandler) DeleteRule(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
+	_, err := h.requireRuleForUser(c)
+	if err != nil {
+		return err
 	}
 
 	id := c.Params("id")
-	if _, err := uuid.Parse(id); err != nil {
-		return response.NotFound(c, MsgRuleNotFound)
-	}
 
 	if err := h.ruleRepo.Delete(id); err != nil {
 		return response.NotFound(c, MsgRuleNotFound)

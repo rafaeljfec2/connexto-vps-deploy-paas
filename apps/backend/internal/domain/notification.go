@@ -14,8 +14,9 @@ const (
 )
 
 type NotificationChannel struct {
-	ID        string                   `json:"id"`
-	Type      NotificationChannelType  `json:"type"`
+	ID        string                  `json:"id"`
+	UserID    string                  `json:"userId"`
+	Type      NotificationChannelType `json:"type"`
 	Name      string                  `json:"name"`
 	Config    json.RawMessage         `json:"config"`
 	AppID     *string                 `json:"appId,omitempty"`
@@ -24,6 +25,7 @@ type NotificationChannel struct {
 }
 
 type CreateNotificationChannelInput struct {
+	UserID string                  `json:"-"`
 	Type   NotificationChannelType `json:"type"`
 	Name   string                  `json:"name"`
 	Config json.RawMessage         `json:"config"`
@@ -38,6 +40,7 @@ type UpdateNotificationChannelInput struct {
 
 type NotificationRule struct {
 	ID        string    `json:"id"`
+	UserID    string    `json:"userId"`
 	EventType string    `json:"eventType"`
 	ChannelID string    `json:"channelId"`
 	AppID     *string   `json:"appId,omitempty"`
@@ -47,6 +50,7 @@ type NotificationRule struct {
 }
 
 type CreateNotificationRuleInput struct {
+	UserID    string  `json:"-"`
 	EventType string  `json:"eventType"`
 	ChannelID string  `json:"channelId"`
 	AppID     *string `json:"appId,omitempty"`
@@ -69,7 +73,9 @@ const (
 
 type NotificationChannelRepository interface {
 	FindAll() ([]NotificationChannel, error)
+	FindAllByUserID(userID string) ([]NotificationChannel, error)
 	FindByID(id string) (*NotificationChannel, error)
+	FindByIDAndUserID(id string, userID string) (*NotificationChannel, error)
 	FindByAppID(appID string) ([]NotificationChannel, error)
 	FindGlobal() ([]NotificationChannel, error)
 	Create(input CreateNotificationChannelInput) (*NotificationChannel, error)
@@ -79,7 +85,9 @@ type NotificationChannelRepository interface {
 
 type NotificationRuleRepository interface {
 	FindAll() ([]NotificationRule, error)
+	FindAllByUserID(userID string) ([]NotificationRule, error)
 	FindByID(id string) (*NotificationRule, error)
+	FindByIDAndUserID(id string, userID string) (*NotificationRule, error)
 	FindByChannelID(channelID string) ([]NotificationRule, error)
 	FindByEventType(eventType string) ([]NotificationRule, error)
 	FindActiveByEventType(eventType string, appID *string) ([]NotificationRule, error)

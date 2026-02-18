@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,11 +15,28 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 )
 
+var acmeEmailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
+func validateAcmeEmail(email *string) error {
+	if email == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*email)
+	if trimmed == "" {
+		return nil
+	}
+	if !acmeEmailRegex.MatchString(trimmed) {
+		return domain.ErrInvalidInput
+	}
+	return nil
+}
+
 var agentStatsTimeout = 5 * time.Second
 
-// LatestAgentVersion is the version of the agent binary available on the backend.
-// Update this constant when a new agent binary is released.
-const LatestAgentVersion = "0.2.0"
+const (
+	LatestAgentVersion = "0.2.0"
+	msgProvisionFailed = "provision failed"
+)
 
 type UpdateAgentEnqueuer interface {
 	EnqueueUpdateAgent(serverID string)
@@ -228,6 +247,10 @@ func (h *ServerHandler) Create(c *fiber.Ctx) error {
 		return response.BadRequest(c, "provide sshKey or sshPassword")
 	}
 
+	if err := validateAcmeEmail(req.AcmeEmail); err != nil {
+		return response.BadRequest(c, "invalid ACME email format")
+	}
+
 	sshKeyEncrypted, err := encryptCredential(h.tokenEncryptor, req.SSHKey)
 	if err != nil {
 		h.logger.Error("failed to encrypt ssh key", "error", err)
@@ -308,6 +331,10 @@ func (h *ServerHandler) Update(c *fiber.Ctx) error {
 	var req UpdateServerRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, MsgInvalidRequestBody)
+	}
+
+	if err := validateAcmeEmail(req.AcmeEmail); err != nil {
+		return response.BadRequest(c, "invalid ACME email format")
 	}
 
 	input := domain.UpdateServerInput{
@@ -393,12 +420,12 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 
 	if err := h.provisioner.Provision(server, sshKey, sshPassword, progress); err != nil {
 		if h.sseHandler != nil {
-			h.sseHandler.EmitProvisionFailed(id, err.Error())
+			h.sseHandler.EmitProvisionFailed(id, msgProvisionFailed)
 		}
 		h.logProvisionFailure(c, id, err)
 		errStatus := domain.ServerStatusError
 		_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &errStatus})
-		return response.BadRequest(c, "provision failed: "+err.Error())
+		return response.BadRequest(c, msgProvisionFailed)
 	}
 
 	if h.sseHandler != nil {
@@ -421,7 +448,8 @@ func (h *ServerHandler) HealthCheck(c *fiber.Ctx) error {
 
 	latency, err := h.healthChecker.Check(context.Background(), server.Host, h.agentPort)
 	if err != nil {
-		return response.BadRequest(c, "health check failed: "+err.Error())
+		h.logger.Error("health check failed", "serverId", server.ID, "error", err)
+		return response.BadRequest(c, "health check failed")
 	}
 
 	return response.OK(c, ServerHealthResponse{
@@ -478,7 +506,7 @@ func (h *ServerHandler) logProvisionFailure(c *fiber.Ctx, serverID string, err e
 	if tid, ok := c.Locals("traceId").(string); ok && tid != "" {
 		attrs = append(attrs, "traceId", tid)
 	}
-	h.logger.Error("provision failed", attrs...)
+	h.logger.Error(msgProvisionFailed, attrs...)
 }
 
 func (h *ServerHandler) ListServerApps(c *fiber.Ctx) error {

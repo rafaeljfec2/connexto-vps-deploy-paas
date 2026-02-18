@@ -80,16 +80,9 @@ func toDomainResponse(d *domain.CustomDomain) DomainResponse {
 }
 
 func (h *DomainHandler) ListDomains(c *fiber.Ctx) error {
-	user := GetUserFromContext(c)
-	if user == nil {
-		return response.Unauthorized(c, MsgNotAuthenticated)
-	}
-
 	appID := c.Params("id")
-
-	_, err := h.appRepo.FindByID(appID)
-	if err != nil {
-		return response.NotFound(c, MsgAppNotFound)
+	if err := EnsureAppOwnership(c, h.appRepo, appID); err != nil {
+		return err
 	}
 
 	domains, err := h.domainRepo.FindByAppID(c.Context(), appID)
@@ -124,7 +117,7 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
-	app, err := h.appRepo.FindByID(appID)
+	app, err := h.appRepo.FindByIDAndUserID(appID, user.ID)
 	if err != nil {
 		return response.NotFound(c, MsgAppNotFound)
 	}
@@ -213,7 +206,7 @@ func (h *DomainHandler) createCustomDomainWithDNS(c *fiber.Ctx, appID, domainNam
 	recordID, err := cfClient.CreateOrGetARecord(c.Context(), zoneID, domainName, h.serverIP)
 	if err != nil {
 		h.logger.Error("failed to create/get DNS record", "domain", domainName, "error", err)
-		return nil, response.BadRequest(c, "Failed to configure DNS record: "+err.Error())
+		return nil, response.BadRequest(c, "Failed to configure DNS record")
 	}
 
 	customDomain, err := h.domainRepo.Create(c.Context(), domain.CreateCustomDomainInput{
@@ -257,7 +250,7 @@ func (h *DomainHandler) RemoveDomain(c *fiber.Ctx) error {
 	appID := c.Params("id")
 	domainID := c.Params("domainId")
 
-	app, err := h.appRepo.FindByID(appID)
+	app, err := h.appRepo.FindByIDAndUserID(appID, user.ID)
 	if err != nil {
 		return response.NotFound(c, MsgAppNotFound)
 	}

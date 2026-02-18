@@ -47,7 +47,7 @@ func (h *MigrationHandler) CreateBackup(c *fiber.Ctx) error {
 	result, err := h.service.CreateBackup(c.Context())
 	if err != nil {
 		h.logger.Error("Failed to create backup", "error", err)
-		return response.BadRequest(c, "Failed to create backup: "+err.Error())
+		return response.BadRequest(c, "Failed to create backup")
 	}
 
 	h.logger.Info("Backup created", "path", result.Path)
@@ -61,7 +61,7 @@ type ContainerActionRequest struct {
 func (h *MigrationHandler) StopContainers(c *fiber.Ctx) error {
 	var req ContainerActionRequest
 	if err := c.BodyParser(&req); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
 	if len(req.ContainerIDs) == 0 {
@@ -70,7 +70,7 @@ func (h *MigrationHandler) StopContainers(c *fiber.Ctx) error {
 
 	if err := h.service.StopContainers(c.Context(), req.ContainerIDs); err != nil {
 		h.logger.Error("Failed to stop containers", "error", err)
-		return response.BadRequest(c, "Failed to stop containers: "+err.Error())
+		return response.BadRequest(c, "Failed to stop containers")
 	}
 
 	h.logger.Info("Containers stopped", "count", len(req.ContainerIDs))
@@ -83,7 +83,7 @@ func (h *MigrationHandler) StopContainers(c *fiber.Ctx) error {
 func (h *MigrationHandler) StartContainers(c *fiber.Ctx) error {
 	var req ContainerActionRequest
 	if err := c.BodyParser(&req); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
 	if len(req.ContainerIDs) == 0 {
@@ -92,7 +92,7 @@ func (h *MigrationHandler) StartContainers(c *fiber.Ctx) error {
 
 	if err := h.service.StartContainers(c.Context(), req.ContainerIDs); err != nil {
 		h.logger.Error("Failed to start containers", "error", err)
-		return response.BadRequest(c, "Failed to start containers: "+err.Error())
+		return response.BadRequest(c, "Failed to start containers")
 	}
 
 	h.logger.Info("Containers started", "count", len(req.ContainerIDs))
@@ -105,7 +105,7 @@ func (h *MigrationHandler) StartContainers(c *fiber.Ctx) error {
 func (h *MigrationHandler) StopNginx(c *fiber.Ctx) error {
 	if err := h.service.StopNginx(c.Context()); err != nil {
 		h.logger.Error("Failed to stop nginx", "error", err)
-		return response.BadRequest(c, "Failed to stop nginx: "+err.Error())
+		return response.BadRequest(c, "Failed to stop nginx")
 	}
 
 	h.logger.Info("Nginx stopped and disabled")
@@ -152,7 +152,7 @@ func (h *MigrationHandler) MigrateSite(c *fiber.Ctx) error {
 
 	var req MigrateSiteRequest
 	if err := c.BodyParser(&req); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
 	if req.ContainerID == "" {
@@ -175,7 +175,7 @@ func (h *MigrationHandler) MigrateSite(c *fiber.Ctx) error {
 	result, err := h.service.MigrateContainer(c.Context(), site, req.ContainerID)
 	if err != nil {
 		h.logger.Error("Migration failed", "error", err)
-		return response.BadRequest(c, "Migration failed: "+err.Error())
+		return response.BadRequest(c, "Migration failed")
 	}
 
 	h.logger.Info("Migration completed", "site", site.ServerNames[0], "newContainer", result.ContainerID)

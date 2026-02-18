@@ -14,6 +14,7 @@ import (
 	"github.com/paasdeploy/backend/internal/di"
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/handler"
+	"github.com/paasdeploy/backend/internal/server"
 )
 
 func main() {
@@ -143,7 +144,7 @@ func registerHandlers(app *di.Application) {
 	app.SwaggerHandler.Register(app.Server.App())
 
 	if app.AuthHandler != nil {
-		app.AuthHandler.Register(app.Server.App())
+		app.AuthHandler.Register(app.Server.App(), server.AuthRateLimiter())
 	}
 
 	if app.GitHubHandler != nil {

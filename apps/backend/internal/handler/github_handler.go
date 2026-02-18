@@ -397,7 +397,7 @@ func (h *GitHubHandler) handleInstallationReposEvent(c *fiber.Ctx, body []byte) 
 
 func (h *GitHubHandler) verifySignature(payload []byte, signature string) bool {
 	if h.webhookSecret == "" {
-		return true
+		return false
 	}
 
 	if !strings.HasPrefix(signature, "sha256=") {

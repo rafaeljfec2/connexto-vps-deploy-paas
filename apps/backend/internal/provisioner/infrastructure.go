@@ -3,10 +3,13 @@ package provisioner
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"golang.org/x/crypto/ssh"
 )
+
+var validEmailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
 
 const (
 	dockerNetworkName     = "paasdeploy"
@@ -171,7 +174,10 @@ func (p *SSHProvisioner) setupTraefikConfig(
 	}
 
 	logLine("Escrevendo configuracao do Traefik")
-	configContent := buildTraefikConfig(acmeEmail)
+	configContent, err := buildTraefikConfig(acmeEmail)
+	if err != nil {
+		return fmt.Errorf("build traefik config: %w", err)
+	}
 	if err := writeRemoteFileViaSSH(client, uid, traefikConfigPath, configContent); err != nil {
 		return fmt.Errorf("write traefik config: %w", err)
 	}
@@ -216,7 +222,20 @@ func (p *SSHProvisioner) startTraefikContainer(
 	return nil
 }
 
-func buildTraefikConfig(acmeEmail string) []byte {
+func sanitizeAcmeEmail(email string) (string, error) {
+	email = strings.TrimSpace(email)
+	if !validEmailRegex.MatchString(email) {
+		return "", fmt.Errorf("invalid ACME email format: %q", email)
+	}
+	return email, nil
+}
+
+func buildTraefikConfig(acmeEmail string) ([]byte, error) {
+	sanitized, err := sanitizeAcmeEmail(acmeEmail)
+	if err != nil {
+		return nil, err
+	}
+
 	var buf bytes.Buffer
 	buf.WriteString("api:\n")
 	buf.WriteString("  dashboard: true\n")
@@ -241,14 +260,14 @@ func buildTraefikConfig(acmeEmail string) []byte {
 	buf.WriteString("certificatesResolvers:\n")
 	buf.WriteString("  letsencrypt:\n")
 	buf.WriteString("    acme:\n")
-	buf.WriteString("      email: " + acmeEmail + "\n")
+	buf.WriteString("      email: \"" + sanitized + "\"\n")
 	buf.WriteString("      storage: /letsencrypt/acme.json\n")
 	buf.WriteString("      httpChallenge:\n")
 	buf.WriteString("        entryPoint: web\n")
 	buf.WriteString("\n")
 	buf.WriteString("log:\n")
 	buf.WriteString("  level: INFO\n")
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
 var writeRemoteFileViaSSHFn = writeRemoteFileViaSSHDefault

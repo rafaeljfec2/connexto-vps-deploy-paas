@@ -48,6 +48,9 @@ import type {
   NotificationEventType,
   NotificationRule,
 } from "@/types";
+import { DiscordChannelForm } from "./discord-channel-form";
+import { EmailChannelForm } from "./email-channel-form";
+import { SlackChannelForm } from "./slack-channel-form";
 
 const CHANNEL_TYPES: { value: NotificationChannelType; label: string }[] = [
   { value: "slack", label: "Slack" },
@@ -77,119 +80,15 @@ function ChannelConfigFields({
   readonly config: Record<string, string>;
   readonly onChange: (config: Record<string, string>) => void;
 }) {
-  if (type === "slack" || type === "discord") {
-    return (
-      <div className="space-y-2">
-        <label
-          htmlFor="webhookUrl"
-          className="text-sm font-medium leading-none"
-        >
-          Webhook URL
-        </label>
-        <Input
-          id="webhookUrl"
-          type="url"
-          placeholder={
-            type === "slack"
-              ? "https://hooks.slack.com/services/..."
-              : "https://discord.com/api/webhooks/..."
-          }
-          value={config.webhookUrl ?? ""}
-          onChange={(e) => onChange({ ...config, webhookUrl: e.target.value })}
-        />
-      </div>
-    );
+  if (type === "slack") {
+    return <SlackChannelForm config={config} onChange={onChange} />;
   }
-
+  if (type === "discord") {
+    return <DiscordChannelForm config={config} onChange={onChange} />;
+  }
   if (type === "email") {
-    return (
-      <div className="space-y-3">
-        <div className="space-y-2">
-          <label
-            htmlFor="smtpHost"
-            className="text-sm font-medium leading-none"
-          >
-            SMTP Host
-          </label>
-          <Input
-            id="smtpHost"
-            placeholder="smtp.gmail.com"
-            value={config.smtpHost ?? ""}
-            onChange={(e) => onChange({ ...config, smtpHost: e.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <label
-            htmlFor="smtpPort"
-            className="text-sm font-medium leading-none"
-          >
-            SMTP Port
-          </label>
-          <Input
-            id="smtpPort"
-            type="number"
-            placeholder="587"
-            value={config.smtpPort ?? "587"}
-            onChange={(e) => onChange({ ...config, smtpPort: e.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="from" className="text-sm font-medium leading-none">
-            From
-          </label>
-          <Input
-            id="from"
-            type="email"
-            placeholder="sender@example.com"
-            value={config.from ?? ""}
-            onChange={(e) => onChange({ ...config, from: e.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="to" className="text-sm font-medium leading-none">
-            To
-          </label>
-          <Input
-            id="to"
-            type="email"
-            placeholder="recipient@example.com"
-            value={config.to ?? ""}
-            onChange={(e) => onChange({ ...config, to: e.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <label
-            htmlFor="username"
-            className="text-sm font-medium leading-none"
-          >
-            Username (optional)
-          </label>
-          <Input
-            id="username"
-            placeholder="SMTP username"
-            value={config.username ?? ""}
-            onChange={(e) => onChange({ ...config, username: e.target.value })}
-          />
-        </div>
-        <div className="space-y-2">
-          <label
-            htmlFor="password"
-            className="text-sm font-medium leading-none"
-          >
-            Password (optional)
-          </label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="SMTP password"
-            value={config.password ?? ""}
-            onChange={(e) => onChange({ ...config, password: e.target.value })}
-          />
-        </div>
-      </div>
-    );
+    return <EmailChannelForm config={config} onChange={onChange} />;
   }
-
   return null;
 }
 
@@ -223,7 +122,7 @@ function CreateChannelDialog({
       configObj.webhookUrl = config.webhookUrl ?? "";
     } else if (type === "email") {
       configObj.smtpHost = config.smtpHost ?? "";
-      configObj.smtpPort = parseInt(config.smtpPort ?? "587", 10) || 587;
+      configObj.smtpPort = Number.parseInt(config.smtpPort ?? "587", 10) || 587;
       configObj.from = config.from ?? "";
       configObj.to = config.to ?? "";
       if (config.username) configObj.username = config.username;
@@ -554,15 +453,17 @@ function ChannelCard({ channel }: { readonly channel: NotificationChannel }) {
         <CardContent className="pt-0 border-t">
           <div className="pt-4 space-y-3">
             <h4 className="text-sm font-medium">Rules</h4>
-            {rulesLoading ? (
+            {rulesLoading && (
               <div className="flex justify-center py-4">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : rules.length === 0 ? (
+            )}
+            {!rulesLoading && rules.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 No rules configured. Add a rule to receive notifications.
               </p>
-            ) : (
+            )}
+            {!rulesLoading && rules.length > 0 && (
               <ul className="space-y-2">
                 {rules.map((rule: NotificationRule) => (
                   <li

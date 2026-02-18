@@ -167,7 +167,7 @@ func (h *ContainerHandler) CreateContainer(c *fiber.Ctx) error {
 	containerID, err := h.docker.CreateContainer(c.Context(), opts)
 	if err != nil {
 		h.logger.Error("Failed to create container", "error", err)
-		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to create container: "+err.Error())
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to create container")
 	}
 
 	container, err := h.docker.GetContainerDetails(c.Context(), containerID)
@@ -195,7 +195,7 @@ func (h *ContainerHandler) StopContainer(c *fiber.Ctx) error {
 	if err := h.docker.StopContainer(c.Context(), id); err != nil {
 		h.logger.Error("Failed to stop container", "id", id, "error", err)
 		if isSelfContainerError(err) {
-			return response.BadRequest(c, err.Error())
+			return response.BadRequest(c, "Operation not allowed for this container")
 		}
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to stop container")
 	}
@@ -209,7 +209,7 @@ func (h *ContainerHandler) RestartContainer(c *fiber.Ctx) error {
 	if err := h.docker.RestartContainer(c.Context(), id); err != nil {
 		h.logger.Error("Failed to restart container", "id", id, "error", err)
 		if isSelfContainerError(err) {
-			return response.BadRequest(c, err.Error())
+			return response.BadRequest(c, "Operation not allowed for this container")
 		}
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to restart container")
 	}

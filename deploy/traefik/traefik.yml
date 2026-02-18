@@ -1,7 +1,7 @@
 # Traefik Static Configuration
 api:
   dashboard: true
-  insecure: true
+  insecure: false
 
 entryPoints:
   web:

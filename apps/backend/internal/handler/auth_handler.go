@@ -60,10 +60,10 @@ func NewAuthHandler(cfg AuthHandlerConfig) *AuthHandler {
 	}
 }
 
-func (h *AuthHandler) Register(app *fiber.App) {
+func (h *AuthHandler) Register(app *fiber.App, authLimiter fiber.Handler) {
 	auth := app.Group("/auth")
-	auth.Post("/register", h.RegisterEmail)
-	auth.Post("/login", h.LoginEmail)
+	auth.Post("/register", authLimiter, h.RegisterEmail)
+	auth.Post("/login", authLimiter, h.LoginEmail)
 	auth.Get("/github", h.InitiateOAuth)
 	auth.Get("/github/callback", h.HandleCallback)
 }
@@ -75,28 +75,15 @@ func (h *AuthHandler) RegisterProtected(app fiber.Router) {
 }
 
 func (h *AuthHandler) setCookie(c *fiber.Ctx, name, value string, maxAge int) {
-	sameSite := "Lax"
-	if h.cookieDomain != "" {
-		sameSite = "None"
-	}
-	c.Cookie(&fiber.Cookie{
-		Name:     name,
-		Value:    value,
-		HTTPOnly: true,
-		Secure:   h.secureCookie,
-		SameSite: sameSite,
-		MaxAge:   maxAge,
-		Path:     "/",
-		Domain:   h.cookieDomain,
-	})
+	SetCookie(c, name, value, maxAge, h.secureCookie, h.cookieDomain)
 }
 
 func (h *AuthHandler) clearCookie(c *fiber.Ctx, name string) {
-	h.setCookie(c, name, "", -1)
+	ClearCookie(c, name, h.secureCookie, h.cookieDomain)
 }
 
 func (h *AuthHandler) redirectWithError(c *fiber.Ctx, errorCode string) error {
-	return c.Redirect(h.frontendURL+"/login?error="+errorCode, fiber.StatusTemporaryRedirect)
+	return RedirectWithError(c, h.frontendURL, "/login?error=", errorCode)
 }
 
 const (
@@ -116,22 +103,27 @@ type loginRequest struct {
 	Password string `json:"password"`
 }
 
+func validateRegisterInput(c *fiber.Ctx, req *registerRequest) error {
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		return response.BadRequest(c, "invalid email format")
+	}
+	if len(req.Password) < minPasswordLength {
+		return response.BadRequest(c, "password must be at least 8 characters")
+	}
+	if req.Name == "" {
+		return response.BadRequest(c, "name is required")
+	}
+	return nil
+}
+
 func (h *AuthHandler) RegisterEmail(c *fiber.Ctx) error {
 	var req registerRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "invalid request body")
 	}
 
-	if _, err := mail.ParseAddress(req.Email); err != nil {
-		return response.BadRequest(c, "invalid email format")
-	}
-
-	if len(req.Password) < minPasswordLength {
-		return response.BadRequest(c, "password must be at least 8 characters")
-	}
-
-	if req.Name == "" {
-		return response.BadRequest(c, "name is required")
+	if err := validateRegisterInput(c, &req); err != nil {
+		return err
 	}
 
 	hash, err := password.Hash(req.Password)
@@ -146,30 +138,9 @@ func (h *AuthHandler) RegisterEmail(c *fiber.Ctx) error {
 		return response.InternalError(c)
 	}
 
-	var user *domain.User
-
-	if existing != nil {
-		if existing.PasswordHash != "" {
-			return response.Conflict(c, "email already registered")
-		}
-
-		user, err = h.userRepo.SetPassword(c.Context(), existing.ID, hash)
-		if err != nil {
-			h.logger.Error("failed to set password on existing user", "error", err)
-			return response.InternalError(c)
-		}
-		h.logger.Info("password added to existing account", "user_id", user.ID, "email", req.Email)
-	} else {
-		user, err = h.userRepo.CreateEmailUser(c.Context(), domain.CreateEmailUserInput{
-			Email:        req.Email,
-			Name:         req.Name,
-			PasswordHash: hash,
-		})
-		if err != nil {
-			h.logger.Error("failed to create email user", "error", err)
-			return response.InternalError(c)
-		}
-		h.logger.Info("email user registered", "user_id", user.ID, "email", req.Email)
+	user, err := h.resolveOrCreateUser(c, existing, req.Email, req.Name, hash)
+	if err != nil {
+		return err
 	}
 
 	if err := h.createSession(c, user.ID); err != nil {
@@ -187,6 +158,33 @@ func (h *AuthHandler) RegisterEmail(c *fiber.Ctx) error {
 		AuthProvider: user.AuthProvider,
 		CreatedAt:    user.CreatedAt,
 	})
+}
+
+func (h *AuthHandler) resolveOrCreateUser(c *fiber.Ctx, existing *domain.User, email, name, hash string) (*domain.User, error) {
+	if existing != nil {
+		if existing.PasswordHash != "" {
+			return nil, response.Conflict(c, "email already registered")
+		}
+		user, err := h.userRepo.SetPassword(c.Context(), existing.ID, hash)
+		if err != nil {
+			h.logger.Error("failed to set password on existing user", "error", err)
+			return nil, response.InternalError(c)
+		}
+		h.logger.Info("password added to existing account", "user_id", user.ID, "email", email)
+		return user, nil
+	}
+
+	user, err := h.userRepo.CreateEmailUser(c.Context(), domain.CreateEmailUserInput{
+		Email:        email,
+		Name:         name,
+		PasswordHash: hash,
+	})
+	if err != nil {
+		h.logger.Error("failed to create email user", "error", err)
+		return nil, response.InternalError(c)
+	}
+	h.logger.Info("email user registered", "user_id", user.ID, "email", email)
+	return user, nil
 }
 
 func (h *AuthHandler) LoginEmail(c *fiber.Ctx) error {
@@ -440,7 +438,8 @@ func (h *AuthHandler) createSession(c *fiber.Ctx, userID string) error {
 func (h *AuthHandler) HandleCallback(c *fiber.Ctx) error {
 	code, err := h.validateCallback(c)
 	if err != nil {
-		return h.redirectWithError(c, err.Error())
+		h.logger.Warn("OAuth callback validation failed", "error", err)
+		return h.redirectWithError(c, "oauth_error")
 	}
 
 	h.clearCookie(c, "oauth_state")

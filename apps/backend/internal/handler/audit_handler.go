@@ -51,7 +51,13 @@ type AuditLogsResponse struct {
 }
 
 func (h *AuditHandler) ListLogs(c *fiber.Ctx) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
 	filter := buildAuditFilter(c)
+	filter.UserID = &user.ID
 
 	logs, total, err := h.auditService.Query(filter)
 	if err != nil {
@@ -86,6 +92,11 @@ type WebhookPayloadsResponse struct {
 }
 
 func (h *AuditHandler) ListWebhookPayloads(c *fiber.Ctx) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
 	limit := c.QueryInt("limit", 25)
 	offset := c.QueryInt("offset", 0)
 	filter := repository.WebhookPayloadFilter{Limit: limit, Offset: offset}
@@ -197,6 +208,11 @@ type CleanupResponse struct {
 }
 
 func (h *AuditHandler) Cleanup(c *fiber.Ctx) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
 	var req CleanupRequest
 	if err := c.BodyParser(&req); err != nil {
 		req.RetentionDays = 30

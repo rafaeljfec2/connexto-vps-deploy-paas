@@ -14,6 +14,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/empty-state";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import { type ContainerLogLine, parseContainerLogLine } from "@/lib/log-utils";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import { useContainerLogs } from "../hooks/use-containers";
@@ -25,78 +27,7 @@ interface ContainerLogsDialogProps {
   readonly onOpenChange: (open: boolean) => void;
 }
 
-interface ParsedLogLine {
-  readonly lineNumber: number;
-  readonly timestamp: string | null;
-  readonly content: string;
-  readonly type: "info" | "error" | "warning" | "default";
-}
-
-const DOCKER_TIMESTAMP_REGEX =
-  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s*/;
-
-function determineLogType(
-  content: string,
-): "info" | "error" | "warning" | "default" {
-  const lower = content.toLowerCase();
-
-  if (
-    lower.includes("error") ||
-    lower.includes("failed") ||
-    lower.includes("fatal") ||
-    lower.includes("exception") ||
-    lower.includes("panic")
-  ) {
-    return "error";
-  }
-
-  if (
-    lower.includes("warning") ||
-    lower.includes("warn") ||
-    lower.includes("deprecated")
-  ) {
-    return "warning";
-  }
-
-  if (
-    lower.includes("info") ||
-    lower.includes("starting") ||
-    lower.includes("listening") ||
-    lower.includes("connected")
-  ) {
-    return "info";
-  }
-
-  return "default";
-}
-
-function parseLogLine(line: string, index: number): ParsedLogLine {
-  let remaining = line;
-  let timestamp: string | null = null;
-
-  const timestampMatch = DOCKER_TIMESTAMP_REGEX.exec(remaining);
-  if (timestampMatch?.[1]) {
-    const date = new Date(timestampMatch[1]);
-    timestamp = date.toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-    remaining = remaining.slice(timestampMatch[0].length);
-  }
-
-  const content = remaining.trim();
-  const type = determineLogType(content);
-
-  return {
-    lineNumber: index + 1,
-    timestamp,
-    content,
-    type,
-  };
-}
-
-function LogLine({ line }: { readonly line: ParsedLogLine }) {
+function LogLine({ line }: { readonly line: ContainerLogLine }) {
   if (!line.content) {
     return null;
   }
@@ -141,7 +72,7 @@ interface LogsContentProps {
   readonly isLoading: boolean;
   readonly hasLogs: boolean;
   readonly isStreaming: boolean;
-  readonly lines: readonly ParsedLogLine[];
+  readonly lines: readonly ContainerLogLine[];
   readonly scrollRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -195,8 +126,8 @@ export function ContainerLogsDialog({
   const [tail, setTail] = useState(100);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamedLogs, setStreamedLogs] = useState<string[]>([]);
-  const [copied, setCopied] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  const { copy, copied } = useCopyToClipboard();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -259,24 +190,16 @@ export function ContainerLogsDialog({
     }
   }, [streamedLogs, logsData, autoScroll]);
 
-  const handleCopy = useCallback(async () => {
+  const handleCopy = useCallback(() => {
     const text = isStreaming ? streamedLogs.join("\n") : (logsData?.logs ?? "");
-    if (!text) return;
-
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      console.error("Failed to copy logs");
-    }
-  }, [isStreaming, streamedLogs, logsData]);
+    copy(text);
+  }, [isStreaming, streamedLogs, logsData, copy]);
 
   const logs = isStreaming ? streamedLogs.join("\n") : (logsData?.logs ?? "");
   const lines = logs
     .split("\n")
     .filter(Boolean)
-    .map((line, index) => parseLogLine(line, index));
+    .map((line, index) => parseContainerLogLine(line, index));
 
   const hasLogs = lines.length > 0;
 

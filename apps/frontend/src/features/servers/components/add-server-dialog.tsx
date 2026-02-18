@@ -58,8 +58,8 @@ export function AddServerDialog({ trigger }: AddServerDialogProps) {
       setSshPassword("");
       setAcmeEmail("");
       setShowPassword(false);
-    } catch {
-      // Error handled by mutation
+    } catch (error) {
+      console.error("Failed to add server:", error);
     }
   };
 

@@ -7,11 +7,19 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
+)
+
+const (
+	apiRateLimitMax     = 120
+	apiRateLimitWindow  = 1 * time.Minute
+	authRateLimitMax    = 10
+	authRateLimitWindow = 1 * time.Minute
 )
 
 type Config struct {
@@ -57,13 +65,19 @@ func (s *Server) setupMiddlewares() {
 
 	s.app.Use(middleware.TraceID())
 
+	s.app.Use(securityHeaders)
+
+	corsOrigins := s.config.CorsOrigins
+	if corsOrigins == "*" || corsOrigins == "" {
+		s.logger.Warn("CORS_ORIGINS is wildcard or empty; in production, set explicit origins")
+	}
 	corsConfig := cors.Config{
-		AllowOrigins:  s.config.CorsOrigins,
+		AllowOrigins:  corsOrigins,
 		AllowMethods:  "GET,POST,PUT,DELETE,OPTIONS",
 		AllowHeaders:  "Content-Type,Authorization,X-Trace-ID,X-GitHub-Event,X-Hub-Signature-256,X-GitHub-Delivery",
 		ExposeHeaders: "X-Trace-ID",
 	}
-	if s.config.CorsOrigins != "*" && s.config.CorsOrigins != "" {
+	if corsOrigins != "*" && corsOrigins != "" {
 		corsConfig.AllowCredentials = true
 	}
 	s.app.Use(cors.New(corsConfig))
@@ -76,6 +90,57 @@ func (s *Server) setupMiddlewares() {
 			return c.Path() == "/health"
 		},
 	}))
+
+	s.app.Use(limiter.New(limiter.Config{
+		Max:        apiRateLimitMax,
+		Expiration: apiRateLimitWindow,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(response.Envelope{
+				Success: false,
+				Error: &response.ErrorInfo{
+					Code:    response.ErrCodeRateLimited,
+					Message: "too many requests",
+				},
+			})
+		},
+		Next: func(c *fiber.Ctx) bool {
+			return c.Path() == "/health" || c.Path() == "/events/deploys"
+		},
+	}))
+}
+
+func AuthRateLimiter() fiber.Handler {
+	return limiter.New(limiter.Config{
+		Max:        authRateLimitMax,
+		Expiration: authRateLimitWindow,
+		KeyGenerator: func(c *fiber.Ctx) string {
+			return c.IP()
+		},
+		LimitReached: func(c *fiber.Ctx) error {
+			return c.Status(fiber.StatusTooManyRequests).JSON(response.Envelope{
+				Success: false,
+				Error: &response.ErrorInfo{
+					Code:    response.ErrCodeRateLimited,
+					Message: "too many authentication attempts",
+				},
+			})
+		},
+	})
+}
+
+func securityHeaders(c *fiber.Ctx) error {
+	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set("X-Frame-Options", "DENY")
+	c.Set("X-XSS-Protection", "1; mode=block")
+	c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	c.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+	if c.Protocol() == "https" {
+		c.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+	}
+	return c.Next()
 }
 
 func (s *Server) App() *fiber.App {

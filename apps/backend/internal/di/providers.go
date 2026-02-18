@@ -201,8 +201,8 @@ func ProvideGitTokenProvider(
 	return engine.NewAppGitTokenProvider(appClient, installationRepo, logger)
 }
 
-func ProvideAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, cfg *config.Config) *handler.AppAdminHandler {
-	return handler.NewAppAdminHandler(appRepo, eng, cfg.Deploy.DataDir)
+func ProvideAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, cfg *config.Config, logger *slog.Logger) *handler.AppAdminHandler {
+	return handler.NewAppAdminHandler(appRepo, eng, cfg.Deploy.DataDir, logger)
 }
 
 func ProvideAppService(
@@ -309,7 +309,7 @@ func ProvideServerConfig(cfg *config.Config) server.Config {
 		Host:         cfg.Server.Host,
 		Port:         cfg.Server.Port,
 		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 0,
+		WriteTimeout: 10 * time.Minute,
 		IdleTimeout:  60 * time.Second,
 		CorsOrigins:  cfg.Server.CorsOrigins,
 	}
@@ -352,13 +352,20 @@ type Application struct {
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
 	if cfg.Auth.TokenEncryptionKey == "" {
-		logger.Warn("TOKEN_ENCRYPTION_KEY not set, authentication will not work properly")
+		if cfg.Server.Env == "production" {
+			logger.Error("TOKEN_ENCRYPTION_KEY is required in production")
+			os.Exit(1)
+		}
+		logger.Warn("TOKEN_ENCRYPTION_KEY not set, credentials will not be encrypted")
 		return nil
 	}
 
 	encryptor, err := crypto.NewTokenEncryptor(cfg.Auth.TokenEncryptionKey)
 	if err != nil {
 		logger.Error("failed to create token encryptor", "error", err)
+		if cfg.Server.Env == "production" {
+			os.Exit(1)
+		}
 		return nil
 	}
 
@@ -615,6 +622,7 @@ func ProvideSSHProvisioner(
 	ca *pki.CertificateAuthority,
 	cfg *config.Config,
 	logger *slog.Logger,
+	serverRepo domain.ServerRepository,
 ) *provisioner.SSHProvisioner {
 	serverAddr := cfg.GRPC.ServerAddr
 	if serverAddr == "" && cfg.GRPC.Port > 0 {
@@ -629,6 +637,7 @@ func ProvideSSHProvisioner(
 		AgentBinaryPath: cfg.GRPC.AgentBinaryPath,
 		AgentPort:       cfg.GRPC.AgentPort,
 		Logger:          logger,
+		HostKeyStore:    serverRepo,
 	})
 }
 

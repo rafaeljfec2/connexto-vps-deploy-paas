@@ -7,7 +7,7 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
-const serverSelectColumns = `id, user_id, name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, acme_email, status, agent_version, last_heartbeat_at, created_at, updated_at`
+const serverSelectColumns = `id, user_id, name, host, ssh_port, ssh_user, ssh_key_encrypted, ssh_password_encrypted, acme_email, ssh_host_key, status, agent_version, last_heartbeat_at, created_at, updated_at`
 
 type PostgresServerRepository struct {
 	db *sql.DB
@@ -33,6 +33,7 @@ func (r *PostgresServerRepository) scanServer(row *sql.Row) (*domain.Server, err
 		&s.SSHKeyEncrypted,
 		&sshPassword,
 		&acmeEmail,
+		&s.SSHHostKey,
 		&s.Status,
 		&agentVersion,
 		&lastHeartbeatAt,
@@ -96,6 +97,7 @@ func (r *PostgresServerRepository) scanServerRows(rows *sql.Rows) ([]domain.Serv
 			&s.SSHKeyEncrypted,
 			&sshPassword,
 			&acmeEmail,
+			&s.SSHHostKey,
 			&s.Status,
 			&agentVersion,
 			&lastHeartbeatAt,
@@ -197,6 +199,12 @@ func (r *PostgresServerRepository) Update(id string, input domain.UpdateServerIn
 func (r *PostgresServerRepository) UpdateHeartbeat(id string, agentVersion string) error {
 	query := `UPDATE servers SET last_heartbeat_at = NOW(), agent_version = COALESCE(NULLIF($2, ''), agent_version), status = 'online', updated_at = NOW() WHERE id = $1`
 	_, err := r.db.Exec(query, id, agentVersion)
+	return err
+}
+
+func (r *PostgresServerRepository) UpdateSSHHostKey(id string, hostKey string) error {
+	query := `UPDATE servers SET ssh_host_key = $2, updated_at = NOW() WHERE id = $1`
+	_, err := r.db.Exec(query, id, hostKey)
 	return err
 }
 

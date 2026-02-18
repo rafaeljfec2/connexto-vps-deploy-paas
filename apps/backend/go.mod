@@ -5,7 +5,6 @@ go 1.24.0
 toolchain go1.24.12
 
 require (
-	github.com/paasdeploy/shared v0.0.0
 	github.com/gofiber/contrib/websocket v1.3.4
 	github.com/gofiber/fiber/v2 v2.52.10
 	github.com/gofiber/swagger v1.1.1
@@ -16,6 +15,7 @@ require (
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lmittmann/tint v1.1.2
+	github.com/paasdeploy/shared v0.0.0
 	github.com/pkg/sftp v1.13.6
 	github.com/swaggo/swag v1.16.6
 	github.com/valyala/fasthttp v1.69.0
@@ -50,9 +50,11 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
+	github.com/philhofer/fwd v1.1.3-0.20240916144458-20a13a1f6b7c // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/savsgio/gotils v0.0.0-20240303185622-093b76447511 // indirect
 	github.com/swaggo/files/v2 v2.0.2 // indirect
+	github.com/tinylib/msgp v1.2.5 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/mod v0.32.0 // indirect

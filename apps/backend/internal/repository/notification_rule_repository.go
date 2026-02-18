@@ -7,7 +7,7 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
-const notificationRuleSelectColumns = `id, event_type, channel_id, app_id, enabled, created_at, updated_at`
+const notificationRuleSelectColumns = `id, user_id, event_type, channel_id, app_id, enabled, created_at, updated_at`
 
 type PostgresNotificationRuleRepository struct {
 	db *sql.DB
@@ -22,6 +22,7 @@ func (r *PostgresNotificationRuleRepository) scanRule(row *sql.Row) (*domain.Not
 	var appID sql.NullString
 	err := row.Scan(
 		&rule.ID,
+		&rule.UserID,
 		&rule.EventType,
 		&rule.ChannelID,
 		&appID,
@@ -41,20 +42,15 @@ func (r *PostgresNotificationRuleRepository) scanRule(row *sql.Row) (*domain.Not
 	return &rule, nil
 }
 
-func (r *PostgresNotificationRuleRepository) FindAll() ([]domain.NotificationRule, error) {
-	query := `SELECT ` + notificationRuleSelectColumns + ` FROM notification_rules ORDER BY created_at DESC`
-	rows, err := r.db.Query(query)
-	if err != nil {
-		return nil, err
-	}
+func (r *PostgresNotificationRuleRepository) scanRuleRows(rows *sql.Rows) ([]domain.NotificationRule, error) {
 	defer rows.Close()
-
 	var rules []domain.NotificationRule
 	for rows.Next() {
 		var rule domain.NotificationRule
 		var appID sql.NullString
 		if err := rows.Scan(
 			&rule.ID,
+			&rule.UserID,
 			&rule.EventType,
 			&rule.ChannelID,
 			&appID,
@@ -72,9 +68,32 @@ func (r *PostgresNotificationRuleRepository) FindAll() ([]domain.NotificationRul
 	return rules, rows.Err()
 }
 
+func (r *PostgresNotificationRuleRepository) FindAll() ([]domain.NotificationRule, error) {
+	query := `SELECT ` + notificationRuleSelectColumns + ` FROM notification_rules ORDER BY created_at DESC`
+	rows, err := r.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	return r.scanRuleRows(rows)
+}
+
+func (r *PostgresNotificationRuleRepository) FindAllByUserID(userID string) ([]domain.NotificationRule, error) {
+	query := `SELECT ` + notificationRuleSelectColumns + ` FROM notification_rules WHERE user_id = $1 ORDER BY created_at DESC`
+	rows, err := r.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	return r.scanRuleRows(rows)
+}
+
 func (r *PostgresNotificationRuleRepository) FindByID(id string) (*domain.NotificationRule, error) {
 	query := `SELECT ` + notificationRuleSelectColumns + ` FROM notification_rules WHERE id = $1`
 	return r.scanRule(r.db.QueryRow(query, id))
+}
+
+func (r *PostgresNotificationRuleRepository) FindByIDAndUserID(id string, userID string) (*domain.NotificationRule, error) {
+	query := `SELECT ` + notificationRuleSelectColumns + ` FROM notification_rules WHERE id = $1 AND user_id = $2`
+	return r.scanRule(r.db.QueryRow(query, id, userID))
 }
 
 func (r *PostgresNotificationRuleRepository) FindByChannelID(channelID string) ([]domain.NotificationRule, error) {
@@ -83,29 +102,7 @@ func (r *PostgresNotificationRuleRepository) FindByChannelID(channelID string) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var rules []domain.NotificationRule
-	for rows.Next() {
-		var rule domain.NotificationRule
-		var appID sql.NullString
-		if err := rows.Scan(
-			&rule.ID,
-			&rule.EventType,
-			&rule.ChannelID,
-			&appID,
-			&rule.Enabled,
-			&rule.CreatedAt,
-			&rule.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		if appID.Valid {
-			rule.AppID = &appID.String
-		}
-		rules = append(rules, rule)
-	}
-	return rules, rows.Err()
+	return r.scanRuleRows(rows)
 }
 
 func (r *PostgresNotificationRuleRepository) FindByEventType(eventType string) ([]domain.NotificationRule, error) {
@@ -114,34 +111,12 @@ func (r *PostgresNotificationRuleRepository) FindByEventType(eventType string) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var rules []domain.NotificationRule
-	for rows.Next() {
-		var rule domain.NotificationRule
-		var appID sql.NullString
-		if err := rows.Scan(
-			&rule.ID,
-			&rule.EventType,
-			&rule.ChannelID,
-			&appID,
-			&rule.Enabled,
-			&rule.CreatedAt,
-			&rule.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		if appID.Valid {
-			rule.AppID = &appID.String
-		}
-		rules = append(rules, rule)
-	}
-	return rules, rows.Err()
+	return r.scanRuleRows(rows)
 }
 
 func (r *PostgresNotificationRuleRepository) FindActiveByEventType(eventType string, appID *string) ([]domain.NotificationRule, error) {
 	query := `
-		SELECT nr.id, nr.event_type, nr.channel_id, nr.app_id, nr.enabled, nr.created_at, nr.updated_at
+		SELECT nr.id, nr.user_id, nr.event_type, nr.channel_id, nr.app_id, nr.enabled, nr.created_at, nr.updated_at
 		FROM notification_rules nr
 		JOIN notification_channels nc ON nr.channel_id = nc.id
 		WHERE nr.event_type = $1 AND nr.enabled = true
@@ -159,37 +134,15 @@ func (r *PostgresNotificationRuleRepository) FindActiveByEventType(eventType str
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var rules []domain.NotificationRule
-	for rows.Next() {
-		var rule domain.NotificationRule
-		var ruleAppID sql.NullString
-		if err := rows.Scan(
-			&rule.ID,
-			&rule.EventType,
-			&rule.ChannelID,
-			&ruleAppID,
-			&rule.Enabled,
-			&rule.CreatedAt,
-			&rule.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		if ruleAppID.Valid {
-			rule.AppID = &ruleAppID.String
-		}
-		rules = append(rules, rule)
-	}
-	return rules, rows.Err()
+	return r.scanRuleRows(rows)
 }
 
 func (r *PostgresNotificationRuleRepository) Create(input domain.CreateNotificationRuleInput) (*domain.NotificationRule, error) {
 	query := `
-		INSERT INTO notification_rules (event_type, channel_id, app_id, enabled, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, NOW(), NOW())
+		INSERT INTO notification_rules (user_id, event_type, channel_id, app_id, enabled, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
 		RETURNING ` + notificationRuleSelectColumns
-	return r.scanRule(r.db.QueryRow(query, input.EventType, input.ChannelID, toNullString(input.AppID), input.Enabled))
+	return r.scanRule(r.db.QueryRow(query, input.UserID, input.EventType, input.ChannelID, toNullString(input.AppID), input.Enabled))
 }
 
 func (r *PostgresNotificationRuleRepository) Update(id string, input domain.UpdateNotificationRuleInput) (*domain.NotificationRule, error) {

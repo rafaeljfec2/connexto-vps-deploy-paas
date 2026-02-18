@@ -1,32 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Copy,
-  Expand,
-  Filter,
-  Minimize2,
-  Search,
-  Terminal,
-  X,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Terminal } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/empty-state";
+import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
+import {
+  type DeployLogLine,
+  type DeployLogType,
+  parseDeployLogLine,
+} from "@/lib/log-utils";
 import { cn } from "@/lib/utils";
+import { LogLine } from "./log-line";
+import { ALL_FILTER_TYPES, LogSearchBar, LogToolbar } from "./log-toolbar";
 
 interface LogViewerProps {
   readonly logs: string | null;
@@ -36,282 +25,11 @@ interface LogViewerProps {
 
 interface LogFilters {
   readonly search: string;
-  readonly types: readonly LogType[];
-}
-
-const ALL_FILTER_TYPES: readonly LogType[] = [
-  "error",
-  "warning",
-  "success",
-  "info",
-  "build",
-  "default",
-] as const;
-
-const FILTER_LABELS: Record<LogType, string> = {
-  error: "Errors",
-  warning: "Warnings",
-  success: "Success",
-  info: "Info",
-  build: "Build",
-  default: "Other",
-};
-
-type LogType = "info" | "success" | "error" | "warning" | "build" | "default";
-type LogPrefix = "build" | "deploy" | null;
-
-interface ParsedLogLine {
-  readonly lineNumber: number;
-  readonly timestamp: string | null;
-  readonly prefix: LogPrefix;
-  readonly step: string | null;
-  readonly content: string;
-  readonly type: LogType;
-  readonly isEmpty: boolean;
-}
-
-const TIMESTAMP_REGEX = /^\[(\d{2}:\d{2}:\d{2})\]\s*/;
-const PREFIX_REGEX = /^\[(build|deploy)\]\s*/i;
-const STEP_REGEX = /^(#\d+)\s+/;
-
-function utcTimeToLocal(utcTime: string): string {
-  const [hours, minutes, seconds] = utcTime.split(":").map(Number);
-  const now = new Date();
-  const utcDate = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      hours,
-      minutes,
-      seconds,
-    ),
-  );
-  return utcDate.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-}
-
-function determineLogType(content: string, prefix: LogPrefix): LogType {
-  const lower = content.toLowerCase();
-
-  if (
-    lower.includes("error") ||
-    lower.includes("failed") ||
-    lower.includes("fatal") ||
-    lower.includes("exception") ||
-    lower.includes("could not be found")
-  ) {
-    return "error";
-  }
-
-  if (
-    lower.includes("success") ||
-    lower.includes("completed") ||
-    lower.includes("deployed") ||
-    lower.includes("healthy") ||
-    lower.includes("running") ||
-    lower.includes("done") ||
-    lower.includes("cached")
-  ) {
-    return "success";
-  }
-
-  if (
-    lower.includes("warning") ||
-    lower.includes("warn") ||
-    lower.includes("deprecated") ||
-    lower.includes("obsolete")
-  ) {
-    return "warning";
-  }
-
-  if (
-    lower.includes("starting") ||
-    lower.includes("syncing") ||
-    lower.includes("fetching") ||
-    lower.includes("building") ||
-    lower.includes("checking") ||
-    lower.includes("pulling") ||
-    lower.includes("pushing") ||
-    lower.includes("deploying") ||
-    lower.includes("exporting") ||
-    lower.includes("transferring") ||
-    lower.includes("unpacking") ||
-    lower.includes("naming")
-  ) {
-    return "info";
-  }
-
-  if (prefix === "build") {
-    return "build";
-  }
-
-  return "default";
-}
-
-function parseLogLine(line: string, index: number): ParsedLogLine {
-  let remaining = line;
-  let timestamp: string | null = null;
-  let prefix: LogPrefix = null;
-  let step: string | null = null;
-
-  const timestampMatch = TIMESTAMP_REGEX.exec(remaining);
-  if (timestampMatch?.[1]) {
-    timestamp = utcTimeToLocal(timestampMatch[1]);
-    remaining = remaining.slice(timestampMatch[0].length);
-  }
-
-  const prefixMatch = PREFIX_REGEX.exec(remaining);
-  if (prefixMatch?.[1]) {
-    prefix = prefixMatch[1].toLowerCase() as LogPrefix;
-    remaining = remaining.slice(prefixMatch[0].length);
-  }
-
-  const stepMatch = STEP_REGEX.exec(remaining);
-  if (stepMatch?.[1]) {
-    step = stepMatch[1];
-    remaining = remaining.slice(stepMatch[0].length);
-  }
-
-  const content = remaining.trim();
-  const isEmpty = content === "" || content === "...";
-  const type = determineLogType(content, prefix);
-
-  return {
-    lineNumber: index + 1,
-    timestamp,
-    prefix,
-    step,
-    content,
-    type,
-    isEmpty,
-  };
-}
-
-interface LogLineProps {
-  readonly line: ParsedLogLine;
-  readonly searchTerm?: string;
-  readonly isCurrentMatch?: boolean;
-  readonly compact?: boolean;
-}
-
-function highlightText(text: string, searchTerm: string): React.ReactNode {
-  if (!searchTerm) return text;
-
-  const escapedTerm = searchTerm.replaceAll(
-    /[.*+?^${}()|[\]\\]/g,
-    String.raw`\$&`,
-  );
-  const regex = new RegExp(`(${escapedTerm})`, "gi");
-  const parts = text.split(regex);
-
-  return parts.map((part, index) => {
-    const isMatch = regex.test(part);
-    regex.lastIndex = 0;
-    return isMatch ? (
-      <mark
-        key={`${part}-${index}`}
-        className="bg-yellow-500/40 text-inherit rounded px-0.5"
-      >
-        {part}
-      </mark>
-    ) : (
-      <span key={`${part}-${index}`}>{part}</span>
-    );
-  });
-}
-
-function LogLine({ line, searchTerm, isCurrentMatch, compact }: LogLineProps) {
-  if (line.isEmpty) {
-    return null;
-  }
-
-  return (
-    <div
-      className={cn(
-        "flex group hover:bg-white/5 transition-colors",
-        compact ? "py-px" : "py-0.5",
-        isCurrentMatch && "bg-yellow-500/20 ring-1 ring-yellow-500/50",
-      )}
-      data-line-number={line.lineNumber}
-    >
-      <span
-        className={cn(
-          "select-none text-muted-foreground/40 text-right mr-2 shrink-0 tabular-nums",
-          compact ? "w-6 text-[10px] leading-4" : "w-8 text-xs leading-5 mr-3",
-        )}
-      >
-        {line.lineNumber}
-      </span>
-
-      <div
-        className={cn(
-          "flex items-start min-w-0 flex-1",
-          compact ? "gap-1.5" : "gap-2",
-        )}
-      >
-        {line.timestamp && (
-          <span
-            className={cn(
-              "text-slate-500 shrink-0 font-medium tabular-nums",
-              compact ? "text-[10px] leading-4" : "text-xs leading-5",
-            )}
-          >
-            {line.timestamp}
-          </span>
-        )}
-
-        {line.prefix && (
-          <span
-            className={cn(
-              "shrink-0 font-semibold uppercase tracking-wider rounded leading-none",
-              compact ? "text-[8px] px-1 py-px" : "text-[10px] px-1.5 py-0.5",
-              line.prefix === "build" &&
-                "bg-violet-500/20 text-violet-400 border border-violet-500/30",
-              line.prefix === "deploy" &&
-                "bg-blue-500/20 text-blue-400 border border-blue-500/30",
-            )}
-          >
-            {line.prefix}
-          </span>
-        )}
-
-        {line.step && (
-          <span
-            className={cn(
-              "shrink-0 font-mono text-amber-400/80",
-              compact ? "text-[10px] leading-4" : "text-xs leading-5",
-            )}
-          >
-            {line.step}
-          </span>
-        )}
-
-        <span
-          className={cn(
-            "whitespace-pre-wrap break-all min-w-0",
-            compact ? "text-xs leading-4" : "text-sm leading-5",
-            line.type === "error" && "text-red-400 font-medium",
-            line.type === "success" && "text-emerald-400",
-            line.type === "warning" && "text-yellow-400",
-            line.type === "info" && "text-sky-400",
-            line.type === "build" && "text-slate-400",
-            line.type === "default" && "text-slate-300",
-          )}
-        >
-          {highlightText(line.content, searchTerm ?? "")}
-        </span>
-      </div>
-    </div>
-  );
+  readonly types: readonly DeployLogType[];
 }
 
 interface LogContentProps {
-  readonly lines: readonly ParsedLogLine[];
+  readonly lines: readonly DeployLogLine[];
   readonly scrollRef: React.RefObject<HTMLDivElement>;
   readonly className?: string;
   readonly searchTerm?: string;
@@ -366,7 +84,7 @@ export function LogViewer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const expandedScrollRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const { copy, copied } = useCopyToClipboard();
   const [filters, setFilters] = useState<LogFilters>({
     search: "",
     types: [...ALL_FILTER_TYPES],
@@ -379,7 +97,7 @@ export function LogViewer({
       logs
         ?.split("\n")
         .filter(Boolean)
-        .map((line, index) => parseLogLine(line, index)) ?? [],
+        .map((line, index) => parseDeployLogLine(line, index)) ?? [],
     [logs],
   );
 
@@ -462,18 +180,11 @@ export function LogViewer({
     }
   }, [logs, autoScroll, isExpanded, filters.search]);
 
-  const handleCopy = useCallback(async () => {
-    if (!logs) return;
-    try {
-      await navigator.clipboard.writeText(logs);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      console.error("Failed to copy logs");
-    }
-  }, [logs]);
+  const handleCopy = useCallback(() => {
+    if (logs) copy(logs);
+  }, [logs, copy]);
 
-  const toggleTypeFilter = useCallback((type: LogType) => {
+  const toggleTypeFilter = useCallback((type: DeployLogType) => {
     setFilters((prev) => ({
       ...prev,
       types: prev.types.includes(type)
@@ -487,9 +198,6 @@ export function LogViewer({
     setShowSearch(false);
   }, []);
 
-  const hasActiveFilters =
-    filters.search || filters.types.length !== ALL_FILTER_TYPES.length;
-
   if (!logs) {
     return (
       <EmptyState
@@ -502,160 +210,44 @@ export function LogViewer({
 
   const visibleCount = filteredLines.length;
 
-  const renderSearchBar = (inDialog = false) => (
-    <div
-      className={cn(
-        "flex items-center gap-2 flex-wrap",
-        inDialog ? "flex-1" : "mb-2",
-      )}
-    >
-      {showSearch && (
-        <div className="relative flex items-center">
-          <Search className="absolute left-2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            placeholder="Search logs..."
-            value={filters.search}
-            onChange={(e) =>
-              setFilters((prev) => ({ ...prev, search: e.target.value }))
-            }
-            className="h-8 w-48 pl-8 pr-8 text-sm bg-slate-900 border-slate-700"
-          />
-          {filters.search && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-1 h-6 w-6"
-              onClick={() => setFilters((prev) => ({ ...prev, search: "" }))}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
-      )}
-
-      {filters.search && matchingLineNumbers.length > 0 && (
-        <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">
-            {currentMatchIndex + 1}/{matchingLineNumbers.length}
-          </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={goToPreviousMatch}
-            title="Previous match"
-          >
-            <ChevronUp className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={goToNextMatch}
-            title="Next match"
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      )}
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "h-7 gap-1",
-              filters.types.length !== ALL_FILTER_TYPES.length &&
-                "text-yellow-400",
-            )}
-          >
-            <Filter className="h-3.5 w-3.5" />
-            <span className="text-xs">Filter</span>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {ALL_FILTER_TYPES.map((type) => (
-            <DropdownMenuCheckboxItem
-              key={type}
-              checked={filters.types.includes(type)}
-              onCheckedChange={() => toggleTypeFilter(type)}
-            >
-              {FILTER_LABELS[type]}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {hasActiveFilters && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs"
-          onClick={clearFilters}
-        >
-          Clear
-        </Button>
-      )}
-    </div>
-  );
-
-  const renderControls = (inDialog = false) => (
-    <div className="flex items-center gap-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn(
-          "h-7 w-7",
-          inDialog
-            ? "hover:bg-slate-800"
-            : "bg-black/50 hover:bg-black/70 backdrop-blur-sm",
-          showSearch && "text-yellow-400",
-        )}
-        onClick={() => setShowSearch(!showSearch)}
-        title="Search logs"
-      >
-        <Search className="h-3.5 w-3.5" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn(
-          "h-7 w-7",
-          inDialog
-            ? "hover:bg-slate-800"
-            : "bg-black/50 hover:bg-black/70 backdrop-blur-sm",
-        )}
-        onClick={handleCopy}
-        title="Copy logs"
-      >
-        {copied ? (
-          <Check className="h-3.5 w-3.5 text-green-400" />
-        ) : (
-          <Copy className="h-3.5 w-3.5" />
-        )}
-      </Button>
-      {!inDialog && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 bg-black/50 hover:bg-black/70 backdrop-blur-sm"
-          onClick={() => setIsExpanded(true)}
-          title="Expand logs"
-        >
-          <Expand className="h-3.5 w-3.5" />
-        </Button>
-      )}
-    </div>
-  );
-
   return (
     <>
       <div className="space-y-2">
-        {showSearch && renderSearchBar()}
+        {showSearch && (
+          <LogSearchBar
+            search={filters.search}
+            onSearchChange={(v) =>
+              setFilters((prev) => ({ ...prev, search: v }))
+            }
+            filterTypes={filters.types}
+            onFilterTypeToggle={toggleTypeFilter}
+            onClearFilters={clearFilters}
+            matchingLineNumbers={matchingLineNumbers}
+            currentMatchIndex={currentMatchIndex}
+            onPreviousMatch={goToPreviousMatch}
+            onNextMatch={goToNextMatch}
+          />
+        )}
         <div className="relative">
           <div className="absolute top-2 right-2 z-10 flex gap-1">
-            {renderControls()}
+            <LogToolbar
+              search={filters.search}
+              onSearchChange={(v) =>
+                setFilters((prev) => ({ ...prev, search: v }))
+              }
+              showSearch={showSearch}
+              onShowSearchToggle={() => setShowSearch(!showSearch)}
+              filterTypes={filters.types}
+              onFilterTypeToggle={toggleTypeFilter}
+              onClearFilters={clearFilters}
+              matchingLineNumbers={matchingLineNumbers}
+              currentMatchIndex={currentMatchIndex}
+              onPreviousMatch={goToPreviousMatch}
+              onNextMatch={goToNextMatch}
+              onCopy={handleCopy}
+              copied={copied}
+              onExpand={() => setIsExpanded(true)}
+            />
           </div>
           <LogContent
             lines={filteredLines}
@@ -681,19 +273,43 @@ export function LogViewer({
                 </span>
               </DialogTitle>
               <div className="flex items-center gap-1">
-                {renderControls(true)}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 hover:bg-slate-800"
-                  onClick={() => setIsExpanded(false)}
-                  title="Minimize"
-                >
-                  <Minimize2 className="h-3.5 w-3.5" />
-                </Button>
+                <LogToolbar
+                  search={filters.search}
+                  onSearchChange={(v) =>
+                    setFilters((prev) => ({ ...prev, search: v }))
+                  }
+                  showSearch={showSearch}
+                  onShowSearchToggle={() => setShowSearch(!showSearch)}
+                  filterTypes={filters.types}
+                  onFilterTypeToggle={toggleTypeFilter}
+                  onClearFilters={clearFilters}
+                  matchingLineNumbers={matchingLineNumbers}
+                  currentMatchIndex={currentMatchIndex}
+                  onPreviousMatch={goToPreviousMatch}
+                  onNextMatch={goToNextMatch}
+                  onCopy={handleCopy}
+                  copied={copied}
+                  onMinimize={() => setIsExpanded(false)}
+                  inDialog
+                />
               </div>
             </div>
-            {showSearch && renderSearchBar(true)}
+            {showSearch && (
+              <LogSearchBar
+                search={filters.search}
+                onSearchChange={(v) =>
+                  setFilters((prev) => ({ ...prev, search: v }))
+                }
+                filterTypes={filters.types}
+                onFilterTypeToggle={toggleTypeFilter}
+                onClearFilters={clearFilters}
+                matchingLineNumbers={matchingLineNumbers}
+                currentMatchIndex={currentMatchIndex}
+                onPreviousMatch={goToPreviousMatch}
+                onNextMatch={goToNextMatch}
+                inDialog
+              />
+            )}
           </DialogHeader>
           <LogContent
             lines={filteredLines}

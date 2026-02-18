@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -16,13 +18,15 @@ type AppAdminHandler struct {
 	appRepo domain.AppRepository
 	engine  *engine.Engine
 	dataDir string
+	logger  *slog.Logger
 }
 
-func NewAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, dataDir string) *AppAdminHandler {
+func NewAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, dataDir string, logger *slog.Logger) *AppAdminHandler {
 	return &AppAdminHandler{
 		appRepo: appRepo,
 		engine:  eng,
 		dataDir: dataDir,
+		logger:  logger.With("handler", "app_admin"),
 	}
 }
 
@@ -145,60 +149,57 @@ type ContainerActionResponse struct {
 	Message string `json:"message"`
 }
 
-func (h *AppAdminHandler) RestartContainer(c *fiber.Ctx) error {
+type containerAction struct {
+	name    string
+	do      func(context.Context, string) error
+	success string
+	fail    string
+}
+
+func (h *AppAdminHandler) executeContainerAction(c *fiber.Ctx, action containerAction) error {
 	app, err := h.requireAppForUser(c)
 	if err != nil {
 		return err
 	}
 
-	if err := h.engine.RestartContainer(c.Context(), app.Name); err != nil {
+	if err := action.do(c.Context(), app.Name); err != nil {
+		h.logger.Error("Failed to "+action.name+" container", "appId", app.ID, "appName", app.Name, "error", err)
 		return response.OK(c, ContainerActionResponse{
 			Success: false,
-			Message: err.Error(),
+			Message: action.fail,
 		})
 	}
 
 	return response.OK(c, ContainerActionResponse{
 		Success: true,
-		Message: "Container restarted successfully",
+		Message: action.success,
+	})
+}
+
+func (h *AppAdminHandler) RestartContainer(c *fiber.Ctx) error {
+	return h.executeContainerAction(c, containerAction{
+		name:    "restart",
+		do:      h.engine.RestartContainer,
+		success: "Container restarted successfully",
+		fail:    "Failed to restart container",
 	})
 }
 
 func (h *AppAdminHandler) StopContainer(c *fiber.Ctx) error {
-	app, err := h.requireAppForUser(c)
-	if err != nil {
-		return err
-	}
-
-	if err := h.engine.StopContainer(c.Context(), app.Name); err != nil {
-		return response.OK(c, ContainerActionResponse{
-			Success: false,
-			Message: err.Error(),
-		})
-	}
-
-	return response.OK(c, ContainerActionResponse{
-		Success: true,
-		Message: "Container stopped successfully",
+	return h.executeContainerAction(c, containerAction{
+		name:    "stop",
+		do:      h.engine.StopContainer,
+		success: "Container stopped successfully",
+		fail:    "Failed to stop container",
 	})
 }
 
 func (h *AppAdminHandler) StartContainer(c *fiber.Ctx) error {
-	app, err := h.requireAppForUser(c)
-	if err != nil {
-		return err
-	}
-
-	if err := h.engine.StartContainer(c.Context(), app.Name); err != nil {
-		return response.OK(c, ContainerActionResponse{
-			Success: false,
-			Message: err.Error(),
-		})
-	}
-
-	return response.OK(c, ContainerActionResponse{
-		Success: true,
-		Message: "Container started successfully",
+	return h.executeContainerAction(c, containerAction{
+		name:    "start",
+		do:      h.engine.StartContainer,
+		success: "Container started successfully",
+		fail:    "Failed to start container",
 	})
 }
 

@@ -24,6 +24,7 @@ type Server struct {
 	SSHKeyEncrypted      string       `json:"-"`
 	SSHPasswordEncrypted string       `json:"-"`
 	AcmeEmail            *string      `json:"acmeEmail,omitempty"`
+	SSHHostKey           string       `json:"-"`
 	Status               ServerStatus `json:"status"`
 	AgentVersion         *string      `json:"agentVersion,omitempty"`
 	LastHeartbeatAt      *time.Time   `json:"lastHeartbeatAt,omitempty"`
@@ -61,5 +62,6 @@ type ServerRepository interface {
 	FindAllByUserID(userID string) ([]Server, error)
 	Update(id string, input UpdateServerInput) (*Server, error)
 	UpdateHeartbeat(id string, agentVersion string) error
+	UpdateSSHHostKey(id string, hostKey string) error
 	Delete(id string) error
 }

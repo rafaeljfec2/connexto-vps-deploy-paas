@@ -22,12 +22,23 @@ func NewContainerExecHandler(logger *slog.Logger) *ContainerExecHandler {
 
 func (h *ContainerExecHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
-	v1.Get("/containers/:id/console", websocket.New(h.handleConsole,
+	v1.Get("/containers/:id/console", h.requireAuthForWebSocket, websocket.New(h.handleConsole,
 		websocket.Config{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
 	))
+}
+
+func (h *ContainerExecHandler) requireAuthForWebSocket(c *fiber.Ctx) error {
+	if !websocket.IsWebSocketUpgrade(c) {
+		return fiber.ErrUpgradeRequired
+	}
+	user := GetUserFromContext(c)
+	if user == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "authentication required"})
+	}
+	return c.Next()
 }
 
 func (h *ContainerExecHandler) handleConsole(c *websocket.Conn) {

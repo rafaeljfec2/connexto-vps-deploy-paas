@@ -103,7 +103,7 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 
 	if err := h.docker.RemoveImageByID(c.Context(), target, force); err != nil {
 		h.logger.Error("Failed to remove image", "target", target, "force", force, "error", err)
-		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove image: "+err.Error())
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove image")
 	}
 
 	return response.NoContent(c)

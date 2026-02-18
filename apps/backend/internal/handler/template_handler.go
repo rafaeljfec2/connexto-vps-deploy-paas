@@ -82,7 +82,7 @@ func (h *TemplateHandler) DeployTemplate(c *fiber.Ctx) error {
 	containerID, err := h.docker.CreateContainer(c.Context(), opts)
 	if err != nil {
 		h.logger.Error("Failed to deploy template", "template", id, "error", err)
-		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to deploy template: "+err.Error())
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to deploy template")
 	}
 
 	container, err := h.docker.GetContainerDetails(c.Context(), containerID)

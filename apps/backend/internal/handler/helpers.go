@@ -21,19 +21,19 @@ func isKnownDomainError(err error) bool {
 func HandleDomainError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
-		return response.NotFound(c, err.Error())
+		return response.NotFound(c, "resource not found")
 	case errors.Is(err, domain.ErrAlreadyExists):
-		return response.Conflict(c, err.Error())
+		return response.Conflict(c, "resource already exists")
 	case errors.Is(err, domain.ErrInvalidInput):
-		return response.BadRequest(c, err.Error())
+		return response.BadRequest(c, "invalid input")
 	case errors.Is(err, domain.ErrDeployInProgress):
-		return response.Conflict(c, err.Error())
+		return response.Conflict(c, "deployment already in progress for this app")
 	case errors.Is(err, domain.ErrNoDeployAvailable):
-		return response.NotFound(c, err.Error())
+		return response.NotFound(c, "no deployment available for rollback")
 	case errors.Is(err, domain.ErrWebhookNotConfigured):
-		return response.BadRequest(c, err.Error())
+		return response.BadRequest(c, "webhook management not configured")
 	case errors.Is(err, domain.ErrForbidden):
-		return response.Forbidden(c, err.Error())
+		return response.Forbidden(c, "forbidden")
 	default:
 		return response.InternalError(c)
 	}

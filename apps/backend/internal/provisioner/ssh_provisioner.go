@@ -33,12 +33,17 @@ const (
 	timeoutNetworkSetup  = 30 * time.Second
 )
 
+type SSHHostKeyStore interface {
+	UpdateSSHHostKey(serverID string, hostKey string) error
+}
+
 type SSHProvisionerConfig struct {
 	CA              *pki.CertificateAuthority
 	ServerAddr      string
 	AgentBinaryPath string
 	AgentPort       int
 	Logger          *slog.Logger
+	HostKeyStore    SSHHostKeyStore
 }
 
 type ProvisionProgress struct {
@@ -66,7 +71,7 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 	addr := net.JoinHostPort(server.Host, fmt.Sprintf("%d", port))
 	logLine(fmt.Sprintf("Conectando a %s como %s", addr, server.SSHUser))
 
-	client, err := p.provisionSSH(server.SSHUser, addr, sshKeyPlain, sshPasswordPlain, step)
+	client, err := p.provisionSSH(server.SSHUser, addr, sshKeyPlain, sshPasswordPlain, server.SSHHostKey, server.ID, step)
 	if err != nil {
 		return err
 	}
@@ -136,9 +141,9 @@ func (p *SSHProvisioner) makeLogFn(progress *ProvisionProgress) func(string) {
 	}
 }
 
-func (p *SSHProvisioner) provisionSSH(user, addr, key, password string, step func(string, string, string)) (*ssh.Client, error) {
+func (p *SSHProvisioner) provisionSSH(user, addr, key, password, knownHostKey, serverID string, step func(string, string, string)) (*ssh.Client, error) {
 	step("ssh_connect", "running", "Conectando via SSH...")
-	client, err := p.connect(user, addr, key, password)
+	client, err := p.connect(user, addr, key, password, knownHostKey, serverID)
 	if err != nil {
 		return nil, fmt.Errorf("ssh connect: %w", err)
 	}
@@ -274,7 +279,7 @@ func (p *SSHProvisioner) deployAgentBinary(
 	return nil
 }
 
-func (p *SSHProvisioner) connect(user, addr, privateKey string, password string) (*ssh.Client, error) {
+func (p *SSHProvisioner) connect(user, addr, privateKey string, password string, knownHostKey string, serverID string) (*ssh.Client, error) {
 	var authMethods []ssh.AuthMethod
 	if privateKey != "" {
 		signer, err := ssh.ParsePrivateKey([]byte(privateKey))
@@ -292,10 +297,12 @@ func (p *SSHProvisioner) connect(user, addr, privateKey string, password string)
 		return nil, fmt.Errorf("no ssh auth methods configured")
 	}
 
+	hostKeyCallback := p.buildHostKeyCallback(knownHostKey, serverID)
+
 	config := &ssh.ClientConfig{
 		User:            user,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCallback,
 		Timeout:         sshConnectTimeout,
 	}
 
@@ -305,6 +312,28 @@ func (p *SSHProvisioner) connect(user, addr, privateKey string, password string)
 	}
 
 	return client, nil
+}
+
+func (p *SSHProvisioner) buildHostKeyCallback(knownHostKey string, serverID string) ssh.HostKeyCallback {
+	if knownHostKey != "" {
+		parsedKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(knownHostKey))
+		if err == nil {
+			return ssh.FixedHostKey(parsedKey)
+		}
+		p.cfg.Logger.Warn("failed to parse stored host key, falling back to TOFU", "error", err, "serverId", serverID)
+	}
+
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		serialized := string(ssh.MarshalAuthorizedKey(key))
+		if p.cfg.HostKeyStore != nil && serverID != "" {
+			if err := p.cfg.HostKeyStore.UpdateSSHHostKey(serverID, serialized); err != nil {
+				p.cfg.Logger.Warn("failed to store SSH host key", "error", err, "serverId", serverID)
+			} else {
+				p.cfg.Logger.Info("SSH host key stored (TOFU)", "serverId", serverID, "hostname", hostname)
+			}
+		}
+		return nil
+	}
 }
 
 func createInstallDir(client *sftp.Client, installDir string) error {
@@ -478,7 +507,7 @@ func (p *SSHProvisioner) Deprovision(server *domain.Server, sshKeyPlain string, 
 		port = defaultSSHPort
 	}
 	addr := net.JoinHostPort(server.Host, fmt.Sprintf("%d", port))
-	client, err := p.connect(server.SSHUser, addr, sshKeyPlain, sshPasswordPlain)
+	client, err := p.connect(server.SSHUser, addr, sshKeyPlain, sshPasswordPlain, server.SSHHostKey, server.ID)
 	if err != nil {
 		return fmt.Errorf("ssh connect: %w", err)
 	}

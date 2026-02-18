@@ -62,24 +62,11 @@ func (h *CloudflareAuthHandler) Register(app fiber.Router) {
 }
 
 func (h *CloudflareAuthHandler) setCookie(c *fiber.Ctx, name, value string, maxAge int) {
-	sameSite := "Lax"
-	if h.cookieDomain != "" {
-		sameSite = "None"
-	}
-	c.Cookie(&fiber.Cookie{
-		Name:     name,
-		Value:    value,
-		HTTPOnly: true,
-		Secure:   h.secureCookie,
-		SameSite: sameSite,
-		MaxAge:   maxAge,
-		Path:     "/",
-		Domain:   h.cookieDomain,
-	})
+	SetCookie(c, name, value, maxAge, h.secureCookie, h.cookieDomain)
 }
 
 func (h *CloudflareAuthHandler) redirectWithError(c *fiber.Ctx, errorCode string) error {
-	return c.Redirect(h.frontendURL+"/settings?error="+errorCode, fiber.StatusTemporaryRedirect)
+	return RedirectWithError(c, h.frontendURL, "/settings?error=", errorCode)
 }
 
 func (h *CloudflareAuthHandler) generateState() (string, error) {

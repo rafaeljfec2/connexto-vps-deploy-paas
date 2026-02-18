@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"github.com/paasdeploy/backend/internal/response"
 	"github.com/valyala/fasthttp"
 )
 
@@ -68,11 +69,15 @@ func (h *SSEHandler) Register(app fiber.Router) {
 }
 
 func (h *SSEHandler) Stream(c *fiber.Ctx) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
 	c.Set("Transfer-Encoding", "chunked")
-	c.Set("Access-Control-Allow-Origin", "*")
 
 	clientID := uuid.New().String()
 	eventChan := h.subscribe(clientID)

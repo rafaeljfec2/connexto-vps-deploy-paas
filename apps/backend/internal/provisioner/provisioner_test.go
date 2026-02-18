@@ -111,8 +111,26 @@ func (m *commandMock) hasOutputCommand(substr string) bool {
 	return false
 }
 
-var noopStep = func(string, string, string) {}
-var noopLog = func(string) {}
+func (m *commandMock) hasCommandWith(substrs ...string) bool {
+	for _, cmd := range m.commands {
+		if containsAll(cmd, substrs) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAll(s string, substrs []string) bool {
+	for _, sub := range substrs {
+		if !strings.Contains(s, sub) {
+			return false
+		}
+	}
+	return true
+}
+
+var noopStep = func(string, string, string) { /* intentional no-op for tests */ }
+var noopLog = func(string) { /* intentional no-op for tests */ }
 
 func newTestProvisioner() *SSHProvisioner {
 	return &SSHProvisioner{
@@ -129,13 +147,40 @@ func requireNoError(t *testing.T, err error) {
 	}
 }
 
+func assertContains(t *testing.T, haystack, needle string) {
+	t.Helper()
+	if !strings.Contains(haystack, needle) {
+		t.Errorf("expected to contain %q, got:\n%s", needle, haystack)
+	}
+}
+
+func requireTraefikConfig(t *testing.T, email string) string {
+	t.Helper()
+	config, err := buildTraefikConfig(email)
+	requireNoError(t, err)
+	return string(config)
+}
+
+func setupDockerMock(t *testing.T, dockerInstalled bool, daemonActive bool) *commandMock {
+	t.Helper()
+	mock := newCommandMock()
+	if dockerInstalled {
+		mock.setResponse(cmdDockerVersion, mockDockerVersionOut)
+	} else {
+		mock.setError(cmdDockerVersion, fmt.Errorf(errNotFound))
+	}
+	if daemonActive {
+		mock.setResponse(cmdSystemctlIsActive, "active")
+	} else {
+		mock.setError(cmdSystemctlIsActive, fmt.Errorf("inactive"))
+	}
+	return mock
+}
+
 func TestProvisionDocker(t *testing.T) {
 	t.Run("AlreadyInstalled", func(t *testing.T) {
-		mock := newCommandMock()
-		mock.setResponse(cmdDockerVersion, mockDockerVersionOut)
-		mock.setResponse(cmdSystemctlIsActive, "active")
-		cleanup := mock.install(t)
-		defer cleanup()
+		mock := setupDockerMock(t, true, true)
+		defer mock.install(t)()
 
 		p := newTestProvisioner()
 		requireNoError(t, p.provisionDocker(nil, uidRoot, noopStep, noopLog))
@@ -149,11 +194,8 @@ func TestProvisionDocker(t *testing.T) {
 	})
 
 	t.Run("NotInstalledInstallsAsRoot", func(t *testing.T) {
-		mock := newCommandMock()
-		mock.setError(cmdDockerVersion, fmt.Errorf(errNotFound))
-		mock.setResponse(cmdSystemctlIsActive, "active")
-		cleanup := mock.install(t)
-		defer cleanup()
+		mock := setupDockerMock(t, false, true)
+		defer mock.install(t)()
 
 		p := newTestProvisioner()
 		requireNoError(t, p.provisionDocker(nil, uidRoot, noopStep, noopLog))
@@ -164,45 +206,24 @@ func TestProvisionDocker(t *testing.T) {
 	})
 
 	t.Run("NotInstalledInstallsWithSudo", func(t *testing.T) {
-		mock := newCommandMock()
-		mock.setError(cmdDockerVersion, fmt.Errorf(errNotFound))
+		mock := setupDockerMock(t, false, true)
 		mock.setResponse("whoami", "deploy")
-		mock.setResponse(cmdSystemctlIsActive, "active")
-		cleanup := mock.install(t)
-		defer cleanup()
+		defer mock.install(t)()
 
 		p := newTestProvisioner()
 		requireNoError(t, p.provisionDocker(nil, uidNonRoot, noopStep, noopLog))
 
-		hasSudo := false
-		for _, cmd := range mock.commands {
-			if strings.Contains(cmd, "sudo") && strings.Contains(cmd, cmdGetDockerCom) {
-				hasSudo = true
-				break
-			}
-		}
-		if !hasSudo {
+		if !mock.hasCommandWith("sudo", cmdGetDockerCom) {
 			t.Error("expected sudo docker install command for non-root user")
 		}
-
-		hasUsermod := false
-		for _, cmd := range mock.commands {
-			if strings.Contains(cmd, "usermod") && strings.Contains(cmd, "docker") {
-				hasUsermod = true
-				break
-			}
-		}
-		if !hasUsermod {
+		if !mock.hasCommandWith("usermod", "docker") {
 			t.Error("expected usermod -aG docker command for non-root user")
 		}
 	})
 
 	t.Run("DaemonNotRunningStartsIt", func(t *testing.T) {
-		mock := newCommandMock()
-		mock.setResponse(cmdDockerVersion, mockDockerVersionOut)
-		mock.setError(cmdSystemctlIsActive, fmt.Errorf("inactive"))
-		cleanup := mock.install(t)
-		defer cleanup()
+		mock := setupDockerMock(t, true, false)
+		defer mock.install(t)()
 
 		p := newTestProvisioner()
 		requireNoError(t, p.provisionDocker(nil, uidRoot, noopStep, noopLog))
@@ -242,13 +263,22 @@ func TestProvisionDockerNetwork(t *testing.T) {
 	})
 }
 
+func setupTraefikMock(t *testing.T, running bool, image string) *commandMock {
+	t.Helper()
+	mock := newCommandMock()
+	if running {
+		mock.setResponse(mockKeyStateRunning, "true")
+		mock.setResponse(mockKeyConfigImage, image)
+	} else {
+		mock.setError(mockKeyStateRunning, fmt.Errorf(errNotFound))
+	}
+	return mock
+}
+
 func TestProvisionTraefik(t *testing.T) {
 	t.Run("AlreadyRunningCorrectVersion", func(t *testing.T) {
-		mock := newCommandMock()
-		mock.setResponse(mockKeyStateRunning, "true")
-		mock.setResponse(mockKeyConfigImage, traefikImage)
-		cleanup := mock.install(t)
-		defer cleanup()
+		mock := setupTraefikMock(t, true, traefikImage)
+		defer mock.install(t)()
 
 		p := newTestProvisioner()
 		requireNoError(t, p.provisionTraefik(nil, uidRoot, testEmailDefault, noopStep, noopLog))
@@ -259,11 +289,8 @@ func TestProvisionTraefik(t *testing.T) {
 	})
 
 	t.Run("AlreadyRunningOldVersionUpgrades", func(t *testing.T) {
-		mock := newCommandMock()
-		mock.setResponse(mockKeyStateRunning, "true")
-		mock.setResponse(mockKeyConfigImage, "traefik:v2.10")
-		cleanup := mock.install(t)
-		defer cleanup()
+		mock := setupTraefikMock(t, true, "traefik:v2.10")
+		defer mock.install(t)()
 
 		p := newTestProvisioner()
 		requireNoError(t, p.provisionTraefik(nil, uidRoot, testEmailDefault, noopStep, noopLog))
@@ -277,10 +304,8 @@ func TestProvisionTraefik(t *testing.T) {
 	})
 
 	t.Run("NotRunningInstallsAndStarts", func(t *testing.T) {
-		mock := newCommandMock()
-		mock.setError(mockKeyStateRunning, fmt.Errorf(errNotFound))
-		cleanup := mock.install(t)
-		defer cleanup()
+		mock := setupTraefikMock(t, false, "")
+		defer mock.install(t)()
 
 		p := newTestProvisioner()
 		requireNoError(t, p.provisionTraefik(nil, uidRoot, testEmailDefault, noopStep, noopLog))
@@ -288,18 +313,7 @@ func TestProvisionTraefik(t *testing.T) {
 		if !mock.hasCommand("mkdir -p") {
 			t.Error("expected mkdir for traefik dirs")
 		}
-		if !mock.hasCommand(cmdDockerRun) {
-			t.Error("expected docker run command for traefik")
-		}
-
-		hasTraefikImage := false
-		for _, cmd := range mock.commands {
-			if strings.Contains(cmd, cmdDockerRun) && strings.Contains(cmd, traefikImage) {
-				hasTraefikImage = true
-				break
-			}
-		}
-		if !hasTraefikImage {
+		if !mock.hasCommandWith(cmdDockerRun, traefikImage) {
 			t.Errorf("expected docker run with image %s", traefikImage)
 		}
 	})
@@ -387,52 +401,38 @@ func TestPrivilegedCommandOutput(t *testing.T) {
 
 func TestBuildTraefikConfig(t *testing.T) {
 	t.Run("ContainsAcmeEmail", func(t *testing.T) {
-		config := buildTraefikConfig(testEmailDefault)
-		configStr := string(config)
-
-		if !strings.Contains(configStr, "email: "+testEmailDefault) {
-			t.Errorf("expected config to contain acme email %q, got:\n%s", testEmailDefault, configStr)
-		}
+		cfg := requireTraefikConfig(t, testEmailDefault)
+		assertContains(t, cfg, testEmailDefault)
 	})
 
 	t.Run("ContainsEntryPoints", func(t *testing.T) {
-		configStr := string(buildTraefikConfig(testEmailAdmin))
-
-		expectedPorts := []string{":80", ":443", ":50051", ":8081"}
-		for _, port := range expectedPorts {
-			if !strings.Contains(configStr, port) {
-				t.Errorf("expected config to contain port %q, got:\n%s", port, configStr)
-			}
+		cfg := requireTraefikConfig(t, testEmailAdmin)
+		for _, port := range []string{":80", ":443", ":50051", ":8081"} {
+			assertContains(t, cfg, port)
 		}
 	})
 
 	t.Run("ContainsDockerProvider", func(t *testing.T) {
-		configStr := string(buildTraefikConfig(testEmailAdmin))
-
-		if !strings.Contains(configStr, "unix:///var/run/docker.sock") {
-			t.Errorf("expected config to contain docker socket endpoint, got:\n%s", configStr)
-		}
-		if !strings.Contains(configStr, "network: "+dockerNetworkName) {
-			t.Errorf("expected config to contain network %q, got:\n%s", dockerNetworkName, configStr)
-		}
+		cfg := requireTraefikConfig(t, testEmailAdmin)
+		assertContains(t, cfg, "unix:///var/run/docker.sock")
+		assertContains(t, cfg, "network: "+dockerNetworkName)
 	})
 
 	t.Run("ContainsLetsencrypt", func(t *testing.T) {
-		configStr := string(buildTraefikConfig(testEmailAdmin))
-
-		if !strings.Contains(configStr, "letsencrypt") {
-			t.Errorf("expected config to contain letsencrypt resolver, got:\n%s", configStr)
-		}
-		if !strings.Contains(configStr, "httpChallenge") {
-			t.Errorf("expected config to contain httpChallenge, got:\n%s", configStr)
-		}
+		cfg := requireTraefikConfig(t, testEmailAdmin)
+		assertContains(t, cfg, "letsencrypt")
+		assertContains(t, cfg, "httpChallenge")
 	})
 
 	t.Run("DisableExposedByDefault", func(t *testing.T) {
-		configStr := string(buildTraefikConfig(testEmailAdmin))
+		cfg := requireTraefikConfig(t, testEmailAdmin)
+		assertContains(t, cfg, "exposedByDefault: false")
+	})
 
-		if !strings.Contains(configStr, "exposedByDefault: false") {
-			t.Errorf("expected config to disable exposedByDefault, got:\n%s", configStr)
+	t.Run("RejectsInvalidEmail", func(t *testing.T) {
+		_, err := buildTraefikConfig("not-an-email")
+		if err == nil {
+			t.Error("expected error for invalid email")
 		}
 	})
 }

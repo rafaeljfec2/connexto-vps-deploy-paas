@@ -103,6 +103,11 @@ func (h *EnvVarHandler) BulkUpsertEnvVars(c *fiber.Ctx) error {
 }
 
 func (h *EnvVarHandler) UpdateEnvVar(c *fiber.Ctx) error {
+	appID := c.Params("id")
+	if err := EnsureAppOwnership(c, h.appRepo, appID); err != nil {
+		return err
+	}
+
 	varID := c.Params("varId")
 
 	var input domain.UpdateEnvVarInput
@@ -119,6 +124,11 @@ func (h *EnvVarHandler) UpdateEnvVar(c *fiber.Ctx) error {
 }
 
 func (h *EnvVarHandler) DeleteEnvVar(c *fiber.Ctx) error {
+	appID := c.Params("id")
+	if err := EnsureAppOwnership(c, h.appRepo, appID); err != nil {
+		return err
+	}
+
 	varID := c.Params("varId")
 
 	if err := h.envVarRepo.Delete(varID); err != nil {
