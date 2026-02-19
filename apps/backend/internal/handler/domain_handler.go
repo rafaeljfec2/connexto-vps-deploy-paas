@@ -21,6 +21,7 @@ type DomainHandler struct {
 	appRepo        domain.AppRepository
 	domainRepo     domain.CustomDomainRepository
 	connectionRepo domain.CloudflareConnectionRepository
+	serverRepo     domain.ServerRepository
 	tokenEncryptor *crypto.TokenEncryptor
 	serverIP       string
 	logger         *slog.Logger
@@ -31,6 +32,7 @@ type DomainHandlerConfig struct {
 	AppRepo        domain.AppRepository
 	DomainRepo     domain.CustomDomainRepository
 	ConnectionRepo domain.CloudflareConnectionRepository
+	ServerRepo     domain.ServerRepository
 	TokenEncryptor *crypto.TokenEncryptor
 	ServerIP       string
 	Logger         *slog.Logger
@@ -42,6 +44,7 @@ func NewDomainHandler(cfg DomainHandlerConfig) *DomainHandler {
 		appRepo:        cfg.AppRepo,
 		domainRepo:     cfg.DomainRepo,
 		connectionRepo: cfg.ConnectionRepo,
+		serverRepo:     cfg.ServerRepo,
 		tokenEncryptor: cfg.TokenEncryptor,
 		serverIP:       cfg.ServerIP,
 		logger:         cfg.Logger.With("handler", "domain"),
@@ -142,7 +145,15 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		return response.InternalError(c)
 	}
 
-	customDomain, err := h.createCustomDomainWithDNS(c, appID, domainName, pathPrefix, accessToken)
+	targetIP, err := h.resolveTargetIP(app)
+	if err != nil {
+		h.logger.Error("failed to resolve target IP for domain",
+			"error", err, "app_id", appID, "server_id", app.ServerID,
+		)
+		return response.InternalError(c)
+	}
+
+	customDomain, err := h.createCustomDomainWithDNS(c, appID, domainName, pathPrefix, accessToken, targetIP)
 	if err != nil {
 		return err
 	}
@@ -157,6 +168,7 @@ func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
 		"app_id", appID,
 		"domain", domainName,
 		"record_type", "A",
+		"target_ip", targetIP,
 		"user_id", user.ID,
 	)
 
@@ -193,7 +205,20 @@ func (h *DomainHandler) checkDomainAvailability(c *fiber.Ctx, domainName, pathPr
 	return nil
 }
 
-func (h *DomainHandler) createCustomDomainWithDNS(c *fiber.Ctx, appID, domainName, pathPrefix, accessToken string) (*domain.CustomDomain, error) {
+func (h *DomainHandler) resolveTargetIP(app *domain.App) (string, error) {
+	if app.ServerID == nil || *app.ServerID == "" {
+		return h.serverIP, nil
+	}
+
+	server, err := h.serverRepo.FindByID(*app.ServerID)
+	if err != nil {
+		return "", err
+	}
+
+	return server.Host, nil
+}
+
+func (h *DomainHandler) createCustomDomainWithDNS(c *fiber.Ctx, appID, domainName, pathPrefix, accessToken, targetIP string) (*domain.CustomDomain, error) {
 	cfClient := cloudflare.NewClient(accessToken, h.logger)
 	rootDomain := extractRootDomain(domainName)
 
@@ -203,7 +228,7 @@ func (h *DomainHandler) createCustomDomainWithDNS(c *fiber.Ctx, appID, domainNam
 		return nil, response.BadRequest(c, "Domain/zone not found in your Cloudflare account. Add the zone in Cloudflare first.")
 	}
 
-	recordID, err := cfClient.CreateOrGetARecord(c.Context(), zoneID, domainName, h.serverIP)
+	recordID, err := cfClient.CreateOrGetARecord(c.Context(), zoneID, domainName, targetIP)
 	if err != nil {
 		h.logger.Error("failed to create/get DNS record", "domain", domainName, "error", err)
 		return nil, response.BadRequest(c, "Failed to configure DNS record")
