@@ -33,21 +33,21 @@ function LogLine({ line }: { readonly line: ContainerLogLine }) {
   }
 
   return (
-    <div className="flex group hover:bg-white/5 transition-colors py-0.5">
-      <span className="select-none text-muted-foreground/40 w-8 text-right mr-3 shrink-0 text-xs leading-5 tabular-nums">
+    <div className="flex group hover:bg-white/5 transition-colors py-1 border-b border-slate-800/40 last:border-b-0">
+      <span className="select-none text-muted-foreground/30 w-10 text-right mr-3 shrink-0 text-[11px] leading-5 tabular-nums pt-px">
         {line.lineNumber}
       </span>
 
-      <div className="flex items-start gap-2 min-w-0 flex-1">
+      <div className="flex items-start gap-2.5 min-w-0 flex-1">
         {line.timestamp && (
-          <span className="text-slate-500 shrink-0 font-medium text-xs leading-5 tabular-nums">
+          <span className="text-slate-500 shrink-0 font-medium text-[11px] leading-5 tabular-nums">
             {line.timestamp}
           </span>
         )}
 
         <span
           className={cn(
-            "whitespace-pre-wrap break-all text-sm leading-5 min-w-0",
+            "whitespace-pre-wrap break-words text-[13px] leading-5 min-w-0",
             line.type === "error" && "text-red-400 font-medium",
             line.type === "warning" && "text-yellow-400",
             line.type === "info" && "text-sky-400",
@@ -108,7 +108,7 @@ function LogsContent({
       ref={scrollRef}
       className="flex-1 min-h-0 overflow-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent"
     >
-      <div className="p-3 font-mono space-y-0">
+      <div className="px-3 py-2 font-mono">
         {lines.map((line) => (
           <LogLine key={line.lineNumber} line={line} />
         ))}
@@ -205,21 +205,23 @@ export function ContainerLogsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800">
-        <DialogHeader className="px-4 py-3 border-b border-slate-800 flex-row items-center justify-between space-y-0">
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Terminal className="h-4 w-4" />
-            Container Logs - {containerName}
-            <span className="text-xs text-muted-foreground font-normal">
-              ({lines.length} lines)
+      <DialogContent className="max-w-[95vw] w-[95vw] md:max-w-6xl h-[85vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800">
+        <DialogHeader className="px-4 py-2.5 border-b border-slate-800 flex-row items-center justify-between space-y-0 shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-sm font-medium">
+            <Terminal className="h-4 w-4 text-muted-foreground" />
+            <span className="truncate max-w-[200px] sm:max-w-none">
+              {containerName}
+            </span>
+            <span className="text-xs text-muted-foreground font-normal tabular-nums">
+              {lines.length} lines
             </span>
             {isStreaming && (
-              <span className="flex items-center gap-1 text-xs text-green-400 font-normal">
+              <span className="flex items-center gap-1.5 text-xs text-green-400 font-normal">
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                </span>{" "}
-                Live
+                </span>
+                <span>Live</span>
               </span>
             )}
           </DialogTitle>
