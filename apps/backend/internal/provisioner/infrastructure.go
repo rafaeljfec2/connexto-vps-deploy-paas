@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -23,6 +24,7 @@ const (
 func (p *SSHProvisioner) provisionDocker(
 	client *ssh.Client,
 	uid string,
+	password string,
 	step func(string, string, string),
 	logLine func(string),
 ) error {
@@ -33,14 +35,14 @@ func (p *SSHProvisioner) provisionDocker(
 	if err == nil {
 		logLine(fmt.Sprintf("Docker encontrado: %s", dockerVersion))
 		step("docker_check", "ok", "Docker encontrado")
-		return p.ensureDockerRunning(client, uid, step, logLine)
+		return p.ensureDockerRunning(client, uid, password, step, logLine)
 	}
 
 	step("docker_install", "running", "Instalando Docker...")
 	logLine("Docker nao encontrado, instalando via get.docker.com")
 
 	installCmd := "curl -fsSL https://get.docker.com | sh"
-	if err := runPrivilegedCommandWithTimeout(client, uid, fmt.Sprintf("sh -c '%s'", installCmd), timeoutDockerInstall); err != nil {
+	if err := runPrivilegedCommandWithTimeout(client, uid, password, fmt.Sprintf("sh -c '%s'", installCmd), timeoutDockerInstall); err != nil {
 		return fmt.Errorf("install docker: %w", err)
 	}
 
@@ -51,22 +53,23 @@ func (p *SSHProvisioner) provisionDocker(
 		currentUser, userErr := runCommandOutput(client, "whoami")
 		if userErr == nil && currentUser != "" {
 			addGroupCmd := fmt.Sprintf("usermod -aG docker %s", strings.TrimSpace(currentUser))
-			_ = runPrivilegedCommand(client, uid, addGroupCmd)
+			_ = runPrivilegedCommand(client, uid, password, addGroupCmd)
 		}
 	}
 
-	return p.ensureDockerRunning(client, uid, step, logLine)
+	return p.ensureDockerRunning(client, uid, password, step, logLine)
 }
 
 func (p *SSHProvisioner) ensureDockerRunning(
 	client *ssh.Client,
 	uid string,
+	password string,
 	step func(string, string, string),
 	logLine func(string),
 ) error {
 	step("docker_start", "running", "Verificando Docker daemon...")
 
-	out, err := runPrivilegedCommandOutput(client, uid, "systemctl is-active docker")
+	out, err := runPrivilegedCommandOutput(client, uid, password, "systemctl is-active docker")
 	if err == nil && strings.TrimSpace(out) == "active" {
 		logLine("Docker daemon esta ativo")
 		step("docker_start", "ok", "Docker daemon ativo")
@@ -75,7 +78,7 @@ func (p *SSHProvisioner) ensureDockerRunning(
 
 	logLine("Iniciando Docker daemon")
 	startCmd := "systemctl start docker && systemctl enable docker"
-	if err := runPrivilegedCommandWithTimeout(client, uid, startCmd, timeoutDockerCheck); err != nil {
+	if err := runPrivilegedCommandWithTimeout(client, uid, password, startCmd, timeoutDockerCheck); err != nil {
 		return fmt.Errorf("start docker daemon: %w", err)
 	}
 
@@ -113,6 +116,7 @@ func (p *SSHProvisioner) provisionDockerNetwork(
 func (p *SSHProvisioner) provisionTraefik(
 	client *ssh.Client,
 	uid string,
+	password string,
 	acmeEmail string,
 	step func(string, string, string),
 	logLine func(string),
@@ -134,7 +138,7 @@ func (p *SSHProvisioner) provisionTraefik(
 	step("traefik_install", "running", "Instalando Traefik...")
 	logLine("Configurando Traefik")
 
-	if err := p.setupTraefikConfig(client, uid, acmeEmail, logLine); err != nil {
+	if err := p.setupTraefikConfig(client, uid, password, acmeEmail, logLine); err != nil {
 		return err
 	}
 
@@ -164,12 +168,13 @@ func (p *SSHProvisioner) traefikNeedsUpgrade(client *ssh.Client) bool {
 func (p *SSHProvisioner) setupTraefikConfig(
 	client *ssh.Client,
 	uid string,
+	password string,
 	acmeEmail string,
 	logLine func(string),
 ) error {
 	logLine("Criando diretorios do Traefik")
 	mkdirCmd := fmt.Sprintf("mkdir -p %s %s", traefikConfigDir, traefikLetsencryptDir)
-	if err := runPrivilegedCommand(client, uid, mkdirCmd); err != nil {
+	if err := runPrivilegedCommand(client, uid, password, mkdirCmd); err != nil {
 		return fmt.Errorf("create traefik dirs: %w", err)
 	}
 
@@ -178,7 +183,7 @@ func (p *SSHProvisioner) setupTraefikConfig(
 	if err != nil {
 		return fmt.Errorf("build traefik config: %w", err)
 	}
-	if err := writeRemoteFileViaSSH(client, uid, traefikConfigPath, configContent); err != nil {
+	if err := writeRemoteFileViaSSH(client, uid, password, traefikConfigPath, configContent); err != nil {
 		return fmt.Errorf("write traefik config: %w", err)
 	}
 
@@ -272,11 +277,21 @@ func buildTraefikConfig(acmeEmail string) ([]byte, error) {
 
 var writeRemoteFileViaSSHFn = writeRemoteFileViaSSHDefault
 
-func writeRemoteFileViaSSH(client *ssh.Client, uid string, remotePath string, data []byte) error {
-	return writeRemoteFileViaSSHFn(client, uid, remotePath, data)
+func writeRemoteFileViaSSH(client *ssh.Client, uid string, password string, remotePath string, data []byte) error {
+	return writeRemoteFileViaSSHFn(client, uid, password, remotePath, data)
 }
 
-func writeRemoteFileViaSSHDefault(client *ssh.Client, uid string, remotePath string, data []byte) error {
+func writeRemoteFileViaSSHDefault(client *ssh.Client, uid string, password string, remotePath string, data []byte) error {
+	if uid == "0" {
+		return writeFileDirect(client, remotePath, data)
+	}
+	if password != "" {
+		return writeFileViaTempAndSudo(client, password, remotePath, data)
+	}
+	return writeFileWithSudoTee(client, remotePath, data)
+}
+
+func writeFileDirect(client *ssh.Client, remotePath string, data []byte) error {
 	session, err := client.NewSession()
 	if err != nil {
 		return fmt.Errorf("new session: %w", err)
@@ -288,25 +303,49 @@ func writeRemoteFileViaSSHDefault(client *ssh.Client, uid string, remotePath str
 		return fmt.Errorf("stdin pipe: %w", err)
 	}
 
-	var cmd string
-	if uid == "0" {
-		cmd = fmt.Sprintf("cat > %q", remotePath)
-	} else {
-		cmd = fmt.Sprintf("sudo -n tee %q > /dev/null", remotePath)
-	}
-
-	if err := session.Start(cmd); err != nil {
+	if err := session.Start(fmt.Sprintf("cat > %q", remotePath)); err != nil {
 		return fmt.Errorf("start write cmd: %w", err)
 	}
-
 	if _, err := stdin.Write(data); err != nil {
 		return fmt.Errorf("write data: %w", err)
 	}
-	if err := stdin.Close(); err != nil {
-		return fmt.Errorf("close stdin: %w", err)
+	stdin.Close()
+	return session.Wait()
+}
+
+func writeFileWithSudoTee(client *ssh.Client, remotePath string, data []byte) error {
+	session, err := client.NewSession()
+	if err != nil {
+		return fmt.Errorf("new session: %w", err)
 	}
-	if err := session.Wait(); err != nil {
-		return fmt.Errorf("session wait: %w", err)
+	defer session.Close()
+
+	stdin, err := session.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("stdin pipe: %w", err)
+	}
+
+	if err := session.Start(fmt.Sprintf("sudo -n tee %q > /dev/null", remotePath)); err != nil {
+		return fmt.Errorf("start write cmd: %w", err)
+	}
+	if _, err := stdin.Write(data); err != nil {
+		return fmt.Errorf("write data: %w", err)
+	}
+	stdin.Close()
+	return session.Wait()
+}
+
+func writeFileViaTempAndSudo(client *ssh.Client, password string, remotePath string, data []byte) error {
+	tmpPath := fmt.Sprintf("/tmp/.flowdeploy_%d", time.Now().UnixNano())
+
+	if err := writeFileDirect(client, tmpPath, data); err != nil {
+		return fmt.Errorf("write temp file: %w", err)
+	}
+
+	mvCmd := fmt.Sprintf("mv %q %q", tmpPath, remotePath)
+	if err := runSudoWithPassword(client, mvCmd, password); err != nil {
+		_ = runCommand(client, fmt.Sprintf("rm -f %q", tmpPath))
+		return fmt.Errorf("move file to destination: %w", err)
 	}
 	return nil
 }

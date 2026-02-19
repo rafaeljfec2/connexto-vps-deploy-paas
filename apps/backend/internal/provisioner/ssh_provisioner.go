@@ -82,7 +82,7 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 		return err
 	}
 
-	if err := p.provisionDocker(client, uid, step, logLine); err != nil {
+	if err := p.provisionDocker(client, uid, sshPasswordPlain, step, logLine); err != nil {
 		return err
 	}
 	if err := p.provisionDockerNetwork(client, step, logLine); err != nil {
@@ -94,7 +94,7 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 		acmeEmail = *server.AcmeEmail
 	}
 	if acmeEmail != "" {
-		if err := p.provisionTraefik(client, uid, acmeEmail, step, logLine); err != nil {
+		if err := p.provisionTraefik(client, uid, sshPasswordPlain, acmeEmail, step, logLine); err != nil {
 			return err
 		}
 	}
@@ -579,12 +579,18 @@ func runCommandWithTimeout(client *ssh.Client, cmd string, timeout time.Duration
 	}
 }
 
-func runPrivilegedCommandWithTimeout(client *ssh.Client, uid string, cmd string, timeout time.Duration) error {
-	if uid == "0" {
-		return runCommandWithTimeout(client, cmd, timeout)
+func runPrivilegedCommandWithTimeout(client *ssh.Client, uid string, password string, cmd string, timeout time.Duration) error {
+	done := make(chan error, 1)
+	go func() {
+		done <- runPrivilegedCommand(client, uid, password, cmd)
+	}()
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(timeout):
+		return fmt.Errorf("command timed out after %s: %s", timeout, cmd)
 	}
-	sudoCmd := fmt.Sprintf("sudo -n %s", cmd)
-	return runCommandWithTimeout(client, sudoCmd, timeout)
 }
 
 func runCommandDefault(client *ssh.Client, cmd string) error {

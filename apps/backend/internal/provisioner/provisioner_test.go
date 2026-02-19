@@ -27,6 +27,7 @@ const (
 	uidRoot                = "0"
 	uidNonRoot             = "1000"
 	errWantOneCmd          = "expected 1 command, got %d"
+	errWantActive          = "expected 'active', got %q"
 )
 
 type commandMock struct {
@@ -56,9 +57,14 @@ func (m *commandMock) install(t *testing.T) func() {
 	origCmd := runCommandFn
 	origCmdOut := runCommandOutputFn
 	origWriteFile := writeRemoteFileViaSSHFn
+	origSudo := runSudoWithPasswordFn
+	origSudoOut := runSudoOutputWithPasswordFn
 
-	runCommandFn = func(_ *ssh.Client, cmd string) error {
+	cmdHandler := func(cmd string) {
 		m.commands = append(m.commands, cmd)
+	}
+
+	cmdError := func(cmd string) error {
 		for substr, err := range m.errors {
 			if strings.Contains(cmd, substr) {
 				return err
@@ -67,7 +73,7 @@ func (m *commandMock) install(t *testing.T) func() {
 		return nil
 	}
 
-	runCommandOutputFn = func(_ *ssh.Client, cmd string) (string, error) {
+	outputHandler := func(cmd string) (string, error) {
 		m.outputCommands = append(m.outputCommands, cmd)
 		for substr, err := range m.errors {
 			if strings.Contains(cmd, substr) {
@@ -82,7 +88,25 @@ func (m *commandMock) install(t *testing.T) func() {
 		return "", nil
 	}
 
-	writeRemoteFileViaSSHFn = func(_ *ssh.Client, _ string, _ string, _ []byte) error {
+	runCommandFn = func(_ *ssh.Client, cmd string) error {
+		cmdHandler(cmd)
+		return cmdError(cmd)
+	}
+
+	runCommandOutputFn = func(_ *ssh.Client, cmd string) (string, error) {
+		return outputHandler(cmd)
+	}
+
+	runSudoWithPasswordFn = func(_ *ssh.Client, cmd string, _ string) error {
+		cmdHandler(cmd)
+		return cmdError(cmd)
+	}
+
+	runSudoOutputWithPasswordFn = func(_ *ssh.Client, cmd string, _ string) (string, error) {
+		return outputHandler(cmd)
+	}
+
+	writeRemoteFileViaSSHFn = func(_ *ssh.Client, _ string, _ string, _ string, _ []byte) error {
 		return nil
 	}
 
@@ -90,6 +114,8 @@ func (m *commandMock) install(t *testing.T) func() {
 		runCommandFn = origCmd
 		runCommandOutputFn = origCmdOut
 		writeRemoteFileViaSSHFn = origWriteFile
+		runSudoWithPasswordFn = origSudo
+		runSudoOutputWithPasswordFn = origSudoOut
 	}
 }
 
@@ -183,7 +209,7 @@ func TestProvisionDocker(t *testing.T) {
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.provisionDocker(nil, uidRoot, noopStep, noopLog))
+		requireNoError(t, p.provisionDocker(nil, uidRoot, "", noopStep, noopLog))
 
 		if !mock.hasOutputCommand(cmdDockerVersion) {
 			t.Error("expected docker --version check")
@@ -198,7 +224,7 @@ func TestProvisionDocker(t *testing.T) {
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.provisionDocker(nil, uidRoot, noopStep, noopLog))
+		requireNoError(t, p.provisionDocker(nil, uidRoot, "", noopStep, noopLog))
 
 		if !mock.hasCommand(cmdGetDockerCom) {
 			t.Error("expected docker install command")
@@ -211,12 +237,12 @@ func TestProvisionDocker(t *testing.T) {
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.provisionDocker(nil, uidNonRoot, noopStep, noopLog))
+		requireNoError(t, p.provisionDocker(nil, uidNonRoot, "testpass", noopStep, noopLog))
 
-		if !mock.hasCommandWith("sudo", cmdGetDockerCom) {
-			t.Error("expected sudo docker install command for non-root user")
+		if !mock.hasCommand(cmdGetDockerCom) {
+			t.Error("expected docker install command for non-root user")
 		}
-		if !mock.hasCommandWith("usermod", "docker") {
+		if !mock.hasCommand("usermod") {
 			t.Error("expected usermod -aG docker command for non-root user")
 		}
 	})
@@ -226,7 +252,7 @@ func TestProvisionDocker(t *testing.T) {
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.provisionDocker(nil, uidRoot, noopStep, noopLog))
+		requireNoError(t, p.provisionDocker(nil, uidRoot, "", noopStep, noopLog))
 
 		if !mock.hasCommand(cmdSystemctlStart) {
 			t.Error("expected systemctl start docker command")
@@ -281,7 +307,7 @@ func TestProvisionTraefik(t *testing.T) {
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.provisionTraefik(nil, uidRoot, testEmailDefault, noopStep, noopLog))
+		requireNoError(t, p.provisionTraefik(nil, uidRoot, "", testEmailDefault, noopStep, noopLog))
 
 		if mock.hasCommand(cmdDockerRun) {
 			t.Error("should not start traefik when already running with correct version")
@@ -293,7 +319,7 @@ func TestProvisionTraefik(t *testing.T) {
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.provisionTraefik(nil, uidRoot, testEmailDefault, noopStep, noopLog))
+		requireNoError(t, p.provisionTraefik(nil, uidRoot, "", testEmailDefault, noopStep, noopLog))
 
 		if !mock.hasCommand(cmdDockerRun) {
 			t.Error("should upgrade traefik when running old version")
@@ -308,7 +334,7 @@ func TestProvisionTraefik(t *testing.T) {
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.provisionTraefik(nil, uidRoot, testEmailDefault, noopStep, noopLog))
+		requireNoError(t, p.provisionTraefik(nil, uidRoot, "", testEmailDefault, noopStep, noopLog))
 
 		if !mock.hasCommand("mkdir -p") {
 			t.Error("expected mkdir for traefik dirs")
@@ -319,83 +345,87 @@ func TestProvisionTraefik(t *testing.T) {
 	})
 }
 
+func runPrivilegedAndGetCmd(t *testing.T, uid, password, cmd string) string {
+	t.Helper()
+	mock := newCommandMock()
+	defer mock.install(t)()
+	requireNoError(t, runPrivilegedCommand(nil, uid, password, cmd))
+	requireSingleCommand(t, mock.commands)
+	return mock.commands[0]
+}
+
+func runPrivilegedOutputAndGetCmd(t *testing.T, uid, password, cmd, expectedOut string) string {
+	t.Helper()
+	mock := newCommandMock()
+	mock.setResponse(cmd, expectedOut)
+	defer mock.install(t)()
+	out, err := runPrivilegedCommandOutput(nil, uid, password, cmd)
+	requireNoError(t, err)
+	if out != expectedOut {
+		t.Errorf(errWantActive, out)
+	}
+	requireSingleCommand(t, mock.outputCommands)
+	return mock.outputCommands[0]
+}
+
+func requireSingleCommand(t *testing.T, cmds []string) {
+	t.Helper()
+	if len(cmds) != 1 {
+		t.Fatalf(errWantOneCmd, len(cmds))
+	}
+}
+
+func assertNoSudo(t *testing.T, captured string) {
+	t.Helper()
+	if strings.Contains(captured, "sudo") {
+		t.Error("should not contain sudo")
+	}
+}
+
+func assertHasSudoN(t *testing.T, captured string) {
+	t.Helper()
+	if !strings.Contains(captured, "sudo -n") {
+		t.Error("should contain sudo -n")
+	}
+}
+
 func TestPrivilegedCommand(t *testing.T) {
 	t.Run("RootExecutesDirect", func(t *testing.T) {
-		mock := newCommandMock()
-		cleanup := mock.install(t)
-		defer cleanup()
-
-		requireNoError(t, runPrivilegedCommand(nil, uidRoot, cmdSystemctlStart))
-
-		if len(mock.commands) != 1 {
-			t.Fatalf(errWantOneCmd, len(mock.commands))
-		}
-		if strings.Contains(mock.commands[0], "sudo") {
-			t.Error("root should not use sudo")
-		}
-		if mock.commands[0] != cmdSystemctlStart {
-			t.Errorf("expected exact command, got %q", mock.commands[0])
+		captured := runPrivilegedAndGetCmd(t, uidRoot, "", cmdSystemctlStart)
+		assertNoSudo(t, captured)
+		if captured != cmdSystemctlStart {
+			t.Errorf("expected exact command, got %q", captured)
 		}
 	})
 
-	t.Run("NonRootUsesSudo", func(t *testing.T) {
-		mock := newCommandMock()
-		cleanup := mock.install(t)
-		defer cleanup()
+	t.Run("NonRootUsesSudoN", func(t *testing.T) {
+		captured := runPrivilegedAndGetCmd(t, uidNonRoot, "", cmdSystemctlStart)
+		assertHasSudoN(t, captured)
+		assertContains(t, captured, cmdSystemctlStart)
+	})
 
-		requireNoError(t, runPrivilegedCommand(nil, uidNonRoot, cmdSystemctlStart))
-
-		if len(mock.commands) != 1 {
-			t.Fatalf(errWantOneCmd, len(mock.commands))
-		}
-		if !strings.Contains(mock.commands[0], "sudo -n") {
-			t.Error("non-root should use sudo -n")
-		}
-		if !strings.Contains(mock.commands[0], cmdSystemctlStart) {
-			t.Error("command should contain original command")
+	t.Run("NonRootWithPasswordUsesSudoS", func(t *testing.T) {
+		captured := runPrivilegedAndGetCmd(t, uidNonRoot, "testpass", cmdSystemctlStart)
+		if captured != cmdSystemctlStart {
+			t.Errorf("sudo -S path should pass raw command, got %q", captured)
 		}
 	})
 }
 
 func TestPrivilegedCommandOutput(t *testing.T) {
 	t.Run("RootExecutesDirect", func(t *testing.T) {
-		mock := newCommandMock()
-		mock.setResponse(cmdSystemctlIsActive, "active")
-		cleanup := mock.install(t)
-		defer cleanup()
-
-		out, err := runPrivilegedCommandOutput(nil, uidRoot, cmdSystemctlIsActive)
-		requireNoError(t, err)
-		if out != "active" {
-			t.Errorf("expected 'active', got %q", out)
-		}
-
-		if len(mock.outputCommands) != 1 {
-			t.Fatalf(errWantOneCmd, len(mock.outputCommands))
-		}
-		if strings.Contains(mock.outputCommands[0], "sudo") {
-			t.Error("root should not use sudo")
-		}
+		captured := runPrivilegedOutputAndGetCmd(t, uidRoot, "", cmdSystemctlIsActive, "active")
+		assertNoSudo(t, captured)
 	})
 
-	t.Run("NonRootUsesSudo", func(t *testing.T) {
-		mock := newCommandMock()
-		mock.setResponse(cmdSystemctlIsActive, "active")
-		cleanup := mock.install(t)
-		defer cleanup()
+	t.Run("NonRootUsesSudoN", func(t *testing.T) {
+		captured := runPrivilegedOutputAndGetCmd(t, uidNonRoot, "", cmdSystemctlIsActive, "active")
+		assertHasSudoN(t, captured)
+	})
 
-		out, err := runPrivilegedCommandOutput(nil, uidNonRoot, cmdSystemctlIsActive)
-		requireNoError(t, err)
-		if out != "active" {
-			t.Errorf("expected 'active', got %q", out)
-		}
-
-		if len(mock.outputCommands) != 1 {
-			t.Fatalf(errWantOneCmd, len(mock.outputCommands))
-		}
-		if !strings.Contains(mock.outputCommands[0], "sudo -n") {
-			t.Error("non-root should use sudo -n")
-		}
+	t.Run("NonRootWithPasswordUsesSudoS", func(t *testing.T) {
+		captured := runPrivilegedOutputAndGetCmd(t, uidNonRoot, "testpass", cmdSystemctlIsActive, "active")
+		assertNoSudo(t, captured)
 	})
 }
 

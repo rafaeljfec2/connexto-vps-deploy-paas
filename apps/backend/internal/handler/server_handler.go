@@ -419,13 +419,14 @@ func (h *ServerHandler) Provision(c *fiber.Ctx) error {
 	}
 
 	if err := h.provisioner.Provision(server, sshKey, sshPassword, progress); err != nil {
+		userMsg := err.Error()
 		if h.sseHandler != nil {
-			h.sseHandler.EmitProvisionFailed(id, msgProvisionFailed)
+			h.sseHandler.EmitProvisionFailed(id, userMsg)
 		}
 		h.logProvisionFailure(c, id, err)
 		errStatus := domain.ServerStatusError
 		_, _ = h.serverRepo.Update(id, domain.UpdateServerInput{Status: &errStatus})
-		return response.BadRequest(c, msgProvisionFailed)
+		return response.BadRequest(c, userMsg)
 	}
 
 	if h.sseHandler != nil {
