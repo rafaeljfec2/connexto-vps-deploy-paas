@@ -30,6 +30,7 @@ export interface App {
   readonly config: Record<string, unknown>;
   readonly status: AppStatus;
   readonly webhookId: number | null;
+  readonly serverId?: string;
   readonly lastDeployedAt: string | null;
   readonly lastDeployment?: DeploymentSummary | null;
   readonly createdAt: string;
