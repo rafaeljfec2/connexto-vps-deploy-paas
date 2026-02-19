@@ -41,7 +41,7 @@ type AgentServiceClient interface {
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	ExecuteDeploy(ctx context.Context, in *DeployRequest, opts ...grpc.CallOption) (*DeployResponse, error)
-	StreamDeployLogs(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[DeployLogEntry, DeployLogControl], error)
+	StreamDeployLogs(ctx context.Context, in *DeployLogSubscription, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DeployLogEntry], error)
 	ListContainers(ctx context.Context, in *ListContainersRequest, opts ...grpc.CallOption) (*ListContainersResponse, error)
 	GetContainerLogs(ctx context.Context, in *ContainerLogsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContainerLogEntry], error)
 	GetContainerStats(ctx context.Context, in *ContainerStatsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ContainerStats], error)
@@ -90,18 +90,24 @@ func (c *agentServiceClient) ExecuteDeploy(ctx context.Context, in *DeployReques
 	return out, nil
 }
 
-func (c *agentServiceClient) StreamDeployLogs(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[DeployLogEntry, DeployLogControl], error) {
+func (c *agentServiceClient) StreamDeployLogs(ctx context.Context, in *DeployLogSubscription, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DeployLogEntry], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[0], AgentService_StreamDeployLogs_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &grpc.GenericClientStream[DeployLogEntry, DeployLogControl]{ClientStream: stream}
+	x := &grpc.GenericClientStream[DeployLogSubscription, DeployLogEntry]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
 	return x, nil
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type AgentService_StreamDeployLogsClient = grpc.BidiStreamingClient[DeployLogEntry, DeployLogControl]
+type AgentService_StreamDeployLogsClient = grpc.ServerStreamingClient[DeployLogEntry]
 
 func (c *agentServiceClient) ListContainers(ctx context.Context, in *ListContainersRequest, opts ...grpc.CallOption) (*ListContainersResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -208,7 +214,7 @@ type AgentServiceServer interface {
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	ExecuteDeploy(context.Context, *DeployRequest) (*DeployResponse, error)
-	StreamDeployLogs(grpc.BidiStreamingServer[DeployLogEntry, DeployLogControl]) error
+	StreamDeployLogs(*DeployLogSubscription, grpc.ServerStreamingServer[DeployLogEntry]) error
 	ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error)
 	GetContainerLogs(*ContainerLogsRequest, grpc.ServerStreamingServer[ContainerLogEntry]) error
 	GetContainerStats(*ContainerStatsRequest, grpc.ServerStreamingServer[ContainerStats]) error
@@ -236,7 +242,7 @@ func (UnimplementedAgentServiceServer) Heartbeat(context.Context, *HeartbeatRequ
 func (UnimplementedAgentServiceServer) ExecuteDeploy(context.Context, *DeployRequest) (*DeployResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExecuteDeploy not implemented")
 }
-func (UnimplementedAgentServiceServer) StreamDeployLogs(grpc.BidiStreamingServer[DeployLogEntry, DeployLogControl]) error {
+func (UnimplementedAgentServiceServer) StreamDeployLogs(*DeployLogSubscription, grpc.ServerStreamingServer[DeployLogEntry]) error {
 	return status.Error(codes.Unimplemented, "method StreamDeployLogs not implemented")
 }
 func (UnimplementedAgentServiceServer) ListContainers(context.Context, *ListContainersRequest) (*ListContainersResponse, error) {
@@ -339,11 +345,15 @@ func _AgentService_ExecuteDeploy_Handler(srv interface{}, ctx context.Context, d
 }
 
 func _AgentService_StreamDeployLogs_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(AgentServiceServer).StreamDeployLogs(&grpc.GenericServerStream[DeployLogEntry, DeployLogControl]{ServerStream: stream})
+	m := new(DeployLogSubscription)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentServiceServer).StreamDeployLogs(m, &grpc.GenericServerStream[DeployLogSubscription, DeployLogEntry]{ServerStream: stream})
 }
 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
-type AgentService_StreamDeployLogsServer = grpc.BidiStreamingServer[DeployLogEntry, DeployLogControl]
+type AgentService_StreamDeployLogsServer = grpc.ServerStreamingServer[DeployLogEntry]
 
 func _AgentService_ListContainers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListContainersRequest)
@@ -524,7 +534,6 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "StreamDeployLogs",
 			Handler:       _AgentService_StreamDeployLogs_Handler,
 			ServerStreams: true,
-			ClientStreams: true,
 		},
 		{
 			StreamName:    "GetContainerLogs",

@@ -155,7 +155,13 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 	}
 
 	w.log(deploy.ID, app.ID, "Dispatching deploy to agent at %s:%d", server.Host, agentPort)
-	resp, err := w.deps.AgentClient.ExecuteDeploy(ctx, server.Host, agentPort, req)
+
+	onLog := func(entry *pb.DeployLogEntry) {
+		prefix := formatLogStage(entry.Stage)
+		w.log(deploy.ID, app.ID, "%s %s", prefix, entry.Message)
+	}
+
+	resp, err := w.deps.AgentClient.ExecuteDeployWithLogs(ctx, server.Host, agentPort, req, onLog)
 	if err != nil {
 		return w.fail(deploy, app, fmt.Errorf("remote deploy RPC failed: %w", err))
 	}
@@ -529,6 +535,27 @@ func (w *Worker) log(deployID, appID, format string, args ...interface{}) {
 	w.deps.Dispatcher.AppendLogs(deployID, logLine+"\n")
 	w.deps.Notifier.EmitLog(deployID, appID, logLine)
 	w.deps.Logger.Info(message, "deployId", deployID, "appId", appID)
+}
+
+func formatLogStage(stage pb.DeployStage) string {
+	switch stage {
+	case pb.DeployStage_DEPLOY_STAGE_GIT_SYNC:
+		return "[git]"
+	case pb.DeployStage_DEPLOY_STAGE_BUILD:
+		return "[build]"
+	case pb.DeployStage_DEPLOY_STAGE_DEPLOY:
+		return "[deploy]"
+	case pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK:
+		return "[health]"
+	case pb.DeployStage_DEPLOY_STAGE_CLEANUP:
+		return "[cleanup]"
+	case pb.DeployStage_DEPLOY_STAGE_ROLLBACK:
+		return "[rollback]"
+	case pb.DeployStage_DEPLOY_STAGE_COMPLETE:
+		return "[complete]"
+	default:
+		return "[agent]"
+	}
 }
 
 func truncateSHA(sha string) string {

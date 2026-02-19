@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -19,9 +20,9 @@ import (
 const defaultAgentPort = 50052
 
 type AgentClient struct {
-	rootCA                 []byte
-	timeout                time.Duration
-	insecureSkipVerify     bool
+	rootCA             []byte
+	timeout            time.Duration
+	insecureSkipVerify bool
 }
 
 func NewAgentClient(ca *pki.CertificateAuthority, timeout time.Duration, insecureSkipVerify bool) *AgentClient {
@@ -84,12 +85,48 @@ func (c *AgentClient) GetSystemMetrics(ctx context.Context, host string, port in
 	return client.GetSystemMetrics(ctx, &emptypb.Empty{})
 }
 
-func (c *AgentClient) ExecuteDeploy(ctx context.Context, host string, port int, req *pb.DeployRequest) (*pb.DeployResponse, error) {
+type DeployLogHandler func(entry *pb.DeployLogEntry)
+
+func (c *AgentClient) ExecuteDeployWithLogs(
+	ctx context.Context,
+	host string,
+	port int,
+	req *pb.DeployRequest,
+	onLog DeployLogHandler,
+) (*pb.DeployResponse, error) {
 	client, cleanup, err := c.dial(host, port)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to agent: %w", err)
 	}
 	defer cleanup()
 
+	if onLog != nil {
+		go c.streamLogs(ctx, client, req.DeploymentId, onLog)
+	}
+
 	return client.ExecuteDeploy(ctx, req)
+}
+
+func (c *AgentClient) streamLogs(ctx context.Context, client pb.AgentServiceClient, deploymentID string, onLog DeployLogHandler) {
+	stream, err := client.StreamDeployLogs(ctx, &pb.DeployLogSubscription{
+		DeploymentId: deploymentID,
+	})
+	if err != nil {
+		return
+	}
+
+	for {
+		entry, err := stream.Recv()
+		if err == io.EOF {
+			return
+		}
+		if err != nil {
+			return
+		}
+		onLog(entry)
+	}
+}
+
+func (c *AgentClient) ExecuteDeploy(ctx context.Context, host string, port int, req *pb.DeployRequest) (*pb.DeployResponse, error) {
+	return c.ExecuteDeployWithLogs(ctx, host, port, req, nil)
 }

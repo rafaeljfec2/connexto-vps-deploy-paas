@@ -17,7 +17,7 @@ service AgentService {
 
   rpc ExecuteDeploy(DeployRequest) returns (DeployResponse);
 
-  rpc StreamDeployLogs(stream DeployLogEntry) returns (stream DeployLogControl);
+  rpc StreamDeployLogs(DeployLogSubscription) returns (stream DeployLogEntry);
 
   rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
 

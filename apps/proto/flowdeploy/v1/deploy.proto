@@ -171,6 +171,10 @@ message DeployProgress {
   int32 percentage = 4;
 }
 
+message DeployLogSubscription {
+  string deployment_id = 1;
+}
+
 message DeployLogControl {
   DeployLogControlAction action = 1;
   string reason = 2;

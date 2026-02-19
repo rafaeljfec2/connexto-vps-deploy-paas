@@ -22,7 +22,10 @@ const (
 	defaultHealthRetries  = 10
 	defaultHealthInterval = 5 * time.Second
 	healthCheckStartDelay = 15 * time.Second
+	logChannelBuffer      = 256
 )
+
+type LogFunc func(stage pb.DeployStage, level pb.DeployLogLevel, message string)
 
 type Executor struct {
 	dataDir string
@@ -56,7 +59,7 @@ func NewExecutor(logger *slog.Logger) *Executor {
 	}
 }
 
-func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest) *pb.DeployResponse {
+func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn LogFunc) *pb.DeployResponse {
 	startedAt := time.Now()
 	e.logger.Info("Starting deployment",
 		"deploymentId", req.DeploymentId,
@@ -64,37 +67,48 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest) *pb.Deplo
 		"commitSha", req.Git.GetCommitSha(),
 	)
 
+	emit := e.emitter(logFn)
+
 	cfg := e.buildConfig(req)
 	repoDir := filepath.Join(e.dataDir, req.AppId)
 	appDir := e.resolveAppDir(repoDir, req.Git.GetWorkdir())
 
+	emit(pb.DeployStage_DEPLOY_STAGE_GIT_SYNC, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Syncing repository...")
 	if err := e.syncGit(ctx, req, repoDir); err != nil {
+		emit(pb.DeployStage_DEPLOY_STAGE_GIT_SYNC, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
 		return e.failResponse(req, pb.DeployErrorCode_DEPLOY_ERROR_GIT_CLONE_FAILED, "git_sync", err, startedAt)
 	}
+	emit(pb.DeployStage_DEPLOY_STAGE_GIT_SYNC, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Repository synced successfully")
 
 	imageTag := e.docker.GetImageTag(req.AppName, req.Git.GetCommitSha())
 
-	if err := e.buildImage(ctx, req, appDir, imageTag); err != nil {
+	emit(pb.DeployStage_DEPLOY_STAGE_BUILD, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, fmt.Sprintf("Building image %s", imageTag))
+	if err := e.buildImage(ctx, req, appDir, imageTag, logFn); err != nil {
+		emit(pb.DeployStage_DEPLOY_STAGE_BUILD, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
 		return e.failResponse(req, pb.DeployErrorCode_DEPLOY_ERROR_BUILD_FAILED, "build", err, startedAt)
 	}
+	emit(pb.DeployStage_DEPLOY_STAGE_BUILD, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Image built successfully")
 
-	if err := e.deployContainer(ctx, req, cfg, appDir, imageTag); err != nil {
+	emit(pb.DeployStage_DEPLOY_STAGE_DEPLOY, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Deploying container...")
+	if err := e.deployContainer(ctx, req, cfg, appDir, imageTag, logFn); err != nil {
+		emit(pb.DeployStage_DEPLOY_STAGE_DEPLOY, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
 		return e.failResponse(req, pb.DeployErrorCode_DEPLOY_ERROR_CONTAINER_START_FAILED, "deploy", err, startedAt)
 	}
+	emit(pb.DeployStage_DEPLOY_STAGE_DEPLOY, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Container deployed successfully")
 
+	emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Running health check...")
 	if err := e.checkHealth(ctx, req, cfg); err != nil {
+		emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
 		e.rollback(ctx, req, appDir)
 		return e.failResponse(req, pb.DeployErrorCode_DEPLOY_ERROR_HEALTH_CHECK_FAILED, "health_check", err, startedAt)
 	}
+	emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Health check passed")
 
-	go e.cleanupOldImages(req.AppName, imageTag)
+	go e.cleanupOldImages(imageTag)
 
 	completedAt := time.Now()
-	e.logger.Info("Deployment completed successfully",
-		"deploymentId", req.DeploymentId,
-		"appName", req.AppName,
-		"duration", completedAt.Sub(startedAt),
-	)
+	emit(pb.DeployStage_DEPLOY_STAGE_COMPLETE, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO,
+		fmt.Sprintf("Deployment completed in %s", completedAt.Sub(startedAt).Round(time.Millisecond)))
 
 	return &pb.DeployResponse{
 		Success: true,
@@ -105,6 +119,14 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest) *pb.Deplo
 			CompletedAt: timestamppb.New(completedAt),
 			ExposedPort: int32(cfg.Port),
 		},
+	}
+}
+
+func (e *Executor) emitter(logFn LogFunc) func(pb.DeployStage, pb.DeployLogLevel, string) {
+	return func(stage pb.DeployStage, level pb.DeployLogLevel, msg string) {
+		if logFn != nil {
+			logFn(stage, level, msg)
+		}
 	}
 }
 
@@ -179,7 +201,7 @@ func (e *Executor) syncGit(ctx context.Context, req *pb.DeployRequest, repoDir s
 	return nil
 }
 
-func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, appDir, imageTag string) error {
+func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, appDir, imageTag string, logFn LogFunc) error {
 	dockerfile := "./Dockerfile"
 	buildContext := "."
 
@@ -203,10 +225,22 @@ func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, appDir
 	fullDockerfile := filepath.Join(appDir, dockerfile)
 
 	e.logger.Info("Building Docker image", "imageTag", imageTag, "dockerfile", fullDockerfile)
-	return e.docker.BuildWithOptions(ctx, fullContext, fullDockerfile, imageTag, opts, nil)
+
+	output := make(chan string, logChannelBuffer)
+	go func() {
+		for line := range output {
+			if logFn != nil {
+				logFn(pb.DeployStage_DEPLOY_STAGE_BUILD, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, line)
+			}
+		}
+	}()
+
+	err := e.docker.BuildWithOptions(ctx, fullContext, fullDockerfile, imageTag, opts, output)
+	close(output)
+	return err
 }
 
-func (e *Executor) deployContainer(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config, appDir, imageTag string) error {
+func (e *Executor) deployContainer(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config, appDir, imageTag string, logFn LogFunc) error {
 	if err := e.docker.EnsureNetwork(ctx, docker.DefaultNetworkName); err != nil {
 		return fmt.Errorf("failed to ensure network: %w", err)
 	}
@@ -231,7 +265,19 @@ func (e *Executor) deployContainer(ctx context.Context, req *pb.DeployRequest, c
 	}
 
 	e.logger.Info("Starting container", "appName", req.AppName)
-	return e.docker.ComposeUp(ctx, appDir, req.AppId, nil)
+
+	output := make(chan string, logChannelBuffer)
+	go func() {
+		for line := range output {
+			if logFn != nil {
+				logFn(pb.DeployStage_DEPLOY_STAGE_DEPLOY, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, line)
+			}
+		}
+	}()
+
+	err := e.docker.ComposeUp(ctx, appDir, req.AppId, output)
+	close(output)
+	return err
 }
 
 func (e *Executor) checkHealth(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config) error {
@@ -268,7 +314,7 @@ func (e *Executor) rollback(ctx context.Context, req *pb.DeployRequest, appDir s
 	}
 }
 
-func (e *Executor) cleanupOldImages(appName, currentTag string) {
+func (e *Executor) cleanupOldImages(currentTag string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
