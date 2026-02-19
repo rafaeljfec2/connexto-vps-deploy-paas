@@ -18,11 +18,10 @@ import (
 )
 
 const (
-	defaultDataDir          = "/var/lib/paasdeploy"
-	defaultHealthTimeout    = 2 * time.Minute
-	defaultHealthRetries    = 10
-	defaultHealthInterval   = 5 * time.Second
-	healthCheckStartDelay   = 15 * time.Second
+	defaultHealthTimeout  = 2 * time.Minute
+	defaultHealthRetries  = 10
+	defaultHealthInterval = 5 * time.Second
+	healthCheckStartDelay = 15 * time.Second
 )
 
 type Executor struct {
@@ -33,11 +32,18 @@ type Executor struct {
 	logger  *slog.Logger
 }
 
-func NewExecutor(logger *slog.Logger) *Executor {
-	dataDir := os.Getenv("DEPLOY_DATA_DIR")
-	if dataDir == "" {
-		dataDir = defaultDataDir
+func resolveDataDir() string {
+	if dir := os.Getenv("DEPLOY_DATA_DIR"); dir != "" {
+		return dir
 	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".paasdeploy", "apps")
+	}
+	return filepath.Join(os.TempDir(), "paasdeploy", "apps")
+}
+
+func NewExecutor(logger *slog.Logger) *Executor {
+	dataDir := resolveDataDir()
 
 	registry := os.Getenv("DOCKER_REGISTRY")
 
