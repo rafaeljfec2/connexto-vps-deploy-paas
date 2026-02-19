@@ -35,7 +35,10 @@ func (p *SSHProvisioner) provisionDocker(
 	if err == nil {
 		logLine(fmt.Sprintf("Docker encontrado: %s", dockerVersion))
 		step("docker_check", "ok", "Docker encontrado")
-		return p.ensureDockerRunning(client, uid, password, step, logLine)
+		if err := p.ensureDockerRunning(client, uid, password, step, logLine); err != nil {
+			return err
+		}
+		return p.ensureBuildx(client, uid, password, step, logLine)
 	}
 
 	step("docker_install", "running", "Instalando Docker...")
@@ -57,7 +60,37 @@ func (p *SSHProvisioner) provisionDocker(
 		}
 	}
 
-	return p.ensureDockerRunning(client, uid, password, step, logLine)
+	if err := p.ensureDockerRunning(client, uid, password, step, logLine); err != nil {
+		return err
+	}
+	return p.ensureBuildx(client, uid, password, step, logLine)
+}
+
+func (p *SSHProvisioner) ensureBuildx(
+	client *ssh.Client,
+	uid string,
+	password string,
+	step func(string, string, string),
+	logLine func(string),
+) error {
+	if _, err := runCommandOutput(client, "docker buildx version"); err == nil {
+		logLine("Docker Buildx already available")
+		return nil
+	}
+
+	step("docker_buildx", "running", "Installing Docker Buildx...")
+	logLine("Installing docker-buildx-plugin")
+
+	installCmd := "apt-get update -qq && apt-get install -y -qq docker-buildx-plugin"
+	if err := runPrivilegedCommandWithTimeout(client, uid, password, installCmd, timeoutDockerCheck); err != nil {
+		logLine("Buildx install failed, builds will use legacy builder")
+		step("docker_buildx", "ok", "Buildx not available (non-critical)")
+		return nil
+	}
+
+	logLine("Docker Buildx installed")
+	step("docker_buildx", "ok", "Buildx installed")
+	return nil
 }
 
 func (p *SSHProvisioner) ensureDockerRunning(

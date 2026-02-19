@@ -12,6 +12,8 @@ import (
 
 const (
 	cmdDockerVersion       = "docker --version"
+	cmdDockerBuildxVersion = "docker buildx version"
+	cmdBuildxPlugin        = "docker-buildx-plugin"
 	cmdSystemctlIsActive   = "systemctl is-active docker"
 	cmdSystemctlStart      = "systemctl start docker"
 	cmdGetDockerCom        = "get.docker.com"
@@ -257,6 +259,44 @@ func TestProvisionDocker(t *testing.T) {
 		if !mock.hasCommand(cmdSystemctlStart) {
 			t.Error("expected systemctl start docker command")
 		}
+	})
+}
+
+func TestEnsureBuildx(t *testing.T) {
+	t.Run("AlreadyInstalled", func(t *testing.T) {
+		mock := newCommandMock()
+		mock.setResponse(cmdDockerBuildxVersion, "github.com/docker/buildx v0.12.0")
+		defer mock.install(t)()
+
+		p := newTestProvisioner()
+		requireNoError(t, p.ensureBuildx(nil, uidRoot, "", noopStep, noopLog))
+
+		if mock.hasCommand(cmdBuildxPlugin) {
+			t.Error("should not install buildx when already present")
+		}
+	})
+
+	t.Run("NotInstalledInstallsIt", func(t *testing.T) {
+		mock := newCommandMock()
+		mock.setError(cmdDockerBuildxVersion, fmt.Errorf(errNotFound))
+		defer mock.install(t)()
+
+		p := newTestProvisioner()
+		requireNoError(t, p.ensureBuildx(nil, uidRoot, "", noopStep, noopLog))
+
+		if !mock.hasCommand(cmdBuildxPlugin) {
+			t.Error("expected docker-buildx-plugin install command")
+		}
+	})
+
+	t.Run("InstallFailureIsNonCritical", func(t *testing.T) {
+		mock := newCommandMock()
+		mock.setError(cmdDockerBuildxVersion, fmt.Errorf(errNotFound))
+		mock.setError(cmdBuildxPlugin, fmt.Errorf("apt-get failed"))
+		defer mock.install(t)()
+
+		p := newTestProvisioner()
+		requireNoError(t, p.ensureBuildx(nil, uidRoot, "", noopStep, noopLog))
 	})
 }
 
