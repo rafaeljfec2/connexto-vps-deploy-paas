@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 
-export function useImages() {
+export function useImages(serverId?: string) {
   return useQuery({
-    queryKey: ["images"],
-    queryFn: () => api.images.list(),
+    queryKey: ["images", serverId],
+    queryFn: () => api.images.list(serverId),
     refetchInterval: 30000,
   });
 }

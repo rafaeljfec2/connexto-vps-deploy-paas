@@ -3,10 +3,15 @@ package grpcserver
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -18,6 +23,8 @@ import (
 	"github.com/paasdeploy/agent/internal/deploy"
 	"github.com/paasdeploy/agent/internal/sysinfo"
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
+	"github.com/paasdeploy/shared/pkg/docker"
+	"github.com/paasdeploy/shared/pkg/executor"
 )
 
 const logStreamBuffer = 512
@@ -32,6 +39,16 @@ type Server struct {
 	cfg        Config
 	grpcServer *grpc.Server
 	logger     *slog.Logger
+}
+
+func resolveDataDir() string {
+	if dir := os.Getenv("DEPLOY_DATA_DIR"); dir != "" {
+		return dir
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".paasdeploy", "apps")
+	}
+	return filepath.Join(os.TempDir(), "paasdeploy", "apps")
 }
 
 func New(cfg Config, logger *slog.Logger) (*Server, error) {
@@ -54,8 +71,14 @@ func New(cfg Config, logger *slog.Logger) (*Server, error) {
 	healthServer := health.NewServer()
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
+
+	registry := os.Getenv("DOCKER_REGISTRY")
+	dockerClient := docker.NewClient(resolveDataDir(), registry, logger)
+
 	agentService := &AgentService{
 		deployExecutor: deploy.NewExecutor(logger),
+		docker:         dockerClient,
+		executor:       executor.New("", 2*time.Minute, logger),
 		logger:         logger.With("component", "agent-service"),
 	}
 	pb.RegisterAgentServiceServer(grpcServer, agentService)
@@ -84,6 +107,8 @@ func (s *Server) Stop() {
 type AgentService struct {
 	pb.UnimplementedAgentServiceServer
 	deployExecutor *deploy.Executor
+	docker         *docker.Client
+	executor       *executor.Executor
 	logStreams     sync.Map
 	logger         *slog.Logger
 }
@@ -149,4 +174,359 @@ func (s *AgentService) GetSystemInfo(ctx context.Context, _ *emptypb.Empty) (*pb
 
 func (s *AgentService) GetSystemMetrics(ctx context.Context, _ *emptypb.Empty) (*pb.SystemMetrics, error) {
 	return sysinfo.GetSystemMetrics()
+}
+
+func (s *AgentService) ListContainers(ctx context.Context, req *pb.ListContainersRequest) (*pb.ListContainersResponse, error) {
+	containers, err := s.docker.ListContainers(ctx, req.All)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	pbContainers := make([]*pb.ContainerInfo, 0, len(containers))
+	for _, c := range containers {
+		if req.AppId != nil && *req.AppId != "" {
+			appLabel := c.Labels["paasdeploy.app"]
+			if appLabel != *req.AppId && c.Name != *req.AppId {
+				continue
+			}
+		}
+
+		created, _ := time.Parse("2006-01-02 15:04:05 -0700 MST", c.Created)
+
+		ports := make([]*pb.PortBinding, 0, len(c.Ports))
+		for _, p := range c.Ports {
+			ports = append(ports, &pb.PortBinding{
+				ContainerPort: int32(p.PrivatePort),
+				HostPort:      int32(p.PublicPort),
+				Protocol:      p.Type,
+			})
+		}
+
+		pbContainers = append(pbContainers, &pb.ContainerInfo{
+			Id:        c.ID,
+			Name:      c.Name,
+			Image:     c.Image,
+			State:     c.State,
+			Status:    c.Status,
+			CreatedAt: timestamppb.New(created),
+			Labels:    c.Labels,
+			Ports:     ports,
+		})
+	}
+
+	return &pb.ListContainersResponse{Containers: pbContainers}, nil
+}
+
+func (s *AgentService) GetContainerLogs(req *pb.ContainerLogsRequest, stream pb.AgentService_GetContainerLogsServer) error {
+	ctx := stream.Context()
+	tail := int(req.Tail)
+	if tail <= 0 {
+		tail = 100
+	}
+
+	if !req.Follow {
+		logs, err := s.docker.ContainerLogs(ctx, req.ContainerId, tail)
+		if err != nil {
+			return fmt.Errorf("failed to get container logs: %w", err)
+		}
+		for _, line := range strings.Split(logs, "\n") {
+			if line == "" {
+				continue
+			}
+			ts, msg := parseLogTimestamp(line)
+			if err := stream.Send(&pb.ContainerLogEntry{
+				Timestamp: ts,
+				Stream:    "stdout",
+				Message:   msg,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	output := make(chan string, 256)
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- s.docker.StreamContainerLogs(ctx, req.ContainerId, output)
+	}()
+
+	for line := range output {
+		if line == "" {
+			continue
+		}
+		ts, msg := parseLogTimestamp(line)
+		if err := stream.Send(&pb.ContainerLogEntry{
+			Timestamp: ts,
+			Stream:    "stdout",
+			Message:   msg,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if err := <-errCh; err != nil && ctx.Err() == nil {
+		return err
+	}
+	return nil
+}
+
+func parseLogTimestamp(line string) (*timestamppb.Timestamp, string) {
+	if len(line) > 30 && (line[4] == '-' || line[0] == '2') {
+		spaceIdx := strings.Index(line, " ")
+		if spaceIdx > 0 && spaceIdx < 35 {
+			if t, err := time.Parse(time.RFC3339Nano, line[:spaceIdx]); err == nil {
+				return timestamppb.New(t), line[spaceIdx+1:]
+			}
+		}
+	}
+	return timestamppb.Now(), line
+}
+
+func (s *AgentService) GetContainerStats(req *pb.ContainerStatsRequest, stream pb.AgentService_GetContainerStatsServer) error {
+	ctx := stream.Context()
+
+	stats, err := s.docker.ContainerStats(ctx, req.ContainerId)
+	if err != nil {
+		return fmt.Errorf("failed to get container stats: %w", err)
+	}
+
+	if err := stream.Send(&pb.ContainerStats{
+		Timestamp:        timestamppb.Now(),
+		CpuPercent:       stats.CPUPercent,
+		MemoryUsageBytes: stats.MemoryUsage,
+		MemoryLimitBytes: stats.MemoryLimit,
+		NetworkRxBytes:   stats.NetworkRx,
+		NetworkTxBytes:   stats.NetworkTx,
+	}); err != nil {
+		return err
+	}
+
+	if !req.Stream {
+		return nil
+	}
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			stats, err := s.docker.ContainerStats(ctx, req.ContainerId)
+			if err != nil {
+				s.logger.Warn("Failed to get container stats", "container", req.ContainerId, "error", err)
+				continue
+			}
+			if err := stream.Send(&pb.ContainerStats{
+				Timestamp:        timestamppb.Now(),
+				CpuPercent:       stats.CPUPercent,
+				MemoryUsageBytes: stats.MemoryUsage,
+				MemoryLimitBytes: stats.MemoryLimit,
+				NetworkRxBytes:   stats.NetworkRx,
+				NetworkTxBytes:   stats.NetworkTx,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func (s *AgentService) RestartContainer(ctx context.Context, req *pb.RestartContainerRequest) (*pb.RestartContainerResponse, error) {
+	if err := s.docker.RestartContainer(ctx, req.ContainerId); err != nil {
+		return &pb.RestartContainerResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.RestartContainerResponse{
+		Success: true,
+		Message: "Container restarted",
+	}, nil
+}
+
+func (s *AgentService) StopContainer(ctx context.Context, req *pb.StopContainerRequest) (*pb.StopContainerResponse, error) {
+	if err := s.docker.StopContainer(ctx, req.ContainerId); err != nil {
+		return &pb.StopContainerResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.StopContainerResponse{
+		Success: true,
+		Message: "Container stopped",
+	}, nil
+}
+
+func (s *AgentService) GetDockerInfo(ctx context.Context, _ *emptypb.Empty) (*pb.DockerInfo, error) {
+	result, err := s.executor.Run(ctx, "docker", "info", "--format", "json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get docker info: %w", err)
+	}
+
+	var info struct {
+		ServerVersion string `json:"ServerVersion"`
+		Driver        string `json:"Driver"`
+		Images        int64  `json:"Images"`
+		Containers    int64  `json:"Containers"`
+		Swarm         struct {
+			LocalNodeState string `json:"LocalNodeState"`
+		} `json:"Swarm"`
+	}
+
+	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Stdout)), &info); err != nil {
+		return nil, fmt.Errorf("failed to parse docker info: %w", err)
+	}
+
+	result, _ = s.executor.RunQuiet(ctx, "docker", "version", "--format", "{{.Client.APIVersion}}")
+	apiVersion := strings.TrimSpace(result.Stdout)
+
+	return &pb.DockerInfo{
+		Version:         info.ServerVersion,
+		ApiVersion:      apiVersion,
+		StorageDriver:   info.Driver,
+		ImagesCount:     info.Images,
+		ContainersCount: info.Containers,
+		SwarmActive:     info.Swarm.LocalNodeState == "active",
+	}, nil
+}
+
+func (s *AgentService) StartContainer(ctx context.Context, req *pb.StartContainerRequest) (*pb.StartContainerResponse, error) {
+	if err := s.docker.StartContainer(ctx, req.ContainerId); err != nil {
+		return &pb.StartContainerResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.StartContainerResponse{
+		Success: true,
+		Message: "Container started",
+	}, nil
+}
+
+func (s *AgentService) ListImages(ctx context.Context, req *pb.ListImagesRequest) (*pb.ListImagesResponse, error) {
+	images, err := s.docker.ListImages(ctx, req.All)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list images: %w", err)
+	}
+
+	pbImages := make([]*pb.ImageInfo, 0, len(images))
+	for _, img := range images {
+		pbImages = append(pbImages, &pb.ImageInfo{
+			Id:         img.ID,
+			Repository: img.Repository,
+			Tag:        img.Tag,
+			Size:       img.Size,
+			Created:    img.Created,
+			Dangling:   img.Dangling,
+		})
+	}
+
+	return &pb.ListImagesResponse{Images: pbImages}, nil
+}
+
+func (s *AgentService) RemoveImage(ctx context.Context, req *pb.RemoveImageRequest) (*pb.RemoveImageResponse, error) {
+	if err := s.docker.RemoveImageByID(ctx, req.ImageId, req.Force); err != nil {
+		return &pb.RemoveImageResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.RemoveImageResponse{
+		Success: true,
+		Message: "Image removed",
+	}, nil
+}
+
+func (s *AgentService) PruneImages(ctx context.Context, _ *pb.PruneImagesRequest) (*pb.PruneImagesResponse, error) {
+	result, err := s.docker.PruneImages(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prune images: %w", err)
+	}
+	return &pb.PruneImagesResponse{
+		ImagesRemoved:       int32(result.ImagesDeleted),
+		SpaceReclaimedBytes: result.SpaceReclaimed,
+	}, nil
+}
+
+func (s *AgentService) ListNetworks(ctx context.Context, _ *pb.ListNetworksRequest) (*pb.ListNetworksResponse, error) {
+	networks, err := s.docker.ListNetworks(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list networks: %w", err)
+	}
+
+	pbNetworks := make([]*pb.NetworkInfo, 0, len(networks))
+	for _, n := range networks {
+		pbNetworks = append(pbNetworks, &pb.NetworkInfo{Name: n})
+	}
+
+	return &pb.ListNetworksResponse{Networks: pbNetworks}, nil
+}
+
+func (s *AgentService) CreateNetwork(ctx context.Context, req *pb.CreateNetworkRequest) (*pb.CreateNetworkResponse, error) {
+	if err := s.docker.EnsureNetwork(ctx, req.Name); err != nil {
+		return &pb.CreateNetworkResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.CreateNetworkResponse{
+		Success: true,
+		Message: "Network created",
+	}, nil
+}
+
+func (s *AgentService) RemoveNetwork(ctx context.Context, req *pb.RemoveNetworkRequest) (*pb.RemoveNetworkResponse, error) {
+	if err := s.docker.RemoveNetwork(ctx, req.Name); err != nil {
+		return &pb.RemoveNetworkResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.RemoveNetworkResponse{
+		Success: true,
+		Message: "Network removed",
+	}, nil
+}
+
+func (s *AgentService) ListVolumes(ctx context.Context, _ *pb.ListVolumesRequest) (*pb.ListVolumesResponse, error) {
+	volumes, err := s.docker.ListVolumes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list volumes: %w", err)
+	}
+
+	pbVolumes := make([]*pb.VolumeInfo, 0, len(volumes))
+	for _, v := range volumes {
+		pbVolumes = append(pbVolumes, &pb.VolumeInfo{Name: v})
+	}
+
+	return &pb.ListVolumesResponse{Volumes: pbVolumes}, nil
+}
+
+func (s *AgentService) CreateVolume(ctx context.Context, req *pb.CreateVolumeRequest) (*pb.CreateVolumeResponse, error) {
+	if err := s.docker.CreateVolume(ctx, req.Name); err != nil {
+		return &pb.CreateVolumeResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.CreateVolumeResponse{
+		Success: true,
+		Message: "Volume created",
+	}, nil
+}
+
+func (s *AgentService) RemoveVolume(ctx context.Context, req *pb.RemoveVolumeRequest) (*pb.RemoveVolumeResponse, error) {
+	if err := s.docker.RemoveVolume(ctx, req.Name); err != nil {
+		return &pb.RemoveVolumeResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.RemoveVolumeResponse{
+		Success: true,
+		Message: "Volume removed",
+	}, nil
 }

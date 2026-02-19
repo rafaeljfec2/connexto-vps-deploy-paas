@@ -259,6 +259,7 @@ interface NetworksSectionProps {
   readonly onToggle: () => void;
   readonly containerId?: string;
   readonly containerNetworks?: readonly string[];
+  readonly serverId?: string;
 }
 
 function NetworksSection({
@@ -266,6 +267,7 @@ function NetworksSection({
   onToggle,
   containerId,
   containerNetworks,
+  serverId,
 }: NetworksSectionProps) {
   return (
     <CollapsibleSection
@@ -280,6 +282,7 @@ function NetworksSection({
       <NetworksManager
         containerId={containerId}
         containerNetworks={containerNetworks}
+        serverId={serverId}
       />
     </CollapsibleSection>
   );
@@ -289,12 +292,14 @@ interface VolumesSectionProps {
   readonly expanded: boolean;
   readonly onToggle: () => void;
   readonly containerVolumes?: readonly string[];
+  readonly serverId?: string;
 }
 
 function VolumesSection({
   expanded,
   onToggle,
   containerVolumes,
+  serverId,
 }: VolumesSectionProps) {
   return (
     <CollapsibleSection
@@ -306,7 +311,7 @@ function VolumesSection({
         <span className="text-muted-foreground">Manage persistent storage</span>
       }
     >
-      <VolumesManager containerVolumes={containerVolumes} />
+      <VolumesManager containerVolumes={containerVolumes} serverId={serverId} />
     </CollapsibleSection>
   );
 }
@@ -320,6 +325,7 @@ export interface AppSettingsSectionProps {
   readonly containerId?: string;
   readonly containerNetworks?: readonly string[];
   readonly containerVolumes?: readonly string[];
+  readonly serverId?: string;
   readonly expandedSections: {
     readonly config?: boolean;
     readonly webhook?: boolean;
@@ -341,6 +347,7 @@ export function AppSettingsSection({
   containerId,
   containerNetworks,
   containerVolumes,
+  serverId,
   expandedSections,
   toggleSection,
 }: AppSettingsSectionProps) {
@@ -370,11 +377,13 @@ export function AppSettingsSection({
         onToggle={() => toggleSection("networks")}
         containerId={containerId}
         containerNetworks={containerNetworks}
+        serverId={serverId}
       />
       <VolumesSection
         expanded={expandedSections.volumes ?? false}
         onToggle={() => toggleSection("volumes")}
         containerVolumes={containerVolumes}
+        serverId={serverId}
       />
     </>
   );

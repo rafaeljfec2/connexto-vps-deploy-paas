@@ -201,8 +201,23 @@ func ProvideGitTokenProvider(
 	return engine.NewAppGitTokenProvider(appClient, installationRepo, logger)
 }
 
-func ProvideAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, cfg *config.Config, logger *slog.Logger) *handler.AppAdminHandler {
-	return handler.NewAppAdminHandler(appRepo, eng, cfg.Deploy.DataDir, logger)
+func ProvideAppAdminHandler(
+	appRepo domain.AppRepository,
+	serverRepo domain.ServerRepository,
+	eng *engine.Engine,
+	agentClient *agentclient.AgentClient,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *handler.AppAdminHandler {
+	return handler.NewAppAdminHandler(handler.AppAdminHandlerConfig{
+		AppRepo:     appRepo,
+		ServerRepo:  serverRepo,
+		Engine:      eng,
+		AgentClient: agentClient,
+		AgentPort:   cfg.GRPC.AgentPort,
+		DataDir:     cfg.Deploy.DataDir,
+		Logger:      logger,
+	})
 }
 
 func ProvideAppService(
@@ -519,8 +534,20 @@ func ProvideMigrationHandler(logger *slog.Logger) *handler.MigrationHandler {
 	return handler.NewMigrationHandler(logger)
 }
 
-func ProvideContainerHandler(eng *engine.Engine, logger *slog.Logger) *handler.ContainerHandler {
-	return handler.NewContainerHandler(eng.Docker(), logger)
+func ProvideContainerHandler(
+	eng *engine.Engine,
+	serverRepo domain.ServerRepository,
+	agentClient *agentclient.AgentClient,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *handler.ContainerHandler {
+	return handler.NewContainerHandler(handler.ContainerHandlerConfig{
+		Docker:      eng.Docker(),
+		AgentClient: agentClient,
+		ServerRepo:  serverRepo,
+		AgentPort:   cfg.GRPC.AgentPort,
+		Logger:      logger,
+	})
 }
 
 func ProvideContainerExecHandler(logger *slog.Logger) *handler.ContainerExecHandler {
@@ -531,8 +558,20 @@ func ProvideTemplateHandler(eng *engine.Engine, logger *slog.Logger) *handler.Te
 	return handler.NewTemplateHandler(eng.Docker(), logger)
 }
 
-func ProvideImageHandler(eng *engine.Engine, logger *slog.Logger) *handler.ImageHandler {
-	return handler.NewImageHandler(eng.Docker(), logger)
+func ProvideImageHandler(
+	eng *engine.Engine,
+	serverRepo domain.ServerRepository,
+	agentClient *agentclient.AgentClient,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *handler.ImageHandler {
+	return handler.NewImageHandler(handler.ImageHandlerConfig{
+		Docker:      eng.Docker(),
+		AgentClient: agentClient,
+		ServerRepo:  serverRepo,
+		AgentPort:   cfg.GRPC.AgentPort,
+		Logger:      logger,
+	})
 }
 
 func ProvideAuditService(db *sql.DB, logger *slog.Logger) *service.AuditService {
@@ -544,8 +583,20 @@ func ProvideAuditHandler(auditService *service.AuditService, webhookPayloadRepo 
 	return handler.NewAuditHandler(auditService, webhookPayloadRepo)
 }
 
-func ProvideResourceHandler(eng *engine.Engine, logger *slog.Logger) *handler.ResourceHandler {
-	return handler.NewResourceHandler(eng.Docker(), logger)
+func ProvideResourceHandler(
+	eng *engine.Engine,
+	serverRepo domain.ServerRepository,
+	agentClient *agentclient.AgentClient,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *handler.ResourceHandler {
+	return handler.NewResourceHandler(handler.ResourceHandlerConfig{
+		Docker:      eng.Docker(),
+		AgentClient: agentClient,
+		ServerRepo:  serverRepo,
+		AgentPort:   cfg.GRPC.AgentPort,
+		Logger:      logger,
+	})
 }
 
 func ProvideCertificateHandler(cfg *config.Config, logger *slog.Logger) *handler.CertificateHandler {

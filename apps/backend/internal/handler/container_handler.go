@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/paasdeploy/backend/internal/agentclient"
+	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 	"github.com/valyala/fasthttp"
@@ -25,15 +27,37 @@ func isSelfContainerError(err error) bool {
 }
 
 type ContainerHandler struct {
-	docker *docker.Client
-	logger *slog.Logger
+	docker      *docker.Client
+	agentClient *agentclient.AgentClient
+	serverRepo  domain.ServerRepository
+	agentPort   int
+	logger      *slog.Logger
 }
 
-func NewContainerHandler(docker *docker.Client, logger *slog.Logger) *ContainerHandler {
+type ContainerHandlerConfig struct {
+	Docker      *docker.Client
+	AgentClient *agentclient.AgentClient
+	ServerRepo  domain.ServerRepository
+	AgentPort   int
+	Logger      *slog.Logger
+}
+
+func NewContainerHandler(cfg ContainerHandlerConfig) *ContainerHandler {
 	return &ContainerHandler{
-		docker: docker,
-		logger: logger,
+		docker:      cfg.Docker,
+		agentClient: cfg.AgentClient,
+		serverRepo:  cfg.ServerRepo,
+		agentPort:   cfg.AgentPort,
+		logger:      cfg.Logger,
 	}
+}
+
+func (h *ContainerHandler) resolveServerHost(serverID string) (string, error) {
+	server, err := h.serverRepo.FindByID(serverID)
+	if err != nil {
+		return "", fmt.Errorf("server not found: %w", err)
+	}
+	return server.Host, nil
 }
 
 func (h *ContainerHandler) Register(app fiber.Router) {
@@ -79,6 +103,11 @@ type ContainerPortResponse struct {
 
 func (h *ContainerHandler) ListContainers(c *fiber.Ctx) error {
 	all := c.Query("all", "true") == "true"
+	serverID := c.Query("serverId", "")
+
+	if serverID != "" {
+		return h.listRemoteContainers(c, serverID, all)
+	}
 
 	containers, err := h.docker.ListContainers(c.Context(), all)
 	if err != nil {
@@ -89,6 +118,57 @@ func (h *ContainerHandler) ListContainers(c *fiber.Ctx) error {
 	result := make([]ContainerResponse, len(containers))
 	for i, container := range containers {
 		result[i] = h.toContainerResponse(container)
+	}
+
+	return response.OK(c, result)
+}
+
+func (h *ContainerHandler) listRemoteContainers(c *fiber.Ctx, serverID string, all bool) error {
+	host, err := h.resolveServerHost(serverID)
+	if err != nil {
+		h.logger.Error("Failed to resolve server", "serverId", serverID, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+	}
+
+	containers, err := h.agentClient.ListContainers(c.Context(), host, h.agentPort, all, "")
+	if err != nil {
+		h.logger.Error("Failed to list remote containers", "serverId", serverID, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to list containers from remote server")
+	}
+
+	result := make([]ContainerResponse, 0, len(containers))
+	for _, ct := range containers {
+		ports := make([]ContainerPortResponse, 0, len(ct.Ports))
+		for _, p := range ct.Ports {
+			ports = append(ports, ContainerPortResponse{
+				PrivatePort: int(p.ContainerPort),
+				PublicPort:  int(p.HostPort),
+				Type:        p.Protocol,
+			})
+		}
+
+		labels := ct.Labels
+		if labels == nil {
+			labels = map[string]string{}
+		}
+
+		isManaged := false
+		if _, ok := labels["paasdeploy.app"]; ok {
+			isManaged = true
+		}
+
+		result = append(result, ContainerResponse{
+			ID:                  ct.Id,
+			Name:                ct.Name,
+			Image:               ct.Image,
+			State:               ct.State,
+			Status:              ct.Status,
+			Ports:               ports,
+			Labels:              labels,
+			Networks:            []string{},
+			Mounts:              []ContainerMountResponse{},
+			IsFlowDeployManaged: isManaged,
+		})
 	}
 
 	return response.OK(c, result)

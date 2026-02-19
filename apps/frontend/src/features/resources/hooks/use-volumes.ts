@@ -9,10 +9,10 @@ export interface DockerVolume {
   readonly labels: Record<string, string>;
 }
 
-export function useVolumes() {
+export function useVolumes(serverId?: string) {
   return useQuery({
-    queryKey: ["volumes"],
-    queryFn: () => api.volumes.list(),
+    queryKey: ["volumes", serverId],
+    queryFn: () => api.volumes.list(serverId),
     staleTime: 30_000,
   });
 }

@@ -1738,6 +1738,1098 @@ func (x *StopContainerResponse) GetMessage() string {
 	return ""
 }
 
+type StartContainerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContainerId   string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartContainerRequest) Reset() {
+	*x = StartContainerRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartContainerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartContainerRequest) ProtoMessage() {}
+
+func (x *StartContainerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartContainerRequest.ProtoReflect.Descriptor instead.
+func (*StartContainerRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *StartContainerRequest) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+type StartContainerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StartContainerResponse) Reset() {
+	*x = StartContainerResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StartContainerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StartContainerResponse) ProtoMessage() {}
+
+func (x *StartContainerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StartContainerResponse.ProtoReflect.Descriptor instead.
+func (*StartContainerResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *StartContainerResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *StartContainerResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type ListImagesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	All           bool                   `protobuf:"varint,1,opt,name=all,proto3" json:"all,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListImagesRequest) Reset() {
+	*x = ListImagesRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListImagesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListImagesRequest) ProtoMessage() {}
+
+func (x *ListImagesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListImagesRequest.ProtoReflect.Descriptor instead.
+func (*ListImagesRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ListImagesRequest) GetAll() bool {
+	if x != nil {
+		return x.All
+	}
+	return false
+}
+
+type ListImagesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Images        []*ImageInfo           `protobuf:"bytes,1,rep,name=images,proto3" json:"images,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListImagesResponse) Reset() {
+	*x = ListImagesResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListImagesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListImagesResponse) ProtoMessage() {}
+
+func (x *ListImagesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListImagesResponse.ProtoReflect.Descriptor instead.
+func (*ListImagesResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *ListImagesResponse) GetImages() []*ImageInfo {
+	if x != nil {
+		return x.Images
+	}
+	return nil
+}
+
+type ImageInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Repository    string                 `protobuf:"bytes,2,opt,name=repository,proto3" json:"repository,omitempty"`
+	Tag           string                 `protobuf:"bytes,3,opt,name=tag,proto3" json:"tag,omitempty"`
+	Size          int64                  `protobuf:"varint,4,opt,name=size,proto3" json:"size,omitempty"`
+	Created       string                 `protobuf:"bytes,5,opt,name=created,proto3" json:"created,omitempty"`
+	Dangling      bool                   `protobuf:"varint,6,opt,name=dangling,proto3" json:"dangling,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImageInfo) Reset() {
+	*x = ImageInfo{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImageInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImageInfo) ProtoMessage() {}
+
+func (x *ImageInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImageInfo.ProtoReflect.Descriptor instead.
+func (*ImageInfo) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ImageInfo) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ImageInfo) GetRepository() string {
+	if x != nil {
+		return x.Repository
+	}
+	return ""
+}
+
+func (x *ImageInfo) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+func (x *ImageInfo) GetSize() int64 {
+	if x != nil {
+		return x.Size
+	}
+	return 0
+}
+
+func (x *ImageInfo) GetCreated() string {
+	if x != nil {
+		return x.Created
+	}
+	return ""
+}
+
+func (x *ImageInfo) GetDangling() bool {
+	if x != nil {
+		return x.Dangling
+	}
+	return false
+}
+
+type RemoveImageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ImageId       string                 `protobuf:"bytes,1,opt,name=image_id,json=imageId,proto3" json:"image_id,omitempty"`
+	Force         bool                   `protobuf:"varint,2,opt,name=force,proto3" json:"force,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveImageRequest) Reset() {
+	*x = RemoveImageRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveImageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveImageRequest) ProtoMessage() {}
+
+func (x *RemoveImageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveImageRequest.ProtoReflect.Descriptor instead.
+func (*RemoveImageRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *RemoveImageRequest) GetImageId() string {
+	if x != nil {
+		return x.ImageId
+	}
+	return ""
+}
+
+func (x *RemoveImageRequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+type RemoveImageResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveImageResponse) Reset() {
+	*x = RemoveImageResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveImageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveImageResponse) ProtoMessage() {}
+
+func (x *RemoveImageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveImageResponse.ProtoReflect.Descriptor instead.
+func (*RemoveImageResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *RemoveImageResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RemoveImageResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type PruneImagesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PruneImagesRequest) Reset() {
+	*x = PruneImagesRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PruneImagesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PruneImagesRequest) ProtoMessage() {}
+
+func (x *PruneImagesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PruneImagesRequest.ProtoReflect.Descriptor instead.
+func (*PruneImagesRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{30}
+}
+
+type PruneImagesResponse struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	ImagesRemoved       int32                  `protobuf:"varint,1,opt,name=images_removed,json=imagesRemoved,proto3" json:"images_removed,omitempty"`
+	SpaceReclaimedBytes int64                  `protobuf:"varint,2,opt,name=space_reclaimed_bytes,json=spaceReclaimedBytes,proto3" json:"space_reclaimed_bytes,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *PruneImagesResponse) Reset() {
+	*x = PruneImagesResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PruneImagesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PruneImagesResponse) ProtoMessage() {}
+
+func (x *PruneImagesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PruneImagesResponse.ProtoReflect.Descriptor instead.
+func (*PruneImagesResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *PruneImagesResponse) GetImagesRemoved() int32 {
+	if x != nil {
+		return x.ImagesRemoved
+	}
+	return 0
+}
+
+func (x *PruneImagesResponse) GetSpaceReclaimedBytes() int64 {
+	if x != nil {
+		return x.SpaceReclaimedBytes
+	}
+	return 0
+}
+
+type ListNetworksRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListNetworksRequest) Reset() {
+	*x = ListNetworksRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListNetworksRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListNetworksRequest) ProtoMessage() {}
+
+func (x *ListNetworksRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListNetworksRequest.ProtoReflect.Descriptor instead.
+func (*ListNetworksRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{32}
+}
+
+type ListNetworksResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Networks      []*NetworkInfo         `protobuf:"bytes,1,rep,name=networks,proto3" json:"networks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListNetworksResponse) Reset() {
+	*x = ListNetworksResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListNetworksResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListNetworksResponse) ProtoMessage() {}
+
+func (x *ListNetworksResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListNetworksResponse.ProtoReflect.Descriptor instead.
+func (*ListNetworksResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ListNetworksResponse) GetNetworks() []*NetworkInfo {
+	if x != nil {
+		return x.Networks
+	}
+	return nil
+}
+
+type NetworkInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkInfo) Reset() {
+	*x = NetworkInfo{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkInfo) ProtoMessage() {}
+
+func (x *NetworkInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkInfo.ProtoReflect.Descriptor instead.
+func (*NetworkInfo) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *NetworkInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type CreateNetworkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateNetworkRequest) Reset() {
+	*x = CreateNetworkRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateNetworkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateNetworkRequest) ProtoMessage() {}
+
+func (x *CreateNetworkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateNetworkRequest.ProtoReflect.Descriptor instead.
+func (*CreateNetworkRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *CreateNetworkRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type CreateNetworkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateNetworkResponse) Reset() {
+	*x = CreateNetworkResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateNetworkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateNetworkResponse) ProtoMessage() {}
+
+func (x *CreateNetworkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateNetworkResponse.ProtoReflect.Descriptor instead.
+func (*CreateNetworkResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *CreateNetworkResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CreateNetworkResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type RemoveNetworkRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveNetworkRequest) Reset() {
+	*x = RemoveNetworkRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveNetworkRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveNetworkRequest) ProtoMessage() {}
+
+func (x *RemoveNetworkRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveNetworkRequest.ProtoReflect.Descriptor instead.
+func (*RemoveNetworkRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *RemoveNetworkRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type RemoveNetworkResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveNetworkResponse) Reset() {
+	*x = RemoveNetworkResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveNetworkResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveNetworkResponse) ProtoMessage() {}
+
+func (x *RemoveNetworkResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveNetworkResponse.ProtoReflect.Descriptor instead.
+func (*RemoveNetworkResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *RemoveNetworkResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RemoveNetworkResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type ListVolumesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListVolumesRequest) Reset() {
+	*x = ListVolumesRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListVolumesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListVolumesRequest) ProtoMessage() {}
+
+func (x *ListVolumesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListVolumesRequest.ProtoReflect.Descriptor instead.
+func (*ListVolumesRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{39}
+}
+
+type ListVolumesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Volumes       []*VolumeInfo          `protobuf:"bytes,1,rep,name=volumes,proto3" json:"volumes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListVolumesResponse) Reset() {
+	*x = ListVolumesResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListVolumesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListVolumesResponse) ProtoMessage() {}
+
+func (x *ListVolumesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListVolumesResponse.ProtoReflect.Descriptor instead.
+func (*ListVolumesResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *ListVolumesResponse) GetVolumes() []*VolumeInfo {
+	if x != nil {
+		return x.Volumes
+	}
+	return nil
+}
+
+type VolumeInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VolumeInfo) Reset() {
+	*x = VolumeInfo{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VolumeInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VolumeInfo) ProtoMessage() {}
+
+func (x *VolumeInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VolumeInfo.ProtoReflect.Descriptor instead.
+func (*VolumeInfo) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *VolumeInfo) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type CreateVolumeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateVolumeRequest) Reset() {
+	*x = CreateVolumeRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateVolumeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateVolumeRequest) ProtoMessage() {}
+
+func (x *CreateVolumeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateVolumeRequest.ProtoReflect.Descriptor instead.
+func (*CreateVolumeRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *CreateVolumeRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type CreateVolumeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateVolumeResponse) Reset() {
+	*x = CreateVolumeResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateVolumeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateVolumeResponse) ProtoMessage() {}
+
+func (x *CreateVolumeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateVolumeResponse.ProtoReflect.Descriptor instead.
+func (*CreateVolumeResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *CreateVolumeResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *CreateVolumeResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type RemoveVolumeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveVolumeRequest) Reset() {
+	*x = RemoveVolumeRequest{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveVolumeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveVolumeRequest) ProtoMessage() {}
+
+func (x *RemoveVolumeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveVolumeRequest.ProtoReflect.Descriptor instead.
+func (*RemoveVolumeRequest) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *RemoveVolumeRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type RemoveVolumeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveVolumeResponse) Reset() {
+	*x = RemoveVolumeResponse{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveVolumeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveVolumeResponse) ProtoMessage() {}
+
+func (x *RemoveVolumeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveVolumeResponse.ProtoReflect.Descriptor instead.
+func (*RemoveVolumeResponse) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *RemoveVolumeResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *RemoveVolumeResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 var File_flowdeploy_v1_server_proto protoreflect.FileDescriptor
 
 var file_flowdeploy_v1_server_proto_rawDesc = []byte{
@@ -2027,34 +3119,123 @@ var file_flowdeploy_v1_server_proto_rawDesc = []byte{
 	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18,
 	0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x18,
 	0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x2a, 0x8b, 0x01, 0x0a, 0x0a, 0x41, 0x67, 0x65,
-	0x6e, 0x74, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x1b, 0x0a, 0x17, 0x41, 0x47, 0x45, 0x4e, 0x54,
-	0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49,
-	0x45, 0x44, 0x10, 0x00, 0x12, 0x14, 0x0a, 0x10, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x53, 0x54,
-	0x41, 0x54, 0x45, 0x5f, 0x49, 0x44, 0x4c, 0x45, 0x10, 0x01, 0x12, 0x19, 0x0a, 0x15, 0x41, 0x47,
-	0x45, 0x4e, 0x54, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x44, 0x45, 0x50, 0x4c, 0x4f, 0x59,
-	0x49, 0x4e, 0x47, 0x10, 0x02, 0x12, 0x15, 0x0a, 0x11, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x53,
-	0x54, 0x41, 0x54, 0x45, 0x5f, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x03, 0x12, 0x18, 0x0a, 0x14,
-	0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x55, 0x50, 0x44, 0x41,
-	0x54, 0x49, 0x4e, 0x47, 0x10, 0x04, 0x2a, 0xcd, 0x01, 0x0a, 0x10, 0x41, 0x67, 0x65, 0x6e, 0x74,
-	0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x54, 0x79, 0x70, 0x65, 0x12, 0x1d, 0x0a, 0x19, 0x41,
-	0x47, 0x45, 0x4e, 0x54, 0x5f, 0x43, 0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x55, 0x4e, 0x53,
-	0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x18, 0x0a, 0x14, 0x41, 0x47,
-	0x45, 0x4e, 0x54, 0x5f, 0x43, 0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x44, 0x45, 0x50, 0x4c,
-	0x4f, 0x59, 0x10, 0x01, 0x12, 0x1f, 0x0a, 0x1b, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x43, 0x4f,
-	0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x43, 0x41, 0x4e, 0x43, 0x45, 0x4c, 0x5f, 0x44, 0x45, 0x50,
-	0x4c, 0x4f, 0x59, 0x10, 0x02, 0x12, 0x23, 0x0a, 0x1f, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x43,
-	0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x52, 0x45, 0x53, 0x54, 0x41, 0x52, 0x54, 0x5f, 0x43,
-	0x4f, 0x4e, 0x54, 0x41, 0x49, 0x4e, 0x45, 0x52, 0x10, 0x03, 0x12, 0x1e, 0x0a, 0x1a, 0x41, 0x47,
-	0x45, 0x4e, 0x54, 0x5f, 0x43, 0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x55, 0x50, 0x44, 0x41,
-	0x54, 0x45, 0x5f, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x10, 0x04, 0x12, 0x1a, 0x0a, 0x16, 0x41, 0x47,
-	0x45, 0x4e, 0x54, 0x5f, 0x43, 0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x53, 0x48, 0x55, 0x54,
-	0x44, 0x4f, 0x57, 0x4e, 0x10, 0x05, 0x42, 0x41, 0x5a, 0x3f, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
-	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x61, 0x61, 0x73, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2f,
-	0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x67, 0x6f, 0x2f, 0x66,
-	0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2f, 0x76, 0x31, 0x3b, 0x66, 0x6c, 0x6f,
-	0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x33,
+	0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x3a, 0x0a, 0x15, 0x53, 0x74, 0x61, 0x72,
+	0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x21, 0x0a, 0x0c, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e,
+	0x65, 0x72, 0x49, 0x64, 0x22, 0x4c, 0x0a, 0x16, 0x53, 0x74, 0x61, 0x72, 0x74, 0x43, 0x6f, 0x6e,
+	0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18,
+	0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52,
+	0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73,
+	0x61, 0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61,
+	0x67, 0x65, 0x22, 0x25, 0x0a, 0x11, 0x4c, 0x69, 0x73, 0x74, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x73,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x61, 0x6c, 0x6c, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x08, 0x52, 0x03, 0x61, 0x6c, 0x6c, 0x22, 0x46, 0x0a, 0x12, 0x4c, 0x69, 0x73,
+	0x74, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x30, 0x0a, 0x06, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x18, 0x2e, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31, 0x2e,
+	0x49, 0x6d, 0x61, 0x67, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x06, 0x69, 0x6d, 0x61, 0x67, 0x65,
+	0x73, 0x22, 0x97, 0x01, 0x0a, 0x09, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x12,
+	0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12,
+	0x1e, 0x0a, 0x0a, 0x72, 0x65, 0x70, 0x6f, 0x73, 0x69, 0x74, 0x6f, 0x72, 0x79, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x0a, 0x72, 0x65, 0x70, 0x6f, 0x73, 0x69, 0x74, 0x6f, 0x72, 0x79, 0x12,
+	0x10, 0x0a, 0x03, 0x74, 0x61, 0x67, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x74, 0x61,
+	0x67, 0x12, 0x12, 0x0a, 0x04, 0x73, 0x69, 0x7a, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x03, 0x52,
+	0x04, 0x73, 0x69, 0x7a, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64,
+	0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x63, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x12,
+	0x1a, 0x0a, 0x08, 0x64, 0x61, 0x6e, 0x67, 0x6c, 0x69, 0x6e, 0x67, 0x18, 0x06, 0x20, 0x01, 0x28,
+	0x08, 0x52, 0x08, 0x64, 0x61, 0x6e, 0x67, 0x6c, 0x69, 0x6e, 0x67, 0x22, 0x45, 0x0a, 0x12, 0x52,
+	0x65, 0x6d, 0x6f, 0x76, 0x65, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x19, 0x0a, 0x08, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x07, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x49, 0x64, 0x12, 0x14, 0x0a, 0x05,
+	0x66, 0x6f, 0x72, 0x63, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x05, 0x66, 0x6f, 0x72,
+	0x63, 0x65, 0x22, 0x49, 0x0a, 0x13, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x49, 0x6d, 0x61, 0x67,
+	0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63,
+	0x63, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63,
+	0x65, 0x73, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x14, 0x0a,
+	0x12, 0x50, 0x72, 0x75, 0x6e, 0x65, 0x49, 0x6d, 0x61, 0x67, 0x65, 0x73, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x22, 0x70, 0x0a, 0x13, 0x50, 0x72, 0x75, 0x6e, 0x65, 0x49, 0x6d, 0x61, 0x67,
+	0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x25, 0x0a, 0x0e, 0x69, 0x6d,
+	0x61, 0x67, 0x65, 0x73, 0x5f, 0x72, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x64, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x0d, 0x69, 0x6d, 0x61, 0x67, 0x65, 0x73, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65,
+	0x64, 0x12, 0x32, 0x0a, 0x15, 0x73, 0x70, 0x61, 0x63, 0x65, 0x5f, 0x72, 0x65, 0x63, 0x6c, 0x61,
+	0x69, 0x6d, 0x65, 0x64, 0x5f, 0x62, 0x79, 0x74, 0x65, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03,
+	0x52, 0x13, 0x73, 0x70, 0x61, 0x63, 0x65, 0x52, 0x65, 0x63, 0x6c, 0x61, 0x69, 0x6d, 0x65, 0x64,
+	0x42, 0x79, 0x74, 0x65, 0x73, 0x22, 0x15, 0x0a, 0x13, 0x4c, 0x69, 0x73, 0x74, 0x4e, 0x65, 0x74,
+	0x77, 0x6f, 0x72, 0x6b, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x4e, 0x0a, 0x14,
+	0x4c, 0x69, 0x73, 0x74, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x73, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x36, 0x0a, 0x08, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x73,
+	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70,
+	0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31, 0x2e, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x49, 0x6e,
+	0x66, 0x6f, 0x52, 0x08, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x73, 0x22, 0x21, 0x0a, 0x0b,
+	0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x12, 0x0a, 0x04, 0x6e,
+	0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22,
+	0x2a, 0x0a, 0x14, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x4b, 0x0a, 0x15, 0x43,
+	0x72, 0x65, 0x61, 0x74, 0x65, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x18,
+	0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x2a, 0x0a, 0x14, 0x52, 0x65, 0x6d, 0x6f,
+	0x76, 0x65, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04,
+	0x6e, 0x61, 0x6d, 0x65, 0x22, 0x4b, 0x0a, 0x15, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x4e, 0x65,
+	0x74, 0x77, 0x6f, 0x72, 0x6b, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a,
+	0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07,
+	0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61,
+	0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67,
+	0x65, 0x22, 0x14, 0x0a, 0x12, 0x4c, 0x69, 0x73, 0x74, 0x56, 0x6f, 0x6c, 0x75, 0x6d, 0x65, 0x73,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22, 0x4a, 0x0a, 0x13, 0x4c, 0x69, 0x73, 0x74, 0x56,
+	0x6f, 0x6c, 0x75, 0x6d, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x33,
+	0x0a, 0x07, 0x76, 0x6f, 0x6c, 0x75, 0x6d, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x19, 0x2e, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31, 0x2e,
+	0x56, 0x6f, 0x6c, 0x75, 0x6d, 0x65, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x07, 0x76, 0x6f, 0x6c, 0x75,
+	0x6d, 0x65, 0x73, 0x22, 0x20, 0x0a, 0x0a, 0x56, 0x6f, 0x6c, 0x75, 0x6d, 0x65, 0x49, 0x6e, 0x66,
+	0x6f, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x29, 0x0a, 0x13, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x56,
+	0x6f, 0x6c, 0x75, 0x6d, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04,
+	0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65,
+	0x22, 0x4a, 0x0a, 0x14, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x56, 0x6f, 0x6c, 0x75, 0x6d, 0x65,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63,
+	0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65,
+	0x73, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x22, 0x29, 0x0a, 0x13,
+	0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x56, 0x6f, 0x6c, 0x75, 0x6d, 0x65, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x22, 0x4a, 0x0a, 0x14, 0x52, 0x65, 0x6d, 0x6f, 0x76,
+	0x65, 0x56, 0x6f, 0x6c, 0x75, 0x6d, 0x65, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08,
+	0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73,
+	0x73, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73,
+	0x61, 0x67, 0x65, 0x2a, 0x8b, 0x01, 0x0a, 0x0a, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x74, 0x61,
+	0x74, 0x65, 0x12, 0x1b, 0x0a, 0x17, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x53, 0x54, 0x41, 0x54,
+	0x45, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45, 0x44, 0x10, 0x00, 0x12,
+	0x14, 0x0a, 0x10, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x49,
+	0x44, 0x4c, 0x45, 0x10, 0x01, 0x12, 0x19, 0x0a, 0x15, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x53,
+	0x54, 0x41, 0x54, 0x45, 0x5f, 0x44, 0x45, 0x50, 0x4c, 0x4f, 0x59, 0x49, 0x4e, 0x47, 0x10, 0x02,
+	0x12, 0x15, 0x0a, 0x11, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f,
+	0x45, 0x52, 0x52, 0x4f, 0x52, 0x10, 0x03, 0x12, 0x18, 0x0a, 0x14, 0x41, 0x47, 0x45, 0x4e, 0x54,
+	0x5f, 0x53, 0x54, 0x41, 0x54, 0x45, 0x5f, 0x55, 0x50, 0x44, 0x41, 0x54, 0x49, 0x4e, 0x47, 0x10,
+	0x04, 0x2a, 0xcd, 0x01, 0x0a, 0x10, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6d, 0x6d, 0x61,
+	0x6e, 0x64, 0x54, 0x79, 0x70, 0x65, 0x12, 0x1d, 0x0a, 0x19, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f,
+	0x43, 0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46,
+	0x49, 0x45, 0x44, 0x10, 0x00, 0x12, 0x18, 0x0a, 0x14, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x43,
+	0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x44, 0x45, 0x50, 0x4c, 0x4f, 0x59, 0x10, 0x01, 0x12,
+	0x1f, 0x0a, 0x1b, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x43, 0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44,
+	0x5f, 0x43, 0x41, 0x4e, 0x43, 0x45, 0x4c, 0x5f, 0x44, 0x45, 0x50, 0x4c, 0x4f, 0x59, 0x10, 0x02,
+	0x12, 0x23, 0x0a, 0x1f, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x43, 0x4f, 0x4d, 0x4d, 0x41, 0x4e,
+	0x44, 0x5f, 0x52, 0x45, 0x53, 0x54, 0x41, 0x52, 0x54, 0x5f, 0x43, 0x4f, 0x4e, 0x54, 0x41, 0x49,
+	0x4e, 0x45, 0x52, 0x10, 0x03, 0x12, 0x1e, 0x0a, 0x1a, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x43,
+	0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x55, 0x50, 0x44, 0x41, 0x54, 0x45, 0x5f, 0x41, 0x47,
+	0x45, 0x4e, 0x54, 0x10, 0x04, 0x12, 0x1a, 0x0a, 0x16, 0x41, 0x47, 0x45, 0x4e, 0x54, 0x5f, 0x43,
+	0x4f, 0x4d, 0x4d, 0x41, 0x4e, 0x44, 0x5f, 0x53, 0x48, 0x55, 0x54, 0x44, 0x4f, 0x57, 0x4e, 0x10,
+	0x05, 0x42, 0x41, 0x5a, 0x3f, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f,
+	0x70, 0x61, 0x61, 0x73, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2f, 0x62, 0x61, 0x63, 0x6b, 0x65,
+	0x6e, 0x64, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x67, 0x6f, 0x2f, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65,
+	0x70, 0x6c, 0x6f, 0x79, 0x2f, 0x76, 0x31, 0x3b, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c,
+	0x6f, 0x79, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -2070,7 +3251,7 @@ func file_flowdeploy_v1_server_proto_rawDescGZIP() []byte {
 }
 
 var file_flowdeploy_v1_server_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_flowdeploy_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_flowdeploy_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 47)
 var file_flowdeploy_v1_server_proto_goTypes = []any{
 	(AgentState)(0),                  // 0: flowdeploy.v1.AgentState
 	(AgentCommandType)(0),            // 1: flowdeploy.v1.AgentCommandType
@@ -2097,37 +3278,63 @@ var file_flowdeploy_v1_server_proto_goTypes = []any{
 	(*RestartContainerResponse)(nil), // 22: flowdeploy.v1.RestartContainerResponse
 	(*StopContainerRequest)(nil),     // 23: flowdeploy.v1.StopContainerRequest
 	(*StopContainerResponse)(nil),    // 24: flowdeploy.v1.StopContainerResponse
-	nil,                              // 25: flowdeploy.v1.ContainerInfo.LabelsEntry
-	(*timestamppb.Timestamp)(nil),    // 26: google.protobuf.Timestamp
-	(DeployStage)(0),                 // 27: flowdeploy.v1.DeployStage
+	(*StartContainerRequest)(nil),    // 25: flowdeploy.v1.StartContainerRequest
+	(*StartContainerResponse)(nil),   // 26: flowdeploy.v1.StartContainerResponse
+	(*ListImagesRequest)(nil),        // 27: flowdeploy.v1.ListImagesRequest
+	(*ListImagesResponse)(nil),       // 28: flowdeploy.v1.ListImagesResponse
+	(*ImageInfo)(nil),                // 29: flowdeploy.v1.ImageInfo
+	(*RemoveImageRequest)(nil),       // 30: flowdeploy.v1.RemoveImageRequest
+	(*RemoveImageResponse)(nil),      // 31: flowdeploy.v1.RemoveImageResponse
+	(*PruneImagesRequest)(nil),       // 32: flowdeploy.v1.PruneImagesRequest
+	(*PruneImagesResponse)(nil),      // 33: flowdeploy.v1.PruneImagesResponse
+	(*ListNetworksRequest)(nil),      // 34: flowdeploy.v1.ListNetworksRequest
+	(*ListNetworksResponse)(nil),     // 35: flowdeploy.v1.ListNetworksResponse
+	(*NetworkInfo)(nil),              // 36: flowdeploy.v1.NetworkInfo
+	(*CreateNetworkRequest)(nil),     // 37: flowdeploy.v1.CreateNetworkRequest
+	(*CreateNetworkResponse)(nil),    // 38: flowdeploy.v1.CreateNetworkResponse
+	(*RemoveNetworkRequest)(nil),     // 39: flowdeploy.v1.RemoveNetworkRequest
+	(*RemoveNetworkResponse)(nil),    // 40: flowdeploy.v1.RemoveNetworkResponse
+	(*ListVolumesRequest)(nil),       // 41: flowdeploy.v1.ListVolumesRequest
+	(*ListVolumesResponse)(nil),      // 42: flowdeploy.v1.ListVolumesResponse
+	(*VolumeInfo)(nil),               // 43: flowdeploy.v1.VolumeInfo
+	(*CreateVolumeRequest)(nil),      // 44: flowdeploy.v1.CreateVolumeRequest
+	(*CreateVolumeResponse)(nil),     // 45: flowdeploy.v1.CreateVolumeResponse
+	(*RemoveVolumeRequest)(nil),      // 46: flowdeploy.v1.RemoveVolumeRequest
+	(*RemoveVolumeResponse)(nil),     // 47: flowdeploy.v1.RemoveVolumeResponse
+	nil,                              // 48: flowdeploy.v1.ContainerInfo.LabelsEntry
+	(*timestamppb.Timestamp)(nil),    // 49: google.protobuf.Timestamp
+	(DeployStage)(0),                 // 50: flowdeploy.v1.DeployStage
 }
 var file_flowdeploy_v1_server_proto_depIdxs = []int32{
 	10, // 0: flowdeploy.v1.RegisterRequest.system_info:type_name -> flowdeploy.v1.SystemInfo
 	11, // 1: flowdeploy.v1.RegisterRequest.docker_info:type_name -> flowdeploy.v1.DockerInfo
 	4,  // 2: flowdeploy.v1.RegisterResponse.config:type_name -> flowdeploy.v1.AgentConfig
-	26, // 3: flowdeploy.v1.HeartbeatRequest.timestamp:type_name -> google.protobuf.Timestamp
+	49, // 3: flowdeploy.v1.HeartbeatRequest.timestamp:type_name -> google.protobuf.Timestamp
 	6,  // 4: flowdeploy.v1.HeartbeatRequest.status:type_name -> flowdeploy.v1.AgentStatus
 	7,  // 5: flowdeploy.v1.HeartbeatRequest.active_deployments:type_name -> flowdeploy.v1.ActiveDeployment
 	12, // 6: flowdeploy.v1.HeartbeatRequest.metrics:type_name -> flowdeploy.v1.SystemMetrics
 	0,  // 7: flowdeploy.v1.AgentStatus.state:type_name -> flowdeploy.v1.AgentState
-	26, // 8: flowdeploy.v1.AgentStatus.started_at:type_name -> google.protobuf.Timestamp
-	27, // 9: flowdeploy.v1.ActiveDeployment.stage:type_name -> flowdeploy.v1.DeployStage
-	26, // 10: flowdeploy.v1.ActiveDeployment.started_at:type_name -> google.protobuf.Timestamp
+	49, // 8: flowdeploy.v1.AgentStatus.started_at:type_name -> google.protobuf.Timestamp
+	50, // 9: flowdeploy.v1.ActiveDeployment.stage:type_name -> flowdeploy.v1.DeployStage
+	49, // 10: flowdeploy.v1.ActiveDeployment.started_at:type_name -> google.protobuf.Timestamp
 	9,  // 11: flowdeploy.v1.HeartbeatResponse.commands:type_name -> flowdeploy.v1.AgentCommand
 	4,  // 12: flowdeploy.v1.HeartbeatResponse.updated_config:type_name -> flowdeploy.v1.AgentConfig
 	1,  // 13: flowdeploy.v1.AgentCommand.type:type_name -> flowdeploy.v1.AgentCommandType
 	15, // 14: flowdeploy.v1.ListContainersResponse.containers:type_name -> flowdeploy.v1.ContainerInfo
-	26, // 15: flowdeploy.v1.ContainerInfo.created_at:type_name -> google.protobuf.Timestamp
-	25, // 16: flowdeploy.v1.ContainerInfo.labels:type_name -> flowdeploy.v1.ContainerInfo.LabelsEntry
+	49, // 15: flowdeploy.v1.ContainerInfo.created_at:type_name -> google.protobuf.Timestamp
+	48, // 16: flowdeploy.v1.ContainerInfo.labels:type_name -> flowdeploy.v1.ContainerInfo.LabelsEntry
 	16, // 17: flowdeploy.v1.ContainerInfo.ports:type_name -> flowdeploy.v1.PortBinding
-	26, // 18: flowdeploy.v1.ContainerLogsRequest.since:type_name -> google.protobuf.Timestamp
-	26, // 19: flowdeploy.v1.ContainerLogEntry.timestamp:type_name -> google.protobuf.Timestamp
-	26, // 20: flowdeploy.v1.ContainerStats.timestamp:type_name -> google.protobuf.Timestamp
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	49, // 18: flowdeploy.v1.ContainerLogsRequest.since:type_name -> google.protobuf.Timestamp
+	49, // 19: flowdeploy.v1.ContainerLogEntry.timestamp:type_name -> google.protobuf.Timestamp
+	49, // 20: flowdeploy.v1.ContainerStats.timestamp:type_name -> google.protobuf.Timestamp
+	29, // 21: flowdeploy.v1.ListImagesResponse.images:type_name -> flowdeploy.v1.ImageInfo
+	36, // 22: flowdeploy.v1.ListNetworksResponse.networks:type_name -> flowdeploy.v1.NetworkInfo
+	43, // 23: flowdeploy.v1.ListVolumesResponse.volumes:type_name -> flowdeploy.v1.VolumeInfo
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_flowdeploy_v1_server_proto_init() }
@@ -2146,7 +3353,7 @@ func file_flowdeploy_v1_server_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_flowdeploy_v1_server_proto_rawDesc,
 			NumEnums:      2,
-			NumMessages:   24,
+			NumMessages:   47,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

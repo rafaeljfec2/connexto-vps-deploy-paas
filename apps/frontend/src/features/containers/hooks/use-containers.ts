@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/services/api";
 import type { CreateContainerInput } from "@/types";
 
-export function useContainers(all = true) {
+export function useContainers(all = true, serverId?: string) {
   return useQuery({
-    queryKey: ["containers", all],
-    queryFn: () => api.containers.list(all),
+    queryKey: ["containers", all, serverId],
+    queryFn: () => api.containers.list(all, serverId),
     refetchInterval: 10000,
     refetchOnWindowFocus: true,
   });

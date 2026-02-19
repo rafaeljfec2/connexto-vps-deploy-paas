@@ -34,4 +34,24 @@ service AgentService {
   rpc GetSystemMetrics(google.protobuf.Empty) returns (SystemMetrics);
 
   rpc GetDockerInfo(google.protobuf.Empty) returns (DockerInfo);
+
+  rpc StartContainer(StartContainerRequest) returns (StartContainerResponse);
+
+  rpc ListImages(ListImagesRequest) returns (ListImagesResponse);
+
+  rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse);
+
+  rpc PruneImages(PruneImagesRequest) returns (PruneImagesResponse);
+
+  rpc ListNetworks(ListNetworksRequest) returns (ListNetworksResponse);
+
+  rpc CreateNetwork(CreateNetworkRequest) returns (CreateNetworkResponse);
+
+  rpc RemoveNetwork(RemoveNetworkRequest) returns (RemoveNetworkResponse);
+
+  rpc ListVolumes(ListVolumesRequest) returns (ListVolumesResponse);
+
+  rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
+
+  rpc RemoveVolume(RemoveVolumeRequest) returns (RemoveVolumeResponse);
 }

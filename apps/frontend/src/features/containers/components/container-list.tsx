@@ -10,13 +10,17 @@ import { type ContainerFilter, ContainerFilters } from "./container-filters";
 
 type SortKey = "name" | "state" | "image" | "ip" | "ports" | "resources";
 
-export function ContainerList() {
+interface ContainerListProps {
+  readonly serverId?: string;
+}
+
+export function ContainerList({ serverId }: ContainerListProps = {}) {
   const [filter, setFilter] = useState<ContainerFilter>("all");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
-  const { data: containers, isLoading, error } = useContainers(true);
+  const { data: containers, isLoading, error } = useContainers(true, serverId);
 
   const filteredContainers = useMemo(() => {
     if (!containers) return [];

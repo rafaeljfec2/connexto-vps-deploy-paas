@@ -54,6 +54,7 @@ import {
 interface NetworksManagerProps {
   readonly containerId?: string;
   readonly containerNetworks?: readonly string[];
+  readonly serverId?: string;
 }
 
 function getDeleteTooltip(
@@ -72,8 +73,9 @@ function getDeleteTooltip(
 export function NetworksManager({
   containerId,
   containerNetworks = [],
+  serverId,
 }: NetworksManagerProps) {
-  const { data: networks, isLoading, error } = useNetworks();
+  const { data: networks, isLoading, error } = useNetworks(serverId);
   const createNetwork = useCreateNetwork();
   const removeNetwork = useRemoveNetwork();
   const connectToNetwork = useConnectContainerToNetwork();

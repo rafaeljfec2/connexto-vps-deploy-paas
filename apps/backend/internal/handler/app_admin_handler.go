@@ -9,24 +9,41 @@ import (
 	"path/filepath"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/response"
 )
 
 type AppAdminHandler struct {
-	appRepo domain.AppRepository
-	engine  *engine.Engine
-	dataDir string
-	logger  *slog.Logger
+	appRepo     domain.AppRepository
+	serverRepo  domain.ServerRepository
+	engine      *engine.Engine
+	agentClient *agentclient.AgentClient
+	agentPort   int
+	dataDir     string
+	logger      *slog.Logger
 }
 
-func NewAppAdminHandler(appRepo domain.AppRepository, eng *engine.Engine, dataDir string, logger *slog.Logger) *AppAdminHandler {
+type AppAdminHandlerConfig struct {
+	AppRepo     domain.AppRepository
+	ServerRepo  domain.ServerRepository
+	Engine      *engine.Engine
+	AgentClient *agentclient.AgentClient
+	AgentPort   int
+	DataDir     string
+	Logger      *slog.Logger
+}
+
+func NewAppAdminHandler(cfg AppAdminHandlerConfig) *AppAdminHandler {
 	return &AppAdminHandler{
-		appRepo: appRepo,
-		engine:  eng,
-		dataDir: dataDir,
-		logger:  logger.With("handler", "app_admin"),
+		appRepo:     cfg.AppRepo,
+		serverRepo:  cfg.ServerRepo,
+		engine:      cfg.Engine,
+		agentClient: cfg.AgentClient,
+		agentPort:   cfg.AgentPort,
+		dataDir:     cfg.DataDir,
+		logger:      cfg.Logger.With("handler", "app_admin"),
 	}
 }
 
@@ -156,14 +173,50 @@ type containerAction struct {
 	fail    string
 }
 
+func (h *AppAdminHandler) isRemoteApp(app *domain.App) bool {
+	return app.ServerID != nil && *app.ServerID != ""
+}
+
+func (h *AppAdminHandler) resolveServerHost(app *domain.App) (string, error) {
+	if app.ServerID == nil {
+		return "", fmt.Errorf("app has no server")
+	}
+	server, err := h.serverRepo.FindByID(*app.ServerID)
+	if err != nil {
+		return "", fmt.Errorf("server not found: %w", err)
+	}
+	return server.Host, nil
+}
+
 func (h *AppAdminHandler) executeContainerAction(c *fiber.Ctx, action containerAction) error {
 	app, err := h.requireAppForUser(c)
 	if err != nil {
 		return err
 	}
 
-	if err := action.do(c.Context(), app.Name); err != nil {
-		h.logger.Error("Failed to "+action.name+" container", "appId", app.ID, "appName", app.Name, "error", err)
+	var execErr error
+	if h.isRemoteApp(app) {
+		host, hostErr := h.resolveServerHost(app)
+		if hostErr != nil {
+			execErr = hostErr
+		} else {
+			switch action.name {
+			case "restart":
+				execErr = h.agentClient.RestartContainer(c.Context(), host, h.agentPort, app.Name)
+			case "stop":
+				execErr = h.agentClient.StopContainer(c.Context(), host, h.agentPort, app.Name)
+			case "start":
+				execErr = h.agentClient.StartContainer(c.Context(), host, h.agentPort, app.Name)
+			default:
+				execErr = fmt.Errorf("unknown action: %s", action.name)
+			}
+		}
+	} else {
+		execErr = action.do(c.Context(), app.Name)
+	}
+
+	if execErr != nil {
+		h.logger.Error("Failed to "+action.name+" container", "appId", app.ID, "appName", app.Name, "error", execErr)
 		return response.OK(c, ContainerActionResponse{
 			Success: false,
 			Message: action.fail,

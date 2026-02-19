@@ -212,3 +212,102 @@ message StopContainerResponse {
   bool success = 1;
   string message = 2;
 }
+
+message StartContainerRequest {
+  string container_id = 1;
+}
+
+message StartContainerResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListImagesRequest {
+  bool all = 1;
+}
+
+message ListImagesResponse {
+  repeated ImageInfo images = 1;
+}
+
+message ImageInfo {
+  string id = 1;
+  string repository = 2;
+  string tag = 3;
+  int64 size = 4;
+  string created = 5;
+  bool dangling = 6;
+}
+
+message RemoveImageRequest {
+  string image_id = 1;
+  bool force = 2;
+}
+
+message RemoveImageResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message PruneImagesRequest {}
+
+message PruneImagesResponse {
+  int32 images_removed = 1;
+  int64 space_reclaimed_bytes = 2;
+}
+
+message ListNetworksRequest {}
+
+message ListNetworksResponse {
+  repeated NetworkInfo networks = 1;
+}
+
+message NetworkInfo {
+  string name = 1;
+}
+
+message CreateNetworkRequest {
+  string name = 1;
+}
+
+message CreateNetworkResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RemoveNetworkRequest {
+  string name = 1;
+}
+
+message RemoveNetworkResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListVolumesRequest {}
+
+message ListVolumesResponse {
+  repeated VolumeInfo volumes = 1;
+}
+
+message VolumeInfo {
+  string name = 1;
+}
+
+message CreateVolumeRequest {
+  string name = 1;
+}
+
+message CreateVolumeResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RemoveVolumeRequest {
+  string name = 1;
+}
+
+message RemoveVolumeResponse {
+  bool success = 1;
+  string message = 2;
+}

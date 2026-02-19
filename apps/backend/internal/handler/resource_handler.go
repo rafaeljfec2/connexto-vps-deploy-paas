@@ -1,22 +1,50 @@
 package handler
 
 import (
+	"fmt"
 	"log/slog"
 	"net/url"
 
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/paasdeploy/backend/internal/agentclient"
+	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 )
 
 type ResourceHandler struct {
-	docker *docker.Client
-	logger *slog.Logger
+	docker      *docker.Client
+	agentClient *agentclient.AgentClient
+	serverRepo  domain.ServerRepository
+	agentPort   int
+	logger      *slog.Logger
 }
 
-func NewResourceHandler(docker *docker.Client, logger *slog.Logger) *ResourceHandler {
-	return &ResourceHandler{docker: docker, logger: logger}
+type ResourceHandlerConfig struct {
+	Docker      *docker.Client
+	AgentClient *agentclient.AgentClient
+	ServerRepo  domain.ServerRepository
+	AgentPort   int
+	Logger      *slog.Logger
+}
+
+func NewResourceHandler(cfg ResourceHandlerConfig) *ResourceHandler {
+	return &ResourceHandler{
+		docker:      cfg.Docker,
+		agentClient: cfg.AgentClient,
+		serverRepo:  cfg.ServerRepo,
+		agentPort:   cfg.AgentPort,
+		logger:      cfg.Logger,
+	}
+}
+
+func (h *ResourceHandler) resolveServerHost(serverID string) (string, error) {
+	server, err := h.serverRepo.FindByID(serverID)
+	if err != nil {
+		return "", fmt.Errorf("server not found: %w", err)
+	}
+	return server.Host, nil
 }
 
 func (h *ResourceHandler) Register(app fiber.Router) {
@@ -33,6 +61,25 @@ func (h *ResourceHandler) Register(app fiber.Router) {
 }
 
 func (h *ResourceHandler) ListNetworks(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+		}
+		networks, err := h.agentClient.ListNetworks(c.Context(), host, h.agentPort)
+		if err != nil {
+			h.logger.Error("failed to list remote networks", "error", err)
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to list networks")
+		}
+		names := make([]string, 0, len(networks))
+		for _, n := range networks {
+			names = append(names, n.Name)
+		}
+		return response.OK(c, names)
+	}
+
 	nets, err := h.docker.ListNetworks(c.Context())
 	if err != nil {
 		h.logger.Error("failed to list networks", "error", err)
@@ -42,12 +89,26 @@ func (h *ResourceHandler) ListNetworks(c *fiber.Ctx) error {
 }
 
 func (h *ResourceHandler) CreateNetwork(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
 	var body struct {
 		Name string `json:"name"`
 	}
 	if err := c.BodyParser(&body); err != nil || body.Name == "" {
 		return response.BadRequest(c, "name is required")
 	}
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+		}
+		if err := h.agentClient.CreateNetwork(c.Context(), host, h.agentPort, body.Name); err != nil {
+			h.logger.Error("failed to create remote network", "name", body.Name, "error", err)
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to create network")
+		}
+		return response.Created(c, map[string]string{"name": body.Name})
+	}
+
 	if err := h.docker.EnsureNetwork(c.Context(), body.Name); err != nil {
 		h.logger.Error("failed to create network", "name", body.Name, "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to create network")
@@ -56,10 +117,24 @@ func (h *ResourceHandler) CreateNetwork(c *fiber.Ctx) error {
 }
 
 func (h *ResourceHandler) RemoveNetwork(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
 	name, err := url.PathUnescape(c.Params("name"))
 	if err != nil || name == "" {
 		return response.BadRequest(c, "invalid network name")
 	}
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+		}
+		if err := h.agentClient.RemoveNetwork(c.Context(), host, h.agentPort, name); err != nil {
+			h.logger.Error("failed to remove remote network", "name", name, "error", err)
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove network")
+		}
+		return response.NoContent(c)
+	}
+
 	if err := h.docker.RemoveNetwork(c.Context(), name); err != nil {
 		h.logger.Error("failed to remove network", "name", name, "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove network")
@@ -100,6 +175,25 @@ func (h *ResourceHandler) DisconnectContainerNetwork(c *fiber.Ctx) error {
 }
 
 func (h *ResourceHandler) ListVolumes(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+		}
+		volumes, err := h.agentClient.ListVolumes(c.Context(), host, h.agentPort)
+		if err != nil {
+			h.logger.Error("failed to list remote volumes", "error", err)
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to list volumes")
+		}
+		names := make([]string, 0, len(volumes))
+		for _, v := range volumes {
+			names = append(names, v.Name)
+		}
+		return response.OK(c, names)
+	}
+
 	vols, err := h.docker.ListVolumes(c.Context())
 	if err != nil {
 		h.logger.Error("failed to list volumes", "error", err)
@@ -109,12 +203,26 @@ func (h *ResourceHandler) ListVolumes(c *fiber.Ctx) error {
 }
 
 func (h *ResourceHandler) CreateVolume(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
 	var body struct {
 		Name string `json:"name"`
 	}
 	if err := c.BodyParser(&body); err != nil || body.Name == "" {
 		return response.BadRequest(c, "name is required")
 	}
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+		}
+		if err := h.agentClient.CreateVolume(c.Context(), host, h.agentPort, body.Name); err != nil {
+			h.logger.Error("failed to create remote volume", "name", body.Name, "error", err)
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to create volume")
+		}
+		return response.Created(c, map[string]string{"name": body.Name})
+	}
+
 	if err := h.docker.CreateVolume(c.Context(), body.Name); err != nil {
 		h.logger.Error("failed to create volume", "name", body.Name, "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to create volume")
@@ -123,10 +231,24 @@ func (h *ResourceHandler) CreateVolume(c *fiber.Ctx) error {
 }
 
 func (h *ResourceHandler) RemoveVolume(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
 	name, err := url.PathUnescape(c.Params("name"))
 	if err != nil || name == "" {
 		return response.BadRequest(c, "invalid volume name")
 	}
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+		}
+		if err := h.agentClient.RemoveVolume(c.Context(), host, h.agentPort, name); err != nil {
+			h.logger.Error("failed to remove remote volume", "name", name, "error", err)
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove volume")
+		}
+		return response.NoContent(c)
+	}
+
 	if err := h.docker.RemoveVolume(c.Context(), name); err != nil {
 		h.logger.Error("failed to remove volume", "name", name, "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove volume")

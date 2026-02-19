@@ -478,7 +478,7 @@ export function AppDetailsPage() {
   const { data: appConfig } = useAppConfig(id);
   const { data: envVars } = useEnvVars(id ?? "");
   const { data: containerStats } = useContainerStats(id);
-  const { data: containers } = useContainers(true);
+  const { data: containers } = useContainers(true, app?.serverId);
   const { data: customDomains = [] } = useQuery({
     queryKey: ["custom-domains", id],
     queryFn: () => api.domains.list(id ?? ""),
@@ -592,6 +592,7 @@ export function AppDetailsPage() {
           containerId={containerId}
           containerNetworks={containerNetworks}
           containerVolumes={containerVolumes}
+          serverId={app.serverId}
           expandedSections={{
             config: expandedSections.config,
             webhook: expandedSections.webhook,

@@ -54,10 +54,14 @@ function formatDate(dateString: string): string {
 
 interface VolumesManagerProps {
   readonly containerVolumes?: readonly string[];
+  readonly serverId?: string;
 }
 
-export function VolumesManager({ containerVolumes = [] }: VolumesManagerProps) {
-  const { data: volumes, isLoading, error } = useVolumes();
+export function VolumesManager({
+  containerVolumes = [],
+  serverId,
+}: VolumesManagerProps) {
+  const { data: volumes, isLoading, error } = useVolumes(serverId);
   const createVolume = useCreateVolume();
   const removeVolume = useRemoveVolume();
 

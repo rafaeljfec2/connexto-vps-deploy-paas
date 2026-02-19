@@ -10,10 +10,10 @@ export interface DockerNetwork {
   readonly containers: readonly string[];
 }
 
-export function useNetworks() {
+export function useNetworks(serverId?: string) {
   return useQuery({
-    queryKey: ["networks"],
-    queryFn: () => api.networks.list(),
+    queryKey: ["networks", serverId],
+    queryFn: () => api.networks.list(serverId),
     staleTime: 30_000,
   });
 }

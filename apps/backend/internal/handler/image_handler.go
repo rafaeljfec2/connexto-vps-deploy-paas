@@ -1,25 +1,50 @@
 package handler
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/paasdeploy/backend/internal/agentclient"
+	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 )
 
 type ImageHandler struct {
-	docker *docker.Client
-	logger *slog.Logger
+	docker      *docker.Client
+	agentClient *agentclient.AgentClient
+	serverRepo  domain.ServerRepository
+	agentPort   int
+	logger      *slog.Logger
 }
 
 const errListImages = "Failed to list images"
 
-func NewImageHandler(docker *docker.Client, logger *slog.Logger) *ImageHandler {
+type ImageHandlerConfig struct {
+	Docker      *docker.Client
+	AgentClient *agentclient.AgentClient
+	ServerRepo  domain.ServerRepository
+	AgentPort   int
+	Logger      *slog.Logger
+}
+
+func NewImageHandler(cfg ImageHandlerConfig) *ImageHandler {
 	return &ImageHandler{
-		docker: docker,
-		logger: logger,
+		docker:      cfg.Docker,
+		agentClient: cfg.AgentClient,
+		serverRepo:  cfg.ServerRepo,
+		agentPort:   cfg.AgentPort,
+		logger:      cfg.Logger,
 	}
+}
+
+func (h *ImageHandler) resolveServerHost(serverID string) (string, error) {
+	server, err := h.serverRepo.FindByID(serverID)
+	if err != nil {
+		return "", fmt.Errorf("server not found: %w", err)
+	}
+	return server.Host, nil
 }
 
 func (h *ImageHandler) Register(app fiber.Router) {
@@ -42,6 +67,12 @@ type ImageResponse struct {
 }
 
 func (h *ImageHandler) ListImages(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
+
+	if serverID != "" {
+		return h.listRemoteImages(c, serverID)
+	}
+
 	images, err := h.docker.ListImages(c.Context(), false)
 	if err != nil {
 		h.logger.Error(errListImages, "error", err)
@@ -60,6 +91,33 @@ func (h *ImageHandler) ListImages(c *fiber.Ctx) error {
 			Dangling:   img.Dangling,
 			Labels:     img.Labels,
 		}
+	}
+
+	return response.OK(c, result)
+}
+
+func (h *ImageHandler) listRemoteImages(c *fiber.Ctx, serverID string) error {
+	host, err := h.resolveServerHost(serverID)
+	if err != nil {
+		return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+	}
+
+	images, err := h.agentClient.ListImages(c.Context(), host, h.agentPort, false)
+	if err != nil {
+		h.logger.Error("Failed to list remote images", "serverId", serverID, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, errListImages)
+	}
+
+	result := make([]ImageResponse, 0, len(images))
+	for _, img := range images {
+		result = append(result, ImageResponse{
+			ID:         img.Id,
+			Repository: img.Repository,
+			Tag:        img.Tag,
+			Size:       img.Size,
+			Created:    img.Created,
+			Dangling:   img.Dangling,
+		})
 	}
 
 	return response.OK(c, result)
@@ -95,10 +153,23 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 	id := c.Params("id")
 	ref := c.Query("ref", "")
 	force := c.Query("force", "false") == "true"
+	serverID := c.Query("serverId", "")
 
 	target := id
 	if ref != "" {
 		target = ref
+	}
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+		}
+		if err := h.agentClient.RemoveImage(c.Context(), host, h.agentPort, target, force); err != nil {
+			h.logger.Error("Failed to remove remote image", "target", target, "error", err)
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove image")
+		}
+		return response.NoContent(c)
 	}
 
 	if err := h.docker.RemoveImageByID(c.Context(), target, force); err != nil {
@@ -115,6 +186,24 @@ type PruneResult struct {
 }
 
 func (h *ImageHandler) PruneImages(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+		}
+		pruneResp, err := h.agentClient.PruneImages(c.Context(), host, h.agentPort)
+		if err != nil {
+			h.logger.Error("Failed to prune remote images", "serverId", serverID, "error", err)
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to prune images")
+		}
+		return response.OK(c, PruneResult{
+			ImagesDeleted:  int(pruneResp.ImagesRemoved),
+			SpaceReclaimed: pruneResp.SpaceReclaimedBytes,
+		})
+	}
+
 	result, err := h.docker.PruneImages(c.Context())
 	if err != nil {
 		h.logger.Error("Failed to prune images", "error", err)

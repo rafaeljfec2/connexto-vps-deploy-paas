@@ -42,7 +42,11 @@ function formatDate(dateStr: string): string {
   });
 }
 
-export function ImageList() {
+interface ImageListProps {
+  readonly serverId?: string;
+}
+
+export function ImageList({ serverId }: ImageListProps = {}) {
   const [search, setSearch] = useState("");
   const [showDanglingOnly, setShowDanglingOnly] = useState(false);
   const [showPruneDialog, setShowPruneDialog] = useState(false);
@@ -51,7 +55,7 @@ export function ImageList() {
     readonly ref: string;
   } | null>(null);
 
-  const { data: images, isLoading, error } = useImages();
+  const { data: images, isLoading, error } = useImages(serverId);
   const removeImage = useRemoveImage();
   const pruneImages = usePruneImages();
 
