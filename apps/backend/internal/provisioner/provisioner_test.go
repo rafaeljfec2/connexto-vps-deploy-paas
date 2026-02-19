@@ -12,8 +12,10 @@ import (
 
 const (
 	cmdDockerVersion       = "docker --version"
-	cmdDockerBuildxVersion = "docker buildx version"
-	cmdBuildxPlugin        = "docker-buildx-plugin"
+	cmdDockerBuildxVersion  = "docker buildx version"
+	cmdDockerComposeVersion = "docker compose version"
+	cmdBuildxPlugin         = "docker-buildx-plugin"
+	cmdComposePlugin        = "docker-compose-plugin"
 	cmdSystemctlIsActive   = "systemctl is-active docker"
 	cmdSystemctlStart      = "systemctl start docker"
 	cmdGetDockerCom        = "get.docker.com"
@@ -262,41 +264,74 @@ func TestProvisionDocker(t *testing.T) {
 	})
 }
 
-func TestEnsureBuildx(t *testing.T) {
-	t.Run("AlreadyInstalled", func(t *testing.T) {
+func TestEnsureDockerPlugins(t *testing.T) {
+	t.Run("BothAlreadyInstalled", func(t *testing.T) {
 		mock := newCommandMock()
+		mock.setResponse(cmdDockerComposeVersion, "Docker Compose version v2.24.0")
 		mock.setResponse(cmdDockerBuildxVersion, "github.com/docker/buildx v0.12.0")
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.ensureBuildx(nil, uidRoot, "", noopStep, noopLog))
+		requireNoError(t, p.ensureDockerPlugins(nil, uidRoot, "", noopStep, noopLog))
 
+		if mock.hasCommand(cmdComposePlugin) || mock.hasCommand(cmdBuildxPlugin) {
+			t.Error("should not install plugins when already present")
+		}
+	})
+
+	t.Run("NeitherInstalledInstallsBoth", func(t *testing.T) {
+		mock := newCommandMock()
+		mock.setError(cmdDockerComposeVersion, fmt.Errorf(errNotFound))
+		mock.setError(cmdDockerBuildxVersion, fmt.Errorf(errNotFound))
+		defer mock.install(t)()
+
+		p := newTestProvisioner()
+		requireNoError(t, p.ensureDockerPlugins(nil, uidRoot, "", noopStep, noopLog))
+
+		if !mock.hasCommandWith(cmdComposePlugin, cmdBuildxPlugin) {
+			t.Error("expected both docker-compose-plugin and docker-buildx-plugin in install command")
+		}
+	})
+
+	t.Run("OnlyComposeMissing", func(t *testing.T) {
+		mock := newCommandMock()
+		mock.setError(cmdDockerComposeVersion, fmt.Errorf(errNotFound))
+		mock.setResponse(cmdDockerBuildxVersion, "github.com/docker/buildx v0.12.0")
+		defer mock.install(t)()
+
+		p := newTestProvisioner()
+		requireNoError(t, p.ensureDockerPlugins(nil, uidRoot, "", noopStep, noopLog))
+
+		if !mock.hasCommand(cmdComposePlugin) {
+			t.Error("expected docker-compose-plugin install")
+		}
 		if mock.hasCommand(cmdBuildxPlugin) {
 			t.Error("should not install buildx when already present")
 		}
 	})
 
-	t.Run("NotInstalledInstallsIt", func(t *testing.T) {
+	t.Run("ComposeInstallFailureIsCritical", func(t *testing.T) {
 		mock := newCommandMock()
-		mock.setError(cmdDockerBuildxVersion, fmt.Errorf(errNotFound))
+		mock.setError(cmdDockerComposeVersion, fmt.Errorf(errNotFound))
+		mock.setError(cmdComposePlugin, fmt.Errorf("apt-get failed"))
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.ensureBuildx(nil, uidRoot, "", noopStep, noopLog))
-
-		if !mock.hasCommand(cmdBuildxPlugin) {
-			t.Error("expected docker-buildx-plugin install command")
+		err := p.ensureDockerPlugins(nil, uidRoot, "", noopStep, noopLog)
+		if err == nil {
+			t.Error("expected error when compose install fails")
 		}
 	})
 
-	t.Run("InstallFailureIsNonCritical", func(t *testing.T) {
+	t.Run("OnlyBuildxFailureIsNonCritical", func(t *testing.T) {
 		mock := newCommandMock()
+		mock.setResponse(cmdDockerComposeVersion, "Docker Compose version v2.24.0")
 		mock.setError(cmdDockerBuildxVersion, fmt.Errorf(errNotFound))
 		mock.setError(cmdBuildxPlugin, fmt.Errorf("apt-get failed"))
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
-		requireNoError(t, p.ensureBuildx(nil, uidRoot, "", noopStep, noopLog))
+		requireNoError(t, p.ensureDockerPlugins(nil, uidRoot, "", noopStep, noopLog))
 	})
 }
 

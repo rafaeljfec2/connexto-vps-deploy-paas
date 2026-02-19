@@ -38,7 +38,7 @@ func (p *SSHProvisioner) provisionDocker(
 		if err := p.ensureDockerRunning(client, uid, password, step, logLine); err != nil {
 			return err
 		}
-		return p.ensureBuildx(client, uid, password, step, logLine)
+		return p.ensureDockerPlugins(client, uid, password, step, logLine)
 	}
 
 	step("docker_install", "running", "Instalando Docker...")
@@ -63,34 +63,53 @@ func (p *SSHProvisioner) provisionDocker(
 	if err := p.ensureDockerRunning(client, uid, password, step, logLine); err != nil {
 		return err
 	}
-	return p.ensureBuildx(client, uid, password, step, logLine)
+	if err := p.ensureDockerPlugins(client, uid, password, step, logLine); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (p *SSHProvisioner) ensureBuildx(
+func (p *SSHProvisioner) ensureDockerPlugins(
 	client *ssh.Client,
 	uid string,
 	password string,
 	step func(string, string, string),
 	logLine func(string),
 ) error {
-	if _, err := runCommandOutput(client, "docker buildx version"); err == nil {
-		logLine("Docker Buildx already available")
+	needCompose := !commandSucceeds(client, "docker compose version")
+	needBuildx := !commandSucceeds(client, "docker buildx version")
+
+	if !needCompose && !needBuildx {
+		logLine("Docker Compose and Buildx already available")
 		return nil
 	}
 
-	step("docker_buildx", "running", "Installing Docker Buildx...")
-	logLine("Installing docker-buildx-plugin")
+	step("docker_plugins", "running", "Installing Docker plugins...")
 
-	installCmd := "apt-get update -qq && apt-get install -y -qq docker-buildx-plugin"
-	if err := runPrivilegedCommandWithTimeout(client, uid, password, installCmd, timeoutDockerCheck); err != nil {
+	var packages []string
+	if needCompose {
+		packages = append(packages, "docker-compose-plugin")
+	}
+	if needBuildx {
+		packages = append(packages, "docker-buildx-plugin")
+	}
+
+	logLine(fmt.Sprintf("Installing %s", strings.Join(packages, ", ")))
+	installCmd := fmt.Sprintf("apt-get update -qq && apt-get install -y -qq %s", strings.Join(packages, " "))
+	if err := runPrivilegedCommandWithTimeout(client, uid, password, installCmd, timeoutDockerInstall); err != nil {
+		if needCompose {
+			return fmt.Errorf("install docker plugins: %w", err)
+		}
 		logLine("Buildx install failed, builds will use legacy builder")
-		step("docker_buildx", "ok", "Buildx not available (non-critical)")
-		return nil
 	}
 
-	logLine("Docker Buildx installed")
-	step("docker_buildx", "ok", "Buildx installed")
+	step("docker_plugins", "ok", "Docker plugins installed")
 	return nil
+}
+
+func commandSucceeds(client *ssh.Client, cmd string) bool {
+	_, err := runCommandOutput(client, cmd)
+	return err == nil
 }
 
 func (p *SSHProvisioner) ensureDockerRunning(
