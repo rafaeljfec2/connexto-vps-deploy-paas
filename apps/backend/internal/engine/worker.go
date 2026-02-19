@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -109,6 +110,13 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 	defaults := &compose.Config{}
 	compose.ApplyDefaults(defaults)
 
+	appPort := defaults.Port
+	if portStr, ok := w.appEnvVars["PORT"]; ok {
+		if parsed, err := strconv.Atoi(portStr); err == nil && parsed > 0 {
+			appPort = parsed
+		}
+	}
+
 	req := &pb.DeployRequest{
 		DeploymentId: deploy.ID,
 		AppId:        app.ID,
@@ -124,7 +132,7 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 			Context:    defaults.Build.Context,
 		},
 		Runtime: &pb.RuntimeConfig{
-			Port:    int32(defaults.Port),
+			Port:    int32(appPort),
 			Domains: domains,
 			Resources: &pb.ResourceLimits{
 				Memory: defaults.Resources.Memory,
