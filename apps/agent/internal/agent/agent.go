@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	Version           = "0.3.0"
+	Version           = "0.3.1"
 	selfUpdateTimeout = 2 * time.Minute
 	tempBinaryName    = "agent.new"
 )
@@ -187,14 +187,18 @@ func (a *Agent) downloadToFile(downloadURL, destPath string) error {
 	client := &http.Client{Timeout: selfUpdateTimeout}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, downloadURL, nil)
 	if err != nil {
-		return fmt.Errorf("request: %w", err)
+		return fmt.Errorf("create request: %w", err)
 	}
+	req.Header.Set("User-Agent", "PaasDeploy-Agent/"+Version)
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("download: %w", err)
+		a.logger.Error("download request failed", "error", err.Error())
+		return fmt.Errorf("download request failed")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		a.logger.Error("download returned non-200", "status", resp.StatusCode, "body", string(body))
 		return fmt.Errorf("download status: %d", resp.StatusCode)
 	}
 	a.logger.Info("download response received", "status", resp.StatusCode, "contentLength", resp.ContentLength)
@@ -207,8 +211,9 @@ func (a *Agent) downloadToFile(downloadURL, destPath string) error {
 	f.Close()
 	if err != nil {
 		os.Remove(destPath)
-		return fmt.Errorf("write: %w", err)
+		return fmt.Errorf("write binary: %w", err)
 	}
+	a.logger.Info("binary downloaded", "bytes", written)
 	if written == 0 {
 		os.Remove(destPath)
 		return fmt.Errorf("empty binary")

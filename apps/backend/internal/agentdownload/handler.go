@@ -29,17 +29,26 @@ func (h *Handler) ServeBinary(c *fiber.Ctx) error {
 		return response.BadRequest(c, "missing token")
 	}
 	if !h.tokenStore.Consume(token) {
+		h.logger.Warn("agent download token rejected", "ip", c.IP())
 		return response.Unauthorized(c, "invalid or expired token")
 	}
 	if h.binaryPath == "" {
 		h.logger.Warn("agent binary path not configured")
 		return response.ServerError(c, fiber.StatusServiceUnavailable, "agent binary not available")
 	}
+
+	info, err := os.Stat(h.binaryPath)
+	if err != nil {
+		h.logger.Error("agent binary not found", "path", h.binaryPath, "error", err)
+		return response.InternalError(c)
+	}
+
 	data, err := os.ReadFile(h.binaryPath)
 	if err != nil {
 		h.logger.Error("failed to read agent binary", "path", h.binaryPath, "error", err)
 		return response.InternalError(c)
 	}
+	h.logger.Info("serving agent binary", "size", info.Size(), "ip", c.IP())
 	c.Set("Content-Type", "application/octet-stream")
 	c.Set("Content-Disposition", "attachment; filename=agent")
 	return c.Send(data)
