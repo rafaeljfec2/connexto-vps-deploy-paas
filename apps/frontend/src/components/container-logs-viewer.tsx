@@ -122,7 +122,7 @@ export function ContainerLogsViewer({
     }
 
     const url = api.container.logsStreamUrl(appId);
-    const eventSource = new EventSource(url);
+    const eventSource = new EventSource(url, { withCredentials: true });
 
     eventSource.onmessage = (event) => {
       setStreamedLogs((prev) => [...prev, event.data]);

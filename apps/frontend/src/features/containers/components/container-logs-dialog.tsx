@@ -146,7 +146,7 @@ export function ContainerLogsDialog({
     }
 
     const url = api.containers.logsStreamUrl(containerId);
-    const eventSource = new EventSource(url);
+    const eventSource = new EventSource(url, { withCredentials: true });
 
     eventSource.onmessage = (event) => {
       setStreamedLogs((prev) => [...prev, event.data]);

@@ -1,45 +1,48 @@
 import type { SSEEvent } from "@/types";
 
 type SSECallback = (event: SSEEvent) => void;
+type EventSourceFactory = (url: string) => EventSource;
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
+
+const SSE_EVENT_NAMES = [
+  "deploy",
+  "log",
+  "health",
+  "stats",
+  "provision",
+  "agent_update",
+] as const;
+
+function defaultEventSourceFactory(url: string): EventSource {
+  return new EventSource(url, { withCredentials: true });
+}
 
 class SSEClient {
   private eventSource: EventSource | null = null;
   private readonly callbacks: Set<SSECallback> = new Set();
+  private readonly createEventSource: EventSourceFactory;
   private reconnectAttempts = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+
+  constructor(
+    createEventSource: EventSourceFactory = defaultEventSourceFactory,
+  ) {
+    this.createEventSource = createEventSource;
+  }
 
   connect(url: string = `${API_URL}/events/deploys`): void {
     if (this.eventSource?.readyState === EventSource.OPEN) {
       return;
     }
 
-    this.eventSource = new EventSource(url);
+    this.eventSource = this.createEventSource(url);
 
-    this.eventSource.addEventListener("deploy", (event) => {
-      this.handleEvent(event);
-    });
-
-    this.eventSource.addEventListener("log", (event) => {
-      this.handleEvent(event);
-    });
-
-    this.eventSource.addEventListener("health", (event) => {
-      this.handleEvent(event);
-    });
-
-    this.eventSource.addEventListener("stats", (event) => {
-      this.handleEvent(event);
-    });
-
-    this.eventSource.addEventListener("provision", (event) => {
-      this.handleEvent(event);
-    });
-
-    this.eventSource.addEventListener("agent_update", (event) => {
-      this.handleEvent(event);
-    });
+    for (const name of SSE_EVENT_NAMES) {
+      this.eventSource.addEventListener(name, (event) => {
+        this.handleEvent(event);
+      });
+    }
 
     this.eventSource.onopen = () => {
       this.reconnectAttempts = 0;
@@ -92,4 +95,6 @@ class SSEClient {
   }
 }
 
+export { SSEClient };
+export type { EventSourceFactory };
 export const sseClient = new SSEClient();
