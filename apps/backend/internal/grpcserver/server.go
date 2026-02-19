@@ -128,11 +128,17 @@ func buildAgentDownloadURL(cfg *config.Config) string {
 
 func (s *Server) EnqueueUpdateAgent(serverID string) {
 	payload := ""
-	if s.agentDownloadURL != "" && s.agentTokenStore != nil {
-		if token, err := s.agentTokenStore.Create(); err == nil {
-			payload = s.agentDownloadURL + "?token=" + token
-		}
+	if s.agentDownloadURL == "" {
+		s.logger.Warn("agent download URL is empty, update will have no payload", "serverId", serverID)
+	} else if s.agentTokenStore == nil {
+		s.logger.Warn("agent token store is nil, update will have no payload", "serverId", serverID)
+	} else if token, err := s.agentTokenStore.Create(); err != nil {
+		s.logger.Error("failed to create agent download token", "serverId", serverID, "error", err)
+	} else {
+		payload = s.agentDownloadURL + "?token=" + token
 	}
+
+	s.logger.Info("enqueuing agent update", "serverId", serverID, "hasPayload", payload != "")
 	s.cmdQueue.Enqueue(serverID, &pb.AgentCommand{
 		Type:    pb.AgentCommandType_AGENT_COMMAND_UPDATE_AGENT,
 		Payload: payload,

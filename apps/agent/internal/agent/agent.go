@@ -154,16 +154,19 @@ func (a *Agent) handleUpdateAgent(payload string) {
 }
 
 func (a *Agent) runSelfUpdate(downloadURL string) {
+	a.logger.Info("starting self-update", "url", downloadURL)
 	execPath, err := os.Executable()
 	if err != nil {
 		a.logger.Error("failed to get executable path", "error", err)
 		return
 	}
+	a.logger.Info("current binary path", "path", execPath)
+
 	if err := a.downloadAndReplace(downloadURL, execPath); err != nil {
 		a.logger.Error("self-update failed", "error", err)
 		return
 	}
-	a.logger.Info("self-update complete, restarting")
+	a.logger.Info("self-update complete, restarting", "path", execPath)
 	if err := unix.Exec(execPath, os.Args, os.Environ()); err != nil {
 		a.logger.Error("exec failed", "error", err)
 	}
@@ -180,6 +183,7 @@ func (a *Agent) downloadAndReplace(downloadURL, execPath string) error {
 }
 
 func (a *Agent) downloadToFile(downloadURL, destPath string) error {
+	a.logger.Info("downloading binary", "dest", destPath)
 	client := &http.Client{Timeout: selfUpdateTimeout}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, downloadURL, nil)
 	if err != nil {
@@ -193,6 +197,7 @@ func (a *Agent) downloadToFile(downloadURL, destPath string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download status: %d", resp.StatusCode)
 	}
+	a.logger.Info("download response received", "status", resp.StatusCode, "contentLength", resp.ContentLength)
 
 	f, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
 	if err != nil {
