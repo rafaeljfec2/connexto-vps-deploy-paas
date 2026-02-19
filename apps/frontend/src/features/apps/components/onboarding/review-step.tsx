@@ -5,6 +5,7 @@ import {
   EyeOff,
   FolderGit2,
   GitBranch,
+  Globe,
   Link,
   Monitor,
   Package,
@@ -109,14 +110,27 @@ export function ReviewStep({ data, onNext, onBack }: Readonly<StepProps>) {
             </h4>
             <div className="space-y-2">
               {data.serverId ? (
-                <ReviewItem
-                  icon={<Server className="h-4 w-4" />}
-                  label="Remote Server"
-                  value={
-                    servers?.find((s) => s.id === data.serverId)?.name ??
-                    data.serverId
-                  }
-                />
+                <>
+                  <ReviewItem
+                    icon={<Server className="h-4 w-4" />}
+                    label="Remote Server"
+                    value={
+                      servers?.find((s) => s.id === data.serverId)?.name ??
+                      data.serverId
+                    }
+                  />
+                  {(() => {
+                    const server = servers?.find((s) => s.id === data.serverId);
+                    if (!server) return null;
+                    return (
+                      <ReviewItem
+                        icon={<Globe className="h-4 w-4" />}
+                        label="Host"
+                        value={`${server.host}:${server.sshPort}`}
+                      />
+                    );
+                  })()}
+                </>
               ) : (
                 <ReviewItem
                   icon={<Monitor className="h-4 w-4" />}

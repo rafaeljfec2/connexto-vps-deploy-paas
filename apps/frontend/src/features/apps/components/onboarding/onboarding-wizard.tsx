@@ -60,7 +60,7 @@ export function OnboardingWizard({ initialServerId }: OnboardingWizardProps) {
 
   return (
     <div className="min-h-dvh flex flex-col">
-      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
+      <div className="border-b bg-background sticky top-0 z-10 pt-[env(safe-area-inset-top)]">
         <div className="container max-w-3xl mx-auto py-3 sm:py-4">
           <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
             <Button
