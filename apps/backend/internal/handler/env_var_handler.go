@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"log/slog"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/response"
@@ -9,12 +12,14 @@ import (
 type EnvVarHandler struct {
 	envVarRepo domain.EnvVarRepository
 	appRepo    domain.AppRepository
+	logger     *slog.Logger
 }
 
-func NewEnvVarHandler(envVarRepo domain.EnvVarRepository, appRepo domain.AppRepository) *EnvVarHandler {
+func NewEnvVarHandler(envVarRepo domain.EnvVarRepository, appRepo domain.AppRepository, logger *slog.Logger) *EnvVarHandler {
 	return &EnvVarHandler{
 		envVarRepo: envVarRepo,
 		appRepo:    appRepo,
+		logger:     logger,
 	}
 }
 
@@ -38,6 +43,7 @@ func (h *EnvVarHandler) ListEnvVars(c *fiber.Ctx) error {
 
 	vars, err := h.envVarRepo.FindByAppID(appID)
 	if err != nil {
+		h.logger.Error("Failed to list env vars", "appId", appID, "error", err)
 		return response.InternalError(c)
 	}
 
@@ -62,10 +68,19 @@ func (h *EnvVarHandler) CreateEnvVar(c *fiber.Ctx) error {
 
 	envVar, err := h.envVarRepo.Create(appID, input)
 	if err != nil {
+		if isDuplicateKeyError(err) {
+			return response.BadRequest(c, "Environment variable '"+input.Key+"' already exists")
+		}
+		h.logger.Error("Failed to create env var", "appId", appID, "key", input.Key, "error", err)
 		return response.InternalError(c)
 	}
 
 	return response.Created(c, envVar.ToResponse())
+}
+
+func isDuplicateKeyError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "duplicate key") || strings.Contains(msg, "unique constraint")
 }
 
 func (h *EnvVarHandler) BulkUpsertEnvVars(c *fiber.Ctx) error {
@@ -91,11 +106,13 @@ func (h *EnvVarHandler) BulkUpsertEnvVars(c *fiber.Ctx) error {
 	}
 
 	if err := h.envVarRepo.BulkUpsert(appID, input.Vars); err != nil {
+		h.logger.Error("Failed to bulk upsert env vars", "appId", appID, "error", err)
 		return response.InternalError(c)
 	}
 
 	vars, err := h.envVarRepo.FindByAppID(appID)
 	if err != nil {
+		h.logger.Error("Failed to list env vars after bulk upsert", "appId", appID, "error", err)
 		return response.InternalError(c)
 	}
 
