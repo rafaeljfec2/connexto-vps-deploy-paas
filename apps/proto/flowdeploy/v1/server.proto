@@ -311,3 +311,21 @@ message RemoveVolumeResponse {
   bool success = 1;
   string message = 2;
 }
+
+message UpdateDomainsRequest {
+  string app_id = 1;
+  string app_name = 2;
+  repeated DomainRouteConfig domains = 3;
+  int32 port = 4;
+  map<string, string> env_vars = 5;
+}
+
+message DomainRouteConfig {
+  string domain = 1;
+  string path_prefix = 2;
+}
+
+message UpdateDomainsResponse {
+  bool success = 1;
+  string message = 2;
+}

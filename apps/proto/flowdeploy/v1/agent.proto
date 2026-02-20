@@ -54,4 +54,6 @@ service AgentService {
   rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);
 
   rpc RemoveVolume(RemoveVolumeRequest) returns (RemoveVolumeResponse);
+
+  rpc UpdateDomains(UpdateDomainsRequest) returns (UpdateDomainsResponse);
 }
