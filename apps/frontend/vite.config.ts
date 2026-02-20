@@ -13,21 +13,21 @@ export default defineConfig({
     port: 3000,
     proxy: {
       "/paas-deploy": {
-        target: "http://localhost:8080",
+        target: "http://localhost:8081",
         changeOrigin: true,
         ws: true,
       },
       "/events": {
-        target: "http://localhost:8080",
+        target: "http://localhost:8081",
         changeOrigin: true,
         ws: true,
       },
       "/auth": {
-        target: "http://localhost:8080",
+        target: "http://localhost:8081",
         changeOrigin: true,
       },
       "/api": {
-        target: "http://localhost:8080",
+        target: "http://localhost:8081",
         changeOrigin: true,
       },
     },

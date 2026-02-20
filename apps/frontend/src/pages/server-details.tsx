@@ -3,11 +3,13 @@ import { Link, useParams } from "react-router-dom";
 import {
   Activity,
   ArrowUpCircle,
+  Box,
   CheckCircle2,
   Cpu,
   GitBranch,
   HardDrive,
   Loader2,
+  Monitor,
   Network,
   Plus,
   RefreshCw,
@@ -17,8 +19,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ErrorMessage } from "@/components/error-message";
 import { PageHeader } from "@/components/page-header";
+import { ContainerList } from "@/features/containers";
+import { ImageList } from "@/features/images";
 import { clearAgentUpdateState } from "@/features/servers/agent-update-store";
 import { useAgentUpdate } from "@/features/servers/hooks/use-agent-update";
 import { useServerStats } from "@/features/servers/hooks/use-server-stats";
@@ -435,16 +440,42 @@ export function ServerDetailsPage() {
 
       <AgentVersionCard server={server} onUpdated={refetchAll} />
 
-      <ResourceUsageSection
-        statsLoading={statsLoading}
-        hasStats={hasStats}
-        statsUnavailable={statsUnavailable}
-        stats={stats ?? null}
-        refetch={refetchStats}
-        isFetching={isFetching}
-      />
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">
+            <Monitor className="h-3.5 w-3.5 mr-1.5" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="containers">
+            <Box className="h-3.5 w-3.5 mr-1.5" />
+            Containers
+          </TabsTrigger>
+          <TabsTrigger value="images">
+            <HardDrive className="h-3.5 w-3.5 mr-1.5" />
+            Images
+          </TabsTrigger>
+        </TabsList>
 
-      <ServerAppsSection serverId={server.id} />
+        <TabsContent value="overview" className="space-y-3">
+          <ResourceUsageSection
+            statsLoading={statsLoading}
+            hasStats={hasStats}
+            statsUnavailable={statsUnavailable}
+            stats={stats ?? null}
+            refetch={refetchStats}
+            isFetching={isFetching}
+          />
+          <ServerAppsSection serverId={server.id} />
+        </TabsContent>
+
+        <TabsContent value="containers">
+          <ContainerList serverId={server.id} />
+        </TabsContent>
+
+        <TabsContent value="images">
+          <ImageList serverId={server.id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
