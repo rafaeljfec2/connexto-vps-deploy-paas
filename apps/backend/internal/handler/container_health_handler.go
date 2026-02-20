@@ -120,17 +120,19 @@ func (h *ContainerHealthHandler) getRemoteAppHealth(c *fiber.Ctx, app *domain.Ap
 		})
 	}
 
-	containers, err := h.agentClient.ListContainers(c.Context(), host, h.agentPort, true, app.Name)
-	if err != nil {
-		h.logger.Error("failed to list remote containers for health", "app_id", app.ID, "error", err)
-		return response.OK(c, ContainerHealthResponse{
-			Name:   app.Name,
-			Status: "unknown",
-			Health: "none",
-		})
-	}
+	var result ContainerStatsResponse
+	var hasStats bool
+	err = h.agentClient.GetContainerStats(c.Context(), host, h.agentPort, app.Name, func(stats *pb.ContainerStats) {
+		hasStats = true
+		result = ContainerStatsResponse{
+			CPUPercent:  stats.CpuPercent,
+			MemoryUsage: stats.MemoryUsageBytes,
+			MemoryLimit: stats.MemoryLimitBytes,
+		}
+	})
 
-	if len(containers) == 0 {
+	if err != nil || !hasStats {
+		h.logger.Debug("remote container not reachable for health", "app_id", app.ID, "error", err)
 		return response.OK(c, ContainerHealthResponse{
 			Name:   app.Name,
 			Status: "not_found",
@@ -138,11 +140,16 @@ func (h *ContainerHealthHandler) getRemoteAppHealth(c *fiber.Ctx, app *domain.Ap
 		})
 	}
 
-	container := containers[0]
+	health := "none"
+	status := "running"
+	if result.MemoryUsage > 0 {
+		health = "healthy"
+	}
+
 	return response.OK(c, ContainerHealthResponse{
 		Name:   app.Name,
-		Status: container.State,
-		Health: container.Status,
+		Status: status,
+		Health: health,
 	})
 }
 
