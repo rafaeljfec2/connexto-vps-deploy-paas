@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	Version           = "0.3.2"
+	Version           = "0.4.0"
 	selfUpdateTimeout = 2 * time.Minute
 	tempBinaryName    = "agent.new"
 )

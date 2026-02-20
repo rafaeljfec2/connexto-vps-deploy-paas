@@ -34,7 +34,7 @@ func validateAcmeEmail(email *string) error {
 var agentStatsTimeout = 5 * time.Second
 
 const (
-	LatestAgentVersion = "0.3.2"
+	LatestAgentVersion = "0.4.0"
 	msgProvisionFailed = "provision failed"
 )
 
