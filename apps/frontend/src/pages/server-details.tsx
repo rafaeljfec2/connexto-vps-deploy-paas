@@ -203,11 +203,22 @@ function ResourceUsageSection({
   );
 }
 
+function compareSemver(a: string, b: string): number {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 function getAgentVersionStatus(server: Server) {
   const currentVersion = server.agentVersion ?? null;
   const latestVersion = server.latestAgentVersion;
   const isUnknown = currentVersion == null;
-  const isUpToDate = !isUnknown && currentVersion === latestVersion;
+  const isUpToDate =
+    !isUnknown && compareSemver(currentVersion, latestVersion) >= 0;
   const isOutdated = !isUnknown && !isUpToDate;
   const needsUpdate = isUnknown || isOutdated;
 

@@ -526,7 +526,7 @@ func TestBuildTraefikConfig(t *testing.T) {
 	t.Run("ContainsLetsencrypt", func(t *testing.T) {
 		cfg := requireTraefikConfig(t, testEmailAdmin)
 		assertContains(t, cfg, "letsencrypt")
-		assertContains(t, cfg, "httpChallenge")
+		assertContains(t, cfg, "tlsChallenge")
 	})
 
 	t.Run("DisableExposedByDefault", func(t *testing.T) {
