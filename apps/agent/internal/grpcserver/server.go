@@ -518,6 +518,10 @@ func (s *AgentService) CreateVolume(ctx context.Context, req *pb.CreateVolumeReq
 	}, nil
 }
 
+func (s *AgentService) UpdateDomains(ctx context.Context, req *pb.UpdateDomainsRequest) (*pb.UpdateDomainsResponse, error) {
+	return s.deployExecutor.UpdateDomains(ctx, req)
+}
+
 func (s *AgentService) RemoveVolume(ctx context.Context, req *pb.RemoveVolumeRequest) (*pb.RemoveVolumeResponse, error) {
 	if err := s.docker.RemoveVolume(ctx, req.Name); err != nil {
 		return &pb.RemoveVolumeResponse{

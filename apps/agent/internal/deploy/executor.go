@@ -345,6 +345,69 @@ func (e *Executor) cleanupOldImages(currentTag string) {
 	_ = e.docker.PruneUnusedImages(ctx)
 }
 
+func (e *Executor) UpdateDomains(ctx context.Context, req *pb.UpdateDomainsRequest) (*pb.UpdateDomainsResponse, error) {
+	e.logger.Info("Updating container domains",
+		"appId", req.AppId,
+		"appName", req.AppName,
+		"domains", len(req.Domains),
+	)
+
+	appDir := filepath.Join(e.dataDir, req.AppId)
+	if _, err := os.Stat(appDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("app directory not found: %s", appDir)
+	}
+
+	containerHealth, err := e.docker.InspectContainer(ctx, req.AppName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container: %w", err)
+	}
+	if containerHealth == nil {
+		return nil, fmt.Errorf("container %s not found", req.AppName)
+	}
+
+	var domainRoutes []compose.DomainRoute
+	for _, d := range req.Domains {
+		domainRoutes = append(domainRoutes, compose.DomainRoute{
+			Domain:     d.Domain,
+			PathPrefix: d.PathPrefix,
+		})
+	}
+
+	cfg := &compose.Config{}
+	compose.ApplyDefaults(cfg)
+	if req.Port > 0 {
+		cfg.Port = int(req.Port)
+	}
+
+	content := compose.GenerateContent(compose.GenerateParams{
+		AppName:  req.AppName,
+		ImageTag: containerHealth.Image,
+		Config:   cfg,
+		Domains:  domainRoutes,
+		EnvVars:  req.EnvVars,
+	})
+
+	composePath := filepath.Join(appDir, "docker-compose.yml")
+	if err := os.WriteFile(composePath, []byte(content), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write docker-compose.yml: %w", err)
+	}
+
+	if err := e.docker.ComposeUp(ctx, appDir, req.AppId, nil); err != nil {
+		return nil, fmt.Errorf("failed to recreate container: %w", err)
+	}
+
+	e.logger.Info("Container domains updated successfully",
+		"appId", req.AppId,
+		"appName", req.AppName,
+		"domains", len(req.Domains),
+	)
+
+	return &pb.UpdateDomainsResponse{
+		Success: true,
+		Message: "Container domains updated successfully",
+	}, nil
+}
+
 func (e *Executor) failResponse(req *pb.DeployRequest, code pb.DeployErrorCode, stage string, err error, startedAt time.Time) *pb.DeployResponse {
 	e.logger.Error("Deployment failed",
 		"deploymentId", req.DeploymentId,

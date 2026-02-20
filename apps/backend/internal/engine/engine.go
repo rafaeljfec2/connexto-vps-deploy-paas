@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/config"
 	"github.com/paasdeploy/backend/internal/domain"
@@ -39,6 +40,9 @@ type Engine struct {
 	mu               sync.Mutex
 	customDomainRepo domain.CustomDomainRepository
 	envVarRepo       domain.EnvVarRepository
+	serverRepo       domain.ServerRepository
+	agentClient      *agentclient.AgentClient
+	agentPort        int
 }
 
 type Params struct {
@@ -79,6 +83,9 @@ func New(p Params) *Engine {
 		cancel:           cancel,
 		customDomainRepo: p.CustomDomainRepo,
 		envVarRepo:       p.EnvVarRepo,
+		serverRepo:       p.ServerRepo,
+		agentClient:      p.AgentClient,
+		agentPort:        p.Cfg.GRPC.AgentPort,
 	}
 
 	deps := WorkerDeps{
@@ -292,6 +299,14 @@ func (e *Engine) UpdateContainerDomains(ctx context.Context, app *domain.App) er
 	}
 	e.logger.Info("Updating container domains", "app_id", app.ID, "app_name", app.Name)
 
+	if app.ServerID != nil && *app.ServerID != "" {
+		return e.updateRemoteContainerDomains(ctx, app)
+	}
+
+	return e.updateLocalContainerDomains(ctx, app)
+}
+
+func (e *Engine) updateLocalContainerDomains(ctx context.Context, app *domain.App) error {
 	appDir := e.resolveAppDir(app)
 
 	deployConfig, err := compose.LoadConfig(appDir)
@@ -320,6 +335,61 @@ func (e *Engine) UpdateContainerDomains(ctx context.Context, app *domain.App) er
 	}
 
 	e.logger.Info("Container updated with new domains", "app_id", app.ID, "domains", allDomains)
+	return nil
+}
+
+func (e *Engine) updateRemoteContainerDomains(ctx context.Context, app *domain.App) error {
+	if e.serverRepo == nil || e.agentClient == nil {
+		return fmt.Errorf("remote domain update not available: server repository or agent client not configured")
+	}
+
+	server, err := e.serverRepo.FindByID(*app.ServerID)
+	if err != nil {
+		return fmt.Errorf("failed to find server %s: %w", *app.ServerID, err)
+	}
+
+	allDomains := e.collectAllDomains(ctx, app.ID, nil)
+	envVars := e.collectEnvVars(app.ID)
+
+	var pbDomains []*pb.DomainRouteConfig
+	for _, d := range allDomains {
+		pbDomains = append(pbDomains, &pb.DomainRouteConfig{
+			Domain:     d.Domain,
+			PathPrefix: d.PathPrefix,
+		})
+	}
+
+	defaults := &compose.Config{}
+	compose.ApplyDefaults(defaults)
+	appPort := int32(defaults.Port)
+	if portStr, ok := envVars["PORT"]; ok {
+		if parsed, err := fmt.Sscanf(portStr, "%d", &appPort); err != nil || parsed != 1 {
+			appPort = int32(defaults.Port)
+		}
+	}
+
+	agentPort := e.agentPort
+	if agentPort == 0 {
+		agentPort = 50052
+	}
+
+	req := &pb.UpdateDomainsRequest{
+		AppId:   app.ID,
+		AppName: app.Name,
+		Domains: pbDomains,
+		Port:    appPort,
+		EnvVars: envVars,
+	}
+
+	if err := e.agentClient.UpdateDomains(ctx, server.Host, agentPort, req); err != nil {
+		return fmt.Errorf("failed to update domains on remote agent: %w", err)
+	}
+
+	e.logger.Info("Remote container updated with new domains",
+		"app_id", app.ID,
+		"server_id", *app.ServerID,
+		"domains", len(allDomains),
+	)
 	return nil
 }
 

@@ -436,6 +436,26 @@ func (c *AgentClient) CreateVolume(ctx context.Context, host string, port int, n
 	return nil
 }
 
+func (c *AgentClient) UpdateDomains(ctx context.Context, host string, port int, req *pb.UpdateDomainsRequest) error {
+	client, cleanup, err := c.dial(host, port)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	resp, err := client.UpdateDomains(ctx, req)
+	if err != nil {
+		return fmt.Errorf("update domains: %w", err)
+	}
+	if !resp.Success {
+		return fmt.Errorf("update domains failed: %s", resp.Message)
+	}
+	return nil
+}
+
 func (c *AgentClient) RemoveVolume(ctx context.Context, host string, port int, name string) error {
 	client, cleanup, err := c.dial(host, port)
 	if err != nil {
