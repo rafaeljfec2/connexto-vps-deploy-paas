@@ -55,5 +55,7 @@ service AgentService {
 
   rpc RemoveVolume(RemoveVolumeRequest) returns (RemoveVolumeResponse);
 
+  rpc RemoveContainer(RemoveContainerRequest) returns (RemoveContainerResponse);
+
   rpc UpdateDomains(UpdateDomainsRequest) returns (UpdateDomainsResponse);
 }

@@ -534,3 +534,16 @@ func (s *AgentService) RemoveVolume(ctx context.Context, req *pb.RemoveVolumeReq
 		Message: "Volume removed",
 	}, nil
 }
+
+func (s *AgentService) RemoveContainer(ctx context.Context, req *pb.RemoveContainerRequest) (*pb.RemoveContainerResponse, error) {
+	if err := s.docker.RemoveContainer(ctx, req.ContainerId, req.Force); err != nil {
+		return &pb.RemoveContainerResponse{
+			Success: false,
+			Message: err.Error(),
+		}, nil
+	}
+	return &pb.RemoveContainerResponse{
+		Success: true,
+		Message: "Container removed",
+	}, nil
+}

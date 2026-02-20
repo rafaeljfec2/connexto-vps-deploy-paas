@@ -298,7 +298,7 @@ export function ImageList({ serverId }: ImageListProps = {}) {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                pruneImages.mutate(undefined, {
+                pruneImages.mutate(serverId, {
                   onSuccess: () => setShowPruneDialog(false),
                 });
               }}
@@ -334,6 +334,7 @@ export function ImageList({ serverId }: ImageListProps = {}) {
                       id: imageToDelete.id,
                       ref: imageToDelete.ref,
                       force: false,
+                      serverId,
                     },
                     { onSuccess: () => setImageToDelete(null) },
                   );

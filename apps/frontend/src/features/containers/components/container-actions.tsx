@@ -8,6 +8,7 @@ import {
 
 interface ContainerActionsProps {
   readonly containerId: string;
+  readonly serverId?: string;
   readonly isRunning: boolean;
   readonly onShowLogs: () => void;
   readonly onShowConsole: () => void;
@@ -15,6 +16,7 @@ interface ContainerActionsProps {
 
 export function ContainerActions({
   containerId,
+  serverId,
   isRunning,
   onShowLogs,
   onShowConsole,
@@ -36,7 +38,7 @@ export function ContainerActions({
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => stopContainer.mutate(containerId)}
+            onClick={() => stopContainer.mutate({ id: containerId, serverId })}
             disabled={isLoading}
             title="Stop"
           >
@@ -46,7 +48,9 @@ export function ContainerActions({
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => restartContainer.mutate(containerId)}
+            onClick={() =>
+              restartContainer.mutate({ id: containerId, serverId })
+            }
             disabled={isLoading}
             title="Restart"
           >
@@ -60,7 +64,7 @@ export function ContainerActions({
           variant="ghost"
           size="icon"
           className="h-8 w-8"
-          onClick={() => startContainer.mutate(containerId)}
+          onClick={() => startContainer.mutate({ id: containerId, serverId })}
           disabled={isLoading}
           title="Start"
         >

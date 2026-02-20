@@ -95,32 +95,48 @@ export const containersApi = {
       body: JSON.stringify(input),
     }),
 
-  start: (id: string): Promise<{ message: string; id: string }> =>
+  start: (
+    id: string,
+    serverId?: string,
+  ): Promise<{ message: string; id: string }> =>
     fetchApi<{ message: string; id: string }>(
-      `${API_BASE}/containers/${id}/start`,
+      buildUrl(`${API_BASE}/containers/${id}/start`, { serverId }),
       { method: "POST" },
     ),
 
-  stop: (id: string): Promise<{ message: string; id: string }> =>
+  stop: (
+    id: string,
+    serverId?: string,
+  ): Promise<{ message: string; id: string }> =>
     fetchApi<{ message: string; id: string }>(
-      `${API_BASE}/containers/${id}/stop`,
+      buildUrl(`${API_BASE}/containers/${id}/stop`, { serverId }),
       { method: "POST" },
     ),
 
-  restart: (id: string): Promise<{ message: string; id: string }> =>
+  restart: (
+    id: string,
+    serverId?: string,
+  ): Promise<{ message: string; id: string }> =>
     fetchApi<{ message: string; id: string }>(
-      `${API_BASE}/containers/${id}/restart`,
+      buildUrl(`${API_BASE}/containers/${id}/restart`, { serverId }),
       { method: "POST" },
     ),
 
-  remove: (id: string, force = false): Promise<void> =>
-    fetchApiDelete(buildUrl(`${API_BASE}/containers/${id}`, { force })),
+  remove: (id: string, force = false, serverId?: string): Promise<void> =>
+    fetchApiDelete(
+      buildUrl(`${API_BASE}/containers/${id}`, { force, serverId }),
+    ),
 
-  logs: (id: string, tail = 100): Promise<ContainerLogs> =>
-    fetchApi<ContainerLogs>(`${API_BASE}/containers/${id}/logs?tail=${tail}`),
+  logs: (id: string, tail = 100, serverId?: string): Promise<ContainerLogs> =>
+    fetchApi<ContainerLogs>(
+      buildUrl(`${API_BASE}/containers/${id}/logs`, { tail, serverId }),
+    ),
 
-  logsStreamUrl: (id: string): string =>
-    `${API_BASE}/containers/${id}/logs?follow=true`,
+  logsStreamUrl: (id: string, serverId?: string): string =>
+    buildUrl(`${API_BASE}/containers/${id}/logs`, {
+      follow: true,
+      serverId,
+    }),
 
   consoleUrl: (id: string, shell = "sh"): string => {
     const base = API_URL.replace(/^http/, "ws");
@@ -213,6 +229,8 @@ export const volumesApi = {
 
   remove: (name: string, serverId?: string): Promise<void> =>
     fetchApiDelete(
-      buildUrl(`${API_BASE}/volumes/${encodeURIComponent(name)}`, { serverId }),
+      buildUrl(`${API_BASE}/volumes/${encodeURIComponent(name)}`, {
+        serverId,
+      }),
     ),
 };

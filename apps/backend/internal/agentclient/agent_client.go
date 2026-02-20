@@ -456,6 +456,26 @@ func (c *AgentClient) UpdateDomains(ctx context.Context, host string, port int, 
 	return nil
 }
 
+func (c *AgentClient) RemoveContainer(ctx context.Context, host string, port int, containerID string, force bool) error {
+	client, cleanup, err := c.dial(host, port)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+
+	resp, err := client.RemoveContainer(ctx, &pb.RemoveContainerRequest{ContainerId: containerID, Force: force})
+	if err != nil {
+		return fmt.Errorf("remove container: %w", err)
+	}
+	if !resp.Success {
+		return fmt.Errorf("remove container failed: %s", resp.Message)
+	}
+	return nil
+}
+
 func (c *AgentClient) RemoveVolume(ctx context.Context, host string, port int, name string) error {
 	client, cleanup, err := c.dial(host, port)
 	if err != nil {

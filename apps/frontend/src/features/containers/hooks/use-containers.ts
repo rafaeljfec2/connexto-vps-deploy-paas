@@ -19,10 +19,14 @@ export function useContainer(id: string | undefined) {
   });
 }
 
-export function useContainerLogs(id: string | undefined, tail = 100) {
+export function useContainerLogs(
+  id: string | undefined,
+  tail = 100,
+  serverId?: string,
+) {
   return useQuery({
-    queryKey: ["containers", id, "logs", tail],
-    queryFn: () => api.containers.logs(id!, tail),
+    queryKey: ["containers", id, "logs", tail, serverId],
+    queryFn: () => api.containers.logs(id!, tail, serverId),
     enabled: Boolean(id),
     refetchInterval: 5000,
   });
@@ -39,11 +43,17 @@ export function useCreateContainer() {
   });
 }
 
+interface ContainerActionInput {
+  readonly id: string;
+  readonly serverId?: string;
+}
+
 export function useStartContainer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => api.containers.start(id),
+    mutationFn: ({ id, serverId }: ContainerActionInput) =>
+      api.containers.start(id, serverId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["containers"] });
     },
@@ -54,7 +64,8 @@ export function useStopContainer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => api.containers.stop(id),
+    mutationFn: ({ id, serverId }: ContainerActionInput) =>
+      api.containers.stop(id, serverId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["containers"] });
     },
@@ -65,19 +76,26 @@ export function useRestartContainer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => api.containers.restart(id),
+    mutationFn: ({ id, serverId }: ContainerActionInput) =>
+      api.containers.restart(id, serverId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["containers"] });
     },
   });
 }
 
+interface RemoveContainerInput {
+  readonly id: string;
+  readonly force?: boolean;
+  readonly serverId?: string;
+}
+
 export function useRemoveContainer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, force = false }: { id: string; force?: boolean }) =>
-      api.containers.remove(id, force),
+    mutationFn: ({ id, force = false, serverId }: RemoveContainerInput) =>
+      api.containers.remove(id, force, serverId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["containers"] });
     },

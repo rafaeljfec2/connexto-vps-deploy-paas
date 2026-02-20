@@ -55,6 +55,7 @@ import {
 
 interface ContainerCardProps {
   readonly container: Container;
+  readonly serverId?: string;
 }
 
 function formatPorts(ports: Container["ports"]): string {
@@ -76,7 +77,7 @@ function formatContainerCreated(created: string): string {
   });
 }
 
-export function ContainerCard({ container }: ContainerCardProps) {
+export function ContainerCard({ container, serverId }: ContainerCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showLogsDialog, setShowLogsDialog] = useState(false);
   const [showConsoleDialog, setShowConsoleDialog] = useState(false);
@@ -96,7 +97,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
 
   const handleDelete = () => {
     removeContainer.mutate(
-      { id: container.id, force: true },
+      { id: container.id, force: true, serverId },
       { onSuccess: () => setShowDeleteDialog(false) },
     );
   };
@@ -144,6 +145,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
         <td className="py-3 px-4 hidden md:table-cell whitespace-nowrap">
           <ContainerActions
             containerId={container.id}
+            serverId={serverId}
             isRunning={isRunning}
             onShowLogs={() => setShowLogsDialog(true)}
             onShowConsole={() => setShowConsoleDialog(true)}
@@ -263,14 +265,18 @@ export function ContainerCard({ container }: ContainerCardProps) {
               {isRunning ? (
                 <>
                   <DropdownMenuItem
-                    onClick={() => stopContainer.mutate(container.id)}
+                    onClick={() =>
+                      stopContainer.mutate({ id: container.id, serverId })
+                    }
                     disabled={isLoading}
                   >
                     <Square className="mr-2 h-4 w-4" />
                     Stop
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={() => restartContainer.mutate(container.id)}
+                    onClick={() =>
+                      restartContainer.mutate({ id: container.id, serverId })
+                    }
                     disabled={isLoading}
                   >
                     <RefreshCw className="mr-2 h-4 w-4" />
@@ -279,7 +285,9 @@ export function ContainerCard({ container }: ContainerCardProps) {
                 </>
               ) : (
                 <DropdownMenuItem
-                  onClick={() => startContainer.mutate(container.id)}
+                  onClick={() =>
+                    startContainer.mutate({ id: container.id, serverId })
+                  }
                   disabled={isLoading}
                 >
                   <Play className="mr-2 h-4 w-4" />
@@ -342,6 +350,7 @@ export function ContainerCard({ container }: ContainerCardProps) {
 
       <ContainerLogsDialog
         containerId={container.id}
+        serverId={serverId}
         containerName={container.name}
         open={showLogsDialog}
         onOpenChange={setShowLogsDialog}

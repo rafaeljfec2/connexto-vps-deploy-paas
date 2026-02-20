@@ -178,7 +178,11 @@ export function ContainerList({ serverId }: ContainerListProps = {}) {
               </thead>
               <tbody>
                 {sortedContainers.map((container) => (
-                  <ContainerCard key={container.id} container={container} />
+                  <ContainerCard
+                    key={container.id}
+                    container={container}
+                    serverId={serverId}
+                  />
                 ))}
               </tbody>
             </table>

@@ -23,6 +23,7 @@ import { useContainerLogs } from "../hooks/use-containers";
 interface ContainerLogsDialogProps {
   readonly containerId: string | null;
   readonly containerName: string;
+  readonly serverId?: string;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
@@ -119,6 +120,7 @@ function LogsContent({
 
 export function ContainerLogsDialog({
   containerId,
+  serverId,
   containerName,
   open,
   onOpenChange,
@@ -136,7 +138,11 @@ export function ContainerLogsDialog({
     data: logsData,
     refetch,
     isLoading,
-  } = useContainerLogs(open ? (containerId ?? undefined) : undefined, tail);
+  } = useContainerLogs(
+    open ? (containerId ?? undefined) : undefined,
+    tail,
+    serverId,
+  );
 
   const startStreaming = useCallback(() => {
     if (!containerId) return;
@@ -145,7 +151,7 @@ export function ContainerLogsDialog({
       eventSourceRef.current.close();
     }
 
-    const url = api.containers.logsStreamUrl(containerId);
+    const url = api.containers.logsStreamUrl(containerId, serverId);
     const eventSource = new EventSource(url, { withCredentials: true });
 
     eventSource.onmessage = (event) => {
@@ -160,7 +166,7 @@ export function ContainerLogsDialog({
     eventSourceRef.current = eventSource;
     setIsStreaming(true);
     setStreamedLogs([]);
-  }, [containerId]);
+  }, [containerId, serverId]);
 
   const stopStreaming = useCallback(() => {
     if (eventSourceRef.current) {

@@ -17,19 +17,19 @@ export function useDanglingImages() {
   });
 }
 
+interface RemoveImageInput {
+  readonly id: string;
+  readonly force?: boolean;
+  readonly ref?: string;
+  readonly serverId?: string;
+}
+
 export function useRemoveImage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      id,
-      force = false,
-      ref,
-    }: {
-      readonly id: string;
-      readonly force?: boolean;
-      readonly ref?: string;
-    }) => api.images.remove(id, force, ref),
+    mutationFn: ({ id, force = false, ref, serverId }: RemoveImageInput) =>
+      api.images.remove(id, force, ref, serverId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["images"] });
     },
@@ -40,7 +40,7 @@ export function usePruneImages() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: () => api.images.prune(),
+    mutationFn: (serverId?: string) => api.images.prune(serverId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["images"] });
     },
