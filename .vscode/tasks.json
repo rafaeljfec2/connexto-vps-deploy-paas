@@ -86,7 +86,7 @@
     {
       "label": "Backend: Build",
       "type": "shell",
-      "command": "go build -o bin/api ./cmd/api",
+      "command": "AGENT_VER=$(cat ../../AGENT_VERSION | tr -d '\\n') && go build -ldflags \"-X github.com/paasdeploy/backend/internal/handler.LatestAgentVersion=${AGENT_VER}\" -o bin/api ./cmd/api",
       "options": {
         "cwd": "${workspaceFolder}/apps/backend"
       },

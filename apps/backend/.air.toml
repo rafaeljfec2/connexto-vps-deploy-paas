@@ -5,7 +5,7 @@ tmp_dir = "tmp"
 [build]
   args_bin = []
   bin = "./tmp/main"
-  cmd = "go build -o ./tmp/main ./cmd/api"
+  cmd = "AGENT_VER=$(cat ../../AGENT_VERSION | tr -d '\\n') && go build -ldflags=\"-X github.com/paasdeploy/backend/internal/handler.LatestAgentVersion=$AGENT_VER\" -o ./tmp/main ./cmd/api"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "docs"]
   exclude_file = []

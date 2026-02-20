@@ -5,7 +5,7 @@
   "version": "0.1.2",
   "scripts": {
     "dev": "air",
-    "build": "go build -o bin/api cmd/api/main.go",
+    "build": "AGENT_VER=$(cat ../../AGENT_VERSION | tr -d '\\n') && go build -ldflags \"-X github.com/paasdeploy/backend/internal/handler.LatestAgentVersion=${AGENT_VER}\" -o bin/api cmd/api/main.go",
     "test": "go test ./...",
     "clean": "rm -rf bin tmp"
   }

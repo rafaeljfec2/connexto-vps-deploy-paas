@@ -33,10 +33,9 @@ func validateAcmeEmail(email *string) error {
 
 var agentStatsTimeout = 5 * time.Second
 
-const (
-	LatestAgentVersion = "0.6.0"
-	msgProvisionFailed = "provision failed"
-)
+var LatestAgentVersion = "dev"
+
+const msgProvisionFailed = "provision failed"
 
 type UpdateAgentEnqueuer interface {
 	EnqueueUpdateAgent(serverID string)

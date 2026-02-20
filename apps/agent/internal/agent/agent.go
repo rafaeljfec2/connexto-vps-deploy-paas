@@ -16,8 +16,9 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var Version = "dev"
+
 const (
-	Version           = "0.6.0"
 	selfUpdateTimeout = 2 * time.Minute
 	tempBinaryName    = "agent.new"
 )
