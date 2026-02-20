@@ -7,43 +7,51 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/response"
+	"github.com/paasdeploy/shared/pkg/compose"
 )
 
 type AppAdminHandler struct {
-	appRepo     domain.AppRepository
-	serverRepo  domain.ServerRepository
-	engine      *engine.Engine
-	agentClient *agentclient.AgentClient
-	agentPort   int
-	dataDir     string
-	logger      *slog.Logger
+	appRepo          domain.AppRepository
+	serverRepo       domain.ServerRepository
+	customDomainRepo domain.CustomDomainRepository
+	envVarRepo       domain.EnvVarRepository
+	engine           *engine.Engine
+	agentClient      *agentclient.AgentClient
+	agentPort        int
+	dataDir          string
+	logger           *slog.Logger
 }
 
 type AppAdminHandlerConfig struct {
-	AppRepo     domain.AppRepository
-	ServerRepo  domain.ServerRepository
-	Engine      *engine.Engine
-	AgentClient *agentclient.AgentClient
-	AgentPort   int
-	DataDir     string
-	Logger      *slog.Logger
+	AppRepo          domain.AppRepository
+	ServerRepo       domain.ServerRepository
+	CustomDomainRepo domain.CustomDomainRepository
+	EnvVarRepo       domain.EnvVarRepository
+	Engine           *engine.Engine
+	AgentClient      *agentclient.AgentClient
+	AgentPort        int
+	DataDir          string
+	Logger           *slog.Logger
 }
 
 func NewAppAdminHandler(cfg AppAdminHandlerConfig) *AppAdminHandler {
 	return &AppAdminHandler{
-		appRepo:     cfg.AppRepo,
-		serverRepo:  cfg.ServerRepo,
-		engine:      cfg.Engine,
-		agentClient: cfg.AgentClient,
-		agentPort:   cfg.AgentPort,
-		dataDir:     cfg.DataDir,
-		logger:      cfg.Logger.With("handler", "app_admin"),
+		appRepo:          cfg.AppRepo,
+		serverRepo:       cfg.ServerRepo,
+		customDomainRepo: cfg.CustomDomainRepo,
+		envVarRepo:       cfg.EnvVarRepo,
+		engine:           cfg.Engine,
+		agentClient:      cfg.AgentClient,
+		agentPort:        cfg.AgentPort,
+		dataDir:          cfg.DataDir,
+		logger:           cfg.Logger.With("handler", "app_admin"),
 	}
 }
 
@@ -85,6 +93,10 @@ func (h *AppAdminHandler) GetAppURL(c *fiber.Ctx) error {
 		return err
 	}
 
+	if h.isRemoteApp(app) {
+		return h.getRemoteAppURL(c, app)
+	}
+
 	config, err := h.readAppConfig(app.ID, app.Workdir)
 	if err != nil {
 		return response.OK(c, AppURLResponse{
@@ -106,6 +118,29 @@ func (h *AppAdminHandler) GetAppURL(c *fiber.Ctx) error {
 		URL:      url,
 		Port:     port,
 		HostPort: hostPort,
+	})
+}
+
+func (h *AppAdminHandler) getRemoteAppURL(c *fiber.Ctx, app *domain.App) error {
+	port := h.resolveAppPort(app.ID)
+
+	domains, _ := h.customDomainRepo.FindByAppID(c.Context(), app.ID)
+	if len(domains) > 0 {
+		url := fmt.Sprintf("https://%s", domains[0].Domain)
+		if domains[0].PathPrefix != "" && domains[0].PathPrefix != "/" {
+			url += domains[0].PathPrefix
+		}
+		return response.OK(c, AppURLResponse{
+			URL:      url,
+			Port:     port,
+			HostPort: port,
+		})
+	}
+
+	return response.OK(c, AppURLResponse{
+		URL:      "",
+		Port:     port,
+		HostPort: port,
 	})
 }
 
@@ -137,6 +172,10 @@ func (h *AppAdminHandler) GetAppConfig(c *fiber.Ctx) error {
 		return err
 	}
 
+	if h.isRemoteApp(app) {
+		return h.getRemoteAppConfig(c, app)
+	}
+
 	config, err := h.readAppConfig(app.ID, app.Workdir)
 	if err != nil {
 		return response.NotFound(c, "config not found - app may not be deployed yet")
@@ -159,6 +198,56 @@ func (h *AppAdminHandler) GetAppConfig(c *fiber.Ctx) error {
 		},
 		Domains: config.Domains,
 	})
+}
+
+func (h *AppAdminHandler) getRemoteAppConfig(c *fiber.Ctx, app *domain.App) error {
+	defaults := &compose.Config{}
+	compose.ApplyDefaults(defaults)
+
+	port := h.resolveAppPort(app.ID)
+
+	var domainNames []string
+	domains, _ := h.customDomainRepo.FindByAppID(c.Context(), app.ID)
+	for _, d := range domains {
+		domainNames = append(domainNames, d.Domain)
+	}
+
+	return response.OK(c, AppConfigResponse{
+		Name:     app.Name,
+		Port:     port,
+		HostPort: port,
+		Healthcheck: HealthcheckConfig{
+			Path:        defaults.Healthcheck.Path,
+			Interval:    defaults.Healthcheck.Interval,
+			Timeout:     defaults.Healthcheck.Timeout,
+			Retries:     defaults.Healthcheck.Retries,
+			StartPeriod: defaults.Healthcheck.StartPeriod,
+		},
+		Resources: ResourcesConfig{
+			Memory: defaults.Resources.Memory,
+			CPU:    defaults.Resources.CPU,
+		},
+		Domains: domainNames,
+	})
+}
+
+func (h *AppAdminHandler) resolveAppPort(appID string) int {
+	if h.envVarRepo != nil {
+		vars, err := h.envVarRepo.FindByAppID(appID)
+		if err == nil {
+			for _, v := range vars {
+				if v.Key == "PORT" {
+					if parsed, err := strconv.Atoi(v.Value); err == nil && parsed > 0 {
+						return parsed
+					}
+				}
+			}
+		}
+	}
+
+	defaults := &compose.Config{}
+	compose.ApplyDefaults(defaults)
+	return defaults.Port
 }
 
 type ContainerActionResponse struct {

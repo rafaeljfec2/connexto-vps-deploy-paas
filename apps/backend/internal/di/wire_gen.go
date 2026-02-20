@@ -67,7 +67,7 @@ func InitializeApplication() (*Application, func(), error) {
 	swaggerHandler := handler.NewSwaggerHandler()
 	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository, logger)
 	containerHealthHandler := handler.NewContainerHealthHandler(postgresAppRepository, postgresServerRepository, engineEngine, agentClientForEngine, config.GRPC.AgentPort, logger)
-	appAdminHandler := ProvideAppAdminHandler(postgresAppRepository, postgresServerRepository, engineEngine, agentClientForEngine, config, logger)
+	appAdminHandler := ProvideAppAdminHandler(postgresAppRepository, postgresServerRepository, postgresCustomDomainRepository, postgresEnvVarRepository, engineEngine, agentClientForEngine, config, logger)
 	postgresWebhookPayloadRepository := repository.NewPostgresWebhookPayloadRepository(db)
 	webhookHandler := ProvideGitHubWebhookHandler(config, postgresAppRepository, postgresDeploymentRepository, postgresWebhookPayloadRepository, auditService, logger)
 	oAuthClient := ProvideOAuthClient(config, logger)

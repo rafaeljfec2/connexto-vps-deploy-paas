@@ -204,19 +204,23 @@ func ProvideGitTokenProvider(
 func ProvideAppAdminHandler(
 	appRepo domain.AppRepository,
 	serverRepo domain.ServerRepository,
+	customDomainRepo domain.CustomDomainRepository,
+	envVarRepo domain.EnvVarRepository,
 	eng *engine.Engine,
 	agentClient *agentclient.AgentClient,
 	cfg *config.Config,
 	logger *slog.Logger,
 ) *handler.AppAdminHandler {
 	return handler.NewAppAdminHandler(handler.AppAdminHandlerConfig{
-		AppRepo:     appRepo,
-		ServerRepo:  serverRepo,
-		Engine:      eng,
-		AgentClient: agentClient,
-		AgentPort:   cfg.GRPC.AgentPort,
-		DataDir:     cfg.Deploy.DataDir,
-		Logger:      logger,
+		AppRepo:          appRepo,
+		ServerRepo:       serverRepo,
+		CustomDomainRepo: customDomainRepo,
+		EnvVarRepo:       envVarRepo,
+		Engine:           eng,
+		AgentClient:      agentClient,
+		AgentPort:        cfg.GRPC.AgentPort,
+		DataDir:          cfg.Deploy.DataDir,
+		Logger:           logger,
 	})
 }
 
