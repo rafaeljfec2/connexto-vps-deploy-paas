@@ -45,13 +45,11 @@ func (c *Cleaner) CleanApp(ctx context.Context, appID, appName string) error {
 }
 
 func (c *Cleaner) stopAndRemoveContainer(ctx context.Context, appName string) error {
-	c.executor.SetTimeout(2 * time.Minute)
-
 	c.logger.Info("Stopping container", "containerName", appName)
-	_, _ = c.executor.Run(ctx, "docker", "stop", appName)
+	_, _ = c.executor.RunWithTimeout(ctx, 2*time.Minute, "docker", "stop", appName)
 
 	c.logger.Info("Removing container with volumes", "containerName", appName)
-	_, err := c.executor.Run(ctx, "docker", "rm", "-f", "-v", appName)
+	_, err := c.executor.RunWithTimeout(ctx, 2*time.Minute, "docker", "rm", "-f", "-v", appName)
 	if err != nil {
 		return fmt.Errorf("docker rm failed: %w", err)
 	}
@@ -60,11 +58,9 @@ func (c *Cleaner) stopAndRemoveContainer(ctx context.Context, appName string) er
 }
 
 func (c *Cleaner) removeImages(ctx context.Context, appName string) error {
-	c.executor.SetTimeout(1 * time.Minute)
-
 	imagePattern := fmt.Sprintf("paasdeploy/%s", appName)
 
-	result, err := c.executor.Run(ctx, "docker", "images", "--filter", fmt.Sprintf("reference=%s*", imagePattern), "-q")
+	result, err := c.executor.RunWithTimeout(ctx, 1*time.Minute, "docker", "images", "--filter", fmt.Sprintf("reference=%s*", imagePattern), "-q")
 	if err != nil {
 		return fmt.Errorf("failed to list images: %w", err)
 	}
@@ -74,7 +70,7 @@ func (c *Cleaner) removeImages(ctx context.Context, appName string) error {
 		return nil
 	}
 
-	_, err = c.executor.Run(ctx, "docker", "rmi", "-f", result.Stdout)
+	_, err = c.executor.RunWithTimeout(ctx, 1*time.Minute, "docker", "rmi", "-f", result.Stdout)
 	if err != nil {
 		return fmt.Errorf("failed to remove images: %w", err)
 	}

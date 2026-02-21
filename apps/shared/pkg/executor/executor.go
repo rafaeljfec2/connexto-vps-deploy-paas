@@ -35,17 +35,25 @@ func New(workDir string, timeout time.Duration, logger *slog.Logger) *Executor {
 }
 
 func (e *Executor) Run(ctx context.Context, name string, args ...string) (*Result, error) {
-	return e.run(ctx, true, name, args...)
+	return e.run(ctx, true, e.timeout, name, args...)
 }
 
 func (e *Executor) RunQuiet(ctx context.Context, name string, args ...string) (*Result, error) {
-	return e.run(ctx, false, name, args...)
+	return e.run(ctx, false, e.timeout, name, args...)
 }
 
-func (e *Executor) run(ctx context.Context, logErrors bool, name string, args ...string) (*Result, error) {
+func (e *Executor) RunWithTimeout(ctx context.Context, timeout time.Duration, name string, args ...string) (*Result, error) {
+	return e.run(ctx, true, timeout, name, args...)
+}
+
+func (e *Executor) RunQuietWithTimeout(ctx context.Context, timeout time.Duration, name string, args ...string) (*Result, error) {
+	return e.run(ctx, false, timeout, name, args...)
+}
+
+func (e *Executor) run(ctx context.Context, logErrors bool, timeout time.Duration, name string, args ...string) (*Result, error) {
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(ctx, e.timeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)
@@ -100,7 +108,15 @@ func (e *Executor) run(ctx context.Context, logErrors bool, name string, args ..
 }
 
 func (e *Executor) RunWithStreaming(ctx context.Context, output chan<- string, name string, args ...string) error {
-	ctx, cancel := context.WithTimeout(ctx, e.timeout)
+	return e.runWithStreaming(ctx, e.timeout, output, name, args...)
+}
+
+func (e *Executor) RunWithStreamingTimeout(ctx context.Context, timeout time.Duration, output chan<- string, name string, args ...string) error {
+	return e.runWithStreaming(ctx, timeout, output, name, args...)
+}
+
+func (e *Executor) runWithStreaming(ctx context.Context, timeout time.Duration, output chan<- string, name string, args ...string) error {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, args...)

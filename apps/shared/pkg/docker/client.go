@@ -71,7 +71,6 @@ func (d *Client) BuildWithOptions(ctx context.Context, workDir, dockerfile, tag 
 	d.logger.Info("Building Docker image", "workDir", workDir, "dockerfile", dockerfile, "tag", tag)
 
 	d.executor.SetWorkDir(workDir)
-	d.executor.SetTimeout(15 * time.Minute)
 
 	var args []string
 	if d.buildxAvailable {
@@ -102,7 +101,7 @@ func (d *Client) BuildWithOptions(ctx context.Context, workDir, dockerfile, tag 
 	args = append(args, ".")
 
 	if output != nil {
-		err := d.executor.RunWithStreaming(ctx, output, "docker", args...)
+		err := d.executor.RunWithStreamingTimeout(ctx, 15*time.Minute, output, "docker", args...)
 		if err != nil {
 			d.logger.Error("Docker build failed", "tag", tag, "workDir", workDir, "error", err)
 			return fmt.Errorf("docker build failed: %w", err)
@@ -110,7 +109,7 @@ func (d *Client) BuildWithOptions(ctx context.Context, workDir, dockerfile, tag 
 		return nil
 	}
 
-	_, err := d.executor.Run(ctx, "docker", args...)
+	_, err := d.executor.RunWithTimeout(ctx, 15*time.Minute, "docker", args...)
 	if err != nil {
 		d.logger.Error("Docker build failed", "tag", tag, "workDir", workDir, "error", err)
 		return fmt.Errorf("docker build failed: %w", err)
@@ -123,7 +122,6 @@ func (d *Client) ComposeUp(ctx context.Context, projectDir, projectName string, 
 	d.logger.Info("Starting containers with docker compose", "dir", projectDir)
 
 	d.executor.SetWorkDir(projectDir)
-	d.executor.SetTimeout(5 * time.Minute)
 
 	composeFile := filepath.Join(projectDir, "docker-compose.yml")
 
@@ -138,7 +136,7 @@ func (d *Client) ComposeUp(ctx context.Context, projectDir, projectName string, 
 	}
 
 	if output != nil {
-		err := d.executor.RunWithStreaming(ctx, output, "docker", args...)
+		err := d.executor.RunWithStreamingTimeout(ctx, 5*time.Minute, output, "docker", args...)
 		if err != nil {
 			d.logger.Error("Docker compose up failed", "projectName", projectName, "dir", projectDir, "error", err)
 			return fmt.Errorf("docker compose up failed: %w", err)
@@ -146,7 +144,7 @@ func (d *Client) ComposeUp(ctx context.Context, projectDir, projectName string, 
 		return nil
 	}
 
-	_, err := d.executor.Run(ctx, "docker", args...)
+	_, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", args...)
 	if err != nil {
 		d.logger.Error("Docker compose up failed", "projectName", projectName, "dir", projectDir, "error", err)
 		return fmt.Errorf("docker compose up failed: %w", err)
@@ -159,11 +157,10 @@ func (d *Client) ComposeDown(ctx context.Context, projectDir, projectName string
 	d.logger.Info("Stopping containers with docker compose", "dir", projectDir)
 
 	d.executor.SetWorkDir(projectDir)
-	d.executor.SetTimeout(2 * time.Minute)
 
 	composeFile := filepath.Join(projectDir, "docker-compose.yml")
 
-	_, err := d.executor.Run(ctx, "docker", "compose", "-f", composeFile, "-p", projectName, "down")
+	_, err := d.executor.RunWithTimeout(ctx, 2*time.Minute, "docker", "compose", "-f", composeFile, "-p", projectName, "down")
 	if err != nil {
 		return fmt.Errorf("docker compose down failed: %w", err)
 	}
@@ -174,9 +171,7 @@ func (d *Client) ComposeDown(ctx context.Context, projectDir, projectName string
 func (d *Client) Pull(ctx context.Context, image string) error {
 	d.logger.Info("Pulling Docker image", "image", image)
 
-	d.executor.SetTimeout(10 * time.Minute)
-
-	_, err := d.executor.Run(ctx, "docker", "pull", image)
+	_, err := d.executor.RunWithTimeout(ctx, 10*time.Minute, "docker", "pull", image)
 	if err != nil {
 		return fmt.Errorf("docker pull failed: %w", err)
 	}
@@ -187,9 +182,7 @@ func (d *Client) Pull(ctx context.Context, image string) error {
 func (d *Client) Push(ctx context.Context, tag string) error {
 	d.logger.Info("Pushing Docker image", "tag", tag)
 
-	d.executor.SetTimeout(10 * time.Minute)
-
-	_, err := d.executor.Run(ctx, "docker", "push", tag)
+	_, err := d.executor.RunWithTimeout(ctx, 10*time.Minute, "docker", "push", tag)
 	if err != nil {
 		return fmt.Errorf("docker push failed: %w", err)
 	}
@@ -225,9 +218,8 @@ func (d *Client) RemoveImage(ctx context.Context, tag string) error {
 	}
 
 	d.logger.Info("Removing Docker image", "tag", tag)
-	d.executor.SetTimeout(2 * time.Minute)
 
-	_, err := d.executor.RunQuiet(ctx, "docker", "rmi", "-f", tag)
+	_, err := d.executor.RunQuietWithTimeout(ctx, 2*time.Minute, "docker", "rmi", "-f", tag)
 	if err != nil {
 		d.logger.Debug("Failed to remove image (may not exist or in use)", "tag", tag)
 		return nil
@@ -332,9 +324,7 @@ type ContainerHealth struct {
 }
 
 func (d *Client) ContainerExists(ctx context.Context, containerName string) (bool, error) {
-	d.executor.SetTimeout(30 * time.Second)
-
-	result, err := d.executor.Run(ctx, "docker", "ps", "-a", "--filter", fmt.Sprintf("name=^%s$", containerName), formatFlag, "{{.Names}}")
+	result, err := d.executor.RunWithTimeout(ctx, 30*time.Second, "docker", "ps", "-a", "--filter", fmt.Sprintf("name=^%s$", containerName), formatFlag, "{{.Names}}")
 	if err != nil {
 		return false, fmt.Errorf("failed to check container: %w", err)
 	}
@@ -343,10 +333,8 @@ func (d *Client) ContainerExists(ctx context.Context, containerName string) (boo
 }
 
 func (d *Client) InspectContainer(ctx context.Context, containerName string) (*ContainerHealth, error) {
-	d.executor.SetTimeout(30 * time.Second)
-
 	format := "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.State.StartedAt}}|{{.Config.Image}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerName)
+	result, err := d.executor.RunQuietWithTimeout(ctx, 30*time.Second, "docker", "inspect", formatFlag, format, containerName)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
 		if strings.Contains(stderrLower, "no such object") || strings.Contains(stderrLower, errNoSuchContainer) {
@@ -397,10 +385,8 @@ func FormatUptime(d time.Duration) string {
 }
 
 func (d *Client) GetContainerIP(ctx context.Context, containerName, networkName string) (string, error) {
-	d.executor.SetTimeout(30 * time.Second)
-
 	format := fmt.Sprintf("{{.NetworkSettings.Networks.%s.IPAddress}}", networkName)
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerName)
+	result, err := d.executor.RunQuietWithTimeout(ctx, 30*time.Second, "docker", "inspect", formatFlag, format, containerName)
 	if err != nil {
 		return "", fmt.Errorf("failed to get container IP: %w", err)
 	}
@@ -434,13 +420,12 @@ func (d *Client) IsCurrentContainer(ctx context.Context, containerID string) boo
 
 func (d *Client) RestartContainer(ctx context.Context, containerName string) error {
 	d.logger.Info("Restarting container", "containerName", containerName)
-	d.executor.SetTimeout(2 * time.Minute)
 
 	if d.IsCurrentContainer(ctx, containerName) {
 		return fmt.Errorf("cannot restart the current container from within itself - use SSH or host to restart")
 	}
 
-	_, err := d.executor.Run(ctx, "docker", "restart", containerName)
+	_, err := d.executor.RunWithTimeout(ctx, 2*time.Minute, "docker", "restart", containerName)
 	if err != nil {
 		return fmt.Errorf("failed to restart container: %w", err)
 	}
@@ -450,13 +435,12 @@ func (d *Client) RestartContainer(ctx context.Context, containerName string) err
 
 func (d *Client) StopContainer(ctx context.Context, containerName string) error {
 	d.logger.Info("Stopping container", "containerName", containerName)
-	d.executor.SetTimeout(1 * time.Minute)
 
 	if d.IsCurrentContainer(ctx, containerName) {
 		return fmt.Errorf("cannot stop the current container from within itself - use SSH or host to stop")
 	}
 
-	_, err := d.executor.Run(ctx, "docker", "stop", containerName)
+	_, err := d.executor.RunWithTimeout(ctx, 1*time.Minute, "docker", "stop", containerName)
 	if err != nil {
 		return fmt.Errorf("failed to stop container: %w", err)
 	}
@@ -466,9 +450,8 @@ func (d *Client) StopContainer(ctx context.Context, containerName string) error 
 
 func (d *Client) StartContainer(ctx context.Context, containerName string) error {
 	d.logger.Info("Starting container", "containerName", containerName)
-	d.executor.SetTimeout(1 * time.Minute)
 
-	_, err := d.executor.Run(ctx, "docker", "start", containerName)
+	_, err := d.executor.RunWithTimeout(ctx, 1*time.Minute, "docker", "start", containerName)
 	if err != nil {
 		return fmt.Errorf("failed to start container: %w", err)
 	}
@@ -477,14 +460,12 @@ func (d *Client) StartContainer(ctx context.Context, containerName string) error
 }
 
 func (d *Client) ContainerLogs(ctx context.Context, containerName string, tail int) (string, error) {
-	d.executor.SetTimeout(30 * time.Second)
-
 	tailArg := "100"
 	if tail > 0 {
 		tailArg = fmt.Sprintf("%d", tail)
 	}
 
-	result, err := d.executor.RunQuiet(ctx, "docker", "logs", "--tail", tailArg, "--timestamps", containerName)
+	result, err := d.executor.RunQuietWithTimeout(ctx, 30*time.Second, "docker", "logs", "--tail", tailArg, "--timestamps", containerName)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
 		if strings.Contains(stderrLower, errNoSuchContainer) {
@@ -502,9 +483,7 @@ func (d *Client) ContainerLogs(ctx context.Context, containerName string, tail i
 }
 
 func (d *Client) StreamContainerLogs(ctx context.Context, containerName string, output chan<- string) error {
-	d.executor.SetTimeout(10 * time.Minute)
-
-	return d.executor.RunWithStreaming(ctx, output, "docker", "logs", "-f", "--tail", "100", "--timestamps", containerName)
+	return d.executor.RunWithStreamingTimeout(ctx, 10*time.Minute, output, "docker", "logs", "-f", "--tail", "100", "--timestamps", containerName)
 }
 
 type ContainerStats struct {
@@ -518,10 +497,8 @@ type ContainerStats struct {
 }
 
 func (d *Client) ContainerStats(ctx context.Context, containerName string) (*ContainerStats, error) {
-	d.executor.SetTimeout(30 * time.Second)
-
 	format := "{{.CPUPerc}}|{{.MemUsage}}|{{.MemPerc}}|{{.NetIO}}|{{.PIDs}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "stats", "--no-stream", formatFlag, format, containerName)
+	result, err := d.executor.RunQuietWithTimeout(ctx, 30*time.Second, "docker", "stats", "--no-stream", formatFlag, format, containerName)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
 		if strings.Contains(stderrLower, errNoSuchContainer) {
@@ -609,9 +586,8 @@ func ParseNetworkValue(s string) int64 {
 
 func (d *Client) PruneUnusedImages(ctx context.Context) error {
 	d.logger.Info("Pruning unused Docker images")
-	d.executor.SetTimeout(5 * time.Minute)
 
-	_, err := d.executor.RunQuiet(ctx, "docker", "image", "prune", "-f")
+	_, err := d.executor.RunQuietWithTimeout(ctx, 5*time.Minute, "docker", "image", "prune", "-f")
 	if err != nil {
 		d.logger.Debug("Failed to prune images", "error", err)
 		return nil
@@ -632,14 +608,12 @@ type ImageInfo struct {
 }
 
 func (d *Client) ListImages(ctx context.Context, all bool) ([]ImageInfo, error) {
-	d.executor.SetTimeout(30 * time.Second)
-
 	args := []string{"images", formatFlag, "{{.ID}}|{{.Repository}}|{{.Tag}}|{{.Size}}|{{.CreatedAt}}|{{.Containers}}"}
 	if all {
 		args = append(args, "-a")
 	}
 
-	result, err := d.executor.Run(ctx, "docker", args...)
+	result, err := d.executor.RunWithTimeout(ctx, 30*time.Second, "docker", args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list images: %w", err)
 	}
@@ -711,7 +685,6 @@ func parseImageContainers(containersStr string) int {
 
 func (d *Client) RemoveImageByID(ctx context.Context, imageID string, force bool) error {
 	d.logger.Info("Removing Docker image", "id", imageID, "force", force)
-	d.executor.SetTimeout(2 * time.Minute)
 
 	args := []string{"rmi"}
 	if force {
@@ -719,7 +692,7 @@ func (d *Client) RemoveImageByID(ctx context.Context, imageID string, force bool
 	}
 	args = append(args, imageID)
 
-	_, err := d.executor.Run(ctx, "docker", args...)
+	_, err := d.executor.RunWithTimeout(ctx, 2*time.Minute, "docker", args...)
 	if err != nil {
 		return fmt.Errorf("failed to remove image: %w", err)
 	}
@@ -734,9 +707,8 @@ type PruneResult struct {
 
 func (d *Client) PruneImages(ctx context.Context) (*PruneResult, error) {
 	d.logger.Info("Pruning all dangling Docker images")
-	d.executor.SetTimeout(5 * time.Minute)
 
-	result, err := d.executor.Run(ctx, "docker", "image", "prune", "-a", "-f")
+	result, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", "image", "prune", "-a", "-f")
 	if err != nil {
 		return nil, fmt.Errorf("failed to prune images: %w", err)
 	}

@@ -59,14 +59,12 @@ type VolumeMapping struct {
 }
 
 func (d *Client) ListContainers(ctx context.Context, all bool) ([]ContainerInfo, error) {
-	d.executor.SetTimeout(30 * time.Second)
-
 	args := []string{"ps", formatFlag, "{{.ID}}|{{.Names}}|{{.Image}}|{{.State}}|{{.Status}}|{{.Ports}}|{{.CreatedAt}}|{{.Labels}}"}
 	if all {
 		args = append(args, "-a")
 	}
 
-	result, err := d.executor.Run(ctx, "docker", args...)
+	result, err := d.executor.RunWithTimeout(ctx, 30*time.Second, "docker", args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)
 	}
@@ -194,7 +192,6 @@ func (d *Client) getContainerMounts(ctx context.Context, containerID string) ([]
 
 func (d *Client) CreateContainer(ctx context.Context, opts CreateContainerOptions) (string, error) {
 	d.logger.Info("Creating container", "name", opts.Name, "image", opts.Image)
-	d.executor.SetTimeout(5 * time.Minute)
 
 	if err := d.Pull(ctx, opts.Image); err != nil {
 		d.logger.Warn("Failed to pull image, trying to use local", "image", opts.Image, "error", err)
@@ -202,7 +199,7 @@ func (d *Client) CreateContainer(ctx context.Context, opts CreateContainerOption
 
 	args := buildContainerArgs(opts)
 
-	result, err := d.executor.Run(ctx, "docker", args...)
+	result, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", args...)
 	if err != nil {
 		return "", fmt.Errorf("failed to create container: %w", err)
 	}
@@ -272,7 +269,6 @@ func buildVolumeArgs(volumes []VolumeMapping) []string {
 
 func (d *Client) RemoveContainer(ctx context.Context, containerID string, force bool) error {
 	d.logger.Info("Removing container", "id", containerID, "force", force)
-	d.executor.SetTimeout(1 * time.Minute)
 
 	args := []string{"rm"}
 	if force {
@@ -280,7 +276,7 @@ func (d *Client) RemoveContainer(ctx context.Context, containerID string, force 
 	}
 	args = append(args, containerID)
 
-	_, err := d.executor.Run(ctx, "docker", args...)
+	_, err := d.executor.RunWithTimeout(ctx, 1*time.Minute, "docker", args...)
 	if err != nil {
 		return fmt.Errorf("failed to remove container: %w", err)
 	}
@@ -289,10 +285,8 @@ func (d *Client) RemoveContainer(ctx context.Context, containerID string, force 
 }
 
 func (d *Client) GetContainerDetails(ctx context.Context, containerID string) (*ContainerInfo, error) {
-	d.executor.SetTimeout(30 * time.Second)
-
 	format := "{{.ID}}|{{.Name}}|{{.Config.Image}}|{{.State.Status}}|{{.State.StartedAt}}|{{range $k, $v := .Config.Labels}}{{$k}}={{$v}},{{end}}"
-	result, err := d.executor.Run(ctx, "docker", "inspect", formatFlag, format, containerID)
+	result, err := d.executor.RunWithTimeout(ctx, 30*time.Second, "docker", "inspect", formatFlag, format, containerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to inspect container: %w", err)
 	}
