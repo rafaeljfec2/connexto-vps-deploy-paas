@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { HardDrive, Loader2, Search, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  HardDrive,
+  Loader2,
+  Search,
+  Trash2,
+} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,6 +30,7 @@ import {
 } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorMessage } from "@/components/error-message";
+import { ApiError } from "@/types";
 import { useImages, usePruneImages, useRemoveImage } from "../hooks/use-images";
 
 function formatBytes(bytes: number): string {
@@ -54,6 +62,7 @@ export function ImageList({ serverId }: ImageListProps = {}) {
     readonly id: string;
     readonly ref: string;
   } | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const { data: images, isLoading, error } = useImages(serverId);
   const removeImage = useRemoveImage();
@@ -313,7 +322,12 @@ export function ImageList({ serverId }: ImageListProps = {}) {
 
       <AlertDialog
         open={!!imageToDelete}
-        onOpenChange={() => setImageToDelete(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setImageToDelete(null);
+            setRemoveError(null);
+          }
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -322,6 +336,12 @@ export function ImageList({ serverId }: ImageListProps = {}) {
               {`This will remove the tag "${imageToDelete?.ref ?? ""}". If other tags reference the same image, only this tag will be removed.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {removeError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{removeError}</AlertDescription>
+            </Alert>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={removeImage.isPending}>
               Cancel
@@ -329,6 +349,7 @@ export function ImageList({ serverId }: ImageListProps = {}) {
             <AlertDialogAction
               onClick={() => {
                 if (imageToDelete) {
+                  setRemoveError(null);
                   removeImage.mutate(
                     {
                       id: imageToDelete.id,
@@ -336,7 +357,19 @@ export function ImageList({ serverId }: ImageListProps = {}) {
                       force: false,
                       serverId,
                     },
-                    { onSuccess: () => setImageToDelete(null) },
+                    {
+                      onSuccess: () => {
+                        setImageToDelete(null);
+                        setRemoveError(null);
+                      },
+                      onError: (err) => {
+                        const message =
+                          err instanceof ApiError
+                            ? err.message
+                            : "Failed to remove image";
+                        setRemoveError(message);
+                      },
+                    },
                   );
                 }
               }}

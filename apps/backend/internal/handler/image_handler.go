@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/agentclient"
@@ -167,17 +168,25 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 		}
 		if err := h.agentClient.RemoveImage(c.Context(), host, h.agentPort, target, force); err != nil {
 			h.logger.Error("Failed to remove remote image", "target", target, "error", err)
-			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove image")
+			return h.imageRemoveError(c, err)
 		}
 		return response.NoContent(c)
 	}
 
 	if err := h.docker.RemoveImageByID(c.Context(), target, force); err != nil {
 		h.logger.Error("Failed to remove image", "target", target, "force", force, "error", err)
-		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove image")
+		return h.imageRemoveError(c, err)
 	}
 
 	return response.NoContent(c)
+}
+
+func (h *ImageHandler) imageRemoveError(c *fiber.Ctx, err error) error {
+	msg := err.Error()
+	if strings.Contains(msg, "must force") || strings.Contains(msg, "is using") || strings.Contains(msg, "conflict") {
+		return response.ServerError(c, fiber.StatusConflict, "Image is being used by a running container. Stop the container first or force removal.")
+	}
+	return response.ServerError(c, fiber.StatusInternalServerError, "Failed to remove image")
 }
 
 type PruneResult struct {
