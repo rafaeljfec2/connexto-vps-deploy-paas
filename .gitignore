@@ -12,6 +12,8 @@ out/
 apps/backend/bin/
 apps/backend/tmp/
 apps/backend/build-errors.log
+apps/agent/agent-binary
+apps/backend/api
 *.exe
 *.exe~
 *.dll
