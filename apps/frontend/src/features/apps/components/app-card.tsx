@@ -9,6 +9,7 @@ import {
   Loader2,
   MoreVertical,
   Rocket,
+  Server,
   Timer,
   Trash2,
 } from "lucide-react";
@@ -125,9 +126,10 @@ function mergeTags(
 interface AppCardProps {
   readonly app: App;
   readonly latestDeploy?: Deployment;
+  readonly serverName?: string;
 }
 
-export function AppCard({ app, latestDeploy }: AppCardProps) {
+export function AppCard({ app, latestDeploy, serverName }: AppCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const navigate = useNavigate();
   const purgeApp = usePurgeApp();
@@ -210,6 +212,12 @@ export function AppCard({ app, latestDeploy }: AppCardProps) {
                 </Badge>
               ))}
             </div>
+          )}
+
+          {serverName && (
+            <IconText icon={Server}>
+              <span className="truncate">{serverName}</span>
+            </IconText>
           )}
 
           <IconText icon={GitBranch}>

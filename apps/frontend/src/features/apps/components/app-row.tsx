@@ -5,6 +5,7 @@ import {
   GitBranch,
   Loader2,
   MoreVertical,
+  Server,
   Timer,
   Trash2,
 } from "lucide-react";
@@ -28,9 +29,10 @@ import { AppDeleteDialog } from "./app-delete-dialog";
 interface AppRowProps {
   readonly app: App;
   readonly latestDeploy?: Deployment;
+  readonly serverName?: string;
 }
 
-export function AppRow({ app, latestDeploy }: AppRowProps) {
+export function AppRow({ app, latestDeploy, serverName }: AppRowProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const navigate = useNavigate();
   const purgeApp = usePurgeApp();
@@ -81,6 +83,12 @@ export function AppRow({ app, latestDeploy }: AppRowProps) {
               )}
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
+              {serverName && (
+                <span className="flex items-center gap-1">
+                  <Server className="h-3 w-3" />
+                  <span className="truncate max-w-[120px]">{serverName}</span>
+                </span>
+              )}
               <span className="flex items-center gap-1">
                 <GitBranch className="h-3 w-3" />
                 {app.branch}
