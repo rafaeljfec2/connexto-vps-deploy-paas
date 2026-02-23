@@ -10,6 +10,7 @@ on:
       - "apps/proto/**"
       - ".github/workflows/deploy-backend.yml"
       - ".github/scripts/**"
+      - "AGENT_VERSION"
   workflow_dispatch:
 
 permissions:
