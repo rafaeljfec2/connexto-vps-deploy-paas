@@ -117,7 +117,7 @@ export function ServerStep({
       selectedId === LOCAL_SERVER_ID &&
       onlineServers.length > 0
     ) {
-      onUpdate({ serverId: onlineServers[0].id });
+      onUpdate({ serverId: onlineServers[0]?.id });
     }
   }, [isAdmin, selectedId, onlineServers, onUpdate]);
 

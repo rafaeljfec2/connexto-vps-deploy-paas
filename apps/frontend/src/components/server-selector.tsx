@@ -22,7 +22,7 @@ export function ServerSelector({ value, onChange }: ServerSelectorProps) {
   const { isAdmin } = useAuth();
 
   useEffect(() => {
-    if (!isAdmin && !value && servers?.length) {
+    if (!isAdmin && !value && servers?.[0]) {
       onChange(servers[0].id);
     }
   }, [isAdmin, value, servers, onChange]);
