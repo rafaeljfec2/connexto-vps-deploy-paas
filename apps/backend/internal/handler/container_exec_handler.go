@@ -1,19 +1,31 @@
 package handler
 
 import (
-	"io"
+	"encoding/json"
 	"log/slog"
+	"os"
 	"os/exec"
 	"sync"
 
+	"github.com/creack/pty"
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 )
 
-const errFailedStartExec = "Error: failed to start exec\r\n"
+const (
+	defaultCols     = 80
+	defaultRows     = 24
+	resizeCtrlByte  = 0x01
+	ptyReadBufSize  = 4096
+)
 
 type ContainerExecHandler struct {
 	logger *slog.Logger
+}
+
+type resizeMessage struct {
+	Cols uint16 `json:"cols"`
+	Rows uint16 `json:"rows"`
 }
 
 func NewContainerExecHandler(logger *slog.Logger) *ContainerExecHandler {
@@ -49,53 +61,32 @@ func (h *ContainerExecHandler) handleConsole(c *websocket.Conn) {
 	}
 
 	shell := c.Query("shell", "sh")
-	cmd := exec.Command("docker", "exec", "-i", containerID, shell)
+	cols := parseUint16Query(c, "cols", defaultCols)
+	rows := parseUint16Query(c, "rows", defaultRows)
 
-	stdinPipe, err := cmd.StdinPipe()
+	cmd := exec.Command("docker", "exec", "-it", containerID, shell)
+
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
 	if err != nil {
-		h.logger.Error("Failed to create stdin pipe", "error", err, "container", containerID)
-		_ = c.WriteMessage(websocket.TextMessage, []byte(errFailedStartExec))
-		return
-	}
-
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		h.logger.Error("Failed to create stdout pipe", "error", err, "container", containerID)
-		_ = c.WriteMessage(websocket.TextMessage, []byte(errFailedStartExec))
-		return
-	}
-
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		h.logger.Error("Failed to create stderr pipe", "error", err, "container", containerID)
-		_ = c.WriteMessage(websocket.TextMessage, []byte(errFailedStartExec))
-		return
-	}
-
-	if err := cmd.Start(); err != nil {
-		h.logger.Error("Failed to start docker exec", "error", err, "container", containerID)
+		h.logger.Error("failed to start docker exec with pty", "error", err, "container", containerID)
 		_ = c.WriteMessage(websocket.TextMessage, []byte("Error: failed to connect to container (ensure it is running)\r\n"))
 		return
 	}
-
-	welcome := []byte("\r\n# FlowDeploy Console (type commands and press Enter)\r\n$ ")
-	_ = c.WriteMessage(websocket.TextMessage, welcome)
+	defer ptmx.Close()
 
 	var wg sync.WaitGroup
 	done := make(chan struct{})
 
-	wg.Add(3)
+	wg.Add(2)
+
 	go func() {
 		defer wg.Done()
-		h.copyToProcess(c, stdinPipe, done)
+		h.readFromPTY(ptmx, c, done)
 	}()
+
 	go func() {
 		defer wg.Done()
-		h.copyFromProcess(stdoutPipe, c, done)
-	}()
-	go func() {
-		defer wg.Done()
-		h.copyFromProcess(stderrPipe, c, done)
+		h.writeFromWS(c, ptmx, done)
 	}()
 
 	go func() {
@@ -106,34 +97,14 @@ func (h *ContainerExecHandler) handleConsole(c *websocket.Conn) {
 	wg.Wait()
 }
 
-func (h *ContainerExecHandler) copyToProcess(conn *websocket.Conn, stdin io.WriteCloser, done <-chan struct{}) {
-	defer stdin.Close()
+func (h *ContainerExecHandler) readFromPTY(ptmx *os.File, conn *websocket.Conn, done <-chan struct{}) {
+	buf := make([]byte, ptyReadBufSize)
 	for {
 		select {
 		case <-done:
 			return
 		default:
-			mt, msg, err := conn.ReadMessage()
-			if err != nil {
-				return
-			}
-			if (mt == websocket.TextMessage || mt == websocket.BinaryMessage) && len(msg) > 0 {
-				if _, err := stdin.Write(msg); err != nil {
-					return
-				}
-			}
-		}
-	}
-}
-
-func (h *ContainerExecHandler) copyFromProcess(reader io.Reader, conn *websocket.Conn, done <-chan struct{}) {
-	buf := make([]byte, 4096)
-	for {
-		select {
-		case <-done:
-			return
-		default:
-			n, err := reader.Read(buf)
+			n, err := ptmx.Read(buf)
 			if n > 0 {
 				if writeErr := conn.WriteMessage(websocket.TextMessage, buf[:n]); writeErr != nil {
 					return
@@ -144,4 +115,55 @@ func (h *ContainerExecHandler) copyFromProcess(reader io.Reader, conn *websocket
 			}
 		}
 	}
+}
+
+func (h *ContainerExecHandler) writeFromWS(conn *websocket.Conn, ptmx *os.File, done <-chan struct{}) {
+	defer ptmx.Close()
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			mt, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			if mt != websocket.TextMessage && mt != websocket.BinaryMessage {
+				continue
+			}
+			if len(msg) == 0 {
+				continue
+			}
+
+			if msg[0] == resizeCtrlByte && len(msg) > 1 {
+				var resize resizeMessage
+				if jsonErr := json.Unmarshal(msg[1:], &resize); jsonErr == nil && resize.Cols > 0 && resize.Rows > 0 {
+					_ = pty.Setsize(ptmx, &pty.Winsize{Cols: resize.Cols, Rows: resize.Rows})
+				}
+				continue
+			}
+
+			if _, writeErr := ptmx.Write(msg); writeErr != nil {
+				return
+			}
+		}
+	}
+}
+
+func parseUint16Query(c *websocket.Conn, key string, fallback uint16) uint16 {
+	raw := c.Query(key, "")
+	if raw == "" {
+		return fallback
+	}
+	var val int
+	for _, ch := range raw {
+		if ch < '0' || ch > '9' {
+			return fallback
+		}
+		val = val*10 + int(ch-'0')
+	}
+	if val <= 0 || val > 65535 {
+		return fallback
+	}
+	return uint16(val)
 }

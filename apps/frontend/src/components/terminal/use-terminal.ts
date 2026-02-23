@@ -68,7 +68,9 @@ export function useTerminal(options: TerminalOptions): UseTerminalReturn {
       setTimeout(doFit, 50);
       setTimeout(doFit, 200);
 
-      const ws = new WebSocket(options.wsUrl);
+      const separator = options.wsUrl.includes("?") ? "&" : "?";
+      const wsUrlWithSize = `${options.wsUrl}${separator}cols=${terminal.cols}&rows=${terminal.rows}`;
+      const ws = new WebSocket(wsUrlWithSize);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -93,6 +95,12 @@ export function useTerminal(options: TerminalOptions): UseTerminalReturn {
 
       terminal.onData((data) => {
         if (ws.readyState === WebSocket.OPEN) ws.send(data);
+      });
+
+      terminal.onResize(({ cols: c, rows: r }) => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        const payload = `\x01${JSON.stringify({ cols: c, rows: r })}`;
+        ws.send(payload);
       });
 
       const resizeObserver = new ResizeObserver(doFit);

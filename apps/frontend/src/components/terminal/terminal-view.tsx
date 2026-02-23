@@ -45,8 +45,7 @@ export function TerminalView({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
-      // Allow xterm's hidden textarea to handle input directly
-      if (target.tagName === "INPUT") return;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
       // Skip browser shortcuts
       if (isBrowserShortcut(event)) return;
 
