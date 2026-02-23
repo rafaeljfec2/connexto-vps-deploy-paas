@@ -1,6 +1,12 @@
 import { Play, RefreshCw, ScrollText, Square, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   useRestartContainer,
   useStartContainer,
   useStopContainer,
@@ -29,6 +35,8 @@ export function ContainerActions({
     startContainer.isPending ||
     stopContainer.isPending ||
     restartContainer.isPending;
+
+  const isRemote = !!serverId;
 
   return (
     <div className="flex gap-1">
@@ -81,15 +89,29 @@ export function ContainerActions({
         <ScrollText className="h-4 w-4" />
       </Button>
       {isRunning && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={onShowConsole}
-          title="Console (shell)"
-        >
-          <Terminal className="h-4 w-4" />
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={onShowConsole}
+                  disabled={isRemote}
+                  title={isRemote ? undefined : "Console (shell)"}
+                >
+                  <Terminal className="h-4 w-4" />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {isRemote && (
+              <TooltipContent>
+                <p>Console is not available for remote containers</p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       )}
     </div>
   );

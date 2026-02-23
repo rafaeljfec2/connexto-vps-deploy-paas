@@ -298,7 +298,7 @@ export function ContainerCard({ container, serverId }: ContainerCardProps) {
                 <ScrollText className="mr-2 h-4 w-4" />
                 View Logs
               </DropdownMenuItem>
-              {isRunning && (
+              {isRunning && !serverId && (
                 <DropdownMenuItem onClick={() => setShowConsoleDialog(true)}>
                   <Terminal className="mr-2 h-4 w-4" />
                   Open Console
