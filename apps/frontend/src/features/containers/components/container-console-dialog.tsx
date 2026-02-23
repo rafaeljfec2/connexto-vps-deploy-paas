@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -5,6 +6,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TerminalView } from "@/components/terminal";
+import type { TerminalStatus } from "@/components/terminal";
 import { api } from "@/services/api";
 
 interface ContainerConsoleDialogProps {
@@ -26,6 +28,15 @@ export function ContainerConsoleDialog({
     ? api.containers.consoleUrl(containerId, "sh", serverId)
     : "";
 
+  const handleStatusChange = useCallback(
+    (status: TerminalStatus) => {
+      if (status === "closed") {
+        onOpenChange(false);
+      }
+    },
+    [onOpenChange],
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -40,6 +51,7 @@ export function ContainerConsoleDialog({
           <TerminalView
             wsUrl={wsUrl}
             autoConnect={open}
+            onStatusChange={handleStatusChange}
             className="flex-1 min-h-[240px] p-4"
           />
         )}
