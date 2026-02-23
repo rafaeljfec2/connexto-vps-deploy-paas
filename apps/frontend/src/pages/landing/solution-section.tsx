@@ -15,7 +15,7 @@ const STEPS: readonly StepItem[] = [
     icon: Server,
     title: "Connect your server",
     description:
-      "Add your VPS with one command. FlowDeploy installs everything automatically.",
+      "Add your VPS with one command. flowDeploy installs everything automatically.",
   },
   {
     step: 2,

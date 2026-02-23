@@ -70,6 +70,10 @@ type ImageResponse struct {
 func (h *ImageHandler) ListImages(c *fiber.Ctx) error {
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	if serverID != "" {
 		return h.listRemoteImages(c, serverID)
 	}
@@ -100,7 +104,7 @@ func (h *ImageHandler) ListImages(c *fiber.Ctx) error {
 func (h *ImageHandler) listRemoteImages(c *fiber.Ctx, serverID string) error {
 	host, err := h.resolveServerHost(serverID)
 	if err != nil {
-		return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+		return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 	}
 
 	images, err := h.agentClient.ListImages(c.Context(), host, h.agentPort, false)
@@ -156,6 +160,10 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 	force := c.Query("force", "false") == "true"
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	target := id
 	if ref != "" {
 		target = ref
@@ -164,7 +172,7 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		if err := h.agentClient.RemoveImage(c.Context(), host, h.agentPort, target, force); err != nil {
 			h.logger.Error("Failed to remove remote image", "target", target, "error", err)
@@ -197,15 +205,19 @@ type PruneResult struct {
 func (h *ImageHandler) PruneImages(c *fiber.Ctx) error {
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		pruneResp, err := h.agentClient.PruneImages(c.Context(), host, h.agentPort)
 		if err != nil {
 			h.logger.Error("Failed to prune remote images", "serverId", serverID, "error", err)
-			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to prune images")
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgFailedPruneImages)
 		}
 		return response.OK(c, PruneResult{
 			ImagesDeleted:  int(pruneResp.ImagesRemoved),
@@ -215,8 +227,8 @@ func (h *ImageHandler) PruneImages(c *fiber.Ctx) error {
 
 	result, err := h.docker.PruneImages(c.Context())
 	if err != nil {
-		h.logger.Error("Failed to prune images", "error", err)
-		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to prune images")
+		h.logger.Error(MsgFailedPruneImages, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, MsgFailedPruneImages)
 	}
 
 	return response.OK(c, PruneResult{

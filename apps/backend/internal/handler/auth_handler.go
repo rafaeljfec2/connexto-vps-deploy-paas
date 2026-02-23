@@ -226,16 +226,7 @@ func (h *AuthHandler) LoginEmail(c *fiber.Ctx) error {
 		h.auditService.LogUserLoggedIn(c.Context(), auditCtx, user.ID, user.Name)
 	}
 
-	return response.OK(c, UserResponse{
-		ID:           user.ID,
-		GitHubID:     user.GitHubID,
-		GitHubLogin:  user.GitHubLogin,
-		Name:         user.Name,
-		Email:        user.Email,
-		AvatarURL:    user.AvatarURL,
-		AuthProvider: user.AuthProvider,
-		CreatedAt:    user.CreatedAt,
-	})
+	return response.OK(c, toUserResponse(user))
 }
 
 func (h *AuthHandler) LinkGitHub(c *fiber.Ctx) error {
@@ -553,16 +544,7 @@ func (h *AuthHandler) GetCurrentUser(c *fiber.Ctx) error {
 		return response.Unauthorized(c, "not authenticated")
 	}
 
-	return response.OK(c, UserResponse{
-		ID:           user.ID,
-		GitHubID:     user.GitHubID,
-		GitHubLogin:  user.GitHubLogin,
-		Name:         user.Name,
-		Email:        user.Email,
-		AvatarURL:    user.AvatarURL,
-		AuthProvider: user.AuthProvider,
-		CreatedAt:    user.CreatedAt,
-	})
+	return response.OK(c, toUserResponse(user))
 }
 
 func (h *AuthHandler) Logout(c *fiber.Ctx) error {
@@ -597,7 +579,22 @@ type UserResponse struct {
 	Email        string    `json:"email"`
 	AvatarURL    string    `json:"avatarUrl,omitempty"`
 	AuthProvider string    `json:"authProvider"`
+	Role         string    `json:"role"`
 	CreatedAt    time.Time `json:"createdAt"`
+}
+
+func toUserResponse(user *domain.User) UserResponse {
+	return UserResponse{
+		ID:           user.ID,
+		GitHubID:     user.GitHubID,
+		GitHubLogin:  user.GitHubLogin,
+		Name:         user.Name,
+		Email:        user.Email,
+		AvatarURL:    user.AvatarURL,
+		AuthProvider: user.AuthProvider,
+		Role:         user.Role,
+		CreatedAt:    user.CreatedAt,
+	}
 }
 
 const userContextKey = "user"

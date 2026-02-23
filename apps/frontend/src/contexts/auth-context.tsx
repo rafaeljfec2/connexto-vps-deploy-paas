@@ -12,6 +12,7 @@ import { API_ROUTES, ROUTES } from "@/constants/routes";
 import { api } from "@/services/api";
 
 export type AuthProvider = "email" | "github";
+export type UserRole = "admin" | "member";
 
 export interface User {
   readonly id: string;
@@ -21,6 +22,7 @@ export interface User {
   readonly email: string;
   readonly avatarUrl?: string;
   readonly authProvider: AuthProvider;
+  readonly role: UserRole;
   readonly createdAt: string;
 }
 
@@ -28,6 +30,7 @@ interface AuthContextType {
   readonly user: User | null;
   readonly isLoading: boolean;
   readonly isAuthenticated: boolean;
+  readonly isAdmin: boolean;
   readonly login: () => void;
   readonly logout: () => Promise<void>;
   readonly refresh: () => Promise<void>;
@@ -77,17 +80,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [fetchUser]);
 
   const isAuthenticated = user !== null;
+  const isAdmin = user?.role === "admin";
 
   const value = useMemo<AuthContextType>(
     () => ({
       user,
       isLoading,
       isAuthenticated,
+      isAdmin,
       login,
       logout,
       refresh,
     }),
-    [user, isLoading, isAuthenticated, login, logout, refresh],
+    [user, isLoading, isAuthenticated, isAdmin, login, logout, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

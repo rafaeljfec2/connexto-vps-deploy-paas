@@ -33,7 +33,7 @@ export function CtaSection() {
               className={`mx-auto mt-4 max-w-xl text-lg text-muted-foreground transition-all duration-700 ${isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}
               style={{ transitionDelay: isVisible ? "350ms" : "0ms" }}
             >
-              Set up FlowDeploy on your server in under 5 minutes. Free, open
+              Set up flowDeploy on your server in under 5 minutes. Free, open
               source, forever.
             </p>
             <div

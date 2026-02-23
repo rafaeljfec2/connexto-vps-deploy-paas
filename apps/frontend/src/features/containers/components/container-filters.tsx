@@ -34,7 +34,7 @@ export function ContainerFilters({
             Stopped
           </TabsTrigger>
           <TabsTrigger value="flowdeploy" className="text-xs sm:text-sm">
-            FlowDeploy
+            flowDeploy
           </TabsTrigger>
         </TabsList>
       </Tabs>

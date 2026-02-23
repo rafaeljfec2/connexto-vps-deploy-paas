@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+const (
+	RoleAdmin  = "admin"
+	RoleMember = "member"
+)
+
 type User struct {
 	ID                    string
 	GitHubID              *int64
@@ -17,8 +22,13 @@ type User struct {
 	TokenExpiresAt        *time.Time
 	PasswordHash          string
 	AuthProvider          string
+	Role                  string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
+}
+
+func (u *User) IsAdmin() bool {
+	return u.Role == RoleAdmin
 }
 
 type CreateUserInput struct {

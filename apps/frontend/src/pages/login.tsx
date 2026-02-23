@@ -202,10 +202,10 @@ export function LoginPage() {
         <Link
           to={ROUTES.LANDING}
           className="flex items-center gap-2 text-lg font-semibold"
-          aria-label="FlowDeploy - Home"
+          aria-label="flowDeploy - Home"
         >
           <Rocket className="h-6 w-6" aria-hidden="true" />
-          <span>FlowDeploy</span>
+          <span>flowDeploy</span>
         </Link>
         <ThemeToggle />
       </header>
@@ -213,7 +213,7 @@ export function LoginPage() {
       <main className="flex flex-1 items-center justify-center px-4 py-8">
         <Card className="w-full max-w-md shadow-lg">
           <CardHeader className="space-y-1.5 pb-4">
-            <CardTitle className="text-2xl">Sign in to FlowDeploy</CardTitle>
+            <CardTitle className="text-2xl">Sign in to flowDeploy</CardTitle>
             <CardDescription>
               Welcome back! Please sign in to continue.
             </CardDescription>

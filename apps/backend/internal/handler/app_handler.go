@@ -104,6 +104,14 @@ func (h *AppHandler) CreateApp(c *fiber.Ctx) error {
 		return response.BadRequest(c, MsgInvalidRequestBody)
 	}
 
+	serverID := ""
+	if input.ServerID != nil {
+		serverID = *input.ServerID
+	}
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	input.UserID = user.ID
 
 	app, err := h.appService.CreateApp(c.Context(), input)

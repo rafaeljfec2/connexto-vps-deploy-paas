@@ -19,7 +19,7 @@ export function SettingsPage() {
       <PageHeader
         backTo="/"
         title="Settings"
-        description="Manage your FlowDeploy integrations and preferences"
+        description="Manage your flowDeploy integrations and preferences"
       />
 
       <div className="space-y-6">

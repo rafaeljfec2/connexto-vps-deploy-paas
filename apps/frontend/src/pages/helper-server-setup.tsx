@@ -551,7 +551,7 @@ export function HelperServerSetupPage() {
                     Password
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Ensure the user has a password set. FlowDeploy stores it
+                    Ensure the user has a password set. flowDeploy stores it
                     encrypted.
                   </p>
                 </div>
@@ -585,7 +585,7 @@ export function HelperServerSetupPage() {
               <StepNumber n={2} /> Configure the backend
             </CardTitle>
             <CardDescription>
-              On the host where the FlowDeploy backend runs.
+              On the host where the flowDeploy backend runs.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -27,7 +27,7 @@ export function GitHubConnect({ message }: GitHubConnectProps) {
         </CardTitle>
         <CardDescription>
           {message ??
-            "Install the FlowDeploy GitHub App to access your repositories."}
+            "Install the flowDeploy GitHub App to access your repositories."}
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -20,10 +20,10 @@ export function LandingHeader() {
         <Link
           to={ROUTES.LANDING}
           className="flex items-center gap-2 font-semibold text-lg"
-          aria-label="FlowDeploy - Home"
+          aria-label="flowDeploy - Home"
         >
           <Rocket className="h-6 w-6" aria-hidden="true" />
-          <span>FlowDeploy</span>
+          <span>flowDeploy</span>
         </Link>
 
         <nav

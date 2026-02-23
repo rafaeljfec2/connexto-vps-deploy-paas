@@ -85,6 +85,14 @@ func (h *ContainerExecHandler) handleConsole(c *websocket.Conn) {
 	rows := parseUint16Query(c, "rows", defaultRows)
 	serverID := c.Query("serverId", "")
 
+	if serverID == "" {
+		user, _ := c.Locals(userContextKey).(*domain.User)
+		if user == nil || !user.IsAdmin() {
+			_ = c.WriteMessage(websocket.TextMessage, []byte("Error: local console requires admin role\r\n"))
+			return
+		}
+	}
+
 	if serverID != "" {
 		h.handleRemoteConsole(c, containerID, shell, cols, rows, serverID)
 		return

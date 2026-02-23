@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+import { useAuth } from "@/contexts/auth-context";
 import { Monitor, Server } from "lucide-react";
 import {
   Select,
@@ -17,6 +19,13 @@ interface ServerSelectorProps {
 
 export function ServerSelector({ value, onChange }: ServerSelectorProps) {
   const { data: servers } = useServers();
+  const { isAdmin } = useAuth();
+
+  useEffect(() => {
+    if (!isAdmin && !value && servers?.length) {
+      onChange(servers[0].id);
+    }
+  }, [isAdmin, value, servers, onChange]);
 
   if (!servers?.length) return null;
 
@@ -29,12 +38,14 @@ export function ServerSelector({ value, onChange }: ServerSelectorProps) {
         <SelectValue placeholder="Select server" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={LOCAL_SERVER_VALUE}>
-          <div className="flex items-center gap-2">
-            <Monitor className="h-3.5 w-3.5" />
-            <span>Local Server</span>
-          </div>
-        </SelectItem>
+        {isAdmin && (
+          <SelectItem value={LOCAL_SERVER_VALUE}>
+            <div className="flex items-center gap-2">
+              <Monitor className="h-3.5 w-3.5" />
+              <span>Local Server</span>
+            </div>
+          </SelectItem>
+        )}
         {servers.map((server) => (
           <SelectItem key={server.id} value={server.id}>
             <div className="flex items-center gap-2">

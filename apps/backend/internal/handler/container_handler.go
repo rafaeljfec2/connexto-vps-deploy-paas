@@ -19,11 +19,10 @@ import (
 )
 
 const (
-	msgServerNotFound          = "Server not found"
-	msgFailedStartContainer    = "Failed to start container"
-	msgFailedStopContainer     = "Failed to stop container"
-	msgFailedRestartContainer  = "Failed to restart container"
-	msgFailedRemoveContainer   = "Failed to remove container"
+	msgFailedStartContainer   = "Failed to start container"
+	msgFailedStopContainer    = "Failed to stop container"
+	msgFailedRestartContainer = "Failed to restart container"
+	msgFailedRemoveContainer  = "Failed to remove container"
 )
 
 func isSelfContainerError(err error) bool {
@@ -114,6 +113,10 @@ func (h *ContainerHandler) ListContainers(c *fiber.Ctx) error {
 	all := c.Query("all", "true") == "true"
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	if serverID != "" {
 		return h.listRemoteContainers(c, serverID, all)
 	}
@@ -136,7 +139,7 @@ func (h *ContainerHandler) listRemoteContainers(c *fiber.Ctx, serverID string, a
 	host, err := h.resolveServerHost(serverID)
 	if err != nil {
 		h.logger.Error("Failed to resolve server", "serverId", serverID, "error", err)
-		return response.ServerError(c, fiber.StatusInternalServerError, msgServerNotFound)
+		return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 	}
 
 	containers, err := h.agentClient.ListContainers(c.Context(), host, h.agentPort, all, "")
@@ -271,10 +274,14 @@ func (h *ContainerHandler) StartContainer(c *fiber.Ctx) error {
 	id := c.Params("id")
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, msgServerNotFound)
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		if err := h.agentClient.StartContainer(c.Context(), host, h.agentPort, id); err != nil {
 			h.logger.Error("Failed to start remote container", "id", id, "serverId", serverID, "error", err)
@@ -295,10 +302,14 @@ func (h *ContainerHandler) StopContainer(c *fiber.Ctx) error {
 	id := c.Params("id")
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, msgServerNotFound)
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		if err := h.agentClient.StopContainer(c.Context(), host, h.agentPort, id); err != nil {
 			h.logger.Error("Failed to stop remote container", "id", id, "serverId", serverID, "error", err)
@@ -322,10 +333,14 @@ func (h *ContainerHandler) RestartContainer(c *fiber.Ctx) error {
 	id := c.Params("id")
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, msgServerNotFound)
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		if err := h.agentClient.RestartContainer(c.Context(), host, h.agentPort, id); err != nil {
 			h.logger.Error("Failed to restart remote container", "id", id, "serverId", serverID, "error", err)
@@ -355,6 +370,10 @@ func (h *ContainerHandler) GetContainerLogs(c *fiber.Ctx) error {
 	follow := c.Query("follow", "false") == "true"
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	tail, err := strconv.Atoi(tailStr)
 	if err != nil {
 		tail = 100
@@ -380,7 +399,7 @@ func (h *ContainerHandler) GetContainerLogs(c *fiber.Ctx) error {
 func (h *ContainerHandler) getRemoteContainerLogs(c *fiber.Ctx, serverID, containerID string, tail int, follow bool) error {
 	host, err := h.resolveServerHost(serverID)
 	if err != nil {
-		return response.ServerError(c, fiber.StatusInternalServerError, msgServerNotFound)
+		return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 	}
 
 	if follow {
@@ -443,10 +462,14 @@ func (h *ContainerHandler) RemoveContainer(c *fiber.Ctx) error {
 	force := c.Query("force", "false") == "true"
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, msgServerNotFound)
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		if err := h.agentClient.RemoveContainer(c.Context(), host, h.agentPort, id, force); err != nil {
 			h.logger.Error("Failed to remove remote container", "id", id, "serverId", serverID, "error", err)

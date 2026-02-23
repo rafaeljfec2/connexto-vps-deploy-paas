@@ -1,3 +1,5 @@
+import { useEffect, useMemo } from "react";
+import { useAuth } from "@/contexts/auth-context";
 import { Check, Loader2, Monitor, Server, Wifi, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
@@ -93,14 +95,31 @@ export function ServerStep({
   onBack,
 }: Readonly<StepProps>) {
   const { data: servers, isLoading } = useServers();
+  const { isAdmin } = useAuth();
   const selectedId = data.serverId;
 
   const handleSelect = (serverId: string) => {
     onUpdate({ serverId });
   };
 
-  const onlineServers = servers?.filter((s) => s.status === "online") ?? [];
-  const offlineServers = servers?.filter((s) => s.status !== "online") ?? [];
+  const onlineServers = useMemo(
+    () => servers?.filter((s) => s.status === "online") ?? [],
+    [servers],
+  );
+  const offlineServers = useMemo(
+    () => servers?.filter((s) => s.status !== "online") ?? [],
+    [servers],
+  );
+
+  useEffect(() => {
+    if (
+      !isAdmin &&
+      selectedId === LOCAL_SERVER_ID &&
+      onlineServers.length > 0
+    ) {
+      onUpdate({ serverId: onlineServers[0].id });
+    }
+  }, [isAdmin, selectedId, onlineServers, onUpdate]);
 
   return (
     <Card className="border-0 shadow-none md:border md:shadow-sm">
@@ -116,18 +135,20 @@ export function ServerStep({
         </div>
 
         <div className="space-y-3">
-          <ServerOption
-            selected={selectedId === LOCAL_SERVER_ID}
-            onSelect={() => handleSelect(LOCAL_SERVER_ID)}
-            icon={<Monitor className="h-5 w-5" />}
-            title="Local Server"
-            description="Deploy to this machine (default)"
-            badge={
-              <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                default
-              </span>
-            }
-          />
+          {isAdmin && (
+            <ServerOption
+              selected={selectedId === LOCAL_SERVER_ID}
+              onSelect={() => handleSelect(LOCAL_SERVER_ID)}
+              icon={<Monitor className="h-5 w-5" />}
+              title="Local Server"
+              description="Deploy to this machine (default)"
+              badge={
+                <span className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                  default
+                </span>
+              }
+            />
+          )}
 
           {isLoading && (
             <div className="flex items-center justify-center py-6 text-muted-foreground">

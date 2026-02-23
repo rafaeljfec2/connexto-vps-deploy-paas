@@ -25,7 +25,7 @@ export function TermsOfServicePage() {
           <section>
             <h2 className="text-xl font-semibold">1. Acceptance</h2>
             <p className="text-muted-foreground mt-2 leading-relaxed">
-              By signing in or using FlowDeploy (“Service”), you agree to these
+              By signing in or using flowDeploy (“Service”), you agree to these
               Terms of Service (“Terms”). If you are using the Service on behalf
               of an organization, you represent that you have authority to bind
               that organization. If you do not agree, do not use the Service.
@@ -35,7 +35,7 @@ export function TermsOfServicePage() {
           <section>
             <h2 className="text-xl font-semibold">2. Description of Service</h2>
             <p className="text-muted-foreground mt-2 leading-relaxed">
-              FlowDeploy is a self-hosted platform-as-a-service that enables
+              flowDeploy is a self-hosted platform-as-a-service that enables
               deployment and management of applications (e.g., Git-based
               deployments, SSL, custom domains, logs, and rollbacks). You are
               responsible for hosting and operating the Service on your own
@@ -110,7 +110,7 @@ export function TermsOfServicePage() {
             <p className="text-muted-foreground mt-2 leading-relaxed">
               For questions about these Terms, please open an issue in the
               project repository or contact the maintainers through the official
-              channel for the FlowDeploy project.
+              channel for the flowDeploy project.
             </p>
           </section>
         </div>

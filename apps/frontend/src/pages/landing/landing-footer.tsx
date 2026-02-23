@@ -28,7 +28,7 @@ export function LandingFooter() {
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Rocket className="h-4 w-4" aria-hidden="true" />
-            <span>FlowDeploy</span>
+            <span>flowDeploy</span>
           </div>
           <nav
             className="flex items-center gap-6 text-sm text-muted-foreground"
@@ -52,7 +52,7 @@ export function LandingFooter() {
           </nav>
         </div>
         <div className="mt-8 border-t border-border/30 pt-6 text-center text-xs text-muted-foreground">
-          <p>{currentYear} FlowDeploy. Built with Go and React.</p>
+          <p>{currentYear} flowDeploy. Built with Go and React.</p>
         </div>
       </div>
     </footer>

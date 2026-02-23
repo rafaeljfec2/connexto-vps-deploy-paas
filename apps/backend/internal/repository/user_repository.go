@@ -10,7 +10,7 @@ import (
 
 const userSelectColumns = `id, github_id, github_login, name, email, avatar_url,
 	access_token_encrypted, refresh_token_encrypted, token_expires_at,
-	password_hash, auth_provider, created_at, updated_at`
+	password_hash, auth_provider, role, created_at, updated_at`
 
 type PostgresUserRepository struct {
 	db *sql.DB
@@ -46,6 +46,7 @@ func (f *userScanFields) scanDest() []any {
 		&f.tokenExpiresAt,
 		&f.passwordHash,
 		&f.user.AuthProvider,
+		&f.user.Role,
 		&f.user.CreatedAt,
 		&f.user.UpdatedAt,
 	}

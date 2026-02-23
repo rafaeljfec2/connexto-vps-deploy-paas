@@ -36,10 +36,10 @@ export function Header() {
         <Link
           to={isAuthenticated ? ROUTES.HOME : ROUTES.LANDING}
           className="flex items-center gap-2 font-semibold text-lg"
-          aria-label="FlowDeploy - Go to home"
+          aria-label="flowDeploy - Go to home"
         >
           <Rocket className="h-6 w-6" aria-hidden="true" />
-          <span className="hidden sm:inline">FlowDeploy</span>
+          <span className="hidden sm:inline">flowDeploy</span>
           <span className="text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
             Self-hosted
           </span>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/auth-context";
 import { Box, Grid3X3, List, Plus, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +29,7 @@ const LOCAL_SERVER = "local";
 export function AppList() {
   const { data: apps, isLoading, error } = useApps();
   const { data: servers } = useServers();
+  const { isAdmin } = useAuth();
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const saved = localStorage.getItem(VIEW_MODE_KEY);
@@ -54,14 +56,19 @@ export function AppList() {
     return map;
   }, [servers]);
 
-  const filteredApps = useMemo(() => {
+  const visibleApps = useMemo(() => {
     if (!apps) return [];
-    if (serverFilter === ALL_SERVERS) return apps;
+    if (isAdmin) return apps;
+    return apps.filter((app) => app.serverId);
+  }, [apps, isAdmin]);
+
+  const filteredApps = useMemo(() => {
+    if (serverFilter === ALL_SERVERS) return visibleApps;
     if (serverFilter === LOCAL_SERVER) {
-      return apps.filter((app) => !app.serverId);
+      return visibleApps.filter((app) => !app.serverId);
     }
-    return apps.filter((app) => app.serverId === serverFilter);
-  }, [apps, serverFilter]);
+    return visibleApps.filter((app) => app.serverId === serverFilter);
+  }, [visibleApps, serverFilter]);
 
   const getServerName = (serverId?: string): string | undefined => {
     if (!serverId) return undefined;
@@ -76,7 +83,7 @@ export function AppList() {
     return <ErrorMessage message="Failed to load applications" />;
   }
 
-  if (!apps || apps.length === 0) {
+  if (!visibleApps || visibleApps.length === 0) {
     return (
       <EmptyState
         icon={Box}
@@ -94,7 +101,7 @@ export function AppList() {
     );
   }
 
-  const hasRemoteApps = apps.some((app) => app.serverId);
+  const hasRemoteApps = visibleApps.some((app) => app.serverId);
 
   return (
     <div className="space-y-4">
@@ -107,7 +114,11 @@ export function AppList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_SERVERS}>All servers</SelectItem>
-              <SelectItem value={LOCAL_SERVER}>Local (self-hosted)</SelectItem>
+              {isAdmin && (
+                <SelectItem value={LOCAL_SERVER}>
+                  Local (self-hosted)
+                </SelectItem>
+              )}
               {servers.map((server) => (
                 <SelectItem key={server.id} value={server.id}>
                   {server.name}
@@ -147,13 +158,15 @@ export function AppList() {
         </div>
       </div>
 
-      {filteredApps.length === 0 ? (
+      {filteredApps.length === 0 && (
         <EmptyState
           icon={Server}
           title="No applications on this server"
           description="There are no applications deployed to the selected server."
         />
-      ) : viewMode === "grid" ? (
+      )}
+
+      {filteredApps.length > 0 && viewMode === "grid" && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredApps.map((app) => (
             <AppCard
@@ -163,7 +176,9 @@ export function AppList() {
             />
           ))}
         </div>
-      ) : (
+      )}
+
+      {filteredApps.length > 0 && viewMode === "list" && (
         <div className="flex flex-col gap-2">
           {filteredApps.map((app) => (
             <AppRow

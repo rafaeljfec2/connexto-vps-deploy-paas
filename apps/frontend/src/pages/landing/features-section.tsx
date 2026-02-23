@@ -44,7 +44,7 @@ const FEATURES: readonly FeatureItem[] = [
     icon: FolderGit2,
     title: "Monorepo native",
     description:
-      "Deploy specific apps from monorepos. Point to a directory, FlowDeploy handles the rest.",
+      "Deploy specific apps from monorepos. Point to a directory, flowDeploy handles the rest.",
   },
   {
     icon: RotateCcw,

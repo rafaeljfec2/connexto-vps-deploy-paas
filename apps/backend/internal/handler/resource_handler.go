@@ -63,10 +63,14 @@ func (h *ResourceHandler) Register(app fiber.Router) {
 func (h *ResourceHandler) ListNetworks(c *fiber.Ctx) error {
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		networks, err := h.agentClient.ListNetworks(c.Context(), host, h.agentPort)
 		if err != nil {
@@ -90,6 +94,11 @@ func (h *ResourceHandler) ListNetworks(c *fiber.Ctx) error {
 
 func (h *ResourceHandler) CreateNetwork(c *fiber.Ctx) error {
 	serverID := c.Query("serverId", "")
+
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	var body struct {
 		Name string `json:"name"`
 	}
@@ -100,7 +109,7 @@ func (h *ResourceHandler) CreateNetwork(c *fiber.Ctx) error {
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		if err := h.agentClient.CreateNetwork(c.Context(), host, h.agentPort, body.Name); err != nil {
 			h.logger.Error("failed to create remote network", "name", body.Name, "error", err)
@@ -118,6 +127,11 @@ func (h *ResourceHandler) CreateNetwork(c *fiber.Ctx) error {
 
 func (h *ResourceHandler) RemoveNetwork(c *fiber.Ctx) error {
 	serverID := c.Query("serverId", "")
+
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	name, err := url.PathUnescape(c.Params("name"))
 	if err != nil || name == "" {
 		return response.BadRequest(c, "invalid network name")
@@ -126,7 +140,7 @@ func (h *ResourceHandler) RemoveNetwork(c *fiber.Ctx) error {
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		if err := h.agentClient.RemoveNetwork(c.Context(), host, h.agentPort, name); err != nil {
 			h.logger.Error("failed to remove remote network", "name", name, "error", err)
@@ -177,10 +191,14 @@ func (h *ResourceHandler) DisconnectContainerNetwork(c *fiber.Ctx) error {
 func (h *ResourceHandler) ListVolumes(c *fiber.Ctx) error {
 	serverID := c.Query("serverId", "")
 
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		volumes, err := h.agentClient.ListVolumes(c.Context(), host, h.agentPort)
 		if err != nil {
@@ -204,6 +222,11 @@ func (h *ResourceHandler) ListVolumes(c *fiber.Ctx) error {
 
 func (h *ResourceHandler) CreateVolume(c *fiber.Ctx) error {
 	serverID := c.Query("serverId", "")
+
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	var body struct {
 		Name string `json:"name"`
 	}
@@ -214,7 +237,7 @@ func (h *ResourceHandler) CreateVolume(c *fiber.Ctx) error {
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		if err := h.agentClient.CreateVolume(c.Context(), host, h.agentPort, body.Name); err != nil {
 			h.logger.Error("failed to create remote volume", "name", body.Name, "error", err)
@@ -232,6 +255,11 @@ func (h *ResourceHandler) CreateVolume(c *fiber.Ctx) error {
 
 func (h *ResourceHandler) RemoveVolume(c *fiber.Ctx) error {
 	serverID := c.Query("serverId", "")
+
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	name, err := url.PathUnescape(c.Params("name"))
 	if err != nil || name == "" {
 		return response.BadRequest(c, "invalid volume name")
@@ -240,7 +268,7 @@ func (h *ResourceHandler) RemoveVolume(c *fiber.Ctx) error {
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID)
 		if err != nil {
-			return response.ServerError(c, fiber.StatusInternalServerError, "Server not found")
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
 		if err := h.agentClient.RemoveVolume(c.Context(), host, h.agentPort, name); err != nil {
 			h.logger.Error("failed to remove remote volume", "name", name, "error", err)

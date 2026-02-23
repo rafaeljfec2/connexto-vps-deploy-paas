@@ -66,6 +66,17 @@ func EnsureAppOwnership(c *fiber.Ctx, appRepo domain.AppRepository, appID string
 	return nil
 }
 
+func RequireAdminForLocal(c *fiber.Ctx, serverID string) error {
+	if serverID != "" {
+		return nil
+	}
+	user := GetUserFromContext(c)
+	if user != nil && user.IsAdmin() {
+		return nil
+	}
+	return response.Forbidden(c, "local operations require admin role")
+}
+
 func ToEnvVarResponses(vars []domain.EnvVar) []domain.EnvVarResponse {
 	responses := make([]domain.EnvVarResponse, len(vars))
 	for i, v := range vars {

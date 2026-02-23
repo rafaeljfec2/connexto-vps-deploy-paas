@@ -79,7 +79,7 @@ export function ComparisonSection() {
             Built different
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            See how FlowDeploy compares to other deployment platforms.
+            See how flowDeploy compares to other deployment platforms.
           </p>
         </div>
         <div
@@ -91,7 +91,7 @@ export function ComparisonSection() {
             <div className="text-center">Vercel / Railway</div>
             <div className="text-center">Coolify</div>
             <div className="text-center font-semibold text-emerald-600 dark:text-emerald-400">
-              FlowDeploy
+              flowDeploy
             </div>
           </div>
           {COMPARISONS.map((row, index) => (

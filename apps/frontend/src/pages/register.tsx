@@ -115,7 +115,7 @@ export function RegisterPage() {
             Create your account
           </CardTitle>
           <CardDescription className="text-center">
-            Get started with FlowDeploy
+            Get started with flowDeploy
           </CardDescription>
         </CardHeader>
         <CardContent>

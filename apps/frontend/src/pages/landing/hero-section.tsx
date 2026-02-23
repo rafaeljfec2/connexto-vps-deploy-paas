@@ -40,25 +40,25 @@ const TERMINAL_LINES: readonly TerminalLine[] = [
   },
   {
     text: "Build started...",
-    prefix: "FlowDeploy ",
+    prefix: "flowDeploy ",
     prefixClass: "text-emerald-400",
     lineClass: "text-white/70 mt-3",
   },
   {
     text: "Building container...",
-    prefix: "FlowDeploy ",
+    prefix: "flowDeploy ",
     prefixClass: "text-emerald-400",
     lineClass: "text-white/70",
   },
   {
     text: "Health check passed",
-    prefix: "FlowDeploy ",
+    prefix: "flowDeploy ",
     prefixClass: "text-emerald-400",
     lineClass: "text-white/70",
   },
   {
     text: "SSL certificate configured",
-    prefix: "FlowDeploy ",
+    prefix: "flowDeploy ",
     prefixClass: "text-emerald-400",
     lineClass: "text-white/70",
   },
@@ -164,7 +164,7 @@ export function HeroSection() {
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground opacity-0 animate-fade-in-up [animation-delay:0.2s] sm:text-xl">
-            FlowDeploy gives you Vercel-like deploys on your own infrastructure.
+            flowDeploy gives you Vercel-like deploys on your own infrastructure.
             Push to main, get a live URL. No vendor lock-in, no surprise bills.
           </p>
 
