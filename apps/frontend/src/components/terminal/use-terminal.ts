@@ -80,7 +80,15 @@ export function useTerminal(options: TerminalOptions): UseTerminalReturn {
       };
 
       ws.onmessage = (event) => {
-        terminal.write(typeof event.data === "string" ? event.data : "");
+        if (typeof event.data === "string") {
+          terminal.write(event.data);
+        } else if (event.data instanceof ArrayBuffer) {
+          terminal.write(new Uint8Array(event.data));
+        } else if (event.data instanceof Blob) {
+          event.data.arrayBuffer().then((buf) => {
+            terminal.write(new Uint8Array(buf));
+          });
+        }
       };
 
       ws.onerror = () => {

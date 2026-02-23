@@ -192,7 +192,7 @@ func (h *ContainerExecHandler) grpcToWS(stream pb.AgentService_ExecContainerClie
 
 		switch p := out.Payload.(type) {
 		case *pb.ExecOutput_Data:
-			if writeErr := conn.WriteMessage(websocket.BinaryMessage, p.Data); writeErr != nil {
+			if writeErr := conn.WriteMessage(websocket.TextMessage, p.Data); writeErr != nil {
 				return
 			}
 		case *pb.ExecOutput_ExitCode:

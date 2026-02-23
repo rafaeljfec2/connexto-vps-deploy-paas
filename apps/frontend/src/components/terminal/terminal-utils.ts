@@ -46,7 +46,7 @@ export function isBrowserShortcut(event: KeyboardEvent): boolean {
 }
 
 export const DEFAULT_THEME: TerminalTheme = {
-  background: "#0f172a",
+  background: "#000000",
   foreground: "#e2e8f0",
   cursor: "#94a3b8",
   selection: "rgba(148, 163, 184, 0.3)",
