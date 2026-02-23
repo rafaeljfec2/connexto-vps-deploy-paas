@@ -495,3 +495,26 @@ func (c *AgentClient) RemoveVolume(ctx context.Context, host string, port int, n
 	}
 	return nil
 }
+
+type ExecContainerStream struct {
+	Stream  pb.AgentService_ExecContainerClient
+	Cleanup func()
+}
+
+func (c *AgentClient) ExecContainer(ctx context.Context, host string, port int) (*ExecContainerStream, error) {
+	client, cleanup, err := c.dial(host, port)
+	if err != nil {
+		return nil, fmt.Errorf("exec container dial: %w", err)
+	}
+
+	stream, err := client.ExecContainer(ctx)
+	if err != nil {
+		cleanup()
+		return nil, fmt.Errorf("exec container stream: %w", err)
+	}
+
+	return &ExecContainerStream{
+		Stream:  stream,
+		Cleanup: cleanup,
+	}, nil
+}

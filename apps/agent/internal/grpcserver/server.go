@@ -5,14 +5,17 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/creack/pty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health"
@@ -546,4 +549,121 @@ func (s *AgentService) RemoveContainer(ctx context.Context, req *pb.RemoveContai
 		Success: true,
 		Message: "Container removed",
 	}, nil
+}
+
+const execPTYBufSize = 4096
+
+func (s *AgentService) ExecContainer(stream pb.AgentService_ExecContainerServer) error {
+	msg, err := stream.Recv()
+	if err != nil {
+		return fmt.Errorf("exec: failed to receive start message: %w", err)
+	}
+
+	startReq := msg.GetStart()
+	if startReq == nil {
+		return fmt.Errorf("exec: first message must be ExecStartRequest")
+	}
+
+	containerID := startReq.ContainerId
+	shell := startReq.Shell
+	if shell == "" {
+		shell = "sh"
+	}
+	cols := uint16(startReq.Cols)
+	rows := uint16(startReq.Rows)
+	if cols == 0 {
+		cols = 80
+	}
+	if rows == 0 {
+		rows = 24
+	}
+
+	cmd := exec.Command("docker", "exec", "-it", containerID, shell)
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: cols, Rows: rows})
+	if err != nil {
+		s.logger.Error("exec: failed to start pty", "error", err, "container", containerID)
+		return fmt.Errorf("exec: failed to start docker exec: %w", err)
+	}
+	defer ptmx.Close()
+
+	var sendMu sync.Mutex
+	sendOutput := func(data []byte) error {
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		return stream.Send(&pb.ExecOutput{
+			Payload: &pb.ExecOutput_Data{Data: data},
+		})
+	}
+
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		buf := make([]byte, execPTYBufSize)
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			n, readErr := ptmx.Read(buf)
+			if n > 0 {
+				out := make([]byte, n)
+				copy(out, buf[:n])
+				if sendErr := sendOutput(out); sendErr != nil {
+					return
+				}
+			}
+			if readErr != nil {
+				if readErr != io.EOF {
+					s.logger.Debug("exec: pty read error", "error", readErr)
+				}
+				return
+			}
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			in, recvErr := stream.Recv()
+			if recvErr != nil {
+				return
+			}
+
+			switch p := in.Payload.(type) {
+			case *pb.ExecInput_Data:
+				if _, writeErr := ptmx.Write(p.Data); writeErr != nil {
+					return
+				}
+			case *pb.ExecInput_Resize:
+				if p.Resize.Cols > 0 && p.Resize.Rows > 0 {
+					_ = pty.Setsize(ptmx, &pty.Winsize{
+						Cols: uint16(p.Resize.Cols),
+						Rows: uint16(p.Resize.Rows),
+					})
+				}
+			}
+		}
+	}()
+
+	exitCode := 0
+	if waitErr := cmd.Wait(); waitErr != nil {
+		if exitErr, ok := waitErr.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		}
+	}
+	close(done)
+
+	sendMu.Lock()
+	_ = stream.Send(&pb.ExecOutput{
+		Payload: &pb.ExecOutput_ExitCode{ExitCode: int32(exitCode)},
+	})
+	sendMu.Unlock()
+
+	wg.Wait()
+	return nil
 }

@@ -82,7 +82,7 @@ func InitializeApplication() (*Application, func(), error) {
 	domainHandler := ProvideDomainHandler(config, postgresAppRepository, postgresCustomDomainRepository, postgresCloudflareConnectionRepository, postgresServerRepository, tokenEncryptor, engineEngine, logger)
 	migrationHandler := ProvideMigrationHandler(logger)
 	containerHandler := ProvideContainerHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
-	containerExecHandler := ProvideContainerExecHandler(logger)
+	containerExecHandler := ProvideContainerExecHandler(postgresServerRepository, agentClientForEngine, config, logger)
 	templateHandler := ProvideTemplateHandler(engineEngine, logger)
 	imageHandler := ProvideImageHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
 	certificateHandler := ProvideCertificateHandler(config, logger)

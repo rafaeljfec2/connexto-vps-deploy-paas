@@ -138,9 +138,11 @@ export const containersApi = {
       serverId,
     }),
 
-  consoleUrl: (id: string, shell = "sh"): string => {
+  consoleUrl: (id: string, shell = "sh", serverId?: string): string => {
     const base = API_URL.replace(/^http/, "ws");
-    return `${base}/paas-deploy/v1/containers/${id}/console?shell=${encodeURIComponent(shell)}`;
+    const params = new URLSearchParams({ shell });
+    if (serverId) params.set("serverId", serverId);
+    return `${base}/paas-deploy/v1/containers/${id}/console?${params.toString()}`;
   },
 };
 

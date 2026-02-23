@@ -44,6 +44,7 @@ const (
 	AgentService_RemoveVolume_FullMethodName      = "/flowdeploy.v1.AgentService/RemoveVolume"
 	AgentService_RemoveContainer_FullMethodName   = "/flowdeploy.v1.AgentService/RemoveContainer"
 	AgentService_UpdateDomains_FullMethodName     = "/flowdeploy.v1.AgentService/UpdateDomains"
+	AgentService_ExecContainer_FullMethodName     = "/flowdeploy.v1.AgentService/ExecContainer"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -74,6 +75,7 @@ type AgentServiceClient interface {
 	RemoveVolume(ctx context.Context, in *RemoveVolumeRequest, opts ...grpc.CallOption) (*RemoveVolumeResponse, error)
 	RemoveContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*RemoveContainerResponse, error)
 	UpdateDomains(ctx context.Context, in *UpdateDomainsRequest, opts ...grpc.CallOption) (*UpdateDomainsResponse, error)
+	ExecContainer(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecInput, ExecOutput], error)
 }
 
 type agentServiceClient struct {
@@ -351,6 +353,19 @@ func (c *agentServiceClient) UpdateDomains(ctx context.Context, in *UpdateDomain
 	return out, nil
 }
 
+func (c *agentServiceClient) ExecContainer(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecInput, ExecOutput], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[3], AgentService_ExecContainer_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ExecInput, ExecOutput]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_ExecContainerClient = grpc.BidiStreamingClient[ExecInput, ExecOutput]
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -379,6 +394,7 @@ type AgentServiceServer interface {
 	RemoveVolume(context.Context, *RemoveVolumeRequest) (*RemoveVolumeResponse, error)
 	RemoveContainer(context.Context, *RemoveContainerRequest) (*RemoveContainerResponse, error)
 	UpdateDomains(context.Context, *UpdateDomainsRequest) (*UpdateDomainsResponse, error)
+	ExecContainer(grpc.BidiStreamingServer[ExecInput, ExecOutput]) error
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -460,6 +476,9 @@ func (UnimplementedAgentServiceServer) RemoveContainer(context.Context, *RemoveC
 }
 func (UnimplementedAgentServiceServer) UpdateDomains(context.Context, *UpdateDomainsRequest) (*UpdateDomainsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateDomains not implemented")
+}
+func (UnimplementedAgentServiceServer) ExecContainer(grpc.BidiStreamingServer[ExecInput, ExecOutput]) error {
+	return status.Error(codes.Unimplemented, "method ExecContainer not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -893,6 +912,13 @@ func _AgentService_UpdateDomains_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ExecContainer_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AgentServiceServer).ExecContainer(&grpc.GenericServerStream[ExecInput, ExecOutput]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_ExecContainerServer = grpc.BidiStreamingServer[ExecInput, ExecOutput]
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1000,6 +1026,12 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "GetContainerStats",
 			Handler:       _AgentService_GetContainerStats_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "ExecContainer",
+			Handler:       _AgentService_ExecContainer_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "flowdeploy/v1/agent.proto",

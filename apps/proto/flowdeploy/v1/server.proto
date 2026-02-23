@@ -339,3 +339,30 @@ message UpdateDomainsResponse {
   bool success = 1;
   string message = 2;
 }
+
+message ExecInput {
+  oneof payload {
+    ExecStartRequest start = 1;
+    bytes data = 2;
+    ExecResize resize = 3;
+  }
+}
+
+message ExecStartRequest {
+  string container_id = 1;
+  string shell = 2;
+  uint32 cols = 3;
+  uint32 rows = 4;
+}
+
+message ExecResize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+message ExecOutput {
+  oneof payload {
+    bytes data = 1;
+    int32 exit_code = 2;
+  }
+}

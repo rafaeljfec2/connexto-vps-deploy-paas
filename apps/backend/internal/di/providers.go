@@ -554,8 +554,18 @@ func ProvideContainerHandler(
 	})
 }
 
-func ProvideContainerExecHandler(logger *slog.Logger) *handler.ContainerExecHandler {
-	return handler.NewContainerExecHandler(logger)
+func ProvideContainerExecHandler(
+	serverRepo domain.ServerRepository,
+	agentClient *agentclient.AgentClient,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *handler.ContainerExecHandler {
+	return handler.NewContainerExecHandler(handler.ContainerExecHandlerConfig{
+		AgentClient: agentClient,
+		ServerRepo:  serverRepo,
+		AgentPort:   cfg.GRPC.AgentPort,
+		Logger:      logger,
+	})
 }
 
 func ProvideTemplateHandler(eng *engine.Engine, logger *slog.Logger) *handler.TemplateHandler {

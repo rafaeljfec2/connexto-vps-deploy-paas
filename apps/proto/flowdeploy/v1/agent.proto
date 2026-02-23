@@ -58,4 +58,6 @@ service AgentService {
   rpc RemoveContainer(RemoveContainerRequest) returns (RemoveContainerResponse);
 
   rpc UpdateDomains(UpdateDomainsRequest) returns (UpdateDomainsResponse);
+
+  rpc ExecContainer(stream ExecInput) returns (stream ExecOutput);
 }

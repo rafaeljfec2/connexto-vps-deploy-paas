@@ -10,6 +10,7 @@ import { api } from "@/services/api";
 interface ContainerConsoleDialogProps {
   readonly containerId: string | null;
   readonly containerName: string;
+  readonly serverId?: string;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
@@ -17,10 +18,13 @@ interface ContainerConsoleDialogProps {
 export function ContainerConsoleDialog({
   containerId,
   containerName,
+  serverId,
   open,
   onOpenChange,
 }: ContainerConsoleDialogProps) {
-  const wsUrl = containerId ? api.containers.consoleUrl(containerId) : "";
+  const wsUrl = containerId
+    ? api.containers.consoleUrl(containerId, "sh", serverId)
+    : "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
