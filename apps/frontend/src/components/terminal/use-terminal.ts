@@ -9,6 +9,20 @@ import type {
 type Terminal = import("@xterm/xterm").Terminal;
 type FitAddon = import("@xterm/addon-fit").FitAddon;
 
+function writeTerminalData(terminal: Terminal, data: unknown): void {
+  if (typeof data === "string") {
+    terminal.write(data);
+    return;
+  }
+  if (data instanceof ArrayBuffer) {
+    terminal.write(new Uint8Array(data));
+    return;
+  }
+  if (data instanceof Blob) {
+    data.arrayBuffer().then((buf) => terminal.write(new Uint8Array(buf)));
+  }
+}
+
 export function useTerminal(options: TerminalOptions): UseTerminalReturn {
   const { onStatusChange } = options;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -76,19 +90,11 @@ export function useTerminal(options: TerminalOptions): UseTerminalReturn {
       ws.onopen = () => {
         setStatus("connected");
         doFit();
-        setTimeout(() => terminal.focus(), 100);
+        setTimeout(terminal.focus.bind(terminal), 100);
       };
 
       ws.onmessage = (event) => {
-        if (typeof event.data === "string") {
-          terminal.write(event.data);
-        } else if (event.data instanceof ArrayBuffer) {
-          terminal.write(new Uint8Array(event.data));
-        } else if (event.data instanceof Blob) {
-          event.data.arrayBuffer().then((buf) => {
-            terminal.write(new Uint8Array(buf));
-          });
-        }
+        writeTerminalData(terminal, event.data);
       };
 
       ws.onerror = () => {
