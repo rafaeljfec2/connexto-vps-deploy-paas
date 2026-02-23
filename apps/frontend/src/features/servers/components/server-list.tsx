@@ -129,10 +129,13 @@ function ServerCard({ server }: { readonly server: Server }) {
             </div>
             <div
               className="flex gap-2"
+              role="toolbar"
+              aria-label={`Actions for ${server.name}`}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
+              onKeyDown={(e) => e.stopPropagation()}
             >
               <Button
                 variant="outline"

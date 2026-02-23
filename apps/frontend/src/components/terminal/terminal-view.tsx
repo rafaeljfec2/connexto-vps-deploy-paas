@@ -88,7 +88,8 @@ export function TerminalView({
           <span className="text-destructive">{error}</span>
         </div>
       )}
-      <div // NOSONAR jsx-a11y - terminal input container with role="application"
+      {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- terminal container uses role="application" which is intentionally interactive */}
+      <div
         ref={containerRef}
         role="application"
         aria-label="Terminal"
@@ -99,6 +100,7 @@ export function TerminalView({
         }}
         onKeyDown={handleContainerKeyDown}
       />
+      {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
     </div>
   );
 }
