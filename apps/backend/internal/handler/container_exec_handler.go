@@ -152,8 +152,6 @@ func (h *ContainerExecHandler) handleRemoteConsole(c *websocket.Conn, containerI
 		_ = c.WriteMessage(websocket.TextMessage, []byte("Error: failed to connect to remote agent\r\n"))
 		return
 	}
-	defer execStream.Cleanup()
-
 	stream := execStream.Stream
 
 	startReq := &pb.ExecInput{

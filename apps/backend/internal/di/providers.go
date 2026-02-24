@@ -122,8 +122,8 @@ var HandlerSet = wire.NewSet(
 	ProvideAuditHandler,
 	ProvideNotificationHandler,
 	ProvideResourceHandler,
-	ProvideAgentHealthChecker,
 	ProvideAgentClient,
+	ProvideAgentHealthChecker,
 	ProvideServerHandlerAgentDeps,
 	ProvideServerHandler,
 )
@@ -201,26 +201,28 @@ func ProvideGitTokenProvider(
 	return engine.NewAppGitTokenProvider(appClient, installationRepo, logger)
 }
 
-func ProvideAppAdminHandler(
-	appRepo domain.AppRepository,
-	serverRepo domain.ServerRepository,
-	customDomainRepo domain.CustomDomainRepository,
-	envVarRepo domain.EnvVarRepository,
-	eng *engine.Engine,
-	agentClient *agentclient.AgentClient,
-	cfg *config.Config,
-	logger *slog.Logger,
-) *handler.AppAdminHandler {
+type AppAdminHandlerDeps struct {
+	AppRepo          domain.AppRepository
+	ServerRepo       domain.ServerRepository
+	CustomDomainRepo domain.CustomDomainRepository
+	EnvVarRepo       domain.EnvVarRepository
+	Engine           *engine.Engine
+	AgentClient      *agentclient.AgentClient
+	Config           *config.Config
+	Logger           *slog.Logger
+}
+
+func ProvideAppAdminHandler(deps AppAdminHandlerDeps) *handler.AppAdminHandler {
 	return handler.NewAppAdminHandler(handler.AppAdminHandlerConfig{
-		AppRepo:          appRepo,
-		ServerRepo:       serverRepo,
-		CustomDomainRepo: customDomainRepo,
-		EnvVarRepo:       envVarRepo,
-		Engine:           eng,
-		AgentClient:      agentClient,
-		AgentPort:        cfg.GRPC.AgentPort,
-		DataDir:          cfg.Deploy.DataDir,
-		Logger:           logger,
+		AppRepo:          deps.AppRepo,
+		ServerRepo:       deps.ServerRepo,
+		CustomDomainRepo: deps.CustomDomainRepo,
+		EnvVarRepo:       deps.EnvVarRepo,
+		Engine:           deps.Engine,
+		AgentClient:      deps.AgentClient,
+		AgentPort:        deps.Config.GRPC.AgentPort,
+		DataDir:          deps.Config.Deploy.DataDir,
+		Logger:           deps.Logger,
 	})
 }
 
@@ -507,30 +509,32 @@ func ProvideCloudflareAuthHandler(
 	})
 }
 
-func ProvideDomainHandler(
-	cfg *config.Config,
-	appRepo domain.AppRepository,
-	domainRepo domain.CustomDomainRepository,
-	connectionRepo domain.CloudflareConnectionRepository,
-	serverRepo domain.ServerRepository,
-	tokenEncryptor *crypto.TokenEncryptor,
-	eng *engine.Engine,
-	logger *slog.Logger,
-) *handler.DomainHandler {
-	if tokenEncryptor == nil {
-		logger.Info("DomainHandler not created: token encryptor not available")
+type DomainHandlerDeps struct {
+	Config         *config.Config
+	AppRepo        domain.AppRepository
+	DomainRepo     domain.CustomDomainRepository
+	ConnectionRepo domain.CloudflareConnectionRepository
+	ServerRepo     domain.ServerRepository
+	TokenEncryptor *crypto.TokenEncryptor
+	Engine         *engine.Engine
+	Logger         *slog.Logger
+}
+
+func ProvideDomainHandler(deps DomainHandlerDeps) *handler.DomainHandler {
+	if deps.TokenEncryptor == nil {
+		deps.Logger.Info("DomainHandler not created: token encryptor not available")
 		return nil
 	}
 
 	return handler.NewDomainHandler(handler.DomainHandlerConfig{
-		AppRepo:        appRepo,
-		DomainRepo:     domainRepo,
-		ConnectionRepo: connectionRepo,
-		ServerRepo:     serverRepo,
-		TokenEncryptor: tokenEncryptor,
-		ServerIP:       cfg.Cloudflare.ServerIP,
-		Logger:         logger,
-		DomainUpdater:  eng,
+		AppRepo:        deps.AppRepo,
+		DomainRepo:     deps.DomainRepo,
+		ConnectionRepo: deps.ConnectionRepo,
+		ServerRepo:     deps.ServerRepo,
+		TokenEncryptor: deps.TokenEncryptor,
+		ServerIP:       deps.Config.Cloudflare.ServerIP,
+		Logger:         deps.Logger,
+		DomainUpdater:  deps.Engine,
 	})
 }
 
@@ -669,12 +673,12 @@ func ProvidePKI(
 	return ca, nil
 }
 
-func ProvideAgentHealthChecker(ca *pki.CertificateAuthority, cfg *config.Config) *agentclient.HealthChecker {
+func ProvideAgentHealthChecker(ac *agentclient.AgentClient, cfg *config.Config) *agentclient.HealthChecker {
 	timeout := 10 * time.Second
 	if cfg.Deploy.HealthCheckTimeout > 0 {
 		timeout = cfg.Deploy.HealthCheckTimeout
 	}
-	return agentclient.NewHealthChecker(ca, timeout, cfg.GRPC.AgentTLSInsecureSkipVerify)
+	return agentclient.NewHealthChecker(ac, timeout)
 }
 
 func ProvideAgentClient(ca *pki.CertificateAuthority, cfg *config.Config) *agentclient.AgentClient {

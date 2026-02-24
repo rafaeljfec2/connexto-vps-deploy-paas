@@ -18,8 +18,10 @@ import (
 	"github.com/creack/pty"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/health"
 	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -70,7 +72,18 @@ func New(cfg Config, logger *slog.Logger) (*Server, error) {
 		MinVersion:   tls.VersionTLS13,
 	}
 
-	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+	grpcServer := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 5 * time.Minute,
+			Time:              10 * time.Second,
+			Timeout:           5 * time.Second,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             5 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	)
 	healthServer := health.NewServer()
 	healthServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
@@ -228,43 +241,34 @@ func (s *AgentService) GetContainerLogs(req *pb.ContainerLogsRequest, stream pb.
 	}
 
 	if !req.Follow {
-		logs, err := s.docker.ContainerLogs(ctx, req.ContainerId, tail)
-		if err != nil {
-			return fmt.Errorf("failed to get container logs: %w", err)
-		}
-		for _, line := range strings.Split(logs, "\n") {
-			if line == "" {
-				continue
-			}
-			ts, msg := parseLogTimestamp(line)
-			if err := stream.Send(&pb.ContainerLogEntry{
-				Timestamp: ts,
-				Stream:    "stdout",
-				Message:   msg,
-			}); err != nil {
-				return err
-			}
-		}
-		return nil
+		return s.sendStaticLogs(ctx, req.ContainerId, tail, stream)
 	}
+	return s.streamFollowLogs(ctx, req.ContainerId, stream)
+}
 
+func (s *AgentService) sendStaticLogs(ctx context.Context, containerID string, tail int, stream pb.AgentService_GetContainerLogsServer) error {
+	logs, err := s.docker.ContainerLogs(ctx, containerID, tail)
+	if err != nil {
+		return fmt.Errorf("failed to get container logs: %w", err)
+	}
+	for _, line := range strings.Split(logs, "\n") {
+		if err := sendLogLine(line, stream); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *AgentService) streamFollowLogs(ctx context.Context, containerID string, stream pb.AgentService_GetContainerLogsServer) error {
 	output := make(chan string, 256)
 	errCh := make(chan error, 1)
 
 	go func() {
-		errCh <- s.docker.StreamContainerLogs(ctx, req.ContainerId, output)
+		errCh <- s.docker.StreamContainerLogs(ctx, containerID, output)
 	}()
 
 	for line := range output {
-		if line == "" {
-			continue
-		}
-		ts, msg := parseLogTimestamp(line)
-		if err := stream.Send(&pb.ContainerLogEntry{
-			Timestamp: ts,
-			Stream:    "stdout",
-			Message:   msg,
-		}); err != nil {
+		if err := sendLogLine(line, stream); err != nil {
 			return err
 		}
 	}
@@ -273,6 +277,18 @@ func (s *AgentService) GetContainerLogs(req *pb.ContainerLogsRequest, stream pb.
 		return err
 	}
 	return nil
+}
+
+func sendLogLine(line string, stream pb.AgentService_GetContainerLogsServer) error {
+	if line == "" {
+		return nil
+	}
+	ts, msg := parseLogTimestamp(line)
+	return stream.Send(&pb.ContainerLogEntry{
+		Timestamp: ts,
+		Stream:    "stdout",
+		Message:   msg,
+	})
 }
 
 func parseLogTimestamp(line string) (*timestamppb.Timestamp, string) {
@@ -553,29 +569,110 @@ func (s *AgentService) RemoveContainer(ctx context.Context, req *pb.RemoveContai
 
 const execPTYBufSize = 4096
 
-func (s *AgentService) ExecContainer(stream pb.AgentService_ExecContainerServer) error {
+type execSession struct {
+	stream pb.AgentService_ExecContainerServer
+	ptmx   *os.File
+	sendMu sync.Mutex
+	done   chan struct{}
+	logger *slog.Logger
+}
+
+func (es *execSession) sendOutput(data []byte) error {
+	es.sendMu.Lock()
+	defer es.sendMu.Unlock()
+	return es.stream.Send(&pb.ExecOutput{
+		Payload: &pb.ExecOutput_Data{Data: data},
+	})
+}
+
+func (es *execSession) sendExitCode(code int) {
+	es.sendMu.Lock()
+	defer es.sendMu.Unlock()
+	_ = es.stream.Send(&pb.ExecOutput{
+		Payload: &pb.ExecOutput_ExitCode{ExitCode: int32(code)},
+	})
+}
+
+func (es *execSession) readLoop(wg *sync.WaitGroup) {
+	defer wg.Done()
+	buf := make([]byte, execPTYBufSize)
+	for {
+		select {
+		case <-es.done:
+			return
+		default:
+		}
+		n, readErr := es.ptmx.Read(buf)
+		if n > 0 {
+			out := make([]byte, n)
+			copy(out, buf[:n])
+			if sendErr := es.sendOutput(out); sendErr != nil {
+				return
+			}
+		}
+		if readErr != nil {
+			if readErr != io.EOF {
+				es.logger.Debug("exec: pty read error", "error", readErr)
+			}
+			return
+		}
+	}
+}
+
+func (es *execSession) writeLoop(wg *sync.WaitGroup) {
+	defer wg.Done()
+	for {
+		in, recvErr := es.stream.Recv()
+		if recvErr != nil {
+			return
+		}
+		es.handleInput(in)
+	}
+}
+
+func (es *execSession) handleInput(in *pb.ExecInput) {
+	switch p := in.Payload.(type) {
+	case *pb.ExecInput_Data:
+		_, _ = es.ptmx.Write(p.Data)
+	case *pb.ExecInput_Resize:
+		if p.Resize.Cols > 0 && p.Resize.Rows > 0 {
+			_ = pty.Setsize(es.ptmx, &pty.Winsize{
+				Cols: uint16(p.Resize.Cols),
+				Rows: uint16(p.Resize.Rows),
+			})
+		}
+	}
+}
+
+func parseExecStartRequest(stream pb.AgentService_ExecContainerServer) (containerID, shell string, cols, rows uint16, err error) {
 	msg, err := stream.Recv()
 	if err != nil {
-		return fmt.Errorf("exec: failed to receive start message: %w", err)
+		return "", "", 0, 0, fmt.Errorf("exec: failed to receive start message: %w", err)
 	}
-
 	startReq := msg.GetStart()
 	if startReq == nil {
-		return fmt.Errorf("exec: first message must be ExecStartRequest")
+		return "", "", 0, 0, fmt.Errorf("exec: first message must be ExecStartRequest")
 	}
-
-	containerID := startReq.ContainerId
-	shell := startReq.Shell
+	containerID = startReq.ContainerId
+	shell = startReq.Shell
 	if shell == "" {
 		shell = "sh"
 	}
-	cols := uint16(startReq.Cols)
-	rows := uint16(startReq.Rows)
+	cols = uint16(startReq.Cols)
+	rows = uint16(startReq.Rows)
 	if cols == 0 {
 		cols = 80
 	}
 	if rows == 0 {
 		rows = 24
+	}
+	return containerID, shell, cols, rows, nil
+}
+
+func (s *AgentService) ExecContainer(stream pb.AgentService_ExecContainerServer) error {
+	containerID, shell, cols, rows, err := parseExecStartRequest(stream)
+	if err != nil {
+		return err
 	}
 
 	cmd := exec.Command("docker", "exec", "-it", containerID, shell)
@@ -586,69 +683,17 @@ func (s *AgentService) ExecContainer(stream pb.AgentService_ExecContainerServer)
 	}
 	defer ptmx.Close()
 
-	var sendMu sync.Mutex
-	sendOutput := func(data []byte) error {
-		sendMu.Lock()
-		defer sendMu.Unlock()
-		return stream.Send(&pb.ExecOutput{
-			Payload: &pb.ExecOutput_Data{Data: data},
-		})
+	session := &execSession{
+		stream: stream,
+		ptmx:   ptmx,
+		done:   make(chan struct{}),
+		logger: s.logger,
 	}
 
-	done := make(chan struct{})
 	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		buf := make([]byte, execPTYBufSize)
-		for {
-			select {
-			case <-done:
-				return
-			default:
-			}
-			n, readErr := ptmx.Read(buf)
-			if n > 0 {
-				out := make([]byte, n)
-				copy(out, buf[:n])
-				if sendErr := sendOutput(out); sendErr != nil {
-					return
-				}
-			}
-			if readErr != nil {
-				if readErr != io.EOF {
-					s.logger.Debug("exec: pty read error", "error", readErr)
-				}
-				return
-			}
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			in, recvErr := stream.Recv()
-			if recvErr != nil {
-				return
-			}
-
-			switch p := in.Payload.(type) {
-			case *pb.ExecInput_Data:
-				if _, writeErr := ptmx.Write(p.Data); writeErr != nil {
-					return
-				}
-			case *pb.ExecInput_Resize:
-				if p.Resize.Cols > 0 && p.Resize.Rows > 0 {
-					_ = pty.Setsize(ptmx, &pty.Winsize{
-						Cols: uint16(p.Resize.Cols),
-						Rows: uint16(p.Resize.Rows),
-					})
-				}
-			}
-		}
-	}()
+	wg.Add(2)
+	go session.readLoop(&wg)
+	go session.writeLoop(&wg)
 
 	exitCode := 0
 	if waitErr := cmd.Wait(); waitErr != nil {
@@ -656,13 +701,8 @@ func (s *AgentService) ExecContainer(stream pb.AgentService_ExecContainerServer)
 			exitCode = exitErr.ExitCode()
 		}
 	}
-	close(done)
-
-	sendMu.Lock()
-	_ = stream.Send(&pb.ExecOutput{
-		Payload: &pb.ExecOutput_ExitCode{ExitCode: int32(exitCode)},
-	})
-	sendMu.Unlock()
+	close(session.done)
+	session.sendExitCode(exitCode)
 
 	wg.Wait()
 	return nil

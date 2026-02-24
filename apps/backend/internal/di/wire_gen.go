@@ -67,7 +67,16 @@ func InitializeApplication() (*Application, func(), error) {
 	swaggerHandler := handler.NewSwaggerHandler()
 	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository, logger)
 	containerHealthHandler := handler.NewContainerHealthHandler(postgresAppRepository, postgresServerRepository, engineEngine, agentClientForEngine, config.GRPC.AgentPort, logger)
-	appAdminHandler := ProvideAppAdminHandler(postgresAppRepository, postgresServerRepository, postgresCustomDomainRepository, postgresEnvVarRepository, engineEngine, agentClientForEngine, config, logger)
+	appAdminHandler := ProvideAppAdminHandler(AppAdminHandlerDeps{
+		AppRepo:          postgresAppRepository,
+		ServerRepo:       postgresServerRepository,
+		CustomDomainRepo: postgresCustomDomainRepository,
+		EnvVarRepo:       postgresEnvVarRepository,
+		Engine:           engineEngine,
+		AgentClient:      agentClientForEngine,
+		Config:           config,
+		Logger:           logger,
+	})
 	postgresWebhookPayloadRepository := repository.NewPostgresWebhookPayloadRepository(db)
 	webhookHandler := ProvideGitHubWebhookHandler(config, postgresAppRepository, postgresDeploymentRepository, postgresWebhookPayloadRepository, auditService, logger)
 	oAuthClient := ProvideOAuthClient(config, logger)
@@ -79,7 +88,16 @@ func InitializeApplication() (*Application, func(), error) {
 	authMiddleware := ProvideAuthMiddleware(config, postgresSessionRepository, postgresUserRepository, logger)
 	postgresCloudflareConnectionRepository := repository.NewPostgresCloudflareConnectionRepository(db)
 	cloudflareAuthHandler := ProvideCloudflareAuthHandler(config, postgresCloudflareConnectionRepository, tokenEncryptor, logger)
-	domainHandler := ProvideDomainHandler(config, postgresAppRepository, postgresCustomDomainRepository, postgresCloudflareConnectionRepository, postgresServerRepository, tokenEncryptor, engineEngine, logger)
+	domainHandler := ProvideDomainHandler(DomainHandlerDeps{
+		Config:         config,
+		AppRepo:        postgresAppRepository,
+		DomainRepo:     postgresCustomDomainRepository,
+		ConnectionRepo: postgresCloudflareConnectionRepository,
+		ServerRepo:     postgresServerRepository,
+		TokenEncryptor: tokenEncryptor,
+		Engine:         engineEngine,
+		Logger:         logger,
+	})
 	migrationHandler := ProvideMigrationHandler(logger)
 	containerHandler := ProvideContainerHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
 	containerExecHandler := ProvideContainerExecHandler(postgresServerRepository, agentClientForEngine, config, logger)
@@ -93,9 +111,8 @@ func InitializeApplication() (*Application, func(), error) {
 	notificationService := ProvideNotificationService(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
 	notificationHandler := ProvideNotificationHandler(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
 	sshProvisioner := ProvideSSHProvisioner(certificateAuthority, config, logger, postgresServerRepository)
-	healthChecker := ProvideAgentHealthChecker(certificateAuthority, config)
-	agentClient := ProvideAgentClient(certificateAuthority, config)
-	serverHandlerAgentDeps := ProvideServerHandlerAgentDeps(healthChecker, agentClient, config, grpcserverServer)
+	healthChecker := ProvideAgentHealthChecker(agentClientForEngine, config)
+	serverHandlerAgentDeps := ProvideServerHandlerAgentDeps(healthChecker, agentClientForEngine, config, grpcserverServer)
 	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, serverHandlerAgentDeps, appService, logger)
 	agentdownloadHandler := ProvideAgentDownloadHandler(tokenStore, config, logger)
 	application := &Application{

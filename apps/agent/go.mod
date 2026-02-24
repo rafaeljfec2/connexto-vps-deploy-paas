@@ -5,6 +5,7 @@ go 1.24.0
 toolchain go1.24.12
 
 require (
+	github.com/creack/pty v1.1.24
 	github.com/paasdeploy/backend v0.0.0
 	github.com/paasdeploy/shared v0.0.0
 	golang.org/x/sys v0.40.0
@@ -13,7 +14,6 @@ require (
 )
 
 require (
-	github.com/creack/pty v1.1.24 // indirect
 	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251029180050-ab9386a59fda // indirect
