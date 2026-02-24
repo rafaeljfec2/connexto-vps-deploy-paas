@@ -31,13 +31,22 @@ func (s *TokenStore) Create() (string, error) {
 	return token, nil
 }
 
-func (s *TokenStore) Consume(token string) bool {
+func (s *TokenStore) Validate(token string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.cleanupExpiredLocked()
 	expiry, ok := s.tokens[token]
 	if !ok || time.Now().After(expiry) {
 		return false
 	}
-	delete(s.tokens, token)
 	return true
+}
+
+func (s *TokenStore) cleanupExpiredLocked() {
+	now := time.Now()
+	for t, exp := range s.tokens {
+		if now.After(exp) {
+			delete(s.tokens, t)
+		}
+	}
 }

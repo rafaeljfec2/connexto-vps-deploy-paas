@@ -184,6 +184,24 @@ func (a *Agent) downloadAndReplace(downloadURL, execPath string) error {
 }
 
 func (a *Agent) downloadToFile(downloadURL, destPath string) error {
+	const maxRetries = 3
+	var lastErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		if attempt > 1 {
+			backoff := time.Duration(attempt) * 5 * time.Second
+			a.logger.Info("retrying download", "attempt", attempt, "backoff", backoff)
+			time.Sleep(backoff)
+		}
+		lastErr = a.tryDownload(downloadURL, destPath)
+		if lastErr == nil {
+			return nil
+		}
+		a.logger.Warn("download attempt failed", "attempt", attempt, "maxRetries", maxRetries, "error", lastErr)
+	}
+	return lastErr
+}
+
+func (a *Agent) tryDownload(downloadURL, destPath string) error {
 	a.logger.Info("downloading binary", "dest", destPath)
 	client := &http.Client{Timeout: selfUpdateTimeout}
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, downloadURL, nil)
@@ -193,8 +211,7 @@ func (a *Agent) downloadToFile(downloadURL, destPath string) error {
 	req.Header.Set("User-Agent", "PaasDeploy-Agent/"+Version)
 	resp, err := client.Do(req)
 	if err != nil {
-		a.logger.Error("download request failed", "error", err.Error())
-		return fmt.Errorf("download request failed")
+		return fmt.Errorf("download request: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {

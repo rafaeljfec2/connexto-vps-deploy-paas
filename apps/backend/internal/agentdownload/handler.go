@@ -28,7 +28,7 @@ func (h *Handler) ServeBinary(c *fiber.Ctx) error {
 	if token == "" {
 		return response.BadRequest(c, "missing token")
 	}
-	if !h.tokenStore.Consume(token) {
+	if !h.tokenStore.Validate(token) {
 		h.logger.Warn("agent download token rejected", "ip", c.IP())
 		return response.Unauthorized(c, "invalid or expired token")
 	}
