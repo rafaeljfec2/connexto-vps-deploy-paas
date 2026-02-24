@@ -436,6 +436,7 @@ func (c *AgentClient) PushUpdate(ctx context.Context, host string, port int, bin
 
 	buf := make([]byte, pushUpdateChunkSize)
 	first := true
+	var sendFailed bool
 
 	for {
 		n, readErr := f.Read(buf)
@@ -449,6 +450,10 @@ func (c *AgentClient) PushUpdate(ctx context.Context, host string, port int, bin
 				first = false
 			}
 			if sendErr := stream.Send(chunk); sendErr != nil {
+				if sendErr == io.EOF {
+					sendFailed = true
+					break
+				}
 				return fmt.Errorf("send chunk: %w", sendErr)
 			}
 		}
@@ -462,6 +467,9 @@ func (c *AgentClient) PushUpdate(ctx context.Context, host string, port int, bin
 
 	resp, err := stream.CloseAndRecv()
 	if err != nil {
+		if sendFailed {
+			return fmt.Errorf("agent closed stream early (agent may not support gRPC push — try HTTPS mode): %w", err)
+		}
 		return fmt.Errorf("close stream: %w", err)
 	}
 	if !resp.Success {
