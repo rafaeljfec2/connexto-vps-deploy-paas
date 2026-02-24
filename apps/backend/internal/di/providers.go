@@ -746,6 +746,7 @@ func ProvideServerHandlerAgentDeps(
 		HealthChecker:       healthChecker,
 		AgentClient:         agentClient,
 		AgentPort:           cfg.GRPC.AgentPort,
+		AgentBinaryPath:     cfg.GRPC.AgentBinaryPath,
 		UpdateAgentEnqueuer: grpcServer,
 	}
 }

@@ -266,6 +266,16 @@ func (h *SSEHandler) NotifyUpdateCompleted(serverID, newVersion string) {
 	})
 }
 
+func (h *SSEHandler) EmitAgentUpdateError(serverID, message string) {
+	h.Emit(SSEEvent{
+		Type:     "AGENT_UPDATE_STEP",
+		ServerID: serverID,
+		Step:     "error",
+		Status:   "error",
+		Message:  message,
+	})
+}
+
 func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 	h.bufMu.RLock()
 	events := make([]SSEEvent, len(h.eventBuf))

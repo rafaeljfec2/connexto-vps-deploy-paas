@@ -27,6 +27,7 @@ type Server struct {
 	SSHHostKey           string       `json:"-"`
 	Status               ServerStatus `json:"status"`
 	AgentVersion         *string      `json:"agentVersion,omitempty"`
+	AgentUpdateMode      string       `json:"agentUpdateMode"`
 	LastHeartbeatAt      *time.Time   `json:"lastHeartbeatAt,omitempty"`
 	CreatedAt            time.Time    `json:"createdAt"`
 	UpdatedAt            time.Time    `json:"updatedAt"`
@@ -52,6 +53,7 @@ type UpdateServerInput struct {
 	SSHPasswordEncrypted *string       `json:"-"`
 	AcmeEmail            *string       `json:"acmeEmail,omitempty"`
 	Status               *ServerStatus `json:"status,omitempty"`
+	AgentUpdateMode      *string       `json:"agentUpdateMode,omitempty"`
 }
 
 type ServerRepository interface {

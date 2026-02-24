@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/paasdeploy/agent/internal/grpcclient"
@@ -32,9 +33,11 @@ type Config struct {
 }
 
 type Agent struct {
-	cfg    Config
-	client *grpcclient.Client
-	logger *slog.Logger
+	cfg         Config
+	client      *grpcclient.Client
+	logger      *slog.Logger
+	updateErrMu sync.Mutex
+	updateError string
 }
 
 func New(cfg Config, logger *slog.Logger) (*Agent, error) {
@@ -115,7 +118,7 @@ func (a *Agent) register(ctx context.Context) error {
 }
 
 func (a *Agent) heartbeat(ctx context.Context) error {
-	resp, err := a.client.Heartbeat(ctx, &pb.HeartbeatRequest{
+	req := &pb.HeartbeatRequest{
 		AgentId:      a.cfg.ServerID,
 		AgentVersion: Version,
 		Status: &pb.AgentStatus{
@@ -123,7 +126,13 @@ func (a *Agent) heartbeat(ctx context.Context) error {
 			ActiveDeployCount: 0,
 			ContainerCount:    0,
 		},
-	})
+	}
+
+	if updateErr := a.consumeUpdateError(); updateErr != "" {
+		req.UpdateError = &updateErr
+	}
+
+	resp, err := a.client.Heartbeat(ctx, req)
 	if err != nil {
 		return err
 	}
@@ -154,22 +163,39 @@ func (a *Agent) handleUpdateAgent(payload string) {
 	go a.runSelfUpdate(payload)
 }
 
+func (a *Agent) setUpdateError(msg string) {
+	a.updateErrMu.Lock()
+	a.updateError = msg
+	a.updateErrMu.Unlock()
+}
+
+func (a *Agent) consumeUpdateError() string {
+	a.updateErrMu.Lock()
+	defer a.updateErrMu.Unlock()
+	err := a.updateError
+	a.updateError = ""
+	return err
+}
+
 func (a *Agent) runSelfUpdate(downloadURL string) {
 	a.logger.Info("starting self-update", "url", downloadURL)
 	execPath, err := os.Executable()
 	if err != nil {
 		a.logger.Error("failed to get executable path", "error", err)
+		a.setUpdateError(err.Error())
 		return
 	}
 	a.logger.Info("current binary path", "path", execPath)
 
 	if err := a.downloadAndReplace(downloadURL, execPath); err != nil {
 		a.logger.Error("self-update failed", "error", err)
+		a.setUpdateError(err.Error())
 		return
 	}
 	a.logger.Info("self-update complete, restarting", "path", execPath)
 	if err := unix.Exec(execPath, os.Args, os.Environ()); err != nil {
 		a.logger.Error("exec failed", "error", err)
+		a.setUpdateError(err.Error())
 	}
 }
 

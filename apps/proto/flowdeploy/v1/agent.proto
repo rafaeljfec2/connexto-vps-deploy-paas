@@ -60,4 +60,17 @@ service AgentService {
   rpc UpdateDomains(UpdateDomainsRequest) returns (UpdateDomainsResponse);
 
   rpc ExecContainer(stream ExecInput) returns (stream ExecOutput);
+
+  rpc PushUpdate(stream UpdateBinaryChunk) returns (UpdateBinaryResponse);
+}
+
+message UpdateBinaryChunk {
+  bytes data = 1;
+  string version = 2;
+  int64 total_size = 3;
+}
+
+message UpdateBinaryResponse {
+  bool success = 1;
+  string message = 2;
 }

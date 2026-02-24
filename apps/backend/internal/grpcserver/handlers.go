@@ -62,6 +62,11 @@ func (s *Server) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.H
 
 	s.emitAgentUpdateEvents(serverID, previousVersion, req.GetAgentVersion(), commands)
 
+	if updateErr := req.GetUpdateError(); updateErr != "" && s.agentUpdateNotifier != nil {
+		s.logger.Warn("agent reported update error", "serverId", serverID, "error", updateErr)
+		s.agentUpdateNotifier.EmitAgentUpdateError(serverID, updateErr)
+	}
+
 	return &pb.HeartbeatResponse{
 		Acknowledged: true,
 		Commands:     commands,

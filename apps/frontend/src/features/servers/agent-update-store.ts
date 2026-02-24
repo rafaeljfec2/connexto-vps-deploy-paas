@@ -12,14 +12,22 @@ export function applyAgentUpdateEvent(serverId: string, event: SSEEvent): void {
 
   const step = (event.step ?? "enqueued") as AgentUpdateStep;
   const isCompleted = step === "updated";
+  const isError = step === "error";
 
   const prev = state.get(serverId);
   const startedAt = prev?.startedAt ?? Date.now();
 
+  const resolveStatus = (): AgentUpdateState["status"] => {
+    if (isCompleted) return "completed";
+    if (isError) return "error";
+    return "running";
+  };
+
   state.set(serverId, {
     step,
-    status: isCompleted ? "completed" : "running",
+    status: resolveStatus(),
     version: isCompleted ? event.message : prev?.version,
+    errorMessage: isError ? event.message : undefined,
     startedAt,
   });
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -11,6 +12,8 @@ import (
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
 	"github.com/paasdeploy/backend/internal/pki"
 )
+
+const pushUpdateChunkSize = 256 * 1024
 
 const defaultAgentPort = 50052
 
@@ -406,4 +409,64 @@ func (c *AgentClient) ExecContainer(ctx context.Context, host string, port int) 
 		return nil, fmt.Errorf("exec container stream: %w", err)
 	}
 	return &ExecContainerStream{Stream: stream}, nil
+}
+
+func (c *AgentClient) PushUpdate(ctx context.Context, host string, port int, binaryPath, version string) error {
+	f, err := os.Open(binaryPath)
+	if err != nil {
+		return fmt.Errorf("open binary: %w", err)
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("stat binary: %w", err)
+	}
+	totalSize := info.Size()
+
+	cl, err := c.client(host, port)
+	if err != nil {
+		return fmt.Errorf("push update dial: %w", err)
+	}
+
+	stream, err := cl.PushUpdate(ctx)
+	if err != nil {
+		return fmt.Errorf("push update stream: %w", err)
+	}
+
+	buf := make([]byte, pushUpdateChunkSize)
+	first := true
+
+	for {
+		n, readErr := f.Read(buf)
+		if n > 0 {
+			chunk := &pb.UpdateBinaryChunk{
+				Data: buf[:n],
+			}
+			if first {
+				chunk.Version = version
+				chunk.TotalSize = totalSize
+				first = false
+			}
+			if sendErr := stream.Send(chunk); sendErr != nil {
+				return fmt.Errorf("send chunk: %w", sendErr)
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return fmt.Errorf("read binary: %w", readErr)
+		}
+	}
+
+	resp, err := stream.CloseAndRecv()
+	if err != nil {
+		return fmt.Errorf("close stream: %w", err)
+	}
+	if !resp.Success {
+		return fmt.Errorf("agent rejected update: %s", resp.Message)
+	}
+
+	return nil
 }

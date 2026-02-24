@@ -39,10 +39,10 @@ type AgentTokenStore interface {
 	Create() (string, error)
 }
 
-// AgentUpdateNotifier sends real-time notifications about agent update progress.
 type AgentUpdateNotifier interface {
 	NotifyUpdateDelivered(serverID string)
 	NotifyUpdateCompleted(serverID, newVersion string)
+	EmitAgentUpdateError(serverID, message string)
 }
 
 func grpcServerCertHostname(cfg *config.Config) string {

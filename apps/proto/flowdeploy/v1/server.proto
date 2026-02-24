@@ -44,6 +44,8 @@ message HeartbeatRequest {
   optional SystemMetrics metrics = 5;
 
   string agent_version = 6;
+
+  optional string update_error = 7;
 }
 
 message AgentStatus {

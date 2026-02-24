@@ -45,6 +45,7 @@ type ServerHandlerAgentDeps struct {
 	HealthChecker        *agentclient.HealthChecker
 	AgentClient          *agentclient.AgentClient
 	AgentPort            int
+	AgentBinaryPath      string
 	UpdateAgentEnqueuer  UpdateAgentEnqueuer
 }
 
@@ -56,6 +57,7 @@ type ServerHandler struct {
 	healthChecker        *agentclient.HealthChecker
 	agentClient          *agentclient.AgentClient
 	agentPort            int
+	agentBinaryPath      string
 	updateAgentEnqueuer  UpdateAgentEnqueuer
 	appService           AppsByServerLister
 	logger               *slog.Logger
@@ -82,6 +84,7 @@ func NewServerHandler(
 		healthChecker:      agentDeps.HealthChecker,
 		agentClient:        agentDeps.AgentClient,
 		agentPort:          agentDeps.AgentPort,
+		agentBinaryPath:    agentDeps.AgentBinaryPath,
 		updateAgentEnqueuer: agentDeps.UpdateAgentEnqueuer,
 		appService:         appService,
 		logger:             logger.With("handler", "server"),
@@ -112,6 +115,7 @@ type ServerResponse struct {
 	AcmeEmail            *string `json:"acmeEmail,omitempty"`
 	Status               string  `json:"status"`
 	AgentVersion         *string `json:"agentVersion,omitempty"`
+	AgentUpdateMode      string  `json:"agentUpdateMode"`
 	LatestAgentVersion   string  `json:"latestAgentVersion"`
 	LastHeartbeatAt      *string `json:"lastHeartbeatAt,omitempty"`
 	CreatedAt            string  `json:"createdAt"`
@@ -133,6 +137,7 @@ func toServerResponse(s *domain.Server) ServerResponse {
 		SSHUser:            s.SSHUser,
 		AcmeEmail:          s.AcmeEmail,
 		Status:             string(s.Status),
+		AgentUpdateMode:    s.AgentUpdateMode,
 		LatestAgentVersion: LatestAgentVersion,
 		CreatedAt:          s.CreatedAt.Format(DateTimeFormatISO8601),
 		UpdatedAt:          s.UpdatedAt.Format(DateTimeFormatISO8601),
@@ -158,13 +163,14 @@ type CreateServerRequest struct {
 }
 
 type UpdateServerRequest struct {
-	Name        *string `json:"name,omitempty"`
-	Host        *string `json:"host,omitempty"`
-	SSHPort     *int    `json:"sshPort,omitempty"`
-	SSHUser     *string `json:"sshUser,omitempty"`
-	SSHKey      *string `json:"sshKey,omitempty"`
-	SSHPassword *string `json:"sshPassword,omitempty"`
-	AcmeEmail   *string `json:"acmeEmail,omitempty"`
+	Name            *string `json:"name,omitempty"`
+	Host            *string `json:"host,omitempty"`
+	SSHPort         *int    `json:"sshPort,omitempty"`
+	SSHUser         *string `json:"sshUser,omitempty"`
+	SSHKey          *string `json:"sshKey,omitempty"`
+	SSHPassword     *string `json:"sshPassword,omitempty"`
+	AcmeEmail       *string `json:"acmeEmail,omitempty"`
+	AgentUpdateMode *string `json:"agentUpdateMode,omitempty"`
 }
 
 func encryptCredential(encryptor *crypto.TokenEncryptor, plain string) (string, error) {
@@ -337,11 +343,12 @@ func (h *ServerHandler) Update(c *fiber.Ctx) error {
 	}
 
 	input := domain.UpdateServerInput{
-		Name:      req.Name,
-		Host:      req.Host,
-		SSHPort:   req.SSHPort,
-		SSHUser:   req.SSHUser,
-		AcmeEmail: req.AcmeEmail,
+		Name:            req.Name,
+		Host:            req.Host,
+		SSHPort:         req.SSHPort,
+		SSHUser:         req.SSHUser,
+		AcmeEmail:       req.AcmeEmail,
+		AgentUpdateMode: req.AgentUpdateMode,
 	}
 	if err := applyUpdateSSHCredentials(h.tokenEncryptor, &req, &input); err != nil {
 		h.logger.Error("failed to encrypt ssh credentials", "error", err)
@@ -466,14 +473,62 @@ func (h *ServerHandler) UpdateAgent(c *fiber.Ctx) error {
 
 	id := server.ID
 
+	if server.AgentUpdateMode == "grpc" {
+		return h.updateAgentViaGRPC(c, server)
+	}
+
+	return h.updateAgentViaHTTPS(c, id)
+}
+
+func (h *ServerHandler) updateAgentViaGRPC(c *fiber.Ctx, server *domain.Server) error {
+	if h.agentClient == nil || h.agentBinaryPath == "" {
+		return response.ServerError(c, fiber.StatusServiceUnavailable, "gRPC agent update not available")
+	}
+
+	if h.sseHandler != nil {
+		h.sseHandler.EmitAgentUpdateEnqueued(server.ID)
+	}
+
+	go func() {
+		if h.sseHandler != nil {
+			h.sseHandler.NotifyUpdateDelivered(server.ID)
+		}
+
+		err := h.agentClient.PushUpdate(
+			context.Background(),
+			server.Host,
+			h.agentPort,
+			h.agentBinaryPath,
+			LatestAgentVersion,
+		)
+		if err != nil {
+			h.logger.Error("gRPC push update failed", "serverId", server.ID, "error", err)
+			if h.sseHandler != nil {
+				h.sseHandler.EmitAgentUpdateError(server.ID, err.Error())
+			}
+			return
+		}
+
+		h.logger.Info("gRPC push update completed", "serverId", server.ID)
+		if h.sseHandler != nil {
+			h.sseHandler.NotifyUpdateCompleted(server.ID, LatestAgentVersion)
+		}
+	}()
+
+	return response.Accepted(c, fiber.Map{
+		"message": "agent update started via gRPC push",
+	})
+}
+
+func (h *ServerHandler) updateAgentViaHTTPS(c *fiber.Ctx, serverID string) error {
 	if h.updateAgentEnqueuer == nil {
 		return response.ServerError(c, fiber.StatusServiceUnavailable, "update agent not available")
 	}
 
-	h.updateAgentEnqueuer.EnqueueUpdateAgent(id)
+	h.updateAgentEnqueuer.EnqueueUpdateAgent(serverID)
 
 	if h.sseHandler != nil {
-		h.sseHandler.EmitAgentUpdateEnqueued(id)
+		h.sseHandler.EmitAgentUpdateEnqueued(serverID)
 	}
 
 	return response.Accepted(c, fiber.Map{

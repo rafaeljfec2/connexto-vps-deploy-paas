@@ -1,4 +1,10 @@
-import type { App, CreateServerInput, Server, ServerStats } from "@/types";
+import type {
+  AgentUpdateMode,
+  App,
+  CreateServerInput,
+  Server,
+  ServerStats,
+} from "@/types";
 import { API_BASE, fetchApi, fetchApiDelete, fetchApiList } from "./client";
 
 export const serversApi = {
@@ -24,6 +30,7 @@ export const serversApi = {
       sshKey?: string;
       sshPassword?: string;
       acmeEmail?: string;
+      agentUpdateMode?: AgentUpdateMode;
     },
   ): Promise<Server> =>
     fetchApi<Server>(`${API_BASE}/servers/${id}`, {

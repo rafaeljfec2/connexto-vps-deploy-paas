@@ -81,12 +81,13 @@ export type SSEEventType =
   | "PROVISION_FAILED"
   | "AGENT_UPDATE_STEP";
 
-export type AgentUpdateStep = "enqueued" | "delivered" | "updated";
+export type AgentUpdateStep = "enqueued" | "delivered" | "updated" | "error";
 
 export interface AgentUpdateState {
   readonly step: AgentUpdateStep;
-  readonly status: "running" | "completed";
+  readonly status: "running" | "completed" | "error";
   readonly version?: string;
+  readonly errorMessage?: string;
   readonly startedAt: number;
 }
 
@@ -542,6 +543,8 @@ export type ServerStatus =
   | "offline"
   | "error";
 
+export type AgentUpdateMode = "grpc" | "https";
+
 export interface Server {
   readonly id: string;
   readonly name: string;
@@ -551,6 +554,7 @@ export interface Server {
   readonly acmeEmail?: string;
   readonly status: ServerStatus;
   readonly agentVersion?: string;
+  readonly agentUpdateMode: AgentUpdateMode;
   readonly latestAgentVersion: string;
   readonly lastHeartbeatAt?: string;
   readonly createdAt: string;

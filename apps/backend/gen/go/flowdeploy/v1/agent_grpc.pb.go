@@ -45,6 +45,7 @@ const (
 	AgentService_RemoveContainer_FullMethodName   = "/flowdeploy.v1.AgentService/RemoveContainer"
 	AgentService_UpdateDomains_FullMethodName     = "/flowdeploy.v1.AgentService/UpdateDomains"
 	AgentService_ExecContainer_FullMethodName     = "/flowdeploy.v1.AgentService/ExecContainer"
+	AgentService_PushUpdate_FullMethodName        = "/flowdeploy.v1.AgentService/PushUpdate"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -76,6 +77,7 @@ type AgentServiceClient interface {
 	RemoveContainer(ctx context.Context, in *RemoveContainerRequest, opts ...grpc.CallOption) (*RemoveContainerResponse, error)
 	UpdateDomains(ctx context.Context, in *UpdateDomainsRequest, opts ...grpc.CallOption) (*UpdateDomainsResponse, error)
 	ExecContainer(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecInput, ExecOutput], error)
+	PushUpdate(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UpdateBinaryChunk, UpdateBinaryResponse], error)
 }
 
 type agentServiceClient struct {
@@ -366,6 +368,19 @@ func (c *agentServiceClient) ExecContainer(ctx context.Context, opts ...grpc.Cal
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_ExecContainerClient = grpc.BidiStreamingClient[ExecInput, ExecOutput]
 
+func (c *agentServiceClient) PushUpdate(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UpdateBinaryChunk, UpdateBinaryResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[4], AgentService_PushUpdate_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[UpdateBinaryChunk, UpdateBinaryResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_PushUpdateClient = grpc.ClientStreamingClient[UpdateBinaryChunk, UpdateBinaryResponse]
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -395,6 +410,7 @@ type AgentServiceServer interface {
 	RemoveContainer(context.Context, *RemoveContainerRequest) (*RemoveContainerResponse, error)
 	UpdateDomains(context.Context, *UpdateDomainsRequest) (*UpdateDomainsResponse, error)
 	ExecContainer(grpc.BidiStreamingServer[ExecInput, ExecOutput]) error
+	PushUpdate(grpc.ClientStreamingServer[UpdateBinaryChunk, UpdateBinaryResponse]) error
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -479,6 +495,9 @@ func (UnimplementedAgentServiceServer) UpdateDomains(context.Context, *UpdateDom
 }
 func (UnimplementedAgentServiceServer) ExecContainer(grpc.BidiStreamingServer[ExecInput, ExecOutput]) error {
 	return status.Error(codes.Unimplemented, "method ExecContainer not implemented")
+}
+func (UnimplementedAgentServiceServer) PushUpdate(grpc.ClientStreamingServer[UpdateBinaryChunk, UpdateBinaryResponse]) error {
+	return status.Error(codes.Unimplemented, "method PushUpdate not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -919,6 +938,13 @@ func _AgentService_ExecContainer_Handler(srv interface{}, stream grpc.ServerStre
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_ExecContainerServer = grpc.BidiStreamingServer[ExecInput, ExecOutput]
 
+func _AgentService_PushUpdate_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AgentServiceServer).PushUpdate(&grpc.GenericServerStream[UpdateBinaryChunk, UpdateBinaryResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_PushUpdateServer = grpc.ClientStreamingServer[UpdateBinaryChunk, UpdateBinaryResponse]
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1031,6 +1057,11 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "ExecContainer",
 			Handler:       _AgentService_ExecContainer_Handler,
 			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "PushUpdate",
+			Handler:       _AgentService_PushUpdate_Handler,
 			ClientStreams: true,
 		},
 	},
