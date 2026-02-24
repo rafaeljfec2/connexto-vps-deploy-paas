@@ -3,19 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useContainerStats } from "@/features/apps/hooks/use-apps";
+import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface ContainerMetricsProps {
   readonly appId: string;
   readonly embedded?: boolean;
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB", "TB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
 
 function getUsageColor(percent: number): string {

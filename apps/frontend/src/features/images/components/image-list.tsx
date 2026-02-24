@@ -30,16 +30,9 @@ import {
 } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorMessage } from "@/components/error-message";
+import { formatBytes } from "@/lib/format";
 import { ApiError } from "@/types";
 import { useImages, usePruneImages, useRemoveImage } from "../hooks/use-images";
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return "0 B";
-  const k = 1024;
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${Number.parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-}
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
