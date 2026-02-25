@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
-import { LayoutTemplate } from "lucide-react";
+import { Box, LayoutTemplate } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { ServerSelector } from "@/components/server-selector";
@@ -19,6 +19,7 @@ export function ContainersPage() {
       <PageHeader
         title="Containers"
         description="Manage Docker containers running on your server."
+        icon={Box}
         actions={
           <>
             <ServerSelector value={serverId} onChange={setServerId} />

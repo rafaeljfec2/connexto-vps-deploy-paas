@@ -67,19 +67,19 @@ function CertificateStatusBadge({
   const statusConfig = {
     active: {
       icon: ShieldCheck,
-      color: "text-green-500",
+      color: "text-status-success",
       label: "SSL Certificate Active",
       animate: false,
     },
     pending: {
       icon: Loader2,
-      color: "text-yellow-500",
+      color: "text-status-running",
       label: "SSL Certificate Pending",
       animate: true,
     },
     no_tls: {
       icon: ShieldAlert,
-      color: "text-orange-500",
+      color: "text-status-pending",
       label: "No SSL configured",
       animate: false,
     },
@@ -91,7 +91,7 @@ function CertificateStatusBadge({
     },
     error: {
       icon: ShieldAlert,
-      color: "text-red-500",
+      color: "text-status-failed",
       label: status.error ?? "Certificate error",
       animate: false,
     },

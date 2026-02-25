@@ -1,3 +1,4 @@
+import { LayoutDashboard } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { AppList } from "@/features/apps/components/app-list";
 
@@ -7,6 +8,7 @@ export function DashboardPage() {
       <PageHeader
         title="Applications"
         description="Manage and monitor your deployed applications."
+        icon={LayoutDashboard}
       />
       <AppList />
     </div>

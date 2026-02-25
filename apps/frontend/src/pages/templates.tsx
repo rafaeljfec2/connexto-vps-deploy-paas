@@ -1,3 +1,4 @@
+import { FileCode } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { TemplateList } from "@/features/templates";
 
@@ -8,6 +9,7 @@ export function TemplatesPage() {
         backTo="/containers"
         title="Application Templates"
         description="Deploy pre-configured applications from templates."
+        icon={FileCode}
       />
       <TemplateList />
     </div>

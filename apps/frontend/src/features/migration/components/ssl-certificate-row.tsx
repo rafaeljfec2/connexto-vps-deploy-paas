@@ -11,10 +11,10 @@ export function SSLCertificateRow({ certificate }: SSLCertificateRowProps) {
   const isExpired = certificate.isExpired;
 
   const iconColor = isExpired
-    ? "text-red-500"
+    ? "text-status-failed"
     : isExpiringSoon
-      ? "text-yellow-500"
-      : "text-green-500";
+      ? "text-status-pending"
+      : "text-status-success";
 
   const badgeVariant = isExpired
     ? "destructive"

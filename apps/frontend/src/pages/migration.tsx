@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { PageHeader } from "@/components/page-header";
 import {
   ContainerRow,
   NginxSiteCard,
@@ -113,19 +114,19 @@ export function MigrationPage() {
   const sslCertificates = status.sslCertificates ?? [];
 
   return (
-    <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Migration Center</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            Migrate from Nginx to Traefik
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
+    <div className="space-y-4 sm:space-y-6">
+      <PageHeader
+        backTo="/settings"
+        title="Migration Center"
+        description="Migrate from Nginx to Traefik"
+        icon={Server}
+        actions={
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        }
+      />
 
       {warnings.length > 0 && (
         <Alert variant="destructive">

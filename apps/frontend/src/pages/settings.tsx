@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Server } from "lucide-react";
+import { ArrowRight, Server, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,6 +20,7 @@ export function SettingsPage() {
         backTo="/"
         title="Settings"
         description="Manage your flowDeploy integrations and preferences"
+        icon={Settings}
       />
 
       <div className="space-y-6">

@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { ROUTES } from "@/constants/routes";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { AddServerDialog } from "@/features/servers/components/add-server-dialog";
@@ -13,6 +13,7 @@ export function ServersPage() {
         backTo="/"
         title="Remote Servers"
         description="Manage servers for remote deploy"
+        icon={Server}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="ghost" size="sm">

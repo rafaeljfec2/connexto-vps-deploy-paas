@@ -153,11 +153,11 @@ function WebhookSection({
       onToggle={onToggle}
       summary={
         isConfigured ? (
-          <span className="text-green-500 flex items-center gap-1">
+          <span className="text-status-success flex items-center gap-1">
             <CheckCircle className="h-3 w-3" />
             Configured
             {webhookStatus?.active === false && (
-              <span className="text-yellow-500 ml-1">(inactive)</span>
+              <span className="text-status-pending ml-1">(inactive)</span>
             )}
           </span>
         ) : (
@@ -201,13 +201,13 @@ function WebhookSection({
         <div className="flex items-center gap-3">
           {isConfigured ? (
             <>
-              <CheckCircle className="h-5 w-5 text-green-500" />
+              <CheckCircle className="h-5 w-5 text-status-success" />
               <div>
                 <p className="font-medium">Webhook configured</p>
                 <p className="text-sm text-muted-foreground">
                   Auto-deploy enabled for push events
                   {webhookStatus?.active === false && (
-                    <span className="text-yellow-500 ml-2">(inactive)</span>
+                    <span className="text-status-pending ml-2">(inactive)</span>
                   )}
                 </p>
               </div>

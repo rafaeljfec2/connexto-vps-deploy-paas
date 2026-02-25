@@ -25,7 +25,7 @@ export function ContainerLogsSection({
       onToggle={onToggle}
       summary={
         health?.status === "running" ? (
-          <span className="text-green-500">Container running</span>
+          <span className="text-status-success">Container running</span>
         ) : (
           <span className="text-muted-foreground">
             Container {health?.status ?? "unknown"}

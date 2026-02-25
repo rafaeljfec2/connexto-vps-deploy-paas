@@ -4,7 +4,7 @@ import { AuditList } from "@/features/audit";
 
 export function AuditPage() {
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title="Audit Logs"
         description="Track all platform events and activities"
