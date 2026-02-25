@@ -2,7 +2,9 @@ import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "@/constants/routes";
 import { useApps } from "@/features/apps/hooks/use-apps";
+import { useContainers } from "@/features/containers/hooks/use-containers";
 import { useServers } from "@/features/servers/hooks/use-servers";
+import { LocalServerCard } from "./local-server-card";
 import {
   ServerHealthCard,
   ServerHealthCardSkeleton,
@@ -11,16 +13,25 @@ import {
 export function ServerHealthOverview() {
   const { data: servers, isLoading: serversLoading } = useServers();
   const { data: apps } = useApps();
+  const { data: containers } = useContainers();
 
-  const appCountByServer = useMemo(() => {
+  const { appCountByServer, localAppCount } = useMemo(() => {
     const map = new Map<string, number>();
+    let local = 0;
     for (const app of apps ?? []) {
       if (app.serverId) {
         map.set(app.serverId, (map.get(app.serverId) ?? 0) + 1);
+      } else {
+        local++;
       }
     }
-    return map;
+    return { appCountByServer: map, localAppCount: local };
   }, [apps]);
+
+  const localContainerCount = useMemo(
+    () => containers?.filter((c) => c.state === "running").length ?? 0,
+    [containers],
+  );
 
   if (serversLoading) {
     return (
@@ -35,7 +46,10 @@ export function ServerHealthOverview() {
     );
   }
 
-  if (!servers || servers.length === 0) return null;
+  const hasRemoteServers = servers && servers.length > 0;
+  const hasLocalApps = localAppCount > 0;
+
+  if (!hasRemoteServers && !hasLocalApps) return null;
 
   return (
     <section className="space-y-3">
@@ -49,7 +63,13 @@ export function ServerHealthOverview() {
         </Link>
       </div>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {servers.map((server) => (
+        {hasLocalApps && (
+          <LocalServerCard
+            appCount={localAppCount}
+            containerCount={localContainerCount}
+          />
+        )}
+        {servers?.map((server) => (
           <ServerHealthCard
             key={server.id}
             server={server}

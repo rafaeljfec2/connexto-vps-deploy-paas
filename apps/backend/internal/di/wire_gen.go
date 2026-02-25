@@ -114,6 +114,7 @@ func InitializeApplication() (*Application, func(), error) {
 	healthChecker := ProvideAgentHealthChecker(agentClientForEngine, config)
 	serverHandlerAgentDeps := ProvideServerHandlerAgentDeps(healthChecker, agentClientForEngine, config, grpcserverServer)
 	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, serverHandlerAgentDeps, appService, logger)
+	systemHandler := handler.NewSystemHandler()
 	agentdownloadHandler := ProvideAgentDownloadHandler(tokenStore, config, logger)
 	application := &Application{
 		Config:                 config,
@@ -147,6 +148,7 @@ func InitializeApplication() (*Application, func(), error) {
 		NotificationService:    notificationService,
 		NotificationHandler:    notificationHandler,
 		ServerHandler:          serverHandler,
+		SystemHandler:          systemHandler,
 		AgentDownloadHandler:   agentdownloadHandler,
 	}
 	return application, func() {

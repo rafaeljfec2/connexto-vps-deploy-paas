@@ -190,6 +190,8 @@ func registerProtectedRoutes(app *di.Application) {
 	registerOptionalProtectedHandler(app.ImageHandler, authRequired)
 	registerOptionalProtectedHandler(app.ResourceHandler, authRequired)
 
+	app.SystemHandler.Register(authRequired)
+
 	if app.CertificateHandler != nil {
 		app.CertificateHandler.RegisterRoutes(authRequired.Group("/api"))
 	}

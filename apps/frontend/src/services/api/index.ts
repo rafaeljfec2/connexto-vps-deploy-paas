@@ -16,6 +16,7 @@ import {
 } from "./infrastructure";
 import { notificationsApi } from "./notifications";
 import { serversApi } from "./servers";
+import { systemApi } from "./system";
 
 export type {
   GitHubInstallation,
@@ -51,4 +52,5 @@ export const api = {
   certificates: certificatesApi,
   migration: migrationApi,
   templates: templatesApi,
+  system: systemApi,
 } as const;

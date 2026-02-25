@@ -122,6 +122,7 @@ var HandlerSet = wire.NewSet(
 	ProvideAuditHandler,
 	ProvideNotificationHandler,
 	ProvideResourceHandler,
+	handler.NewSystemHandler,
 	ProvideAgentClient,
 	ProvideAgentHealthChecker,
 	ProvideServerHandlerAgentDeps,
@@ -368,6 +369,7 @@ type Application struct {
 	NotificationService    *service.NotificationService
 	NotificationHandler    *handler.NotificationHandler
 	ServerHandler          *handler.ServerHandler
+	SystemHandler          *handler.SystemHandler
 	AgentDownloadHandler   *agentdownload.Handler
 }
 
