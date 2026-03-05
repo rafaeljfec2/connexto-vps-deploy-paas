@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"regexp"
 	"strings"
@@ -104,6 +105,7 @@ func (h *ServerHandler) Register(app fiber.Router) {
 	servers.Post("/:id/update-agent", h.UpdateAgent)
 	servers.Get("/:id/health", h.HealthCheck)
 	servers.Get("/:id/apps", h.ListServerApps)
+	servers.Post("/:id/manage", h.ManageServer)
 }
 
 type ServerResponse struct {
@@ -577,4 +579,53 @@ func (h *ServerHandler) ListServerApps(c *fiber.Ctx) error {
 	}
 
 	return response.OK(c, apps)
+}
+
+type ManageServerRequest struct {
+	Action string `json:"action"`
+}
+
+type ManageServerResponse struct {
+	Success bool   `json:"success"`
+	Output  string `json:"output"`
+}
+
+func (h *ServerHandler) ManageServer(c *fiber.Ctx) error {
+	server, _, err := h.requireServerForUser(c)
+	if err != nil {
+		return err
+	}
+
+	var req ManageServerRequest
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, MsgInvalidRequestBody)
+	}
+
+	if !provisioner.ValidateManageAction(req.Action) {
+		return response.BadRequest(c, "invalid action; allowed: restart_agent, restart_user_manager, agent_logs, fix_docker_permissions")
+	}
+
+	if h.provisioner == nil {
+		return response.BadRequest(c, "server management not available: SSH provisioner not configured")
+	}
+
+	sshKey, sshPassword, err := h.decryptProvisionCredentials(server)
+	if err != nil {
+		return response.InternalError(c)
+	}
+
+	if sshKey == "" && sshPassword == "" {
+		return response.BadRequest(c, "server has no ssh credentials")
+	}
+
+	result, err := h.provisioner.ManageServer(server, sshKey, sshPassword, provisioner.ManageAction(req.Action))
+	if err != nil {
+		h.logger.Error("manage server failed", "serverId", server.ID, "action", req.Action, "error", err)
+		return response.ServerError(c, fiber.StatusBadGateway, fmt.Sprintf("SSH command failed: %s", err))
+	}
+
+	return response.OK(c, ManageServerResponse{
+		Success: result.Success,
+		Output:  result.Output,
+	})
 }

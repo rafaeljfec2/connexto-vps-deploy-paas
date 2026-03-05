@@ -56,4 +56,15 @@ export const serversApi = {
 
   apps: (id: string): Promise<readonly App[]> =>
     fetchApiList<App>(`${API_BASE}/servers/${id}/apps`),
+
+  manage: (id: string, action: string): Promise<ManageServerResponse> =>
+    fetchApi<ManageServerResponse>(`${API_BASE}/servers/${id}/manage`, {
+      method: "POST",
+      body: JSON.stringify({ action }),
+    }),
 };
+
+export interface ManageServerResponse {
+  readonly success: boolean;
+  readonly output: string;
+}
