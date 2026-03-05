@@ -80,7 +80,7 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 	}
 	emit(pb.DeployStage_DEPLOY_STAGE_GIT_SYNC, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Repository synced successfully")
 
-	e.mergeLocalConfig(cfg, appDir)
+	e.mergeLocalConfig(cfg, req, appDir)
 
 	imageTag := e.docker.GetImageTag(req.AppName, req.Git.GetCommitSha())
 
@@ -175,7 +175,7 @@ func (e *Executor) buildConfig(req *pb.DeployRequest) *compose.Config {
 	return cfg
 }
 
-func (e *Executor) mergeLocalConfig(cfg *compose.Config, appDir string) {
+func (e *Executor) mergeLocalConfig(cfg *compose.Config, req *pb.DeployRequest, appDir string) {
 	localCfg, err := compose.LoadConfig(appDir)
 	if err != nil {
 		e.logger.Debug("No local paasdeploy.json to merge", "appDir", appDir, "error", err)
@@ -184,6 +184,36 @@ func (e *Executor) mergeLocalConfig(cfg *compose.Config, appDir string) {
 
 	if len(cfg.Volumes) == 0 && len(localCfg.Volumes) > 0 {
 		cfg.Volumes = localCfg.Volumes
+	}
+
+	e.mergeBuildConfig(req, localCfg)
+}
+
+func (e *Executor) mergeBuildConfig(req *pb.DeployRequest, localCfg *compose.Config) {
+	if localCfg.Build.Context == "" && localCfg.Build.Dockerfile == "" {
+		return
+	}
+
+	if req.Build == nil {
+		req.Build = &pb.BuildConfig{}
+	}
+
+	if localCfg.Build.Context != "" && localCfg.Build.Context != "." {
+		e.logger.Info("Using build context from paasdeploy.json", "context", localCfg.Build.Context)
+		req.Build.Context = localCfg.Build.Context
+	}
+
+	if localCfg.Build.Dockerfile != "" && localCfg.Build.Dockerfile != "./Dockerfile" {
+		e.logger.Info("Using dockerfile from paasdeploy.json", "dockerfile", localCfg.Build.Dockerfile)
+		req.Build.Dockerfile = localCfg.Build.Dockerfile
+	}
+
+	if localCfg.Build.Target != "" && req.Build.Target == "" {
+		req.Build.Target = localCfg.Build.Target
+	}
+
+	if len(localCfg.Build.Args) > 0 && len(req.Build.Args) == 0 {
+		req.Build.Args = localCfg.Build.Args
 	}
 }
 
