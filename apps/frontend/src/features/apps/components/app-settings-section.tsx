@@ -15,6 +15,13 @@ import { NetworksManager, VolumesManager } from "@/features/resources";
 import { CollapsibleSection } from "./collapsible-section";
 import { DomainManager } from "./domain-manager";
 
+interface AppVolumeConfigData {
+  readonly name?: string;
+  readonly source?: string;
+  readonly target: string;
+  readonly readOnly?: boolean;
+}
+
 interface AppConfigData {
   readonly hostPort: number;
   readonly port: number;
@@ -26,6 +33,7 @@ interface AppConfigData {
     retries: number;
   };
   readonly domains?: readonly string[];
+  readonly volumes?: readonly AppVolumeConfigData[];
 }
 
 interface WebhookActions {
@@ -124,6 +132,32 @@ function DeploymentConfigSection({
           )}
         </div>
       </div>
+      {appConfig.volumes && appConfig.volumes.length > 0 && (
+        <div className="mt-4 border-t pt-4">
+          <div className="flex items-center gap-2 text-sm mb-2">
+            <HardDrive className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">Volumes:</span>
+          </div>
+          <div className="space-y-1.5">
+            {appConfig.volumes.map((vol) => {
+              const source = vol.name ?? vol.source ?? "";
+              const label = vol.name ? "named" : "bind";
+              return (
+                <div
+                  key={`${source}:${vol.target}`}
+                  className="flex items-center gap-2 text-xs"
+                >
+                  <span className="font-mono px-2 py-0.5 bg-muted rounded">
+                    {source}:{vol.target}
+                    {vol.readOnly ? ":ro" : ""}
+                  </span>
+                  <span className="text-muted-foreground">{label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </CollapsibleSection>
   );
 }

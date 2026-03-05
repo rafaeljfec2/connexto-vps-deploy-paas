@@ -144,13 +144,21 @@ func (h *AppAdminHandler) getRemoteAppURL(c *fiber.Ctx, app *domain.App) error {
 	})
 }
 
+type VolumeConfigResponse struct {
+	Name     string `json:"name,omitempty"`
+	Source   string `json:"source,omitempty"`
+	Target   string `json:"target"`
+	ReadOnly bool   `json:"readOnly,omitempty"`
+}
+
 type AppConfigResponse struct {
-	Name        string            `json:"name"`
-	Port        int               `json:"port"`
-	HostPort    int               `json:"hostPort"`
-	Healthcheck HealthcheckConfig `json:"healthcheck"`
-	Resources   ResourcesConfig   `json:"resources"`
-	Domains     []string          `json:"domains"`
+	Name        string                 `json:"name"`
+	Port        int                    `json:"port"`
+	HostPort    int                    `json:"hostPort"`
+	Healthcheck HealthcheckConfig      `json:"healthcheck"`
+	Resources   ResourcesConfig        `json:"resources"`
+	Domains     []string               `json:"domains"`
+	Volumes     []VolumeConfigResponse `json:"volumes"`
 }
 
 type HealthcheckConfig struct {
@@ -181,6 +189,16 @@ func (h *AppAdminHandler) GetAppConfig(c *fiber.Ctx) error {
 		return response.NotFound(c, "config not found - app may not be deployed yet")
 	}
 
+	var volumes []VolumeConfigResponse
+	for _, v := range config.Volumes {
+		volumes = append(volumes, VolumeConfigResponse{
+			Name:     v.Name,
+			Source:   v.Source,
+			Target:   v.Target,
+			ReadOnly: v.ReadOnly,
+		})
+	}
+
 	return response.OK(c, AppConfigResponse{
 		Name:     config.Name,
 		Port:     config.Port,
@@ -197,6 +215,7 @@ func (h *AppAdminHandler) GetAppConfig(c *fiber.Ctx) error {
 			CPU:    config.Resources.CPU,
 		},
 		Domains: config.Domains,
+		Volumes: volumes,
 	})
 }
 
@@ -228,26 +247,36 @@ func (h *AppAdminHandler) getRemoteAppConfig(c *fiber.Ctx, app *domain.App) erro
 			CPU:    defaults.Resources.CPU,
 		},
 		Domains: domainNames,
+		Volumes: []VolumeConfigResponse{},
 	})
 }
 
 func (h *AppAdminHandler) resolveAppPort(appID string) int {
-	if h.envVarRepo != nil {
-		vars, err := h.envVarRepo.FindByAppID(appID)
-		if err == nil {
-			for _, v := range vars {
-				if v.Key == "PORT" {
-					if parsed, err := strconv.Atoi(v.Value); err == nil && parsed > 0 {
-						return parsed
-					}
-				}
-			}
-		}
+	if port := h.findPortFromEnvVars(appID); port > 0 {
+		return port
 	}
-
 	defaults := &compose.Config{}
 	compose.ApplyDefaults(defaults)
 	return defaults.Port
+}
+
+func (h *AppAdminHandler) findPortFromEnvVars(appID string) int {
+	if h.envVarRepo == nil {
+		return 0
+	}
+	vars, err := h.envVarRepo.FindByAppID(appID)
+	if err != nil {
+		return 0
+	}
+	for _, v := range vars {
+		if v.Key != "PORT" {
+			continue
+		}
+		if parsed, err := strconv.Atoi(v.Value); err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+	return 0
 }
 
 type ContainerActionResponse struct {
@@ -377,6 +406,13 @@ func (h *AppAdminHandler) UpdateApp(c *fiber.Ctx) error {
 	return response.OK(c, updatedApp)
 }
 
+type paasDeployVolumeConfig struct {
+	Name     string `json:"name,omitempty"`
+	Source   string `json:"source,omitempty"`
+	Target   string `json:"target"`
+	ReadOnly bool   `json:"readOnly,omitempty"`
+}
+
 type paasDeployConfig struct {
 	Name  string `json:"name"`
 	Build struct {
@@ -393,14 +429,15 @@ type paasDeployConfig struct {
 		Retries     int    `json:"retries"`
 		StartPeriod string `json:"startPeriod"`
 	} `json:"healthcheck"`
-	Port      int               `json:"port"`
-	HostPort  int               `json:"hostPort,omitempty"`
-	Env       map[string]string `json:"env,omitempty"`
+	Port      int                       `json:"port"`
+	HostPort  int                       `json:"hostPort,omitempty"`
+	Env       map[string]string         `json:"env,omitempty"`
 	Resources struct {
 		Memory string `json:"memory"`
 		CPU    string `json:"cpu"`
 	} `json:"resources"`
-	Domains []string `json:"domains,omitempty"`
+	Domains []string                  `json:"domains,omitempty"`
+	Volumes []paasDeployVolumeConfig  `json:"volumes,omitempty"`
 }
 
 func (h *AppAdminHandler) readAppConfig(appID, workdir string) (*paasDeployConfig, error) {

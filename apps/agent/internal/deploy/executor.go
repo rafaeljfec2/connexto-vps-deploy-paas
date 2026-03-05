@@ -80,6 +80,8 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 	}
 	emit(pb.DeployStage_DEPLOY_STAGE_GIT_SYNC, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Repository synced successfully")
 
+	e.mergeLocalConfig(cfg, appDir)
+
 	imageTag := e.docker.GetImageTag(req.AppName, req.Git.GetCommitSha())
 
 	emit(pb.DeployStage_DEPLOY_STAGE_BUILD, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, fmt.Sprintf("Building image %s", imageTag))
@@ -151,6 +153,14 @@ func (e *Executor) buildConfig(req *pb.DeployRequest) *compose.Config {
 			cfg.Resources.CPU = req.Runtime.Resources.Cpu
 		}
 		cfg.Domains = req.Runtime.Domains
+		for _, v := range req.Runtime.Volumes {
+			cfg.Volumes = append(cfg.Volumes, compose.VolumeConfig{
+				Name:     v.Name,
+				Source:   v.Source,
+				Target:   v.Target,
+				ReadOnly: v.ReadOnly,
+			})
+		}
 	}
 
 	if req.HealthCheck != nil {
@@ -163,6 +173,18 @@ func (e *Executor) buildConfig(req *pb.DeployRequest) *compose.Config {
 
 	compose.ApplyDefaults(cfg)
 	return cfg
+}
+
+func (e *Executor) mergeLocalConfig(cfg *compose.Config, appDir string) {
+	localCfg, err := compose.LoadConfig(appDir)
+	if err != nil {
+		e.logger.Debug("No local paasdeploy.json to merge", "appDir", appDir, "error", err)
+		return
+	}
+
+	if len(cfg.Volumes) == 0 && len(localCfg.Volumes) > 0 {
+		cfg.Volumes = localCfg.Volumes
+	}
 }
 
 func (e *Executor) resolveAppDir(repoDir, workdir string) string {

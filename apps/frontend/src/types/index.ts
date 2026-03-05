@@ -172,6 +172,13 @@ export interface AppURL {
   readonly hostPort: number;
 }
 
+export interface AppVolumeConfig {
+  readonly name?: string;
+  readonly source?: string;
+  readonly target: string;
+  readonly readOnly?: boolean;
+}
+
 export interface AppConfig {
   readonly name: string;
   readonly port: number;
@@ -188,6 +195,7 @@ export interface AppConfig {
     readonly cpu: string;
   };
   readonly domains: readonly string[];
+  readonly volumes: readonly AppVolumeConfig[];
 }
 
 export interface ContainerActionResult {

@@ -61,6 +61,15 @@ message RuntimeConfig {
   string network = 6;
 
   RestartPolicy restart_policy = 7;
+
+  repeated VolumeMount volumes = 8;
+}
+
+message VolumeMount {
+  string name = 1;
+  string source = 2;
+  string target = 3;
+  bool read_only = 4;
 }
 
 message ResourceLimits {

@@ -25,14 +25,17 @@ func GenerateContent(params GenerateParams) string {
 	labels := BuildLabelsYAML(params.AppName, params.Domains, cfg.Port)
 	portMapping := BuildPortMapping(cfg.HostPort, cfg.Port)
 	healthCmd := BuildHealthCheckCommand(cfg.Runtime, cfg.Port, cfg.Healthcheck.Path)
+	serviceVolumes, topLevelVolumes := BuildVolumesYAML(cfg.Volumes)
 
-	return fmt.Sprintf("services:\n"+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("services:\n"+
 		"  %s:\n"+
 		"    image: %s\n"+
 		"    container_name: %s\n"+
 		"    restart: unless-stopped\n"+
 		"    ports:\n"+
 		"      - \"%s\"\n"+
+		"%s"+
 		"%s"+
 		"%s"+
 		"    healthcheck:\n"+
@@ -49,16 +52,25 @@ func GenerateContent(params GenerateParams) string {
 		"          memory: %s\n"+
 		"          cpus: '%s'\n"+
 		"    networks:\n"+
-		"      - paasdeploy\n\n"+
-		"networks:\n"+
-		"  paasdeploy:\n"+
-		"    external: true\n",
-		params.AppName, params.ImageTag, params.AppName, portMapping, envYAML, labels,
+		"      - paasdeploy\n\n",
+		params.AppName, params.ImageTag, params.AppName, portMapping,
+		envYAML, labels, serviceVolumes,
 		healthCmd,
 		cfg.Healthcheck.Interval, cfg.Healthcheck.Timeout,
 		cfg.Healthcheck.Retries, cfg.Healthcheck.StartPeriod,
 		cfg.Resources.Memory, cfg.Resources.CPU,
-	)
+	))
+
+	if topLevelVolumes != "" {
+		sb.WriteString(topLevelVolumes)
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("networks:\n" +
+		"  paasdeploy:\n" +
+		"    external: true\n")
+
+	return sb.String()
 }
 
 func WriteComposeFile(appDir string, params GenerateParams) error {
@@ -167,6 +179,41 @@ func BuildLabelsYAML(appName string, domains []DomainRoute, port int) string {
 		"      - \"traefik.http.routers.%s.rule=Host(`%s.localhost`)\"\n"+
 		"      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n",
 		appName, appName, appName, appName, port)
+}
+
+func BuildVolumesYAML(volumes []VolumeConfig) (serviceLevel string, topLevel string) {
+	if len(volumes) == 0 {
+		return "", ""
+	}
+
+	var svc strings.Builder
+	svc.WriteString("    volumes:\n")
+
+	var named []string
+	for _, v := range volumes {
+		source := v.Source
+		if v.IsNamedVolume() {
+			source = v.Name
+			named = append(named, v.Name)
+		}
+
+		mapping := fmt.Sprintf("%s:%s", source, v.Target)
+		if v.ReadOnly {
+			mapping += ":ro"
+		}
+		svc.WriteString(fmt.Sprintf("      - %s\n", mapping))
+	}
+
+	if len(named) > 0 {
+		var top strings.Builder
+		top.WriteString("volumes:\n")
+		for _, n := range named {
+			top.WriteString(fmt.Sprintf("  %s:\n", n))
+		}
+		return svc.String(), top.String()
+	}
+
+	return svc.String(), ""
 }
 
 func BuildPortMapping(hostPort, port int) string {

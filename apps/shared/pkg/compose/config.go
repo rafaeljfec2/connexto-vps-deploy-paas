@@ -9,6 +9,17 @@ import (
 
 const DefaultAppPort = 8080
 
+type VolumeConfig struct {
+	Name     string `json:"name,omitempty"`
+	Source   string `json:"source,omitempty"`
+	Target   string `json:"target"`
+	ReadOnly bool   `json:"readOnly,omitempty"`
+}
+
+func (v VolumeConfig) IsNamedVolume() bool {
+	return v.Name != ""
+}
+
 type Config struct {
 	Name    string `json:"name"`
 	Runtime string `json:"runtime,omitempty"`
@@ -33,7 +44,8 @@ type Config struct {
 		Memory string `json:"memory"`
 		CPU    string `json:"cpu"`
 	} `json:"resources"`
-	Domains []string `json:"domains,omitempty"`
+	Domains []string       `json:"domains,omitempty"`
+	Volumes []VolumeConfig `json:"volumes,omitempty"`
 }
 
 type DomainRoute struct {
