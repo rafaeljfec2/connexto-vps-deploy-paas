@@ -24,24 +24,33 @@ export function PrepareRemoteSection() {
         </CardHeader>
         <CardContent className="space-y-5">
           <div>
-            <h4 className="mb-1 font-medium">1.1 Create user (if needed)</h4>
-            <CodeBlock>sudo adduser deploy</CodeBlock>
+            <h4 className="mb-1 font-medium">
+              1.1 Create a dedicated user for the agent
+            </h4>
+            <p className="mb-2 text-sm text-muted-foreground">
+              Create a dedicated user to run the deploy agent. This user needs
+              access to Docker and systemd user services. You can also use an
+              existing user (e.g. ubuntu, root).
+            </p>
+            <CodeBlock>{`# Create user with home directory and bash shell\nsudo useradd -m -s /bin/bash deploy\n\n# Add user to docker group (required for Docker access)\nsudo usermod -aG docker deploy\n\n# Enable linger so systemd user services survive logout\nsudo loginctl enable-linger deploy\n\n# Set up SSH directory with correct permissions\nsudo mkdir -p /home/deploy/.ssh\nsudo chmod 700 /home/deploy/.ssh\nsudo touch /home/deploy/.ssh/authorized_keys\nsudo chmod 600 /home/deploy/.ssh/authorized_keys\nsudo chown -R deploy:deploy /home/deploy/.ssh`}</CodeBlock>
             <p className="mt-1 text-sm text-muted-foreground">
-              Or use an existing user (e.g. ubuntu, root).
+              Replace <code>deploy</code> with your preferred username. If using
+              an existing user, just ensure it belongs to the{" "}
+              <code>docker</code> group and has linger enabled.
             </p>
           </div>
 
           <div>
-            <h4 className="mb-1 font-medium">1.2 Enable linger</h4>
+            <h4 className="mb-1 font-medium">1.2 Verify user setup</h4>
             <p className="mb-1 text-sm text-muted-foreground">
-              Required so systemd user services keep running after logout.
+              Confirm the user is correctly configured before proceeding.
             </p>
-            <CodeBlock>{`sudo loginctl enable-linger <USER>\n# Example: sudo loginctl enable-linger deploy`}</CodeBlock>
+            <CodeBlock>{`# Check user exists and belongs to docker group\nid deploy\n# Expected: uid=...(deploy) gid=...(deploy) groups=...,docker\n\n# Check linger is enabled\nls /var/lib/systemd/linger/ | grep deploy\n\n# Test systemd user access\nsudo -u deploy XDG_RUNTIME_DIR=/run/user/$(id -u deploy) systemctl --user status`}</CodeBlock>
           </div>
 
           <div>
             <h4 className="mb-1 font-medium">
-              1.3 Configure passwordless sudo{" "}
+              1.3 Configure passwordless sudo (or use SSH password){" "}
               <Badge variant="pending" className="ml-1 text-xs">
                 non-root only
               </Badge>
@@ -93,7 +102,8 @@ export function PrepareRemoteSection() {
             <h4 className="mb-1 font-medium">1.5 Check systemd user</h4>
             <CodeBlock>{`ssh deploy@IP -p PORT\nsystemctl --user status`}</CodeBlock>
             <p className="mt-1 text-sm text-muted-foreground">
-              If you see &quot;Failed to connect to bus&quot;, redo step 1.2.
+              If you see &quot;Failed to connect to bus&quot;, ensure linger is
+              enabled (step 1.1) and the user has a valid login session.
             </p>
           </div>
 
