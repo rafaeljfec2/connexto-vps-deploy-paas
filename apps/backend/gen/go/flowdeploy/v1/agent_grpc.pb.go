@@ -46,6 +46,7 @@ const (
 	AgentService_UpdateDomains_FullMethodName     = "/flowdeploy.v1.AgentService/UpdateDomains"
 	AgentService_ExecContainer_FullMethodName     = "/flowdeploy.v1.AgentService/ExecContainer"
 	AgentService_PushUpdate_FullMethodName        = "/flowdeploy.v1.AgentService/PushUpdate"
+	AgentService_GetCertificates_FullMethodName   = "/flowdeploy.v1.AgentService/GetCertificates"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -78,6 +79,7 @@ type AgentServiceClient interface {
 	UpdateDomains(ctx context.Context, in *UpdateDomainsRequest, opts ...grpc.CallOption) (*UpdateDomainsResponse, error)
 	ExecContainer(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecInput, ExecOutput], error)
 	PushUpdate(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[UpdateBinaryChunk, UpdateBinaryResponse], error)
+	GetCertificates(ctx context.Context, in *GetCertificatesRequest, opts ...grpc.CallOption) (*GetCertificatesResponse, error)
 }
 
 type agentServiceClient struct {
@@ -381,6 +383,16 @@ func (c *agentServiceClient) PushUpdate(ctx context.Context, opts ...grpc.CallOp
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_PushUpdateClient = grpc.ClientStreamingClient[UpdateBinaryChunk, UpdateBinaryResponse]
 
+func (c *agentServiceClient) GetCertificates(ctx context.Context, in *GetCertificatesRequest, opts ...grpc.CallOption) (*GetCertificatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCertificatesResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetCertificates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -411,6 +423,7 @@ type AgentServiceServer interface {
 	UpdateDomains(context.Context, *UpdateDomainsRequest) (*UpdateDomainsResponse, error)
 	ExecContainer(grpc.BidiStreamingServer[ExecInput, ExecOutput]) error
 	PushUpdate(grpc.ClientStreamingServer[UpdateBinaryChunk, UpdateBinaryResponse]) error
+	GetCertificates(context.Context, *GetCertificatesRequest) (*GetCertificatesResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -498,6 +511,9 @@ func (UnimplementedAgentServiceServer) ExecContainer(grpc.BidiStreamingServer[Ex
 }
 func (UnimplementedAgentServiceServer) PushUpdate(grpc.ClientStreamingServer[UpdateBinaryChunk, UpdateBinaryResponse]) error {
 	return status.Error(codes.Unimplemented, "method PushUpdate not implemented")
+}
+func (UnimplementedAgentServiceServer) GetCertificates(context.Context, *GetCertificatesRequest) (*GetCertificatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCertificates not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -945,6 +961,24 @@ func _AgentService_PushUpdate_Handler(srv interface{}, stream grpc.ServerStream)
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentService_PushUpdateServer = grpc.ClientStreamingServer[UpdateBinaryChunk, UpdateBinaryResponse]
 
+func _AgentService_GetCertificates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCertificatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetCertificates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetCertificates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetCertificates(ctx, req.(*GetCertificatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1035,6 +1069,10 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateDomains",
 			Handler:    _AgentService_UpdateDomains_Handler,
+		},
+		{
+			MethodName: "GetCertificates",
+			Handler:    _AgentService_GetCertificates_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -31,6 +31,7 @@ import (
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
 	"github.com/paasdeploy/shared/pkg/docker"
 	"github.com/paasdeploy/shared/pkg/executor"
+	"github.com/paasdeploy/shared/pkg/traefik"
 )
 
 const logStreamBuffer = 512
@@ -92,10 +93,16 @@ func New(cfg Config, logger *slog.Logger) (*Server, error) {
 	registry := os.Getenv("DOCKER_REGISTRY")
 	dockerClient := docker.NewClient(resolveDataDir(), registry, logger)
 
+	traefikURL := os.Getenv("TRAEFIK_API_URL")
+	if traefikURL == "" {
+		traefikURL = defaultTraefikURL
+	}
+
 	agentService := &AgentService{
 		deployExecutor: deploy.NewExecutor(logger),
 		docker:         dockerClient,
 		executor:       executor.New("", 2*time.Minute, logger),
+		traefikClient:  traefik.NewClient(traefikURL),
 		logger:         logger.With("component", "agent-service"),
 	}
 	pb.RegisterAgentServiceServer(grpcServer, agentService)
@@ -121,11 +128,14 @@ func (s *Server) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
+const defaultTraefikURL = "http://paasdeploy-traefik:8081"
+
 type AgentService struct {
 	pb.UnimplementedAgentServiceServer
 	deployExecutor *deploy.Executor
 	docker         *docker.Client
 	executor       *executor.Executor
+	traefikClient  *traefik.Client
 	logStreams     sync.Map
 	logger         *slog.Logger
 }
@@ -814,4 +824,24 @@ func (s *AgentService) ExecContainer(stream pb.AgentService_ExecContainerServer)
 
 	wg.Wait()
 	return nil
+}
+
+func (s *AgentService) GetCertificates(ctx context.Context, _ *pb.GetCertificatesRequest) (*pb.GetCertificatesResponse, error) {
+	certs, err := s.traefikClient.GetAllCertificatesStatus(ctx)
+	if err != nil {
+		s.logger.Warn("Failed to fetch certificates from Traefik", "error", err)
+		return &pb.GetCertificatesResponse{}, nil
+	}
+
+	result := make([]*pb.CertificateInfo, 0, len(certs))
+	for _, c := range certs {
+		result = append(result, &pb.CertificateInfo{
+			Domain: c.Domain,
+			Status: c.Status,
+			Issuer: c.Issuer,
+			Error:  c.Error,
+		})
+	}
+
+	return &pb.GetCertificatesResponse{Certificates: result}, nil
 }

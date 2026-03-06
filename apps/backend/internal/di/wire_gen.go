@@ -103,7 +103,7 @@ func InitializeApplication() (*Application, func(), error) {
 	containerExecHandler := ProvideContainerExecHandler(postgresServerRepository, agentClientForEngine, config, logger)
 	templateHandler := ProvideTemplateHandler(engineEngine, logger)
 	imageHandler := ProvideImageHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
-	certificateHandler := ProvideCertificateHandler(config, logger)
+	certificateHandler := ProvideCertificateHandler(config, postgresServerRepository, agentClientForEngine, logger)
 	auditHandler := ProvideAuditHandler(auditService, postgresWebhookPayloadRepository)
 	resourceHandler := ProvideResourceHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
 	postgresNotificationChannelRepository := repository.NewPostgresNotificationChannelRepository(db)

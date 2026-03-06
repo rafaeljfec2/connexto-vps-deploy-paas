@@ -422,7 +422,6 @@ func (c *AgentClient) PushUpdate(ctx context.Context, host string, port int, bin
 	if err != nil {
 		return fmt.Errorf("stat binary: %w", err)
 	}
-	totalSize := info.Size()
 
 	cl, err := c.client(host, port)
 	if err != nil {
@@ -434,37 +433,59 @@ func (c *AgentClient) PushUpdate(ctx context.Context, host string, port int, bin
 		return fmt.Errorf("push update stream: %w", err)
 	}
 
+	sendFailed, err := streamBinaryChunks(f, stream, version, info.Size())
+	if err != nil {
+		return err
+	}
+
+	return closePushUpdateStream(stream, sendFailed)
+}
+
+func streamBinaryChunks(
+	f *os.File,
+	stream pb.AgentService_PushUpdateClient,
+	version string,
+	totalSize int64,
+) (bool, error) {
 	buf := make([]byte, pushUpdateChunkSize)
 	first := true
-	var sendFailed bool
 
 	for {
 		n, readErr := f.Read(buf)
 		if n > 0 {
-			chunk := &pb.UpdateBinaryChunk{
-				Data: buf[:n],
-			}
+			chunk := &pb.UpdateBinaryChunk{Data: buf[:n]}
 			if first {
 				chunk.Version = version
 				chunk.TotalSize = totalSize
 				first = false
 			}
-			if sendErr := stream.Send(chunk); sendErr != nil {
-				if sendErr == io.EOF {
-					sendFailed = true
-					break
-				}
-				return fmt.Errorf("send chunk: %w", sendErr)
+			if failed, err := sendChunk(stream, chunk); err != nil {
+				return false, err
+			} else if failed {
+				return true, nil
 			}
 		}
 		if readErr == io.EOF {
-			break
+			return false, nil
 		}
 		if readErr != nil {
-			return fmt.Errorf("read binary: %w", readErr)
+			return false, fmt.Errorf("read binary: %w", readErr)
 		}
 	}
+}
 
+func sendChunk(stream pb.AgentService_PushUpdateClient, chunk *pb.UpdateBinaryChunk) (eofReceived bool, err error) {
+	sendErr := stream.Send(chunk)
+	if sendErr == nil {
+		return false, nil
+	}
+	if sendErr == io.EOF {
+		return true, nil
+	}
+	return false, fmt.Errorf("send chunk: %w", sendErr)
+}
+
+func closePushUpdateStream(stream pb.AgentService_PushUpdateClient, sendFailed bool) error {
 	resp, err := stream.CloseAndRecv()
 	if err != nil {
 		if sendFailed {
@@ -475,6 +496,19 @@ func (c *AgentClient) PushUpdate(ctx context.Context, host string, port int, bin
 	if !resp.Success {
 		return fmt.Errorf("agent rejected update: %s", resp.Message)
 	}
-
 	return nil
+}
+
+func (c *AgentClient) GetCertificates(ctx context.Context, host string, port int) ([]*pb.CertificateInfo, error) {
+	cl, err := c.client(host, port)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	resp, err := cl.GetCertificates(ctx, &pb.GetCertificatesRequest{})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Certificates, nil
 }

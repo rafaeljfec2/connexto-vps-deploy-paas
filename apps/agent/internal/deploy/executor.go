@@ -199,6 +199,10 @@ func (e *Executor) mergeRuntimeConfig(cfg *compose.Config, localCfg *compose.Con
 		cfg.Port = localCfg.Port
 	}
 
+	if localCfg.HostPort > 0 {
+		cfg.HostPort = localCfg.HostPort
+	}
+
 	if localCfg.Healthcheck.Path != "" {
 		cfg.Healthcheck.Path = localCfg.Healthcheck.Path
 	}

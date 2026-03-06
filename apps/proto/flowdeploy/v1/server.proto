@@ -368,3 +368,16 @@ message ExecOutput {
     int32 exit_code = 2;
   }
 }
+
+message GetCertificatesRequest {}
+
+message CertificateInfo {
+  string domain = 1;
+  string status = 2;
+  string issuer = 3;
+  string error = 4;
+}
+
+message GetCertificatesResponse {
+  repeated CertificateInfo certificates = 1;
+}

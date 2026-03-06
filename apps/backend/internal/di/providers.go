@@ -619,10 +619,18 @@ func ProvideResourceHandler(
 	})
 }
 
-func ProvideCertificateHandler(cfg *config.Config, logger *slog.Logger) *handler.CertificateHandler {
+func ProvideCertificateHandler(
+	cfg *config.Config,
+	serverRepo domain.ServerRepository,
+	agentClient *agentclient.AgentClient,
+	logger *slog.Logger,
+) *handler.CertificateHandler {
 	return handler.NewCertificateHandler(handler.CertificateHandlerConfig{
-		TraefikURL: cfg.Traefik.URL,
-		Logger:     logger,
+		TraefikURL:  cfg.Traefik.URL,
+		AgentClient: agentClient,
+		ServerRepo:  serverRepo,
+		AgentPort:   cfg.GRPC.AgentPort,
+		Logger:      logger,
 	})
 }
 
