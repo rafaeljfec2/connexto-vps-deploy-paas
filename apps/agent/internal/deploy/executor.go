@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -24,7 +25,12 @@ const (
 	defaultHealthInterval = 5 * time.Second
 	healthCheckStartDelay = 15 * time.Second
 	logChannelBuffer      = 256
+	metadataFileName      = ".paasdeploy-meta.json"
 )
+
+type appMetadata struct {
+	Workdir string `json:"workdir,omitempty"`
+}
 
 type LogFunc func(stage pb.DeployStage, level pb.DeployLogLevel, message string)
 
@@ -81,6 +87,7 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 	}
 	emit(pb.DeployStage_DEPLOY_STAGE_GIT_SYNC, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Repository synced successfully")
 
+	e.saveMetadata(repoDir, req.Git.GetWorkdir())
 	e.mergeLocalConfig(cfg, req, appDir)
 
 	imageTag := e.docker.GetImageTag(req.AppName, req.Git.GetCommitSha())
@@ -260,15 +267,50 @@ func (e *Executor) mergeBuildConfig(req *pb.DeployRequest, localCfg *compose.Con
 	}
 }
 
+func (e *Executor) saveMetadata(repoDir, workdir string) {
+	meta := appMetadata{Workdir: workdir}
+	data, err := json.Marshal(meta)
+	if err != nil {
+		e.logger.Warn("Failed to marshal app metadata", "error", err)
+		return
+	}
+	path := filepath.Join(repoDir, metadataFileName)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		e.logger.Warn("Failed to save app metadata", "error", err)
+	}
+}
+
+func (e *Executor) loadMetadata(repoDir string) *appMetadata {
+	path := filepath.Join(repoDir, metadataFileName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var meta appMetadata
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return nil
+	}
+	return &meta
+}
+
 func (e *Executor) findLocalConfig(repoDir string) *compose.Config {
+	if meta := e.loadMetadata(repoDir); meta != nil && meta.Workdir != "" {
+		appDir := e.resolveAppDir(repoDir, meta.Workdir)
+		cfg, err := compose.LoadConfig(appDir)
+		if err == nil {
+			e.logger.Debug("Loaded config from saved workdir", "workdir", meta.Workdir)
+			return cfg
+		}
+	}
+
 	cfg, err := compose.LoadConfig(repoDir)
 	if err == nil {
 		return cfg
 	}
 
 	var found *compose.Config
-	_ = filepath.WalkDir(repoDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || found != nil {
+	_ = filepath.WalkDir(repoDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil || found != nil {
 			return filepath.SkipDir
 		}
 		if d.IsDir() {
@@ -281,7 +323,7 @@ func (e *Executor) findLocalConfig(repoDir string) *compose.Config {
 		localCfg, loadErr := compose.LoadConfig(dir)
 		if loadErr == nil {
 			rel, _ := filepath.Rel(repoDir, dir)
-			e.logger.Debug("Found paasdeploy.json", "subdir", rel)
+			e.logger.Debug("Found paasdeploy.json via walk", "subdir", rel)
 			found = localCfg
 			return filepath.SkipAll
 		}
