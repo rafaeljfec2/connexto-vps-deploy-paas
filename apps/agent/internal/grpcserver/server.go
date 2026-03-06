@@ -229,6 +229,16 @@ func (s *AgentService) ListContainers(ctx context.Context, req *pb.ListContainer
 			})
 		}
 
+		mounts := make([]*pb.ContainerMount, 0, len(c.Mounts))
+		for _, m := range c.Mounts {
+			mounts = append(mounts, &pb.ContainerMount{
+				Type:        m.Type,
+				Source:      m.Source,
+				Destination: m.Destination,
+				ReadOnly:    m.ReadOnly,
+			})
+		}
+
 		pbContainers = append(pbContainers, &pb.ContainerInfo{
 			Id:        c.ID,
 			Name:      c.Name,
@@ -238,6 +248,8 @@ func (s *AgentService) ListContainers(ctx context.Context, req *pb.ListContainer
 			CreatedAt: timestamppb.New(created),
 			Labels:    c.Labels,
 			Ports:     ports,
+			Networks:  c.Networks,
+			Mounts:    mounts,
 		})
 	}
 

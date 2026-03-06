@@ -1100,6 +1100,8 @@ type ContainerInfo struct {
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	Labels        map[string]string      `protobuf:"bytes,7,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	Ports         []*PortBinding         `protobuf:"bytes,8,rep,name=ports,proto3" json:"ports,omitempty"`
+	Networks      []string               `protobuf:"bytes,9,rep,name=networks,proto3" json:"networks,omitempty"`
+	Mounts        []*ContainerMount      `protobuf:"bytes,10,rep,name=mounts,proto3" json:"mounts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1190,6 +1192,20 @@ func (x *ContainerInfo) GetPorts() []*PortBinding {
 	return nil
 }
 
+func (x *ContainerInfo) GetNetworks() []string {
+	if x != nil {
+		return x.Networks
+	}
+	return nil
+}
+
+func (x *ContainerInfo) GetMounts() []*ContainerMount {
+	if x != nil {
+		return x.Mounts
+	}
+	return nil
+}
+
 type PortBinding struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContainerPort int32                  `protobuf:"varint,1,opt,name=container_port,json=containerPort,proto3" json:"container_port,omitempty"`
@@ -1250,6 +1266,74 @@ func (x *PortBinding) GetProtocol() string {
 	return ""
 }
 
+type ContainerMount struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`
+	Destination   string                 `protobuf:"bytes,3,opt,name=destination,proto3" json:"destination,omitempty"`
+	ReadOnly      bool                   `protobuf:"varint,4,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContainerMount) Reset() {
+	*x = ContainerMount{}
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContainerMount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContainerMount) ProtoMessage() {}
+
+func (x *ContainerMount) ProtoReflect() protoreflect.Message {
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContainerMount.ProtoReflect.Descriptor instead.
+func (*ContainerMount) Descriptor() ([]byte, []int) {
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ContainerMount) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *ContainerMount) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *ContainerMount) GetDestination() string {
+	if x != nil {
+		return x.Destination
+	}
+	return ""
+}
+
+func (x *ContainerMount) GetReadOnly() bool {
+	if x != nil {
+		return x.ReadOnly
+	}
+	return false
+}
+
 type ContainerLogsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContainerId   string                 `protobuf:"bytes,1,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`
@@ -1263,7 +1347,7 @@ type ContainerLogsRequest struct {
 
 func (x *ContainerLogsRequest) Reset() {
 	*x = ContainerLogsRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[15]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1275,7 +1359,7 @@ func (x *ContainerLogsRequest) String() string {
 func (*ContainerLogsRequest) ProtoMessage() {}
 
 func (x *ContainerLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[15]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1288,7 +1372,7 @@ func (x *ContainerLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerLogsRequest.ProtoReflect.Descriptor instead.
 func (*ContainerLogsRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{15}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ContainerLogsRequest) GetContainerId() string {
@@ -1337,7 +1421,7 @@ type ContainerLogEntry struct {
 
 func (x *ContainerLogEntry) Reset() {
 	*x = ContainerLogEntry{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[16]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1349,7 +1433,7 @@ func (x *ContainerLogEntry) String() string {
 func (*ContainerLogEntry) ProtoMessage() {}
 
 func (x *ContainerLogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[16]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1362,7 +1446,7 @@ func (x *ContainerLogEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerLogEntry.ProtoReflect.Descriptor instead.
 func (*ContainerLogEntry) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{16}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ContainerLogEntry) GetTimestamp() *timestamppb.Timestamp {
@@ -1396,7 +1480,7 @@ type ContainerStatsRequest struct {
 
 func (x *ContainerStatsRequest) Reset() {
 	*x = ContainerStatsRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[17]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1408,7 +1492,7 @@ func (x *ContainerStatsRequest) String() string {
 func (*ContainerStatsRequest) ProtoMessage() {}
 
 func (x *ContainerStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[17]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1421,7 +1505,7 @@ func (x *ContainerStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerStatsRequest.ProtoReflect.Descriptor instead.
 func (*ContainerStatsRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{17}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ContainerStatsRequest) GetContainerId() string {
@@ -1454,7 +1538,7 @@ type ContainerStats struct {
 
 func (x *ContainerStats) Reset() {
 	*x = ContainerStats{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[18]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1466,7 +1550,7 @@ func (x *ContainerStats) String() string {
 func (*ContainerStats) ProtoMessage() {}
 
 func (x *ContainerStats) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[18]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1479,7 +1563,7 @@ func (x *ContainerStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerStats.ProtoReflect.Descriptor instead.
 func (*ContainerStats) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{18}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ContainerStats) GetTimestamp() *timestamppb.Timestamp {
@@ -1548,7 +1632,7 @@ type RestartContainerRequest struct {
 
 func (x *RestartContainerRequest) Reset() {
 	*x = RestartContainerRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[19]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1560,7 +1644,7 @@ func (x *RestartContainerRequest) String() string {
 func (*RestartContainerRequest) ProtoMessage() {}
 
 func (x *RestartContainerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[19]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1573,7 +1657,7 @@ func (x *RestartContainerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartContainerRequest.ProtoReflect.Descriptor instead.
 func (*RestartContainerRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{19}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *RestartContainerRequest) GetContainerId() string {
@@ -1600,7 +1684,7 @@ type RestartContainerResponse struct {
 
 func (x *RestartContainerResponse) Reset() {
 	*x = RestartContainerResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[20]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1612,7 +1696,7 @@ func (x *RestartContainerResponse) String() string {
 func (*RestartContainerResponse) ProtoMessage() {}
 
 func (x *RestartContainerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[20]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1625,7 +1709,7 @@ func (x *RestartContainerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RestartContainerResponse.ProtoReflect.Descriptor instead.
 func (*RestartContainerResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{20}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *RestartContainerResponse) GetSuccess() bool {
@@ -1652,7 +1736,7 @@ type StopContainerRequest struct {
 
 func (x *StopContainerRequest) Reset() {
 	*x = StopContainerRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[21]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1664,7 +1748,7 @@ func (x *StopContainerRequest) String() string {
 func (*StopContainerRequest) ProtoMessage() {}
 
 func (x *StopContainerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[21]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1677,7 +1761,7 @@ func (x *StopContainerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopContainerRequest.ProtoReflect.Descriptor instead.
 func (*StopContainerRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{21}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *StopContainerRequest) GetContainerId() string {
@@ -1704,7 +1788,7 @@ type StopContainerResponse struct {
 
 func (x *StopContainerResponse) Reset() {
 	*x = StopContainerResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[22]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1716,7 +1800,7 @@ func (x *StopContainerResponse) String() string {
 func (*StopContainerResponse) ProtoMessage() {}
 
 func (x *StopContainerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[22]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1729,7 +1813,7 @@ func (x *StopContainerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopContainerResponse.ProtoReflect.Descriptor instead.
 func (*StopContainerResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{22}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *StopContainerResponse) GetSuccess() bool {
@@ -1755,7 +1839,7 @@ type StartContainerRequest struct {
 
 func (x *StartContainerRequest) Reset() {
 	*x = StartContainerRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[23]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1767,7 +1851,7 @@ func (x *StartContainerRequest) String() string {
 func (*StartContainerRequest) ProtoMessage() {}
 
 func (x *StartContainerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[23]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1780,7 +1864,7 @@ func (x *StartContainerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartContainerRequest.ProtoReflect.Descriptor instead.
 func (*StartContainerRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{23}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *StartContainerRequest) GetContainerId() string {
@@ -1800,7 +1884,7 @@ type StartContainerResponse struct {
 
 func (x *StartContainerResponse) Reset() {
 	*x = StartContainerResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[24]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1812,7 +1896,7 @@ func (x *StartContainerResponse) String() string {
 func (*StartContainerResponse) ProtoMessage() {}
 
 func (x *StartContainerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[24]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1825,7 +1909,7 @@ func (x *StartContainerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StartContainerResponse.ProtoReflect.Descriptor instead.
 func (*StartContainerResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{24}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *StartContainerResponse) GetSuccess() bool {
@@ -1852,7 +1936,7 @@ type RemoveContainerRequest struct {
 
 func (x *RemoveContainerRequest) Reset() {
 	*x = RemoveContainerRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[25]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1864,7 +1948,7 @@ func (x *RemoveContainerRequest) String() string {
 func (*RemoveContainerRequest) ProtoMessage() {}
 
 func (x *RemoveContainerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[25]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1877,7 +1961,7 @@ func (x *RemoveContainerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveContainerRequest.ProtoReflect.Descriptor instead.
 func (*RemoveContainerRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{25}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *RemoveContainerRequest) GetContainerId() string {
@@ -1904,7 +1988,7 @@ type RemoveContainerResponse struct {
 
 func (x *RemoveContainerResponse) Reset() {
 	*x = RemoveContainerResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[26]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1916,7 +2000,7 @@ func (x *RemoveContainerResponse) String() string {
 func (*RemoveContainerResponse) ProtoMessage() {}
 
 func (x *RemoveContainerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[26]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1929,7 +2013,7 @@ func (x *RemoveContainerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveContainerResponse.ProtoReflect.Descriptor instead.
 func (*RemoveContainerResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{26}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *RemoveContainerResponse) GetSuccess() bool {
@@ -1955,7 +2039,7 @@ type ListImagesRequest struct {
 
 func (x *ListImagesRequest) Reset() {
 	*x = ListImagesRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[27]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1967,7 +2051,7 @@ func (x *ListImagesRequest) String() string {
 func (*ListImagesRequest) ProtoMessage() {}
 
 func (x *ListImagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[27]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1980,7 +2064,7 @@ func (x *ListImagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListImagesRequest.ProtoReflect.Descriptor instead.
 func (*ListImagesRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{27}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ListImagesRequest) GetAll() bool {
@@ -1999,7 +2083,7 @@ type ListImagesResponse struct {
 
 func (x *ListImagesResponse) Reset() {
 	*x = ListImagesResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[28]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2011,7 +2095,7 @@ func (x *ListImagesResponse) String() string {
 func (*ListImagesResponse) ProtoMessage() {}
 
 func (x *ListImagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[28]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2024,7 +2108,7 @@ func (x *ListImagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListImagesResponse.ProtoReflect.Descriptor instead.
 func (*ListImagesResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{28}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ListImagesResponse) GetImages() []*ImageInfo {
@@ -2048,7 +2132,7 @@ type ImageInfo struct {
 
 func (x *ImageInfo) Reset() {
 	*x = ImageInfo{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[29]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2060,7 +2144,7 @@ func (x *ImageInfo) String() string {
 func (*ImageInfo) ProtoMessage() {}
 
 func (x *ImageInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[29]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2073,7 +2157,7 @@ func (x *ImageInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ImageInfo.ProtoReflect.Descriptor instead.
 func (*ImageInfo) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{29}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ImageInfo) GetId() string {
@@ -2128,7 +2212,7 @@ type RemoveImageRequest struct {
 
 func (x *RemoveImageRequest) Reset() {
 	*x = RemoveImageRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[30]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2140,7 +2224,7 @@ func (x *RemoveImageRequest) String() string {
 func (*RemoveImageRequest) ProtoMessage() {}
 
 func (x *RemoveImageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[30]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2153,7 +2237,7 @@ func (x *RemoveImageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveImageRequest.ProtoReflect.Descriptor instead.
 func (*RemoveImageRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{30}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *RemoveImageRequest) GetImageId() string {
@@ -2180,7 +2264,7 @@ type RemoveImageResponse struct {
 
 func (x *RemoveImageResponse) Reset() {
 	*x = RemoveImageResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[31]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2192,7 +2276,7 @@ func (x *RemoveImageResponse) String() string {
 func (*RemoveImageResponse) ProtoMessage() {}
 
 func (x *RemoveImageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[31]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2205,7 +2289,7 @@ func (x *RemoveImageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveImageResponse.ProtoReflect.Descriptor instead.
 func (*RemoveImageResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{31}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *RemoveImageResponse) GetSuccess() bool {
@@ -2230,7 +2314,7 @@ type PruneImagesRequest struct {
 
 func (x *PruneImagesRequest) Reset() {
 	*x = PruneImagesRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[32]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2242,7 +2326,7 @@ func (x *PruneImagesRequest) String() string {
 func (*PruneImagesRequest) ProtoMessage() {}
 
 func (x *PruneImagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[32]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2255,7 +2339,7 @@ func (x *PruneImagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PruneImagesRequest.ProtoReflect.Descriptor instead.
 func (*PruneImagesRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{32}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{33}
 }
 
 type PruneImagesResponse struct {
@@ -2268,7 +2352,7 @@ type PruneImagesResponse struct {
 
 func (x *PruneImagesResponse) Reset() {
 	*x = PruneImagesResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[33]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2280,7 +2364,7 @@ func (x *PruneImagesResponse) String() string {
 func (*PruneImagesResponse) ProtoMessage() {}
 
 func (x *PruneImagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[33]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2293,7 +2377,7 @@ func (x *PruneImagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PruneImagesResponse.ProtoReflect.Descriptor instead.
 func (*PruneImagesResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{33}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *PruneImagesResponse) GetImagesRemoved() int32 {
@@ -2318,7 +2402,7 @@ type ListNetworksRequest struct {
 
 func (x *ListNetworksRequest) Reset() {
 	*x = ListNetworksRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[34]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2330,7 +2414,7 @@ func (x *ListNetworksRequest) String() string {
 func (*ListNetworksRequest) ProtoMessage() {}
 
 func (x *ListNetworksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[34]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2343,7 +2427,7 @@ func (x *ListNetworksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNetworksRequest.ProtoReflect.Descriptor instead.
 func (*ListNetworksRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{34}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{35}
 }
 
 type ListNetworksResponse struct {
@@ -2355,7 +2439,7 @@ type ListNetworksResponse struct {
 
 func (x *ListNetworksResponse) Reset() {
 	*x = ListNetworksResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[35]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2367,7 +2451,7 @@ func (x *ListNetworksResponse) String() string {
 func (*ListNetworksResponse) ProtoMessage() {}
 
 func (x *ListNetworksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[35]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2380,7 +2464,7 @@ func (x *ListNetworksResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNetworksResponse.ProtoReflect.Descriptor instead.
 func (*ListNetworksResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{35}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ListNetworksResponse) GetNetworks() []*NetworkInfo {
@@ -2399,7 +2483,7 @@ type NetworkInfo struct {
 
 func (x *NetworkInfo) Reset() {
 	*x = NetworkInfo{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[36]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2411,7 +2495,7 @@ func (x *NetworkInfo) String() string {
 func (*NetworkInfo) ProtoMessage() {}
 
 func (x *NetworkInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[36]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2424,7 +2508,7 @@ func (x *NetworkInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkInfo.ProtoReflect.Descriptor instead.
 func (*NetworkInfo) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{36}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *NetworkInfo) GetName() string {
@@ -2443,7 +2527,7 @@ type CreateNetworkRequest struct {
 
 func (x *CreateNetworkRequest) Reset() {
 	*x = CreateNetworkRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[37]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2455,7 +2539,7 @@ func (x *CreateNetworkRequest) String() string {
 func (*CreateNetworkRequest) ProtoMessage() {}
 
 func (x *CreateNetworkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[37]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2468,7 +2552,7 @@ func (x *CreateNetworkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateNetworkRequest.ProtoReflect.Descriptor instead.
 func (*CreateNetworkRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{37}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *CreateNetworkRequest) GetName() string {
@@ -2488,7 +2572,7 @@ type CreateNetworkResponse struct {
 
 func (x *CreateNetworkResponse) Reset() {
 	*x = CreateNetworkResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[38]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2500,7 +2584,7 @@ func (x *CreateNetworkResponse) String() string {
 func (*CreateNetworkResponse) ProtoMessage() {}
 
 func (x *CreateNetworkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[38]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2513,7 +2597,7 @@ func (x *CreateNetworkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateNetworkResponse.ProtoReflect.Descriptor instead.
 func (*CreateNetworkResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{38}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *CreateNetworkResponse) GetSuccess() bool {
@@ -2539,7 +2623,7 @@ type RemoveNetworkRequest struct {
 
 func (x *RemoveNetworkRequest) Reset() {
 	*x = RemoveNetworkRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[39]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2551,7 +2635,7 @@ func (x *RemoveNetworkRequest) String() string {
 func (*RemoveNetworkRequest) ProtoMessage() {}
 
 func (x *RemoveNetworkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[39]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2564,7 +2648,7 @@ func (x *RemoveNetworkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveNetworkRequest.ProtoReflect.Descriptor instead.
 func (*RemoveNetworkRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{39}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *RemoveNetworkRequest) GetName() string {
@@ -2584,7 +2668,7 @@ type RemoveNetworkResponse struct {
 
 func (x *RemoveNetworkResponse) Reset() {
 	*x = RemoveNetworkResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[40]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2596,7 +2680,7 @@ func (x *RemoveNetworkResponse) String() string {
 func (*RemoveNetworkResponse) ProtoMessage() {}
 
 func (x *RemoveNetworkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[40]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2609,7 +2693,7 @@ func (x *RemoveNetworkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveNetworkResponse.ProtoReflect.Descriptor instead.
 func (*RemoveNetworkResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{40}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *RemoveNetworkResponse) GetSuccess() bool {
@@ -2634,7 +2718,7 @@ type ListVolumesRequest struct {
 
 func (x *ListVolumesRequest) Reset() {
 	*x = ListVolumesRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[41]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2646,7 +2730,7 @@ func (x *ListVolumesRequest) String() string {
 func (*ListVolumesRequest) ProtoMessage() {}
 
 func (x *ListVolumesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[41]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2659,7 +2743,7 @@ func (x *ListVolumesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVolumesRequest.ProtoReflect.Descriptor instead.
 func (*ListVolumesRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{41}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{42}
 }
 
 type ListVolumesResponse struct {
@@ -2671,7 +2755,7 @@ type ListVolumesResponse struct {
 
 func (x *ListVolumesResponse) Reset() {
 	*x = ListVolumesResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[42]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2683,7 +2767,7 @@ func (x *ListVolumesResponse) String() string {
 func (*ListVolumesResponse) ProtoMessage() {}
 
 func (x *ListVolumesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[42]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2696,7 +2780,7 @@ func (x *ListVolumesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListVolumesResponse.ProtoReflect.Descriptor instead.
 func (*ListVolumesResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{42}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ListVolumesResponse) GetVolumes() []*VolumeInfo {
@@ -2715,7 +2799,7 @@ type VolumeInfo struct {
 
 func (x *VolumeInfo) Reset() {
 	*x = VolumeInfo{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[43]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2727,7 +2811,7 @@ func (x *VolumeInfo) String() string {
 func (*VolumeInfo) ProtoMessage() {}
 
 func (x *VolumeInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[43]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2740,7 +2824,7 @@ func (x *VolumeInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use VolumeInfo.ProtoReflect.Descriptor instead.
 func (*VolumeInfo) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{43}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *VolumeInfo) GetName() string {
@@ -2759,7 +2843,7 @@ type CreateVolumeRequest struct {
 
 func (x *CreateVolumeRequest) Reset() {
 	*x = CreateVolumeRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[44]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2771,7 +2855,7 @@ func (x *CreateVolumeRequest) String() string {
 func (*CreateVolumeRequest) ProtoMessage() {}
 
 func (x *CreateVolumeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[44]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2784,7 +2868,7 @@ func (x *CreateVolumeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateVolumeRequest.ProtoReflect.Descriptor instead.
 func (*CreateVolumeRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{44}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *CreateVolumeRequest) GetName() string {
@@ -2804,7 +2888,7 @@ type CreateVolumeResponse struct {
 
 func (x *CreateVolumeResponse) Reset() {
 	*x = CreateVolumeResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[45]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2816,7 +2900,7 @@ func (x *CreateVolumeResponse) String() string {
 func (*CreateVolumeResponse) ProtoMessage() {}
 
 func (x *CreateVolumeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[45]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2829,7 +2913,7 @@ func (x *CreateVolumeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateVolumeResponse.ProtoReflect.Descriptor instead.
 func (*CreateVolumeResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{45}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *CreateVolumeResponse) GetSuccess() bool {
@@ -2855,7 +2939,7 @@ type RemoveVolumeRequest struct {
 
 func (x *RemoveVolumeRequest) Reset() {
 	*x = RemoveVolumeRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[46]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2867,7 +2951,7 @@ func (x *RemoveVolumeRequest) String() string {
 func (*RemoveVolumeRequest) ProtoMessage() {}
 
 func (x *RemoveVolumeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[46]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2880,7 +2964,7 @@ func (x *RemoveVolumeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveVolumeRequest.ProtoReflect.Descriptor instead.
 func (*RemoveVolumeRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{46}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *RemoveVolumeRequest) GetName() string {
@@ -2900,7 +2984,7 @@ type RemoveVolumeResponse struct {
 
 func (x *RemoveVolumeResponse) Reset() {
 	*x = RemoveVolumeResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[47]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2912,7 +2996,7 @@ func (x *RemoveVolumeResponse) String() string {
 func (*RemoveVolumeResponse) ProtoMessage() {}
 
 func (x *RemoveVolumeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[47]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2925,7 +3009,7 @@ func (x *RemoveVolumeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveVolumeResponse.ProtoReflect.Descriptor instead.
 func (*RemoveVolumeResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{47}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *RemoveVolumeResponse) GetSuccess() bool {
@@ -2955,7 +3039,7 @@ type UpdateDomainsRequest struct {
 
 func (x *UpdateDomainsRequest) Reset() {
 	*x = UpdateDomainsRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[48]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2967,7 +3051,7 @@ func (x *UpdateDomainsRequest) String() string {
 func (*UpdateDomainsRequest) ProtoMessage() {}
 
 func (x *UpdateDomainsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[48]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2980,7 +3064,7 @@ func (x *UpdateDomainsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDomainsRequest.ProtoReflect.Descriptor instead.
 func (*UpdateDomainsRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{48}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *UpdateDomainsRequest) GetAppId() string {
@@ -3028,7 +3112,7 @@ type DomainRouteConfig struct {
 
 func (x *DomainRouteConfig) Reset() {
 	*x = DomainRouteConfig{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[49]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3040,7 +3124,7 @@ func (x *DomainRouteConfig) String() string {
 func (*DomainRouteConfig) ProtoMessage() {}
 
 func (x *DomainRouteConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[49]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3053,7 +3137,7 @@ func (x *DomainRouteConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DomainRouteConfig.ProtoReflect.Descriptor instead.
 func (*DomainRouteConfig) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{49}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *DomainRouteConfig) GetDomain() string {
@@ -3080,7 +3164,7 @@ type UpdateDomainsResponse struct {
 
 func (x *UpdateDomainsResponse) Reset() {
 	*x = UpdateDomainsResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[50]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3092,7 +3176,7 @@ func (x *UpdateDomainsResponse) String() string {
 func (*UpdateDomainsResponse) ProtoMessage() {}
 
 func (x *UpdateDomainsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[50]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3105,7 +3189,7 @@ func (x *UpdateDomainsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateDomainsResponse.ProtoReflect.Descriptor instead.
 func (*UpdateDomainsResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{50}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *UpdateDomainsResponse) GetSuccess() bool {
@@ -3136,7 +3220,7 @@ type ExecInput struct {
 
 func (x *ExecInput) Reset() {
 	*x = ExecInput{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[51]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3148,7 +3232,7 @@ func (x *ExecInput) String() string {
 func (*ExecInput) ProtoMessage() {}
 
 func (x *ExecInput) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[51]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3161,7 +3245,7 @@ func (x *ExecInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecInput.ProtoReflect.Descriptor instead.
 func (*ExecInput) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{51}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *ExecInput) GetPayload() isExecInput_Payload {
@@ -3232,7 +3316,7 @@ type ExecStartRequest struct {
 
 func (x *ExecStartRequest) Reset() {
 	*x = ExecStartRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[52]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3244,7 +3328,7 @@ func (x *ExecStartRequest) String() string {
 func (*ExecStartRequest) ProtoMessage() {}
 
 func (x *ExecStartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[52]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3257,7 +3341,7 @@ func (x *ExecStartRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecStartRequest.ProtoReflect.Descriptor instead.
 func (*ExecStartRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{52}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{53}
 }
 
 func (x *ExecStartRequest) GetContainerId() string {
@@ -3298,7 +3382,7 @@ type ExecResize struct {
 
 func (x *ExecResize) Reset() {
 	*x = ExecResize{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[53]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3310,7 +3394,7 @@ func (x *ExecResize) String() string {
 func (*ExecResize) ProtoMessage() {}
 
 func (x *ExecResize) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[53]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3323,7 +3407,7 @@ func (x *ExecResize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecResize.ProtoReflect.Descriptor instead.
 func (*ExecResize) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{53}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{54}
 }
 
 func (x *ExecResize) GetCols() uint32 {
@@ -3353,7 +3437,7 @@ type ExecOutput struct {
 
 func (x *ExecOutput) Reset() {
 	*x = ExecOutput{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[54]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3365,7 +3449,7 @@ func (x *ExecOutput) String() string {
 func (*ExecOutput) ProtoMessage() {}
 
 func (x *ExecOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[54]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3378,7 +3462,7 @@ func (x *ExecOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecOutput.ProtoReflect.Descriptor instead.
 func (*ExecOutput) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{54}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{55}
 }
 
 func (x *ExecOutput) GetPayload() isExecOutput_Payload {
@@ -3430,7 +3514,7 @@ type GetCertificatesRequest struct {
 
 func (x *GetCertificatesRequest) Reset() {
 	*x = GetCertificatesRequest{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[55]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3442,7 +3526,7 @@ func (x *GetCertificatesRequest) String() string {
 func (*GetCertificatesRequest) ProtoMessage() {}
 
 func (x *GetCertificatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[55]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3455,7 +3539,7 @@ func (x *GetCertificatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCertificatesRequest.ProtoReflect.Descriptor instead.
 func (*GetCertificatesRequest) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{55}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{56}
 }
 
 type CertificateInfo struct {
@@ -3470,7 +3554,7 @@ type CertificateInfo struct {
 
 func (x *CertificateInfo) Reset() {
 	*x = CertificateInfo{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[56]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3482,7 +3566,7 @@ func (x *CertificateInfo) String() string {
 func (*CertificateInfo) ProtoMessage() {}
 
 func (x *CertificateInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[56]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3495,7 +3579,7 @@ func (x *CertificateInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CertificateInfo.ProtoReflect.Descriptor instead.
 func (*CertificateInfo) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{56}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *CertificateInfo) GetDomain() string {
@@ -3535,7 +3619,7 @@ type GetCertificatesResponse struct {
 
 func (x *GetCertificatesResponse) Reset() {
 	*x = GetCertificatesResponse{}
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[57]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3547,7 +3631,7 @@ func (x *GetCertificatesResponse) String() string {
 func (*GetCertificatesResponse) ProtoMessage() {}
 
 func (x *GetCertificatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_flowdeploy_v1_server_proto_msgTypes[57]
+	mi := &file_flowdeploy_v1_server_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3560,7 +3644,7 @@ func (x *GetCertificatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCertificatesResponse.ProtoReflect.Descriptor instead.
 func (*GetCertificatesResponse) Descriptor() ([]byte, []int) {
-	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{57}
+	return file_flowdeploy_v1_server_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *GetCertificatesResponse) GetCertificates() []*CertificateInfo {
@@ -3762,7 +3846,7 @@ var file_flowdeploy_v1_server_proto_rawDesc = []byte{
 	0x6e, 0x65, 0x72, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1c, 0x2e, 0x66, 0x6c, 0x6f,
 	0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x61,
 	0x69, 0x6e, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x0a, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69,
-	0x6e, 0x65, 0x72, 0x73, 0x22, 0xe1, 0x02, 0x0a, 0x0d, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e,
+	0x6e, 0x65, 0x72, 0x73, 0x22, 0xb4, 0x03, 0x0a, 0x0d, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e,
 	0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01,
 	0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02,
 	0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x69, 0x6d,
@@ -3780,18 +3864,31 @@ var file_flowdeploy_v1_server_proto_rawDesc = []byte{
 	0x74, 0x72, 0x79, 0x52, 0x06, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x12, 0x30, 0x0a, 0x05, 0x70,
 	0x6f, 0x72, 0x74, 0x73, 0x18, 0x08, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x66, 0x6c, 0x6f,
 	0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x6f, 0x72, 0x74, 0x42,
-	0x69, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x52, 0x05, 0x70, 0x6f, 0x72, 0x74, 0x73, 0x1a, 0x39, 0x0a,
-	0x0b, 0x4c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03,
-	0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14,
-	0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76,
-	0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x6d, 0x0a, 0x0b, 0x50, 0x6f, 0x72, 0x74,
-	0x42, 0x69, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x12, 0x25, 0x0a, 0x0e, 0x63, 0x6f, 0x6e, 0x74, 0x61,
-	0x69, 0x6e, 0x65, 0x72, 0x5f, 0x70, 0x6f, 0x72, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52,
-	0x0d, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x50, 0x6f, 0x72, 0x74, 0x12, 0x1b,
-	0x0a, 0x09, 0x68, 0x6f, 0x73, 0x74, 0x5f, 0x70, 0x6f, 0x72, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x05, 0x52, 0x08, 0x68, 0x6f, 0x73, 0x74, 0x50, 0x6f, 0x72, 0x74, 0x12, 0x1a, 0x0a, 0x08, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x22, 0xc6, 0x01, 0x0a, 0x14, 0x43, 0x6f, 0x6e, 0x74,
+	0x69, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x52, 0x05, 0x70, 0x6f, 0x72, 0x74, 0x73, 0x12, 0x1a, 0x0a,
+	0x08, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x73, 0x18, 0x09, 0x20, 0x03, 0x28, 0x09, 0x52,
+	0x08, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x73, 0x12, 0x35, 0x0a, 0x06, 0x6d, 0x6f, 0x75,
+	0x6e, 0x74, 0x73, 0x18, 0x0a, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1d, 0x2e, 0x66, 0x6c, 0x6f, 0x77,
+	0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69,
+	0x6e, 0x65, 0x72, 0x4d, 0x6f, 0x75, 0x6e, 0x74, 0x52, 0x06, 0x6d, 0x6f, 0x75, 0x6e, 0x74, 0x73,
+	0x1a, 0x39, 0x0a, 0x0b, 0x4c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12,
+	0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65,
+	0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x6d, 0x0a, 0x0b, 0x50,
+	0x6f, 0x72, 0x74, 0x42, 0x69, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x12, 0x25, 0x0a, 0x0e, 0x63, 0x6f,
+	0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x70, 0x6f, 0x72, 0x74, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x0d, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x50, 0x6f, 0x72,
+	0x74, 0x12, 0x1b, 0x0a, 0x09, 0x68, 0x6f, 0x73, 0x74, 0x5f, 0x70, 0x6f, 0x72, 0x74, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x05, 0x52, 0x08, 0x68, 0x6f, 0x73, 0x74, 0x50, 0x6f, 0x72, 0x74, 0x12, 0x1a,
+	0x0a, 0x08, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x08, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x63, 0x6f, 0x6c, 0x22, 0x7b, 0x0a, 0x0e, 0x43, 0x6f,
+	0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x4d, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x12, 0x0a, 0x04,
+	0x74, 0x79, 0x70, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x74, 0x79, 0x70, 0x65,
+	0x12, 0x16, 0x0a, 0x06, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x06, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65, 0x73, 0x74,
+	0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x64,
+	0x65, 0x73, 0x74, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x1b, 0x0a, 0x09, 0x72, 0x65,
+	0x61, 0x64, 0x5f, 0x6f, 0x6e, 0x6c, 0x79, 0x18, 0x04, 0x20, 0x01, 0x28, 0x08, 0x52, 0x08, 0x72,
+	0x65, 0x61, 0x64, 0x4f, 0x6e, 0x6c, 0x79, 0x22, 0xc6, 0x01, 0x0a, 0x14, 0x43, 0x6f, 0x6e, 0x74,
 	0x61, 0x69, 0x6e, 0x65, 0x72, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
 	0x12, 0x21, 0x0a, 0x0c, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x5f, 0x69, 0x64,
 	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x63, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65,
@@ -4073,7 +4170,7 @@ func file_flowdeploy_v1_server_proto_rawDescGZIP() []byte {
 }
 
 var file_flowdeploy_v1_server_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_flowdeploy_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 60)
+var file_flowdeploy_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 61)
 var file_flowdeploy_v1_server_proto_goTypes = []any{
 	(AgentState)(0),                  // 0: flowdeploy.v1.AgentState
 	(AgentCommandType)(0),            // 1: flowdeploy.v1.AgentCommandType
@@ -4092,89 +4189,91 @@ var file_flowdeploy_v1_server_proto_goTypes = []any{
 	(*ListContainersResponse)(nil),   // 14: flowdeploy.v1.ListContainersResponse
 	(*ContainerInfo)(nil),            // 15: flowdeploy.v1.ContainerInfo
 	(*PortBinding)(nil),              // 16: flowdeploy.v1.PortBinding
-	(*ContainerLogsRequest)(nil),     // 17: flowdeploy.v1.ContainerLogsRequest
-	(*ContainerLogEntry)(nil),        // 18: flowdeploy.v1.ContainerLogEntry
-	(*ContainerStatsRequest)(nil),    // 19: flowdeploy.v1.ContainerStatsRequest
-	(*ContainerStats)(nil),           // 20: flowdeploy.v1.ContainerStats
-	(*RestartContainerRequest)(nil),  // 21: flowdeploy.v1.RestartContainerRequest
-	(*RestartContainerResponse)(nil), // 22: flowdeploy.v1.RestartContainerResponse
-	(*StopContainerRequest)(nil),     // 23: flowdeploy.v1.StopContainerRequest
-	(*StopContainerResponse)(nil),    // 24: flowdeploy.v1.StopContainerResponse
-	(*StartContainerRequest)(nil),    // 25: flowdeploy.v1.StartContainerRequest
-	(*StartContainerResponse)(nil),   // 26: flowdeploy.v1.StartContainerResponse
-	(*RemoveContainerRequest)(nil),   // 27: flowdeploy.v1.RemoveContainerRequest
-	(*RemoveContainerResponse)(nil),  // 28: flowdeploy.v1.RemoveContainerResponse
-	(*ListImagesRequest)(nil),        // 29: flowdeploy.v1.ListImagesRequest
-	(*ListImagesResponse)(nil),       // 30: flowdeploy.v1.ListImagesResponse
-	(*ImageInfo)(nil),                // 31: flowdeploy.v1.ImageInfo
-	(*RemoveImageRequest)(nil),       // 32: flowdeploy.v1.RemoveImageRequest
-	(*RemoveImageResponse)(nil),      // 33: flowdeploy.v1.RemoveImageResponse
-	(*PruneImagesRequest)(nil),       // 34: flowdeploy.v1.PruneImagesRequest
-	(*PruneImagesResponse)(nil),      // 35: flowdeploy.v1.PruneImagesResponse
-	(*ListNetworksRequest)(nil),      // 36: flowdeploy.v1.ListNetworksRequest
-	(*ListNetworksResponse)(nil),     // 37: flowdeploy.v1.ListNetworksResponse
-	(*NetworkInfo)(nil),              // 38: flowdeploy.v1.NetworkInfo
-	(*CreateNetworkRequest)(nil),     // 39: flowdeploy.v1.CreateNetworkRequest
-	(*CreateNetworkResponse)(nil),    // 40: flowdeploy.v1.CreateNetworkResponse
-	(*RemoveNetworkRequest)(nil),     // 41: flowdeploy.v1.RemoveNetworkRequest
-	(*RemoveNetworkResponse)(nil),    // 42: flowdeploy.v1.RemoveNetworkResponse
-	(*ListVolumesRequest)(nil),       // 43: flowdeploy.v1.ListVolumesRequest
-	(*ListVolumesResponse)(nil),      // 44: flowdeploy.v1.ListVolumesResponse
-	(*VolumeInfo)(nil),               // 45: flowdeploy.v1.VolumeInfo
-	(*CreateVolumeRequest)(nil),      // 46: flowdeploy.v1.CreateVolumeRequest
-	(*CreateVolumeResponse)(nil),     // 47: flowdeploy.v1.CreateVolumeResponse
-	(*RemoveVolumeRequest)(nil),      // 48: flowdeploy.v1.RemoveVolumeRequest
-	(*RemoveVolumeResponse)(nil),     // 49: flowdeploy.v1.RemoveVolumeResponse
-	(*UpdateDomainsRequest)(nil),     // 50: flowdeploy.v1.UpdateDomainsRequest
-	(*DomainRouteConfig)(nil),        // 51: flowdeploy.v1.DomainRouteConfig
-	(*UpdateDomainsResponse)(nil),    // 52: flowdeploy.v1.UpdateDomainsResponse
-	(*ExecInput)(nil),                // 53: flowdeploy.v1.ExecInput
-	(*ExecStartRequest)(nil),         // 54: flowdeploy.v1.ExecStartRequest
-	(*ExecResize)(nil),               // 55: flowdeploy.v1.ExecResize
-	(*ExecOutput)(nil),               // 56: flowdeploy.v1.ExecOutput
-	(*GetCertificatesRequest)(nil),   // 57: flowdeploy.v1.GetCertificatesRequest
-	(*CertificateInfo)(nil),          // 58: flowdeploy.v1.CertificateInfo
-	(*GetCertificatesResponse)(nil),  // 59: flowdeploy.v1.GetCertificatesResponse
-	nil,                              // 60: flowdeploy.v1.ContainerInfo.LabelsEntry
-	nil,                              // 61: flowdeploy.v1.UpdateDomainsRequest.EnvVarsEntry
-	(*timestamppb.Timestamp)(nil),    // 62: google.protobuf.Timestamp
-	(DeployStage)(0),                 // 63: flowdeploy.v1.DeployStage
+	(*ContainerMount)(nil),           // 17: flowdeploy.v1.ContainerMount
+	(*ContainerLogsRequest)(nil),     // 18: flowdeploy.v1.ContainerLogsRequest
+	(*ContainerLogEntry)(nil),        // 19: flowdeploy.v1.ContainerLogEntry
+	(*ContainerStatsRequest)(nil),    // 20: flowdeploy.v1.ContainerStatsRequest
+	(*ContainerStats)(nil),           // 21: flowdeploy.v1.ContainerStats
+	(*RestartContainerRequest)(nil),  // 22: flowdeploy.v1.RestartContainerRequest
+	(*RestartContainerResponse)(nil), // 23: flowdeploy.v1.RestartContainerResponse
+	(*StopContainerRequest)(nil),     // 24: flowdeploy.v1.StopContainerRequest
+	(*StopContainerResponse)(nil),    // 25: flowdeploy.v1.StopContainerResponse
+	(*StartContainerRequest)(nil),    // 26: flowdeploy.v1.StartContainerRequest
+	(*StartContainerResponse)(nil),   // 27: flowdeploy.v1.StartContainerResponse
+	(*RemoveContainerRequest)(nil),   // 28: flowdeploy.v1.RemoveContainerRequest
+	(*RemoveContainerResponse)(nil),  // 29: flowdeploy.v1.RemoveContainerResponse
+	(*ListImagesRequest)(nil),        // 30: flowdeploy.v1.ListImagesRequest
+	(*ListImagesResponse)(nil),       // 31: flowdeploy.v1.ListImagesResponse
+	(*ImageInfo)(nil),                // 32: flowdeploy.v1.ImageInfo
+	(*RemoveImageRequest)(nil),       // 33: flowdeploy.v1.RemoveImageRequest
+	(*RemoveImageResponse)(nil),      // 34: flowdeploy.v1.RemoveImageResponse
+	(*PruneImagesRequest)(nil),       // 35: flowdeploy.v1.PruneImagesRequest
+	(*PruneImagesResponse)(nil),      // 36: flowdeploy.v1.PruneImagesResponse
+	(*ListNetworksRequest)(nil),      // 37: flowdeploy.v1.ListNetworksRequest
+	(*ListNetworksResponse)(nil),     // 38: flowdeploy.v1.ListNetworksResponse
+	(*NetworkInfo)(nil),              // 39: flowdeploy.v1.NetworkInfo
+	(*CreateNetworkRequest)(nil),     // 40: flowdeploy.v1.CreateNetworkRequest
+	(*CreateNetworkResponse)(nil),    // 41: flowdeploy.v1.CreateNetworkResponse
+	(*RemoveNetworkRequest)(nil),     // 42: flowdeploy.v1.RemoveNetworkRequest
+	(*RemoveNetworkResponse)(nil),    // 43: flowdeploy.v1.RemoveNetworkResponse
+	(*ListVolumesRequest)(nil),       // 44: flowdeploy.v1.ListVolumesRequest
+	(*ListVolumesResponse)(nil),      // 45: flowdeploy.v1.ListVolumesResponse
+	(*VolumeInfo)(nil),               // 46: flowdeploy.v1.VolumeInfo
+	(*CreateVolumeRequest)(nil),      // 47: flowdeploy.v1.CreateVolumeRequest
+	(*CreateVolumeResponse)(nil),     // 48: flowdeploy.v1.CreateVolumeResponse
+	(*RemoveVolumeRequest)(nil),      // 49: flowdeploy.v1.RemoveVolumeRequest
+	(*RemoveVolumeResponse)(nil),     // 50: flowdeploy.v1.RemoveVolumeResponse
+	(*UpdateDomainsRequest)(nil),     // 51: flowdeploy.v1.UpdateDomainsRequest
+	(*DomainRouteConfig)(nil),        // 52: flowdeploy.v1.DomainRouteConfig
+	(*UpdateDomainsResponse)(nil),    // 53: flowdeploy.v1.UpdateDomainsResponse
+	(*ExecInput)(nil),                // 54: flowdeploy.v1.ExecInput
+	(*ExecStartRequest)(nil),         // 55: flowdeploy.v1.ExecStartRequest
+	(*ExecResize)(nil),               // 56: flowdeploy.v1.ExecResize
+	(*ExecOutput)(nil),               // 57: flowdeploy.v1.ExecOutput
+	(*GetCertificatesRequest)(nil),   // 58: flowdeploy.v1.GetCertificatesRequest
+	(*CertificateInfo)(nil),          // 59: flowdeploy.v1.CertificateInfo
+	(*GetCertificatesResponse)(nil),  // 60: flowdeploy.v1.GetCertificatesResponse
+	nil,                              // 61: flowdeploy.v1.ContainerInfo.LabelsEntry
+	nil,                              // 62: flowdeploy.v1.UpdateDomainsRequest.EnvVarsEntry
+	(*timestamppb.Timestamp)(nil),    // 63: google.protobuf.Timestamp
+	(DeployStage)(0),                 // 64: flowdeploy.v1.DeployStage
 }
 var file_flowdeploy_v1_server_proto_depIdxs = []int32{
 	10, // 0: flowdeploy.v1.RegisterRequest.system_info:type_name -> flowdeploy.v1.SystemInfo
 	11, // 1: flowdeploy.v1.RegisterRequest.docker_info:type_name -> flowdeploy.v1.DockerInfo
 	4,  // 2: flowdeploy.v1.RegisterResponse.config:type_name -> flowdeploy.v1.AgentConfig
-	62, // 3: flowdeploy.v1.HeartbeatRequest.timestamp:type_name -> google.protobuf.Timestamp
+	63, // 3: flowdeploy.v1.HeartbeatRequest.timestamp:type_name -> google.protobuf.Timestamp
 	6,  // 4: flowdeploy.v1.HeartbeatRequest.status:type_name -> flowdeploy.v1.AgentStatus
 	7,  // 5: flowdeploy.v1.HeartbeatRequest.active_deployments:type_name -> flowdeploy.v1.ActiveDeployment
 	12, // 6: flowdeploy.v1.HeartbeatRequest.metrics:type_name -> flowdeploy.v1.SystemMetrics
 	0,  // 7: flowdeploy.v1.AgentStatus.state:type_name -> flowdeploy.v1.AgentState
-	62, // 8: flowdeploy.v1.AgentStatus.started_at:type_name -> google.protobuf.Timestamp
-	63, // 9: flowdeploy.v1.ActiveDeployment.stage:type_name -> flowdeploy.v1.DeployStage
-	62, // 10: flowdeploy.v1.ActiveDeployment.started_at:type_name -> google.protobuf.Timestamp
+	63, // 8: flowdeploy.v1.AgentStatus.started_at:type_name -> google.protobuf.Timestamp
+	64, // 9: flowdeploy.v1.ActiveDeployment.stage:type_name -> flowdeploy.v1.DeployStage
+	63, // 10: flowdeploy.v1.ActiveDeployment.started_at:type_name -> google.protobuf.Timestamp
 	9,  // 11: flowdeploy.v1.HeartbeatResponse.commands:type_name -> flowdeploy.v1.AgentCommand
 	4,  // 12: flowdeploy.v1.HeartbeatResponse.updated_config:type_name -> flowdeploy.v1.AgentConfig
 	1,  // 13: flowdeploy.v1.AgentCommand.type:type_name -> flowdeploy.v1.AgentCommandType
 	15, // 14: flowdeploy.v1.ListContainersResponse.containers:type_name -> flowdeploy.v1.ContainerInfo
-	62, // 15: flowdeploy.v1.ContainerInfo.created_at:type_name -> google.protobuf.Timestamp
-	60, // 16: flowdeploy.v1.ContainerInfo.labels:type_name -> flowdeploy.v1.ContainerInfo.LabelsEntry
+	63, // 15: flowdeploy.v1.ContainerInfo.created_at:type_name -> google.protobuf.Timestamp
+	61, // 16: flowdeploy.v1.ContainerInfo.labels:type_name -> flowdeploy.v1.ContainerInfo.LabelsEntry
 	16, // 17: flowdeploy.v1.ContainerInfo.ports:type_name -> flowdeploy.v1.PortBinding
-	62, // 18: flowdeploy.v1.ContainerLogsRequest.since:type_name -> google.protobuf.Timestamp
-	62, // 19: flowdeploy.v1.ContainerLogEntry.timestamp:type_name -> google.protobuf.Timestamp
-	62, // 20: flowdeploy.v1.ContainerStats.timestamp:type_name -> google.protobuf.Timestamp
-	31, // 21: flowdeploy.v1.ListImagesResponse.images:type_name -> flowdeploy.v1.ImageInfo
-	38, // 22: flowdeploy.v1.ListNetworksResponse.networks:type_name -> flowdeploy.v1.NetworkInfo
-	45, // 23: flowdeploy.v1.ListVolumesResponse.volumes:type_name -> flowdeploy.v1.VolumeInfo
-	51, // 24: flowdeploy.v1.UpdateDomainsRequest.domains:type_name -> flowdeploy.v1.DomainRouteConfig
-	61, // 25: flowdeploy.v1.UpdateDomainsRequest.env_vars:type_name -> flowdeploy.v1.UpdateDomainsRequest.EnvVarsEntry
-	54, // 26: flowdeploy.v1.ExecInput.start:type_name -> flowdeploy.v1.ExecStartRequest
-	55, // 27: flowdeploy.v1.ExecInput.resize:type_name -> flowdeploy.v1.ExecResize
-	58, // 28: flowdeploy.v1.GetCertificatesResponse.certificates:type_name -> flowdeploy.v1.CertificateInfo
-	29, // [29:29] is the sub-list for method output_type
-	29, // [29:29] is the sub-list for method input_type
-	29, // [29:29] is the sub-list for extension type_name
-	29, // [29:29] is the sub-list for extension extendee
-	0,  // [0:29] is the sub-list for field type_name
+	17, // 18: flowdeploy.v1.ContainerInfo.mounts:type_name -> flowdeploy.v1.ContainerMount
+	63, // 19: flowdeploy.v1.ContainerLogsRequest.since:type_name -> google.protobuf.Timestamp
+	63, // 20: flowdeploy.v1.ContainerLogEntry.timestamp:type_name -> google.protobuf.Timestamp
+	63, // 21: flowdeploy.v1.ContainerStats.timestamp:type_name -> google.protobuf.Timestamp
+	32, // 22: flowdeploy.v1.ListImagesResponse.images:type_name -> flowdeploy.v1.ImageInfo
+	39, // 23: flowdeploy.v1.ListNetworksResponse.networks:type_name -> flowdeploy.v1.NetworkInfo
+	46, // 24: flowdeploy.v1.ListVolumesResponse.volumes:type_name -> flowdeploy.v1.VolumeInfo
+	52, // 25: flowdeploy.v1.UpdateDomainsRequest.domains:type_name -> flowdeploy.v1.DomainRouteConfig
+	62, // 26: flowdeploy.v1.UpdateDomainsRequest.env_vars:type_name -> flowdeploy.v1.UpdateDomainsRequest.EnvVarsEntry
+	55, // 27: flowdeploy.v1.ExecInput.start:type_name -> flowdeploy.v1.ExecStartRequest
+	56, // 28: flowdeploy.v1.ExecInput.resize:type_name -> flowdeploy.v1.ExecResize
+	59, // 29: flowdeploy.v1.GetCertificatesResponse.certificates:type_name -> flowdeploy.v1.CertificateInfo
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_flowdeploy_v1_server_proto_init() }
@@ -4186,13 +4285,13 @@ func file_flowdeploy_v1_server_proto_init() {
 	file_flowdeploy_v1_server_proto_msgTypes[3].OneofWrappers = []any{}
 	file_flowdeploy_v1_server_proto_msgTypes[6].OneofWrappers = []any{}
 	file_flowdeploy_v1_server_proto_msgTypes[11].OneofWrappers = []any{}
-	file_flowdeploy_v1_server_proto_msgTypes[15].OneofWrappers = []any{}
-	file_flowdeploy_v1_server_proto_msgTypes[51].OneofWrappers = []any{
+	file_flowdeploy_v1_server_proto_msgTypes[16].OneofWrappers = []any{}
+	file_flowdeploy_v1_server_proto_msgTypes[52].OneofWrappers = []any{
 		(*ExecInput_Start)(nil),
 		(*ExecInput_Data)(nil),
 		(*ExecInput_Resize)(nil),
 	}
-	file_flowdeploy_v1_server_proto_msgTypes[54].OneofWrappers = []any{
+	file_flowdeploy_v1_server_proto_msgTypes[55].OneofWrappers = []any{
 		(*ExecOutput_Data)(nil),
 		(*ExecOutput_ExitCode)(nil),
 	}
@@ -4202,7 +4301,7 @@ func file_flowdeploy_v1_server_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_flowdeploy_v1_server_proto_rawDesc,
 			NumEnums:      2,
-			NumMessages:   60,
+			NumMessages:   61,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

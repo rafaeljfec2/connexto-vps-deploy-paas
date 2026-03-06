@@ -154,12 +154,23 @@ message ContainerInfo {
   map<string, string> labels = 7;
 
   repeated PortBinding ports = 8;
+
+  repeated string networks = 9;
+
+  repeated ContainerMount mounts = 10;
 }
 
 message PortBinding {
   int32 container_port = 1;
   int32 host_port = 2;
   string protocol = 3;
+}
+
+message ContainerMount {
+  string type = 1;
+  string source = 2;
+  string destination = 3;
+  bool read_only = 4;
 }
 
 message ContainerLogsRequest {

@@ -169,6 +169,21 @@ func (h *ContainerHandler) listRemoteContainers(c *fiber.Ctx, serverID string, a
 			isManaged = true
 		}
 
+		networks := ct.Networks
+		if networks == nil {
+			networks = []string{}
+		}
+
+		mounts := make([]ContainerMountResponse, 0, len(ct.Mounts))
+		for _, m := range ct.Mounts {
+			mounts = append(mounts, ContainerMountResponse{
+				Type:        m.Type,
+				Source:      m.Source,
+				Destination: m.Destination,
+				ReadOnly:    m.ReadOnly,
+			})
+		}
+
 		result = append(result, ContainerResponse{
 			ID:                  ct.Id,
 			Name:                ct.Name,
@@ -177,8 +192,8 @@ func (h *ContainerHandler) listRemoteContainers(c *fiber.Ctx, serverID string, a
 			Status:              ct.Status,
 			Ports:               ports,
 			Labels:              labels,
-			Networks:            []string{},
-			Mounts:              []ContainerMountResponse{},
+			Networks:            networks,
+			Mounts:              mounts,
 			IsFlowDeployManaged: isManaged,
 		})
 	}
