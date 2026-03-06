@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -265,23 +266,29 @@ func (e *Executor) findLocalConfig(repoDir string) *compose.Config {
 		return cfg
 	}
 
-	entries, err := os.ReadDir(repoDir)
-	if err != nil {
+	var found *compose.Config
+	_ = filepath.WalkDir(repoDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || found != nil {
+			return filepath.SkipDir
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if d.Name() != "paasdeploy.json" {
+			return nil
+		}
+		dir := filepath.Dir(path)
+		localCfg, loadErr := compose.LoadConfig(dir)
+		if loadErr == nil {
+			rel, _ := filepath.Rel(repoDir, dir)
+			e.logger.Debug("Found paasdeploy.json", "subdir", rel)
+			found = localCfg
+			return filepath.SkipAll
+		}
 		return nil
-	}
+	})
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		subCfg, err := compose.LoadConfig(filepath.Join(repoDir, entry.Name()))
-		if err == nil {
-			e.logger.Debug("Found paasdeploy.json in subdirectory", "subdir", entry.Name())
-			return subCfg
-		}
-	}
-
-	return nil
+	return found
 }
 
 func (e *Executor) resolveAppDir(repoDir, workdir string) string {
