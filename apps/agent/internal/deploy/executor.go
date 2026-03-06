@@ -294,43 +294,56 @@ func (e *Executor) loadMetadata(repoDir string) *appMetadata {
 }
 
 func (e *Executor) findLocalConfig(repoDir string) *compose.Config {
-	if meta := e.loadMetadata(repoDir); meta != nil && meta.Workdir != "" {
-		appDir := e.resolveAppDir(repoDir, meta.Workdir)
-		cfg, err := compose.LoadConfig(appDir)
-		if err == nil {
-			e.logger.Debug("Loaded config from saved workdir", "workdir", meta.Workdir)
-			return cfg
-		}
-	}
-
-	cfg, err := compose.LoadConfig(repoDir)
-	if err == nil {
+	if cfg := e.loadConfigFromMetadata(repoDir); cfg != nil {
 		return cfg
 	}
+	return e.scanForConfig(repoDir)
+}
 
-	var found *compose.Config
+func (e *Executor) loadConfigFromMetadata(repoDir string) *compose.Config {
+	meta := e.loadMetadata(repoDir)
+	if meta == nil || meta.Workdir == "" {
+		return nil
+	}
+	appDir := e.resolveAppDir(repoDir, meta.Workdir)
+	cfg, err := compose.LoadConfig(appDir)
+	if err != nil {
+		return nil
+	}
+	e.logger.Debug("Loaded config from saved workdir", "workdir", meta.Workdir)
+	return cfg
+}
+
+func (e *Executor) scanForConfig(repoDir string) *compose.Config {
+	var rootCfg, subCfg *compose.Config
 	_ = filepath.WalkDir(repoDir, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil || found != nil {
+		if walkErr != nil {
 			return filepath.SkipDir
 		}
-		if d.IsDir() {
-			return nil
-		}
-		if d.Name() != "paasdeploy.json" {
+		if d.IsDir() || d.Name() != "paasdeploy.json" {
 			return nil
 		}
 		dir := filepath.Dir(path)
 		localCfg, loadErr := compose.LoadConfig(dir)
-		if loadErr == nil {
+		if loadErr != nil {
+			return nil
+		}
+		if dir == repoDir {
+			rootCfg = localCfg
+			return nil
+		}
+		if subCfg == nil {
 			rel, _ := filepath.Rel(repoDir, dir)
-			e.logger.Debug("Found paasdeploy.json via walk", "subdir", rel)
-			found = localCfg
-			return filepath.SkipAll
+			e.logger.Debug("Found paasdeploy.json in subdirectory", "subdir", rel)
+			subCfg = localCfg
 		}
 		return nil
 	})
 
-	return found
+	if subCfg != nil {
+		return subCfg
+	}
+	return rootCfg
 }
 
 func (e *Executor) resolveAppDir(repoDir, workdir string) string {
