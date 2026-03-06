@@ -501,7 +501,13 @@ func (s *AgentService) ListNetworks(ctx context.Context, _ *pb.ListNetworksReque
 
 	pbNetworks := make([]*pb.NetworkInfo, 0, len(networks))
 	for _, n := range networks {
-		pbNetworks = append(pbNetworks, &pb.NetworkInfo{Name: n})
+		pbNetworks = append(pbNetworks, &pb.NetworkInfo{
+			Name:     n.Name,
+			Id:       n.ID,
+			Driver:   n.Driver,
+			Scope:    n.Scope,
+			Internal: n.Internal,
+		})
 	}
 
 	return &pb.ListNetworksResponse{Networks: pbNetworks}, nil
@@ -541,7 +547,11 @@ func (s *AgentService) ListVolumes(ctx context.Context, _ *pb.ListVolumesRequest
 
 	pbVolumes := make([]*pb.VolumeInfo, 0, len(volumes))
 	for _, v := range volumes {
-		pbVolumes = append(pbVolumes, &pb.VolumeInfo{Name: v})
+		pbVolumes = append(pbVolumes, &pb.VolumeInfo{
+			Name:       v.Name,
+			Driver:     v.Driver,
+			Mountpoint: v.Mountpoint,
+		})
 	}
 
 	return &pb.ListVolumesResponse{Volumes: pbVolumes}, nil

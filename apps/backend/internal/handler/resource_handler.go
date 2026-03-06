@@ -21,6 +21,20 @@ type ResourceHandler struct {
 	logger      *slog.Logger
 }
 
+type NetworkResponse struct {
+	Name     string `json:"name"`
+	ID       string `json:"id"`
+	Driver   string `json:"driver"`
+	Scope    string `json:"scope"`
+	Internal bool   `json:"internal"`
+}
+
+type VolumeResponse struct {
+	Name       string `json:"name"`
+	Driver     string `json:"driver"`
+	Mountpoint string `json:"mountpoint"`
+}
+
 type ResourceHandlerConfig struct {
 	Docker      *docker.Client
 	AgentClient *agentclient.AgentClient
@@ -77,11 +91,17 @@ func (h *ResourceHandler) ListNetworks(c *fiber.Ctx) error {
 			h.logger.Error("failed to list remote networks", "error", err)
 			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to list networks")
 		}
-		names := make([]string, 0, len(networks))
+		result := make([]NetworkResponse, 0, len(networks))
 		for _, n := range networks {
-			names = append(names, n.Name)
+			result = append(result, NetworkResponse{
+				Name:     n.Name,
+				ID:       n.Id,
+				Driver:   n.Driver,
+				Scope:    n.Scope,
+				Internal: n.Internal,
+			})
 		}
-		return response.OK(c, names)
+		return response.OK(c, result)
 	}
 
 	nets, err := h.docker.ListNetworks(c.Context())
@@ -89,7 +109,17 @@ func (h *ResourceHandler) ListNetworks(c *fiber.Ctx) error {
 		h.logger.Error("failed to list networks", "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to list networks")
 	}
-	return response.OK(c, nets)
+	result := make([]NetworkResponse, 0, len(nets))
+	for _, n := range nets {
+		result = append(result, NetworkResponse{
+			Name:     n.Name,
+			ID:       n.ID,
+			Driver:   n.Driver,
+			Scope:    n.Scope,
+			Internal: n.Internal,
+		})
+	}
+	return response.OK(c, result)
 }
 
 func (h *ResourceHandler) CreateNetwork(c *fiber.Ctx) error {
@@ -205,11 +235,15 @@ func (h *ResourceHandler) ListVolumes(c *fiber.Ctx) error {
 			h.logger.Error("failed to list remote volumes", "error", err)
 			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to list volumes")
 		}
-		names := make([]string, 0, len(volumes))
+		result := make([]VolumeResponse, 0, len(volumes))
 		for _, v := range volumes {
-			names = append(names, v.Name)
+			result = append(result, VolumeResponse{
+				Name:       v.Name,
+				Driver:     v.Driver,
+				Mountpoint: v.Mountpoint,
+			})
 		}
-		return response.OK(c, names)
+		return response.OK(c, result)
 	}
 
 	vols, err := h.docker.ListVolumes(c.Context())
@@ -217,7 +251,15 @@ func (h *ResourceHandler) ListVolumes(c *fiber.Ctx) error {
 		h.logger.Error("failed to list volumes", "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to list volumes")
 	}
-	return response.OK(c, vols)
+	result := make([]VolumeResponse, 0, len(vols))
+	for _, v := range vols {
+		result = append(result, VolumeResponse{
+			Name:       v.Name,
+			Driver:     v.Driver,
+			Mountpoint: v.Mountpoint,
+		})
+	}
+	return response.OK(c, result)
 }
 
 func (h *ResourceHandler) CreateVolume(c *fiber.Ctx) error {
