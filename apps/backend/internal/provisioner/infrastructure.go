@@ -15,7 +15,7 @@ var validEmailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[
 const (
 	dockerNetworkName     = "paasdeploy"
 	traefikContainerName  = "traefik"
-	traefikImage          = "traefik:v3.2"
+	traefikImage          = "traefik:v3.6"
 	traefikConfigDir      = "/opt/traefik"
 	traefikLetsencryptDir = "/opt/traefik/letsencrypt"
 	traefikConfigPath     = "/opt/traefik/traefik.yml"
@@ -260,7 +260,6 @@ func (p *SSHProvisioner) startTraefikContainer(
 	logLine("Iniciando container Traefik (portas 80, 443, 50051, 8081)")
 	runCmd := fmt.Sprintf(
 		"docker run -d --name %s --network %s --restart unless-stopped "+
-			"-e DOCKER_API_VERSION=1.44 "+
 			"-p 80:80 -p 443:443 -p 50051:50051 -p 8081:8081 "+
 			"-v /var/run/docker.sock:/var/run/docker.sock:ro "+
 			"-v %s:/etc/traefik/traefik.yml:ro "+
