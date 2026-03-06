@@ -259,6 +259,31 @@ func (e *Executor) mergeBuildConfig(req *pb.DeployRequest, localCfg *compose.Con
 	}
 }
 
+func (e *Executor) findLocalConfig(repoDir string) *compose.Config {
+	cfg, err := compose.LoadConfig(repoDir)
+	if err == nil {
+		return cfg
+	}
+
+	entries, err := os.ReadDir(repoDir)
+	if err != nil {
+		return nil
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		subCfg, err := compose.LoadConfig(filepath.Join(repoDir, entry.Name()))
+		if err == nil {
+			e.logger.Debug("Found paasdeploy.json in subdirectory", "subdir", entry.Name())
+			return subCfg
+		}
+	}
+
+	return nil
+}
+
 func (e *Executor) resolveAppDir(repoDir, workdir string) string {
 	if workdir == "" || workdir == "." {
 		return repoDir
@@ -471,6 +496,10 @@ func (e *Executor) UpdateDomains(ctx context.Context, req *pb.UpdateDomainsReque
 	compose.ApplyDefaults(cfg)
 	if req.Port > 0 {
 		cfg.Port = int(req.Port)
+	}
+
+	if localCfg := e.findLocalConfig(appDir); localCfg != nil {
+		e.mergeRuntimeConfig(cfg, localCfg)
 	}
 
 	content := compose.GenerateContent(compose.GenerateParams{
