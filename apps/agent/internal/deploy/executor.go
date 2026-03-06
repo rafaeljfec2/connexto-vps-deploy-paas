@@ -98,7 +98,8 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 	}
 	emit(pb.DeployStage_DEPLOY_STAGE_DEPLOY, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Container deployed successfully")
 
-	emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Running health check...")
+	emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO,
+		fmt.Sprintf("Running health check on port %d path %s ...", cfg.Port, cfg.Healthcheck.Path))
 	if err := e.checkHealth(ctx, req, cfg); err != nil {
 		emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
 		e.rollback(ctx, req, appDir)
@@ -182,11 +183,48 @@ func (e *Executor) mergeLocalConfig(cfg *compose.Config, req *pb.DeployRequest, 
 		return
 	}
 
-	if len(cfg.Volumes) == 0 && len(localCfg.Volumes) > 0 {
-		cfg.Volumes = localCfg.Volumes
+	e.logger.Info("Merging local paasdeploy.json",
+		"appDir", appDir,
+		"localPort", localCfg.Port,
+		"localHealthPath", localCfg.Healthcheck.Path,
+		"localBuildContext", localCfg.Build.Context,
+	)
+
+	e.mergeRuntimeConfig(cfg, localCfg)
+	e.mergeBuildConfig(req, localCfg)
+}
+
+func (e *Executor) mergeRuntimeConfig(cfg *compose.Config, localCfg *compose.Config) {
+	if localCfg.Port > 0 {
+		cfg.Port = localCfg.Port
 	}
 
-	e.mergeBuildConfig(req, localCfg)
+	if localCfg.Healthcheck.Path != "" {
+		cfg.Healthcheck.Path = localCfg.Healthcheck.Path
+	}
+	if localCfg.Healthcheck.Interval != "" {
+		cfg.Healthcheck.Interval = localCfg.Healthcheck.Interval
+	}
+	if localCfg.Healthcheck.Timeout != "" {
+		cfg.Healthcheck.Timeout = localCfg.Healthcheck.Timeout
+	}
+	if localCfg.Healthcheck.Retries > 0 {
+		cfg.Healthcheck.Retries = localCfg.Healthcheck.Retries
+	}
+	if localCfg.Healthcheck.StartPeriod != "" {
+		cfg.Healthcheck.StartPeriod = localCfg.Healthcheck.StartPeriod
+	}
+
+	if localCfg.Resources.Memory != "" {
+		cfg.Resources.Memory = localCfg.Resources.Memory
+	}
+	if localCfg.Resources.CPU != "" {
+		cfg.Resources.CPU = localCfg.Resources.CPU
+	}
+
+	if len(localCfg.Volumes) > 0 {
+		cfg.Volumes = localCfg.Volumes
+	}
 }
 
 func (e *Executor) mergeBuildConfig(req *pb.DeployRequest, localCfg *compose.Config) {
