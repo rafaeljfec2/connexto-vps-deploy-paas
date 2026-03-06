@@ -1,9 +1,12 @@
 import { useState } from "react";
 import {
+  ArrowRight,
   Calendar,
   FolderOpen,
   HardDrive,
+  Link,
   Loader2,
+  Lock,
   Plus,
   Search,
   Trash2,
@@ -35,6 +38,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { ContainerMount } from "@/types";
 import {
   useCreateVolume,
   useRemoveVolume,
@@ -54,11 +58,13 @@ function formatDate(dateString: string): string {
 
 interface VolumesManagerProps {
   readonly containerVolumes?: readonly string[];
+  readonly containerBindMounts?: readonly ContainerMount[];
   readonly serverId?: string;
 }
 
 export function VolumesManager({
   containerVolumes = [],
+  containerBindMounts = [],
   serverId,
 }: VolumesManagerProps) {
   const { data: volumes, isLoading, error } = useVolumes(serverId);
@@ -127,6 +133,63 @@ export function VolumesManager({
           Create
         </Button>
       </div>
+
+      {containerBindMounts.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">
+            Bind Mounts
+          </p>
+          <div className="border rounded-lg divide-y">
+            {containerBindMounts.map((mount) => (
+              <div
+                key={`${mount.source}-${mount.destination}`}
+                className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <Link className="h-4 w-4 text-blue-500 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="font-mono text-sm truncate max-w-[250px] cursor-help">
+                              {mount.source}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="font-mono text-xs">{mount.source}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="font-mono text-sm truncate max-w-[250px] cursor-help">
+                              {mount.destination}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="font-mono text-xs">
+                              {mount.destination}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                      {mount.readOnly && (
+                        <Badge variant="outline" className="text-xs h-5 gap-1">
+                          <Lock className="h-3 w-3" />
+                          read-only
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {containerVolumes.length > 0 && (
         <div className="space-y-2">

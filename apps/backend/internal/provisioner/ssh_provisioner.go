@@ -472,6 +472,7 @@ After=network.target
 
 [Service]
 Type=simple
+Environment=TRAEFIK_API_URL=http://127.0.0.1:8081
 ExecStart=%s/agent -server-addr=%s -server-id=%s -ca-cert=%s/ca.pem -cert=%s/cert.pem -key=%s/key.pem -agent-port=%d
 Restart=always
 RestartSec=5

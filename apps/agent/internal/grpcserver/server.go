@@ -128,7 +128,7 @@ func (s *Server) Stop() {
 	s.grpcServer.GracefulStop()
 }
 
-const defaultTraefikURL = "http://paasdeploy-traefik:8081"
+const defaultTraefikURL = "http://127.0.0.1:8081"
 
 type AgentService struct {
 	pb.UnimplementedAgentServiceServer

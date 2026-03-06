@@ -108,6 +108,9 @@ export function AppDetailsPage() {
         .filter((mount) => mount.type === "volume")
         .map((mount) => mount.source)
     : undefined;
+  const containerBindMounts = appContainer
+    ? appContainer.mounts.filter((mount) => mount.type === "bind")
+    : undefined;
 
   return (
     <div className="space-y-0 pb-16 md:pb-0">
@@ -185,6 +188,7 @@ export function AppDetailsPage() {
           containerId={containerId}
           containerNetworks={containerNetworks}
           containerVolumes={containerVolumes}
+          containerBindMounts={containerBindMounts}
           serverId={app.serverId}
           expandedSections={{
             config: expandedSections.config,

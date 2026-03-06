@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NetworksManager, VolumesManager } from "@/features/resources";
+import type { ContainerMount } from "@/types";
 import { CollapsibleSection } from "./collapsible-section";
 import { DomainManager } from "./domain-manager";
 
@@ -326,6 +327,7 @@ interface VolumesSectionProps {
   readonly expanded: boolean;
   readonly onToggle: () => void;
   readonly containerVolumes?: readonly string[];
+  readonly containerBindMounts?: readonly ContainerMount[];
   readonly serverId?: string;
 }
 
@@ -333,6 +335,7 @@ function VolumesSection({
   expanded,
   onToggle,
   containerVolumes,
+  containerBindMounts,
   serverId,
 }: VolumesSectionProps) {
   return (
@@ -345,7 +348,11 @@ function VolumesSection({
         <span className="text-muted-foreground">Manage persistent storage</span>
       }
     >
-      <VolumesManager containerVolumes={containerVolumes} serverId={serverId} />
+      <VolumesManager
+        containerVolumes={containerVolumes}
+        containerBindMounts={containerBindMounts}
+        serverId={serverId}
+      />
     </CollapsibleSection>
   );
 }
@@ -359,6 +366,7 @@ export interface AppSettingsSectionProps {
   readonly containerId?: string;
   readonly containerNetworks?: readonly string[];
   readonly containerVolumes?: readonly string[];
+  readonly containerBindMounts?: readonly ContainerMount[];
   readonly serverId?: string;
   readonly expandedSections: {
     readonly config?: boolean;
@@ -381,6 +389,7 @@ export function AppSettingsSection({
   containerId,
   containerNetworks,
   containerVolumes,
+  containerBindMounts,
   serverId,
   expandedSections,
   toggleSection,
@@ -417,6 +426,7 @@ export function AppSettingsSection({
         expanded={expandedSections.volumes ?? false}
         onToggle={() => toggleSection("volumes")}
         containerVolumes={containerVolumes}
+        containerBindMounts={containerBindMounts}
         serverId={serverId}
       />
     </>
