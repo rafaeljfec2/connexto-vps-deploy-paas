@@ -122,6 +122,7 @@ func (h *ImageHandler) listRemoteImages(c *fiber.Ctx, serverID string) error {
 			Size:       img.Size,
 			Created:    img.Created,
 			Dangling:   img.Dangling,
+			Containers: int(img.Containers),
 		})
 	}
 

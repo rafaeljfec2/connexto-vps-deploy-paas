@@ -260,6 +260,7 @@ message ImageInfo {
   int64 size = 4;
   string created = 5;
   bool dangling = 6;
+  int32 containers = 7;
 }
 
 message RemoveImageRequest {

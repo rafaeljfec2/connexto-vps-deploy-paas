@@ -463,6 +463,7 @@ func (s *AgentService) ListImages(ctx context.Context, req *pb.ListImagesRequest
 			Size:       img.Size,
 			Created:    img.Created,
 			Dangling:   img.Dangling,
+			Containers: int32(img.Containers),
 		})
 	}
 
