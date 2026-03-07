@@ -21,6 +21,7 @@ type App struct {
 	Branch         string          `json:"branch"`
 	Workdir        string          `json:"workdir"`
 	Runtime        *string         `json:"runtime,omitempty"`
+	AppVersion     *string         `json:"appVersion,omitempty"`
 	Config         json.RawMessage `json:"config"`
 	Status         AppStatus       `json:"status"`
 	WebhookID      *int64          `json:"webhookId,omitempty"`
@@ -78,6 +79,7 @@ type DeploymentSummary struct {
 	Status        DeployStatus `json:"status"`
 	CommitSHA     string       `json:"commitSha"`
 	CommitMessage string       `json:"commitMessage,omitempty"`
+	AppVersion    string       `json:"appVersion,omitempty"`
 	StartedAt     *time.Time   `json:"startedAt,omitempty"`
 	FinishedAt    *time.Time   `json:"finishedAt,omitempty"`
 	DurationMs    *int64       `json:"durationMs,omitempty"`

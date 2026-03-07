@@ -90,6 +90,11 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 	e.saveMetadata(repoDir, req.Git.GetWorkdir())
 	e.mergeLocalConfig(cfg, req, appDir)
 
+	appVersion := detectAppVersion(cfg.Runtime, appDir)
+	if appVersion != "" {
+		e.logger.Info("Detected app version", "version", appVersion, "runtime", cfg.Runtime)
+	}
+
 	imageTag := e.docker.GetImageTag(req.AppName, req.Git.GetCommitSha())
 
 	emit(pb.DeployStage_DEPLOY_STAGE_BUILD, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, fmt.Sprintf("Building image %s", imageTag))
@@ -129,6 +134,7 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 			StartedAt:   timestamppb.New(startedAt),
 			CompletedAt: timestamppb.New(completedAt),
 			ExposedPort: int32(cfg.Port),
+			AppVersion:  appVersion,
 		},
 	}
 }

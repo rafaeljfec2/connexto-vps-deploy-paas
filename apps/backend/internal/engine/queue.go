@@ -18,7 +18,7 @@ func NewQueue(db *sql.DB) *Queue {
 func (q *Queue) GetNextPending() (*domain.Deployment, error) {
 	query := `
 		SELECT d.id, d.app_id, d.commit_sha, d.commit_message, d.status, d.started_at, d.finished_at,
-		       d.error_message, d.logs, d.previous_image_tag, d.current_image_tag, d.created_at
+		       d.error_message, d.logs, d.previous_image_tag, d.current_image_tag, d.app_version, d.created_at
 		FROM deployments d
 		WHERE d.status = 'pending'
 		AND d.app_id NOT IN (
@@ -31,12 +31,12 @@ func (q *Queue) GetNextPending() (*domain.Deployment, error) {
 
 	var d domain.Deployment
 	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
 	err := q.db.QueryRow(query).Scan(
 		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &d.CreatedAt,
+		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -56,6 +56,7 @@ func (q *Queue) GetNextPending() (*domain.Deployment, error) {
 	d.Logs = logs.String
 	d.PreviousImageTag = previousImageTag.String
 	d.CurrentImageTag = currentImageTag.String
+	d.AppVersion = appVersion.String
 
 	return &d, nil
 }
@@ -67,10 +68,10 @@ func (q *Queue) MarkAsRunning(id string) error {
 	return err
 }
 
-func (q *Queue) MarkAsSuccess(id string, imageTag string) error {
+func (q *Queue) MarkAsSuccess(id string, imageTag string, appVersion string) error {
 	now := time.Now()
-	query := `UPDATE deployments SET status = 'success', finished_at = $2, current_image_tag = $3 WHERE id = $1`
-	_, err := q.db.Exec(query, id, now, imageTag)
+	query := `UPDATE deployments SET status = 'success', finished_at = $2, current_image_tag = $3, app_version = $4 WHERE id = $1`
+	_, err := q.db.Exec(query, id, now, imageTag, appVersion)
 	return err
 }
 
@@ -122,9 +123,18 @@ func (q *Queue) UpdateAppRuntime(appID, runtime string) error {
 	return err
 }
 
+func (q *Queue) UpdateAppVersion(appID, appVersion string) error {
+	if appVersion == "" {
+		return nil
+	}
+	query := `UPDATE apps SET app_version = $2, updated_at = NOW() WHERE id = $1`
+	_, err := q.db.Exec(query, appID, appVersion)
+	return err
+}
+
 func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 	query := `
-		SELECT id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, server_id, last_deployed_at, created_at, updated_at
+		SELECT id, name, repository_url, branch, workdir, runtime, app_version, config, status, webhook_id, server_id, last_deployed_at, created_at, updated_at
 		FROM apps
 		WHERE id = $1 AND status != 'deleted'
 	`
@@ -133,6 +143,7 @@ func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 	var lastDeployedAt sql.NullTime
 	var workdir sql.NullString
 	var runtime sql.NullString
+	var appVersionStr sql.NullString
 	var webhookID sql.NullInt64
 	var serverID sql.NullString
 
@@ -143,6 +154,7 @@ func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 		&app.Branch,
 		&workdir,
 		&runtime,
+		&appVersionStr,
 		&app.Config,
 		&app.Status,
 		&webhookID,
@@ -164,6 +176,9 @@ func (q *Queue) GetAppByID(appID string) (*domain.App, error) {
 	}
 	if runtime.Valid {
 		app.Runtime = &runtime.String
+	}
+	if appVersionStr.Valid {
+		app.AppVersion = &appVersionStr.String
 	}
 	if webhookID.Valid {
 		app.WebhookID = &webhookID.Int64

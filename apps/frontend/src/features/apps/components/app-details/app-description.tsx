@@ -1,4 +1,4 @@
-import { ExternalLink, Folder, GitBranch } from "lucide-react";
+import { ExternalLink, Folder, GitBranch, Tag } from "lucide-react";
 import { IconText } from "@/components/icon-text";
 import { formatRepositoryUrl } from "@/lib/utils";
 import type { App } from "@/types";
@@ -30,6 +30,11 @@ export function AppDescription({ app }: AppDescriptionProps) {
           <span className="font-mono text-xs truncate max-w-[100px] sm:max-w-none">
             {app.workdir}
           </span>
+        </IconText>
+      )}
+      {app.appVersion && (
+        <IconText icon={Tag} as="span">
+          <span className="font-mono text-xs">v{app.appVersion}</span>
         </IconText>
       )}
     </div>

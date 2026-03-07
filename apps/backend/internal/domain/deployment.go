@@ -26,6 +26,7 @@ type Deployment struct {
 	Logs             string       `json:"logs,omitempty"`
 	PreviousImageTag string       `json:"previousImageTag,omitempty"`
 	CurrentImageTag  string       `json:"currentImageTag,omitempty"`
+	AppVersion       string       `json:"appVersion,omitempty"`
 	CreatedAt        time.Time    `json:"createdAt"`
 }
 
@@ -57,7 +58,7 @@ type DeploymentRepository interface {
 	AppendLogs(id string, logs string) error
 	GetNextPending() (*Deployment, error)
 	MarkAsRunning(id string) error
-	MarkAsSuccess(id string, imageTag string) error
+	MarkAsSuccess(id string, imageTag string, appVersion string) error
 	MarkAsFailed(id string, errorMessage string) error
 	DeleteByAppID(appID string) error
 }

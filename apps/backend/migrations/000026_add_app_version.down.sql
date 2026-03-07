@@ -1,0 +1,2 @@
+ALTER TABLE deployments DROP COLUMN IF EXISTS app_version;
+ALTER TABLE apps DROP COLUMN IF EXISTS app_version;

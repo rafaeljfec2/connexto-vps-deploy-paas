@@ -18,6 +18,7 @@ import (
 	"github.com/paasdeploy/shared/pkg/docker"
 	"github.com/paasdeploy/shared/pkg/git"
 	"github.com/paasdeploy/shared/pkg/health"
+	"github.com/paasdeploy/shared/pkg/version"
 )
 
 const (
@@ -110,12 +111,7 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 	defaults := &compose.Config{}
 	compose.ApplyDefaults(defaults)
 
-	appPort := defaults.Port
-	if portStr, ok := w.appEnvVars["PORT"]; ok {
-		if parsed, err := strconv.Atoi(portStr); err == nil && parsed > 0 {
-			appPort = parsed
-		}
-	}
+	appPort := resolvePort(w.appEnvVars, defaults.Port)
 
 	req := &pb.DeployRequest{
 		DeploymentId: deploy.ID,
@@ -183,12 +179,14 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 	}
 
 	imageTag := ""
+	appVersion := ""
 	if resp.Result != nil {
 		imageTag = resp.Result.ImageTag
+		appVersion = resp.Result.AppVersion
 	}
 
 	w.log(deploy.ID, app.ID, "Remote deployment completed successfully")
-	return w.success(deploy, app, imageTag)
+	return w.success(deploy, app, imageTag, appVersion)
 }
 
 func (w *Worker) runLocalDeploy(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
@@ -236,7 +234,9 @@ func (w *Worker) runLocalDeploy(ctx context.Context, deploy *domain.Deployment, 
 		return w.fail(deploy, app, fmt.Errorf("health check failed: %w", err))
 	}
 
-	return w.success(deploy, app, imageTag)
+	appVersion := version.DetectAppVersion(w.deployConfig.Runtime, appDir)
+
+	return w.success(deploy, app, imageTag, appVersion)
 }
 
 func (w *Worker) getAppDir(repoDir, workdir string) string {
@@ -467,7 +467,7 @@ func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *d
 	return nil
 }
 
-func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag string) error {
+func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag, appVersion string) error {
 	w.log(deploy.ID, app.ID, "Deployment completed successfully")
 
 	if w.deps.AuditService != nil {
@@ -475,7 +475,7 @@ func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag st
 		w.deps.AuditService.LogDeploySuccess(context.Background(), auditCtx, deploy.ID, app.ID, app.Name)
 	}
 
-	if err := w.deps.Dispatcher.MarkSuccess(deploy.ID, imageTag); err != nil {
+	if err := w.deps.Dispatcher.MarkSuccess(deploy.ID, imageTag, appVersion); err != nil {
 		w.deps.Logger.Error("Failed to mark deploy as success", "error", err)
 	}
 
@@ -486,6 +486,12 @@ func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag st
 	if w.deployConfig != nil && w.deployConfig.Runtime != "" {
 		if err := w.deps.Dispatcher.UpdateAppRuntime(app.ID, w.deployConfig.Runtime); err != nil {
 			w.deps.Logger.Error("Failed to update app runtime", "error", err)
+		}
+	}
+
+	if appVersion != "" {
+		if err := w.deps.Dispatcher.UpdateAppVersion(app.ID, appVersion); err != nil {
+			w.deps.Logger.Error("Failed to update app version", "error", err)
 		}
 	}
 
@@ -571,4 +577,16 @@ func truncateSHA(sha string) string {
 		return sha[:12]
 	}
 	return sha
+}
+
+func resolvePort(envVars map[string]string, defaultPort int) int {
+	portStr, ok := envVars["PORT"]
+	if !ok {
+		return defaultPort
+	}
+	parsed, err := strconv.Atoi(portStr)
+	if err != nil || parsed <= 0 {
+		return defaultPort
+	}
+	return parsed
 }

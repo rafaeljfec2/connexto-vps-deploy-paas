@@ -6,6 +6,7 @@ import {
   Loader2,
   MoreVertical,
   Server,
+  Tag,
   Timer,
   Trash2,
 } from "lucide-react";
@@ -79,6 +80,14 @@ export function AppRow({ app, latestDeploy, serverName }: AppRowProps) {
                   className={`text-[10px] px-1.5 py-0 h-5 font-medium border ${runtimeTag.color} hidden sm:inline-flex`}
                 >
                   {runtimeTag.name}
+                </Badge>
+              )}
+              {app.appVersion && (
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] px-1.5 py-0 h-5 font-mono hidden sm:inline-flex"
+                >
+                  <Tag className="h-3 w-3 mr-0.5" />v{app.appVersion}
                 </Badge>
               )}
             </div>

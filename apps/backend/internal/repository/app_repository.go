@@ -9,7 +9,7 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 )
 
-const appSelectColumns = `id, user_id, name, repository_url, branch, workdir, runtime, config, status, webhook_id, server_id, last_deployed_at, created_at, updated_at`
+const appSelectColumns = `id, user_id, name, repository_url, branch, workdir, runtime, app_version, config, status, webhook_id, server_id, last_deployed_at, created_at, updated_at`
 
 type PostgresAppRepository struct {
 	db *sql.DB
@@ -25,6 +25,7 @@ type appScanFields struct {
 	serverID       sql.NullString
 	lastDeployedAt sql.NullTime
 	runtime        sql.NullString
+	appVersion     sql.NullString
 }
 
 func (f *appScanFields) scanDest() []any {
@@ -36,6 +37,7 @@ func (f *appScanFields) scanDest() []any {
 		&f.app.Branch,
 		&f.app.Workdir,
 		&f.runtime,
+		&f.appVersion,
 		&f.app.Config,
 		&f.app.Status,
 		&f.webhookID,
@@ -58,6 +60,9 @@ func (f *appScanFields) toApp() *domain.App {
 	}
 	if f.runtime.Valid {
 		f.app.Runtime = &f.runtime.String
+	}
+	if f.appVersion.Valid {
+		f.app.AppVersion = &f.appVersion.String
 	}
 	return &f.app
 }

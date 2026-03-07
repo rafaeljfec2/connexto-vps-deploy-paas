@@ -18,19 +18,19 @@ func NewPostgresDeploymentRepository(db *sql.DB) *PostgresDeploymentRepository {
 func (r *PostgresDeploymentRepository) FindByID(id string) (*domain.Deployment, error) {
 	query := `
 		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, created_at
+		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
 		FROM deployments
 		WHERE id = $1
 	`
 
 	var d domain.Deployment
 	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
 	err := r.db.QueryRow(query, id).Scan(
 		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &d.CreatedAt,
+		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, domain.ErrNotFound
@@ -50,6 +50,7 @@ func (r *PostgresDeploymentRepository) FindByID(id string) (*domain.Deployment, 
 	d.Logs = logs.String
 	d.PreviousImageTag = previousImageTag.String
 	d.CurrentImageTag = currentImageTag.String
+ d.AppVersion = appVersion.String
 
 	return &d, nil
 }
@@ -57,7 +58,7 @@ func (r *PostgresDeploymentRepository) FindByID(id string) (*domain.Deployment, 
 func (r *PostgresDeploymentRepository) FindByAppID(appID string, limit int) ([]domain.Deployment, error) {
 	query := `
 		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, created_at
+		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
 		FROM deployments
 		WHERE app_id = $1
 		ORDER BY created_at DESC
@@ -74,12 +75,12 @@ func (r *PostgresDeploymentRepository) FindByAppID(appID string, limit int) ([]d
 	for rows.Next() {
 		var d domain.Deployment
 		var startedAt, finishedAt sql.NullTime
-		var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+		var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
 		err := rows.Scan(
 			&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 			&startedAt, &finishedAt, &errorMessage, &logs,
-			&previousImageTag, &currentImageTag, &d.CreatedAt,
+			&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -96,6 +97,7 @@ func (r *PostgresDeploymentRepository) FindByAppID(appID string, limit int) ([]d
 		d.Logs = logs.String
 		d.PreviousImageTag = previousImageTag.String
 		d.CurrentImageTag = currentImageTag.String
+  d.AppVersion = appVersion.String
 
 		deployments = append(deployments, d)
 	}
@@ -106,7 +108,7 @@ func (r *PostgresDeploymentRepository) FindByAppID(appID string, limit int) ([]d
 func (r *PostgresDeploymentRepository) FindPendingByAppID(appID string) (*domain.Deployment, error) {
 	query := `
 		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, created_at
+		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
 		FROM deployments
 		WHERE app_id = $1 AND status = 'pending'
 		ORDER BY created_at ASC
@@ -115,12 +117,12 @@ func (r *PostgresDeploymentRepository) FindPendingByAppID(appID string) (*domain
 
 	var d domain.Deployment
 	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
 	err := r.db.QueryRow(query, appID).Scan(
 		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &d.CreatedAt,
+		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, domain.ErrNotFound
@@ -140,6 +142,7 @@ func (r *PostgresDeploymentRepository) FindPendingByAppID(appID string) (*domain
 	d.Logs = logs.String
 	d.PreviousImageTag = previousImageTag.String
 	d.CurrentImageTag = currentImageTag.String
+ d.AppVersion = appVersion.String
 
 	return &d, nil
 }
@@ -147,7 +150,7 @@ func (r *PostgresDeploymentRepository) FindPendingByAppID(appID string) (*domain
 func (r *PostgresDeploymentRepository) FindLatestByAppID(appID string) (*domain.Deployment, error) {
 	query := `
 		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, created_at
+		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
 		FROM deployments
 		WHERE app_id = $1 AND status = 'success'
 		ORDER BY created_at DESC
@@ -156,12 +159,12 @@ func (r *PostgresDeploymentRepository) FindLatestByAppID(appID string) (*domain.
 
 	var d domain.Deployment
 	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
 	err := r.db.QueryRow(query, appID).Scan(
 		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &d.CreatedAt,
+		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, domain.ErrNotFound
@@ -181,6 +184,7 @@ func (r *PostgresDeploymentRepository) FindLatestByAppID(appID string) (*domain.
 	d.Logs = logs.String
 	d.PreviousImageTag = previousImageTag.String
 	d.CurrentImageTag = currentImageTag.String
+ d.AppVersion = appVersion.String
 
 	return &d, nil
 }
@@ -188,7 +192,7 @@ func (r *PostgresDeploymentRepository) FindLatestByAppID(appID string) (*domain.
 func (r *PostgresDeploymentRepository) FindMostRecentByAppID(appID string) (*domain.Deployment, error) {
 	query := `
 		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, created_at
+		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
 		FROM deployments
 		WHERE app_id = $1
 		ORDER BY created_at DESC
@@ -197,12 +201,12 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppID(appID string) (*dom
 
 	var d domain.Deployment
 	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
 	err := r.db.QueryRow(query, appID).Scan(
 		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &d.CreatedAt,
+		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -222,6 +226,7 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppID(appID string) (*dom
 	d.Logs = logs.String
 	d.PreviousImageTag = previousImageTag.String
 	d.CurrentImageTag = currentImageTag.String
+ d.AppVersion = appVersion.String
 
 	return &d, nil
 }
@@ -234,7 +239,7 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (
 	query := `
 		SELECT DISTINCT ON (app_id) 
 		       id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, created_at
+		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
 		FROM deployments
 		WHERE app_id = ANY($1)
 		ORDER BY app_id, created_at DESC
@@ -250,12 +255,12 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (
 	for rows.Next() {
 		var d domain.Deployment
 		var startedAt, finishedAt sql.NullTime
-		var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+		var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
 		err := rows.Scan(
 			&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 			&startedAt, &finishedAt, &errorMessage, &logs,
-			&previousImageTag, &currentImageTag, &d.CreatedAt,
+			&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -272,6 +277,7 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (
 		d.Logs = logs.String
 		d.PreviousImageTag = previousImageTag.String
 		d.CurrentImageTag = currentImageTag.String
+  d.AppVersion = appVersion.String
 
 		result[d.AppID] = &d
 	}
@@ -284,17 +290,17 @@ func (r *PostgresDeploymentRepository) Create(input domain.CreateDeploymentInput
 		INSERT INTO deployments (app_id, commit_sha, commit_message, status, created_at)
 		VALUES ($1, $2, $3, 'pending', NOW())
 		RETURNING id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		          error_message, logs, previous_image_tag, current_image_tag, created_at
+		          error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
 	`
 
 	var d domain.Deployment
 	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
 	err := r.db.QueryRow(query, input.AppID, input.CommitSHA, input.CommitMessage).Scan(
 		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &d.CreatedAt,
+		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -311,6 +317,7 @@ func (r *PostgresDeploymentRepository) Create(input domain.CreateDeploymentInput
 	d.Logs = logs.String
 	d.PreviousImageTag = previousImageTag.String
 	d.CurrentImageTag = currentImageTag.String
+ d.AppVersion = appVersion.String
 
 	return &d, nil
 }
@@ -380,12 +387,12 @@ func (r *PostgresDeploymentRepository) GetNextPending() (*domain.Deployment, err
 
 	var d domain.Deployment
 	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag sql.NullString
+	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
 	err := r.db.QueryRow(query).Scan(
 		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &d.CreatedAt,
+		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -405,6 +412,7 @@ func (r *PostgresDeploymentRepository) GetNextPending() (*domain.Deployment, err
 	d.Logs = logs.String
 	d.PreviousImageTag = previousImageTag.String
 	d.CurrentImageTag = currentImageTag.String
+ d.AppVersion = appVersion.String
 
 	return &d, nil
 }
@@ -416,10 +424,10 @@ func (r *PostgresDeploymentRepository) MarkAsRunning(id string) error {
 	return err
 }
 
-func (r *PostgresDeploymentRepository) MarkAsSuccess(id string, imageTag string) error {
+func (r *PostgresDeploymentRepository) MarkAsSuccess(id string, imageTag string, appVersion string) error {
 	now := time.Now()
-	query := `UPDATE deployments SET status = 'success', finished_at = $2, current_image_tag = $3 WHERE id = $1`
-	_, err := r.db.Exec(query, id, now, imageTag)
+	query := `UPDATE deployments SET status = 'success', finished_at = $2, current_image_tag = $3, app_version = $4 WHERE id = $1`
+	_, err := r.db.Exec(query, id, now, imageTag, appVersion)
 	return err
 }
 

@@ -1,4 +1,4 @@
-import { Clock, GitCommit } from "lucide-react";
+import { Clock, GitCommit, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ErrorMessage } from "@/components/error-message";
@@ -34,6 +34,14 @@ export function DeployCard({
                 {truncateCommitSha(deployment.commitSha)}
               </code>
               <StatusBadge status={deployment.status} />
+              {deployment.appVersion && (
+                <Badge
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 h-5 font-mono"
+                >
+                  <Tag className="h-3 w-3 mr-0.5" />v{deployment.appVersion}
+                </Badge>
+              )}
               {isCurrent && (
                 <Badge variant="secondary" className="text-xs">
                   Current

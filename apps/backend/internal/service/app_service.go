@@ -131,6 +131,7 @@ func (s *AppService) toDeploymentSummary(d *domain.Deployment) *domain.Deploymen
 		Status:        d.Status,
 		CommitSHA:     d.CommitSHA,
 		CommitMessage: d.CommitMessage,
+		AppVersion:    d.AppVersion,
 		StartedAt:     d.StartedAt,
 		FinishedAt:    d.FinishedAt,
 		Logs:          d.Logs,

@@ -10,6 +10,7 @@ import {
   MoreVertical,
   Rocket,
   Server,
+  Tag,
   Timer,
   Trash2,
 } from "lucide-react";
@@ -166,7 +167,17 @@ export function AppCard({ app, latestDeploy, serverName }: AppCardProps) {
 
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between">
-            <CardTitle className="text-lg">{app.name}</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg">{app.name}</CardTitle>
+              {app.appVersion && (
+                <Badge
+                  variant="secondary"
+                  className="text-[10px] px-1.5 py-0 h-5 font-mono"
+                >
+                  <Tag className="h-3 w-3 mr-0.5" />v{app.appVersion}
+                </Badge>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               <HealthIndicator health={health} />
               {deployment && <StatusBadge status={deployment.status} />}

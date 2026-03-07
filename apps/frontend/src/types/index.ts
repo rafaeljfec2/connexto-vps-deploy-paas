@@ -14,6 +14,7 @@ export interface DeploymentSummary {
   readonly status: DeployStatus;
   readonly commitSha: string;
   readonly commitMessage?: string;
+  readonly appVersion?: string;
   readonly startedAt?: string | null;
   readonly finishedAt?: string | null;
   readonly durationMs?: number | null;
@@ -30,6 +31,7 @@ export interface App {
   readonly config: Record<string, unknown>;
   readonly status: AppStatus;
   readonly webhookId: number | null;
+  readonly appVersion?: string;
   readonly serverId?: string;
   readonly lastDeployedAt: string | null;
   readonly lastDeployment?: DeploymentSummary | null;
@@ -49,6 +51,7 @@ export interface Deployment {
   readonly logs: string | null;
   readonly previousImageTag: string | null;
   readonly currentImageTag: string | null;
+  readonly appVersion?: string;
   readonly durationMs?: number | null;
   readonly createdAt: string;
 }

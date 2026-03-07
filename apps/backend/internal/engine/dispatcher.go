@@ -76,8 +76,8 @@ func (d *Dispatcher) Release(appID string) error {
 	return d.locker.Release(appID)
 }
 
-func (d *Dispatcher) MarkSuccess(deployID, imageTag string) error {
-	err := d.queue.MarkAsSuccess(deployID, imageTag)
+func (d *Dispatcher) MarkSuccess(deployID, imageTag, appVersion string) error {
+	err := d.queue.MarkAsSuccess(deployID, imageTag, appVersion)
 	if err == nil {
 		d.logger.Info("Deployment marked as success", "deployId", deployID, "imageTag", imageTag)
 	}
@@ -108,6 +108,10 @@ func (d *Dispatcher) UpdateAppLastDeployedAt(appID string) error {
 
 func (d *Dispatcher) UpdateAppRuntime(appID, runtime string) error {
 	return d.queue.UpdateAppRuntime(appID, runtime)
+}
+
+func (d *Dispatcher) UpdateAppVersion(appID, appVersion string) error {
+	return d.queue.UpdateAppVersion(appID, appVersion)
 }
 
 func (d *Dispatcher) SetPollTime(duration time.Duration) {

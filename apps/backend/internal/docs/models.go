@@ -16,6 +16,7 @@ type App struct {
 	Config         json.RawMessage `json:"config" swaggertype:"object"`
 	Status         string          `json:"status" example:"active" enums:"active,inactive,deleted"`
 	WebhookID      *int64          `json:"webhookId,omitempty" example:"123456789"`
+	AppVersion     *string         `json:"appVersion,omitempty" example:"1.2.3"`
 	LastDeployedAt *time.Time      `json:"lastDeployedAt,omitempty"`
 	CreatedAt      time.Time       `json:"createdAt"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
@@ -45,6 +46,7 @@ type Deployment struct {
 	Logs             string     `json:"logs,omitempty"`
 	PreviousImageTag string     `json:"previousImageTag,omitempty"`
 	CurrentImageTag  string     `json:"currentImageTag,omitempty"`
+	AppVersion       string     `json:"appVersion,omitempty" example:"1.2.3"`
 	CreatedAt        time.Time  `json:"createdAt"`
 }
 
