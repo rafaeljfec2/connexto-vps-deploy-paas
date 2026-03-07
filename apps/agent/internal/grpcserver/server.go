@@ -3,6 +3,7 @@ package grpcserver
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +39,7 @@ import (
 const logStreamBuffer = 512
 
 type Config struct {
+	CAPath   string
 	Port     int
 	CertPath string
 	KeyPath  string
@@ -58,6 +61,33 @@ func resolveDataDir() string {
 	return filepath.Join(os.TempDir(), "paasdeploy", "apps")
 }
 
+func buildTLSConfig(cfg Config, cert tls.Certificate, logger *slog.Logger) (*tls.Config, error) {
+	if cfg.CAPath == "" {
+		logger.Warn("No CA cert provided — running without mTLS (not recommended for production)")
+		return &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			ClientAuth:   tls.NoClientCert,
+			MinVersion:   tls.VersionTLS13,
+		}, nil
+	}
+
+	caPEM, err := os.ReadFile(cfg.CAPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CA cert: %w", err)
+	}
+	caPool := x509.NewCertPool()
+	if !caPool.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("failed to parse CA cert")
+	}
+	logger.Info("mTLS enabled for gRPC server")
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientCAs:    caPool,
+		MinVersion:   tls.VersionTLS13,
+	}, nil
+}
+
 func New(cfg Config, logger *slog.Logger) (*Server, error) {
 	if cfg.Port == 0 || cfg.CertPath == "" || cfg.KeyPath == "" {
 		return nil, fmt.Errorf("missing grpc server config")
@@ -68,10 +98,9 @@ func New(cfg Config, logger *slog.Logger) (*Server, error) {
 		return nil, err
 	}
 
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		ClientAuth:   tls.NoClientCert,
-		MinVersion:   tls.VersionTLS13,
+	tlsConfig, tlsErr := buildTLSConfig(cfg, cert, logger)
+	if tlsErr != nil {
+		return nil, tlsErr
 	}
 
 	grpcServer := grpc.NewServer(
@@ -785,6 +814,11 @@ func (es *execSession) handleInput(in *pb.ExecInput) {
 	}
 }
 
+var (
+	containerIDRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.\-]*$`)
+	allowedShells    = map[string]bool{"sh": true, "bash": true, "ash": true, "zsh": true}
+)
+
 func parseExecStartRequest(stream pb.AgentService_ExecContainerServer) (containerID, shell string, cols, rows uint16, err error) {
 	msg, err := stream.Recv()
 	if err != nil {
@@ -795,9 +829,15 @@ func parseExecStartRequest(stream pb.AgentService_ExecContainerServer) (containe
 		return "", "", 0, 0, fmt.Errorf("exec: first message must be ExecStartRequest")
 	}
 	containerID = startReq.ContainerId
+	if !containerIDRegex.MatchString(containerID) {
+		return "", "", 0, 0, fmt.Errorf("exec: invalid container ID")
+	}
 	shell = startReq.Shell
 	if shell == "" {
 		shell = "sh"
+	}
+	if !allowedShells[shell] {
+		return "", "", 0, 0, fmt.Errorf("exec: unsupported shell %q", shell)
 	}
 	cols = uint16(startReq.Cols)
 	rows = uint16(startReq.Rows)

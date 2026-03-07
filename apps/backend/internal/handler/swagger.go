@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"os"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/swagger"
 
@@ -14,5 +16,9 @@ func NewSwaggerHandler() *SwaggerHandler {
 }
 
 func (h *SwaggerHandler) Register(app *fiber.App) {
+	env := os.Getenv("APP_ENV")
+	if env == "production" {
+		return
+	}
 	app.Get("/paas-deploy/v1/swagger/*", swagger.HandlerDefault)
 }

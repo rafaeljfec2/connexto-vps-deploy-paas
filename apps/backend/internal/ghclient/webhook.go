@@ -127,6 +127,13 @@ func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 		slog.String("event", event),
 	)
 
+	if !ValidateSignature(body, signature, h.webhookSecret) {
+		logger.Warn("invalid webhook signature")
+		errMsg := "invalid signature"
+		h.savePayload(c.Context(), deliveryID, event, body, "invalid_signature", &errMsg)
+		return response.Unauthorized(c, "invalid signature")
+	}
+
 	if event == EventPing {
 		logger.Info("received ping event")
 		h.savePayloadAsync(deliveryID, event, body, "pong", nil)
@@ -140,13 +147,6 @@ func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 	}
 
 	h.savePayload(c.Context(), deliveryID, event, body, "received", nil)
-
-	if !ValidateSignature(body, signature, h.webhookSecret) {
-		logger.Warn("invalid webhook signature")
-		errMsg := "invalid signature"
-		h.savePayload(c.Context(), deliveryID, event, body, "invalid_signature", &errMsg)
-		return response.Unauthorized(c, "invalid signature")
-	}
 
 	var pushEvent PushEvent
 	if err := json.Unmarshal(body, &pushEvent); err != nil {

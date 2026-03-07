@@ -60,7 +60,7 @@ func New(cfg Config, log *slog.Logger) *Server {
 
 func (s *Server) setupMiddlewares() {
 	s.app.Use(recover.New(recover.Config{
-		EnableStackTrace: true,
+		EnableStackTrace: false,
 	}))
 
 	s.app.Use(middleware.TraceID())
@@ -137,6 +137,7 @@ func securityHeaders(c *fiber.Ctx) error {
 	c.Set("X-XSS-Protection", "1; mode=block")
 	c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 	c.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+	c.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 	if c.Protocol() == "https" {
 		c.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 	}

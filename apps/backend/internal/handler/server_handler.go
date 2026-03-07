@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"regexp"
 	"strings"
 	"time"
@@ -28,6 +29,30 @@ func validateAcmeEmail(email *string) error {
 	}
 	if !acmeEmailRegex.MatchString(trimmed) {
 		return domain.ErrInvalidInput
+	}
+	return nil
+}
+
+func validateServerHost(host string) error {
+	if host == "" {
+		return nil
+	}
+	lower := strings.ToLower(strings.TrimSpace(host))
+	if lower == "localhost" || strings.HasPrefix(lower, "localhost:") {
+		return fmt.Errorf("localhost is not allowed as server host")
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		ips, err := net.LookupIP(host)
+		if err != nil || len(ips) == 0 {
+			return nil
+		}
+		ip = ips[0]
+	}
+
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return fmt.Errorf("private/internal IP addresses are not allowed as server host")
 	}
 	return nil
 }
@@ -254,6 +279,10 @@ func (h *ServerHandler) Create(c *fiber.Ctx) error {
 		return response.BadRequest(c, "provide sshKey or sshPassword")
 	}
 
+	if err := validateServerHost(req.Host); err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
 	if err := validateAcmeEmail(req.AcmeEmail); err != nil {
 		return response.BadRequest(c, "invalid ACME email format")
 	}
@@ -338,6 +367,12 @@ func (h *ServerHandler) Update(c *fiber.Ctx) error {
 	var req UpdateServerRequest
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, MsgInvalidRequestBody)
+	}
+
+	if req.Host != nil {
+		if err := validateServerHost(*req.Host); err != nil {
+			return response.BadRequest(c, err.Error())
+		}
 	}
 
 	if err := validateAcmeEmail(req.AcmeEmail); err != nil {
@@ -506,7 +541,7 @@ func (h *ServerHandler) updateAgentViaGRPC(c *fiber.Ctx, server *domain.Server) 
 		if err != nil {
 			h.logger.Error("gRPC push update failed", "serverId", server.ID, "error", err)
 			if h.sseHandler != nil {
-				h.sseHandler.EmitAgentUpdateError(server.ID, err.Error())
+				h.sseHandler.EmitAgentUpdateError(server.ID, "failed to update agent binary")
 			}
 			return
 		}

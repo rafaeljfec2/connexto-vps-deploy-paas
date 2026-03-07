@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const DefaultAppPort = 8080
@@ -85,6 +86,36 @@ func ValidateDockerfile(appDir string, config *Config) error {
 		return fmt.Errorf("Dockerfile not found at %s - this file is required for deployment", config.Build.Dockerfile)
 	}
 	return nil
+}
+
+func SafeJoin(baseDir, subPath string) (string, error) {
+	if subPath == "" || subPath == "." {
+		return baseDir, nil
+	}
+
+	joined := filepath.Join(baseDir, subPath)
+	resolved, err := filepath.Abs(joined)
+	if err != nil {
+		return "", fmt.Errorf("invalid path %q: %w", subPath, err)
+	}
+
+	base, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", fmt.Errorf("invalid base path: %w", err)
+	}
+
+	if !isSubPath(base, resolved) {
+		return "", fmt.Errorf("path %q escapes base directory", subPath)
+	}
+	return resolved, nil
+}
+
+func isSubPath(base, target string) bool {
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		return false
+	}
+	return !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".."
 }
 
 func ApplyDefaults(config *Config) {

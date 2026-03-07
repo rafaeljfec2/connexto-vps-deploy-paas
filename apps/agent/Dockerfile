@@ -20,4 +20,7 @@ RUN AGENT_VER=$(cat /build/AGENT_VERSION | tr -d '\n') && \
     ./cmd/agent
 
 FROM scratch
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /build/agent-binary /agent
+USER 65534
+ENTRYPOINT ["/agent"]

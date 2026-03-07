@@ -84,9 +84,9 @@ func (h *ContainerExecHandler) handleConsole(c *websocket.Conn) {
 	cols := parseUint16Query(c, "cols", defaultCols)
 	rows := parseUint16Query(c, "rows", defaultRows)
 	serverID := c.Query("serverId", "")
+	user, _ := c.Locals(userContextKey).(*domain.User)
 
 	if serverID == "" {
-		user, _ := c.Locals(userContextKey).(*domain.User)
 		if user == nil || !user.IsAdmin() {
 			_ = c.WriteMessage(websocket.TextMessage, []byte("Error: local console requires admin role\r\n"))
 			return
@@ -94,7 +94,11 @@ func (h *ContainerExecHandler) handleConsole(c *websocket.Conn) {
 	}
 
 	if serverID != "" {
-		h.handleRemoteConsole(c, containerID, shell, cols, rows, serverID)
+		if user == nil {
+			_ = c.WriteMessage(websocket.TextMessage, []byte("Error: authentication required\r\n"))
+			return
+		}
+		h.handleRemoteConsole(c, containerID, shell, cols, rows, serverID, user.ID)
 		return
 	}
 
@@ -135,8 +139,8 @@ func (h *ContainerExecHandler) handleLocalConsole(c *websocket.Conn, containerID
 	wg.Wait()
 }
 
-func (h *ContainerExecHandler) handleRemoteConsole(c *websocket.Conn, containerID, shell string, cols, rows uint16, serverID string) {
-	server, err := h.serverRepo.FindByID(serverID)
+func (h *ContainerExecHandler) handleRemoteConsole(c *websocket.Conn, containerID, shell string, cols, rows uint16, serverID, userID string) {
+	server, err := h.serverRepo.FindByIDForUser(serverID, userID)
 	if err != nil {
 		h.logger.Error("server not found for exec", "serverId", serverID, "error", err)
 		_ = c.WriteMessage(websocket.TextMessage, []byte("Error: server not found\r\n"))

@@ -40,8 +40,8 @@ func NewImageHandler(cfg ImageHandlerConfig) *ImageHandler {
 	}
 }
 
-func (h *ImageHandler) resolveServerHost(serverID string) (string, error) {
-	server, err := h.serverRepo.FindByID(serverID)
+func (h *ImageHandler) resolveServerHost(serverID, userID string) (string, error) {
+	server, err := h.serverRepo.FindByIDForUser(serverID, userID)
 	if err != nil {
 		return "", fmt.Errorf("server not found: %w", err)
 	}
@@ -102,7 +102,7 @@ func (h *ImageHandler) ListImages(c *fiber.Ctx) error {
 }
 
 func (h *ImageHandler) listRemoteImages(c *fiber.Ctx, serverID string) error {
-	host, err := h.resolveServerHost(serverID)
+	host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 	if err != nil {
 		return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 	}
@@ -171,7 +171,7 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
@@ -211,7 +211,7 @@ func (h *ImageHandler) PruneImages(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}

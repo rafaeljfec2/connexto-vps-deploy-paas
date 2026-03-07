@@ -240,14 +240,13 @@ func (w *Worker) runLocalDeploy(ctx context.Context, deploy *domain.Deployment, 
 }
 
 func (w *Worker) getAppDir(repoDir, workdir string) string {
-	var appDir string
-	if workdir == "" || workdir == "." {
-		appDir = repoDir
-	} else {
-		appDir = filepath.Join(repoDir, workdir)
+	safe, err := compose.SafeJoin(repoDir, workdir)
+	if err != nil {
+		w.deps.Logger.Error("Invalid workdir (path traversal blocked)", "repoDir", repoDir, "workdir", workdir, "error", err)
+		return repoDir
 	}
-	w.deps.Logger.Info("Calculated appDir", "repoDir", repoDir, "workdir", workdir, "appDir", appDir)
-	return appDir
+	w.deps.Logger.Info("Calculated appDir", "repoDir", repoDir, "workdir", workdir, "appDir", safe)
+	return safe
 }
 
 func (w *Worker) loadEnvVars(appID string) error {
@@ -325,8 +324,14 @@ func (w *Worker) loadConfig(appDir string) error {
 func (w *Worker) buildDocker(ctx context.Context, deploy *domain.Deployment, app *domain.App, repoDir, imageTag string) error {
 	w.log(deploy.ID, app.ID, "Building Docker image: %s", imageTag)
 
-	buildContext := filepath.Join(repoDir, w.deployConfig.Build.Context)
-	dockerfile := filepath.Join(repoDir, w.deployConfig.Build.Dockerfile)
+	buildContext, err := compose.SafeJoin(repoDir, w.deployConfig.Build.Context)
+	if err != nil {
+		return fmt.Errorf("invalid build context path: %w", err)
+	}
+	dockerfile, err := compose.SafeJoin(repoDir, w.deployConfig.Build.Dockerfile)
+	if err != nil {
+		return fmt.Errorf("invalid dockerfile path: %w", err)
+	}
 
 	output := make(chan string, outputChannelBuffer)
 	go func() {
@@ -335,7 +340,7 @@ func (w *Worker) buildDocker(ctx context.Context, deploy *domain.Deployment, app
 		}
 	}()
 
-	err := w.deps.Docker.Build(ctx, buildContext, dockerfile, imageTag, output)
+	err = w.deps.Docker.Build(ctx, buildContext, dockerfile, imageTag, output)
 	close(output)
 
 	if err != nil {

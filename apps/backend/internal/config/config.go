@@ -115,7 +115,7 @@ func Load() *Config {
 			Host:        getEnv("HOST", "0.0.0.0"),
 			Port:        getEnvInt("PORT", DefaultPort),
 			LogLevel:    getEnv("LOG_LEVEL", "info"),
-			CorsOrigins: getEnv("CORS_ORIGINS", "*"),
+			CorsOrigins: getEnv("CORS_ORIGINS", ""),
 			ApiBaseURL:  getEnv("API_BASE_URL", ""),
 		},
 		Database: DatabaseConfig{

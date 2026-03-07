@@ -4,8 +4,24 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
+
+var safeHealthCheckPathRe = regexp.MustCompile(`^[a-zA-Z0-9/_\-.\?=&%+:@]+$`)
+
+func sanitizeHealthCheckPath(path string) string {
+	if path == "" {
+		return "/health"
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	if !safeHealthCheckPathRe.MatchString(path) {
+		return "/health"
+	}
+	return path
+}
 
 type GenerateParams struct {
 	AppName  string
@@ -107,6 +123,7 @@ func EscapeEnvValue(value string) string {
 }
 
 func BuildHealthCheckCommand(runtime string, port int, path string) string {
+	path = sanitizeHealthCheckPath(path)
 	url := fmt.Sprintf("http://127.0.0.1:%d%s", port, path)
 
 	switch strings.ToLower(runtime) {

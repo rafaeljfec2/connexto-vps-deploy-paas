@@ -53,8 +53,8 @@ func NewResourceHandler(cfg ResourceHandlerConfig) *ResourceHandler {
 	}
 }
 
-func (h *ResourceHandler) resolveServerHost(serverID string) (string, error) {
-	server, err := h.serverRepo.FindByID(serverID)
+func (h *ResourceHandler) resolveServerHost(serverID, userID string) (string, error) {
+	server, err := h.serverRepo.FindByIDForUser(serverID, userID)
 	if err != nil {
 		return "", fmt.Errorf("server not found: %w", err)
 	}
@@ -82,7 +82,7 @@ func (h *ResourceHandler) ListNetworks(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
@@ -137,7 +137,7 @@ func (h *ResourceHandler) CreateNetwork(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
@@ -168,7 +168,7 @@ func (h *ResourceHandler) RemoveNetwork(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
@@ -226,7 +226,7 @@ func (h *ResourceHandler) ListVolumes(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
@@ -277,7 +277,7 @@ func (h *ResourceHandler) CreateVolume(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
@@ -308,7 +308,7 @@ func (h *ResourceHandler) RemoveVolume(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}

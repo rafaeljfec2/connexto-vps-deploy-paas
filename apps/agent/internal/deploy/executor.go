@@ -353,10 +353,12 @@ func (e *Executor) scanForConfig(repoDir string) *compose.Config {
 }
 
 func (e *Executor) resolveAppDir(repoDir, workdir string) string {
-	if workdir == "" || workdir == "." {
+	safe, err := compose.SafeJoin(repoDir, workdir)
+	if err != nil {
+		e.logger.Error("Invalid workdir (path traversal blocked)", "repoDir", repoDir, "workdir", workdir, "error", err)
 		return repoDir
 	}
-	return filepath.Join(repoDir, workdir)
+	return safe
 }
 
 func (e *Executor) syncGit(ctx context.Context, req *pb.DeployRequest, repoDir string) error {
@@ -408,8 +410,14 @@ func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, appDir
 		}
 	}
 
-	fullContext := filepath.Join(appDir, buildContext)
-	fullDockerfile := filepath.Join(appDir, dockerfile)
+	fullContext, safeCtxErr := compose.SafeJoin(appDir, buildContext)
+	if safeCtxErr != nil {
+		return fmt.Errorf("invalid build context path: %w", safeCtxErr)
+	}
+	fullDockerfile, safeDfErr := compose.SafeJoin(appDir, dockerfile)
+	if safeDfErr != nil {
+		return fmt.Errorf("invalid dockerfile path: %w", safeDfErr)
+	}
 
 	e.logger.Info("Building Docker image", "imageTag", imageTag, "dockerfile", fullDockerfile)
 

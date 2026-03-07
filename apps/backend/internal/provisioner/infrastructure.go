@@ -296,7 +296,7 @@ func buildTraefikConfig(acmeEmail string) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteString("api:\n")
 	buf.WriteString("  dashboard: true\n")
-	buf.WriteString("  insecure: true\n")
+	buf.WriteString("  insecure: false\n")
 	buf.WriteString("\n")
 	buf.WriteString("entryPoints:\n")
 	buf.WriteString("  web:\n")

@@ -60,8 +60,8 @@ func NewContainerHandler(cfg ContainerHandlerConfig) *ContainerHandler {
 	}
 }
 
-func (h *ContainerHandler) resolveServerHost(serverID string) (string, error) {
-	server, err := h.serverRepo.FindByID(serverID)
+func (h *ContainerHandler) resolveServerHost(serverID, userID string) (string, error) {
+	server, err := h.serverRepo.FindByIDForUser(serverID, userID)
 	if err != nil {
 		return "", fmt.Errorf("server not found: %w", err)
 	}
@@ -136,7 +136,7 @@ func (h *ContainerHandler) ListContainers(c *fiber.Ctx) error {
 }
 
 func (h *ContainerHandler) listRemoteContainers(c *fiber.Ctx, serverID string, all bool) error {
-	host, err := h.resolveServerHost(serverID)
+	host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 	if err != nil {
 		h.logger.Error("Failed to resolve server", "serverId", serverID, "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
@@ -294,7 +294,7 @@ func (h *ContainerHandler) StartContainer(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
@@ -322,7 +322,7 @@ func (h *ContainerHandler) StopContainer(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
@@ -353,7 +353,7 @@ func (h *ContainerHandler) RestartContainer(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}
@@ -412,7 +412,7 @@ func (h *ContainerHandler) GetContainerLogs(c *fiber.Ctx) error {
 }
 
 func (h *ContainerHandler) getRemoteContainerLogs(c *fiber.Ctx, serverID, containerID string, tail int, follow bool) error {
-	host, err := h.resolveServerHost(serverID)
+	host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 	if err != nil {
 		return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 	}
@@ -482,7 +482,7 @@ func (h *ContainerHandler) RemoveContainer(c *fiber.Ctx) error {
 	}
 
 	if serverID != "" {
-		host, err := h.resolveServerHost(serverID)
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
 		}

@@ -42,6 +42,7 @@ func main() {
 		Port:     *agentPort,
 		CertPath: *cert,
 		KeyPath:  *key,
+		CAPath:   *caCert,
 	}, logger)
 	if err != nil {
 		logger.Error("failed to initialize grpc server", "error", err)
