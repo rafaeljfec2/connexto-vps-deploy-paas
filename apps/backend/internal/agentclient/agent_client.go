@@ -24,20 +24,16 @@ type AgentClient struct {
 }
 
 func NewAgentClient(ca *pki.CertificateAuthority, timeout time.Duration, insecureSkipVerify bool) (*AgentClient, error) {
-	var clientCert *tls.Certificate
-	if !insecureSkipVerify {
-		cert, err := ca.GenerateClientCert("paasdeploy-backend")
-		if err != nil {
-			return nil, fmt.Errorf("generate backend client cert: %w", err)
-		}
-		parsed, err := tls.X509KeyPair(cert.CertPEM, cert.KeyPEM)
-		if err != nil {
-			return nil, fmt.Errorf("parse backend client cert: %w", err)
-		}
-		clientCert = &parsed
+	cert, err := ca.GenerateClientCert("paasdeploy-backend")
+	if err != nil {
+		return nil, fmt.Errorf("generate backend client cert: %w", err)
+	}
+	parsed, err := tls.X509KeyPair(cert.CertPEM, cert.KeyPEM)
+	if err != nil {
+		return nil, fmt.Errorf("parse backend client cert: %w", err)
 	}
 	return &AgentClient{
-		pool:    newConnPool(ca.GetCACertPEM(), clientCert, insecureSkipVerify),
+		pool:    newConnPool(ca.GetCACertPEM(), &parsed, insecureSkipVerify),
 		timeout: timeout,
 	}, nil
 }
