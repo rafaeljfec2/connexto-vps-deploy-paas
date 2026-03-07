@@ -42,15 +42,17 @@ type connPool struct {
 	mu                 sync.RWMutex
 	conns              map[string]*connEntry
 	rootCA             []byte
+	clientCert         *tls.Certificate
 	insecureSkipVerify bool
 	ttl                time.Duration
 	done               chan struct{}
 }
 
-func newConnPool(rootCA []byte, insecureSkipVerify bool) *connPool {
+func newConnPool(rootCA []byte, clientCert *tls.Certificate, insecureSkipVerify bool) *connPool {
 	p := &connPool{
 		conns:              make(map[string]*connEntry),
 		rootCA:             rootCA,
+		clientCert:         clientCert,
 		insecureSkipVerify: insecureSkipVerify,
 		ttl:                defaultPoolTTL,
 		done:               make(chan struct{}),
@@ -79,6 +81,9 @@ func (p *connPool) dial(host, addr string) (*grpc.ClientConn, error) {
 			return nil, fmt.Errorf("invalid CA cert")
 		}
 		tlsConfig.RootCAs = roots
+	}
+	if p.clientCert != nil {
+		tlsConfig.Certificates = []tls.Certificate{*p.clientCert}
 	}
 
 	return grpc.NewClient(addr,

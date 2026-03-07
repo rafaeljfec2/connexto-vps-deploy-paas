@@ -147,6 +147,36 @@ func (ca *CertificateAuthority) GenerateAgentCert(serverID string, host string) 
 	}, nil
 }
 
+func (ca *CertificateAuthority) GenerateClientCert(cn string) (*Certificate, error) {
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: generateSerial(),
+		Subject: pkix.Name{
+			Organization:       []string{orgName},
+			OrganizationalUnit: []string{"backend"},
+			CommonName:         cn,
+		},
+		NotBefore:   time.Now(),
+		NotAfter:    time.Now().AddDate(1, 0, 0),
+		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, ca.cert, &privateKey.PublicKey, ca.privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Certificate{
+		CertPEM: pemEncode("CERTIFICATE", certDER),
+		KeyPEM:  pemEncodeKey(privateKey),
+	}, nil
+}
+
 func (ca *CertificateAuthority) GetCACertPEM() []byte {
 	return pemEncode("CERTIFICATE", ca.cert.Raw)
 }

@@ -42,7 +42,11 @@ func InitializeApplication() (*Application, func(), error) {
 		return nil, nil, err
 	}
 	postgresServerRepository := repository.NewPostgresServerRepository(db)
-	agentClientForEngine := ProvideAgentClient(certificateAuthority, config)
+	agentClientForEngine, err := ProvideAgentClient(certificateAuthority, config)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
 	engineEngine := engine.New(engine.Params{
 		Cfg:              config,
 		DB:               db,

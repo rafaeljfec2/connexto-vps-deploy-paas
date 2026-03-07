@@ -691,7 +691,7 @@ func ProvideAgentHealthChecker(ac *agentclient.AgentClient, cfg *config.Config) 
 	return agentclient.NewHealthChecker(ac, timeout)
 }
 
-func ProvideAgentClient(ca *pki.CertificateAuthority, cfg *config.Config) *agentclient.AgentClient {
+func ProvideAgentClient(ca *pki.CertificateAuthority, cfg *config.Config) (*agentclient.AgentClient, error) {
 	timeout := 10 * time.Second
 	if cfg.Deploy.HealthCheckTimeout > 0 {
 		timeout = cfg.Deploy.HealthCheckTimeout
