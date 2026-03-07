@@ -98,7 +98,7 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 	imageTag := e.docker.GetImageTag(req.AppName, req.Git.GetCommitSha())
 
 	emit(pb.DeployStage_DEPLOY_STAGE_BUILD, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, fmt.Sprintf("Building image %s", imageTag))
-	if err := e.buildImage(ctx, req, appDir, imageTag, logFn); err != nil {
+	if err := e.buildImage(ctx, req, repoDir, appDir, imageTag, logFn); err != nil {
 		emit(pb.DeployStage_DEPLOY_STAGE_BUILD, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
 		return e.failResponse(req, pb.DeployErrorCode_DEPLOY_ERROR_BUILD_FAILED, "build", err, startedAt)
 	}
@@ -390,7 +390,7 @@ func (e *Executor) syncGit(ctx context.Context, req *pb.DeployRequest, repoDir s
 	return nil
 }
 
-func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, appDir, imageTag string, logFn LogFunc) error {
+func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, repoDir, appDir, imageTag string, logFn LogFunc) error {
 	dockerfile := "./Dockerfile"
 	buildContext := "."
 
@@ -410,7 +410,7 @@ func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, appDir
 		}
 	}
 
-	fullContext, safeCtxErr := compose.SafeJoin(appDir, buildContext)
+	fullContext, safeCtxErr := compose.SafeJoin(repoDir, filepath.Join(req.Git.GetWorkdir(), buildContext))
 	if safeCtxErr != nil {
 		return fmt.Errorf("invalid build context path: %w", safeCtxErr)
 	}
