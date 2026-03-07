@@ -30,6 +30,7 @@ const (
 
 type AppFinder interface {
 	FindByRepoURL(repoURL string) (*domain.App, error)
+	FindAllByRepoURL(repoURL string) ([]domain.App, error)
 }
 
 type DeploymentCreator interface {
@@ -128,7 +129,7 @@ func (h *WebhookHandler) HandleWebhook(c *fiber.Ctx) error {
 
 	if event == EventPing {
 		logger.Info("received ping event")
-		h.savePayloadAsync(c.Context(), deliveryID, event, body, "pong", nil)
+		h.savePayloadAsync(deliveryID, event, body, "pong", nil)
 		return response.OK(c, map[string]string{"message": "pong"})
 	}
 
@@ -170,7 +171,7 @@ func (h *WebhookHandler) savePayload(ctx context.Context, deliveryID, eventType 
 	}
 }
 
-func (h *WebhookHandler) savePayloadAsync(ctx context.Context, deliveryID, eventType string, payload []byte, outcome string, errMsg *string) {
+func (h *WebhookHandler) savePayloadAsync(deliveryID, eventType string, payload []byte, outcome string, errMsg *string) {
 	if h.payloadStore == nil {
 		return
 	}
@@ -213,53 +214,119 @@ func (h *WebhookHandler) handlePushEvent(c *fiber.Ctx, logger *slog.Logger, even
 		return response.OK(c, map[string]string{"message": "branch deletion ignored"})
 	}
 
-	app, err := h.findAppByRepository(event.Repository, logger)
+	apps, err := h.findAppsByRepository(event.Repository, logger)
 	if err != nil {
 		errStr := err.Error()
 		h.savePayload(c.Context(), deliveryID, eventType, body, "error", &errStr)
 		return response.InternalError(c)
 	}
 
-	if app == nil {
+	if len(apps) == 0 {
 		logger.Info("no app registered for repository")
 		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("repository not registered"))
 		return response.OK(c, map[string]string{"message": "repository not registered"})
 	}
 
-	if app.Branch != branch {
-		logger.Info("push to non-tracked branch", slog.String("app_branch", app.Branch))
+	changedFiles := extractChangedFiles(event.Commits)
+	hasChangedFiles := len(changedFiles) > 0
+
+	branchApps := filterAppsByBranch(apps, branch)
+	if len(branchApps) == 0 {
+		logger.Info("push to non-tracked branch for all apps", slog.String("branch", branch))
 		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("branch not tracked"))
 		return response.OK(c, map[string]string{"message": "branch not tracked"})
 	}
 
-	if hasPending, err := h.hasPendingDeployment(app.ID, logger); err != nil {
-		errStr := err.Error()
-		h.savePayload(c.Context(), deliveryID, eventType, body, "error", &errStr)
-		return response.InternalError(c)
-	} else if hasPending {
-		logger.Info("deployment already pending for app", slog.String("app_id", app.ID))
-		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("deployment pending"))
-		return response.OK(c, map[string]string{"message": "deployment already pending"})
+	otherWorkdirs := collectNonRootWorkdirs(branchApps)
+
+	var deployments []fiber.Map
+	for i := range branchApps {
+		app := &branchApps[i]
+		appLogger := logger.With(slog.String("app_id", app.ID), slog.String("app_name", app.Name))
+
+		if hasChangedFiles && len(branchApps) > 1 && !shouldDeployApp(app, changedFiles, otherWorkdirs) {
+			appLogger.Info("skipping deploy: no changed files match workdir", slog.String("workdir", app.Workdir))
+			continue
+		}
+
+		result := h.tryCreateDeployment(appLogger, app, event)
+		if result != nil {
+			deployments = append(deployments, result)
+		}
 	}
 
-	return h.createDeployment(c, logger, app, event, deliveryID, eventType, body)
+	if len(deployments) == 0 {
+		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("no apps affected by changed files"))
+		return response.OK(c, map[string]string{"message": "no apps affected by changed files"})
+	}
+
+	h.savePayload(c.Context(), deliveryID, eventType, body, "deployment_queued", nil)
+	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
+		"success": true,
+		"data":    deployments,
+		"meta":    fiber.Map{"traceId": c.Locals("traceId")},
+	})
 }
 
-func (h *WebhookHandler) findAppByRepository(repo *Repository, logger *slog.Logger) (*domain.App, error) {
+func (h *WebhookHandler) findAppsByRepository(repo *Repository, logger *slog.Logger) ([]domain.App, error) {
 	repoURLs := getRepoURLVariants(repo)
 
 	for _, repoURL := range repoURLs {
-		app, err := h.appFinder.FindByRepoURL(repoURL)
-		if err == nil && app != nil {
-			return app, nil
-		}
-		if !errors.Is(err, domain.ErrNotFound) && err != nil {
-			logger.Error("error finding app", slog.String("error", err.Error()))
+		apps, err := h.appFinder.FindAllByRepoURL(repoURL)
+		if err != nil {
+			logger.Error("error finding apps", slog.String("error", err.Error()))
 			return nil, err
+		}
+		if len(apps) > 0 {
+			return apps, nil
 		}
 	}
 
 	return nil, nil
+}
+
+func (h *WebhookHandler) tryCreateDeployment(logger *slog.Logger, app *domain.App, event *PushEvent) fiber.Map {
+	commitMessage := getCommitMessage(event)
+
+	if commitMessageSkipsDeploy(commitMessage) {
+		logger.Info("skipping deployment: commit message contains [skip ci]")
+		return nil
+	}
+
+	hasPending, err := h.hasPendingDeployment(app.ID, logger)
+	if err != nil {
+		logger.Error("error checking pending deployments", slog.String("error", err.Error()))
+		return nil
+	}
+	if hasPending {
+		logger.Info("deployment already pending for app")
+		return nil
+	}
+
+	input := domain.CreateDeploymentInput{
+		AppID:         app.ID,
+		CommitSHA:     event.After,
+		CommitMessage: commitMessage,
+	}
+
+	deployment, err := h.deploymentCreator.Create(input)
+	if err != nil {
+		logger.Error("failed to create deployment", slog.String("error", err.Error()))
+		return nil
+	}
+
+	if h.deployAudit != nil {
+		h.deployAudit.LogDeployStarted(context.Background(), deployment.ID, app.ID, app.Name, event.After)
+	}
+
+	logger.Info("deployment queued", slog.String("deployment_id", deployment.ID))
+
+	return fiber.Map{
+		"deploymentId": deployment.ID,
+		"appId":        app.ID,
+		"appName":      app.Name,
+		"commitSha":    event.After,
+	}
 }
 
 func (h *WebhookHandler) hasPendingDeployment(appID string, logger *slog.Logger) (bool, error) {
@@ -282,57 +349,87 @@ func commitMessageSkipsDeploy(msg string) bool {
 	return strings.Contains(strings.ToLower(strings.TrimSpace(msg)), "[skip ci]")
 }
 
-func (h *WebhookHandler) createDeployment(c *fiber.Ctx, logger *slog.Logger, app *domain.App, event *PushEvent, deliveryID, eventType string, body []byte) error {
-	commitMessage := getCommitMessage(event)
+func extractChangedFiles(commits []Commit) []string {
+	seen := make(map[string]struct{})
+	var files []string
+	for _, c := range commits {
+		files = appendUnique(files, seen, c.Added)
+		files = appendUnique(files, seen, c.Modified)
+		files = appendUnique(files, seen, c.Removed)
+	}
+	return files
+}
 
-	if commitMessageSkipsDeploy(commitMessage) {
-		logger.Info("skipping deployment: commit message contains [skip ci]",
-			slog.String("app_id", app.ID),
-			slog.String("app_name", app.Name),
-			slog.String("commit", event.After),
-		)
-		h.savePayload(c.Context(), deliveryID, eventType, body, "ignored", strPtr("skip ci"))
-		return response.OK(c, map[string]string{"message": "deployment skipped (commit contains [skip ci])"})
+func appendUnique(files []string, seen map[string]struct{}, items []string) []string {
+	for _, f := range items {
+		if _, ok := seen[f]; !ok {
+			seen[f] = struct{}{}
+			files = append(files, f)
+		}
+	}
+	return files
+}
+
+func filterAppsByBranch(apps []domain.App, branch string) []domain.App {
+	var result []domain.App
+	for _, app := range apps {
+		if app.Branch == branch {
+			result = append(result, app)
+		}
+	}
+	return result
+}
+
+func collectNonRootWorkdirs(apps []domain.App) []string {
+	var workdirs []string
+	for _, app := range apps {
+		wd := normalizeWorkdir(app.Workdir)
+		if wd != "" {
+			workdirs = append(workdirs, wd)
+		}
+	}
+	return workdirs
+}
+
+func normalizeWorkdir(workdir string) string {
+	wd := strings.TrimPrefix(workdir, "./")
+	wd = strings.Trim(wd, "/")
+	if wd == "." || wd == "" {
+		return ""
+	}
+	return wd
+}
+
+func shouldDeployApp(app *domain.App, changedFiles []string, otherWorkdirs []string) bool {
+	appWorkdir := normalizeWorkdir(app.Workdir)
+
+	if appWorkdir == "" {
+		return hasFilesOutsideWorkdirs(changedFiles, otherWorkdirs)
 	}
 
-	input := domain.CreateDeploymentInput{
-		AppID:         app.ID,
-		CommitSHA:     event.After,
-		CommitMessage: commitMessage,
+	prefix := appWorkdir + "/"
+	for _, f := range changedFiles {
+		if strings.HasPrefix(f, prefix) || f == appWorkdir {
+			return true
+		}
 	}
+	return false
+}
 
-	deployment, err := h.deploymentCreator.Create(input)
-	if err != nil {
-		logger.Error("failed to create deployment", slog.String("error", err.Error()))
-		errStr := err.Error()
-		h.savePayload(c.Context(), deliveryID, eventType, body, "error", &errStr)
-		return response.InternalError(c)
+func hasFilesOutsideWorkdirs(changedFiles []string, workdirs []string) bool {
+	for _, f := range changedFiles {
+		belongsToOther := false
+		for _, wd := range workdirs {
+			if strings.HasPrefix(f, wd+"/") || f == wd {
+				belongsToOther = true
+				break
+			}
+		}
+		if !belongsToOther {
+			return true
+		}
 	}
-
-	h.savePayload(c.Context(), deliveryID, eventType, body, "deployment_queued", nil)
-
-	if h.deployAudit != nil {
-		h.deployAudit.LogDeployStarted(context.Background(), deployment.ID, app.ID, app.Name, event.After)
-	}
-
-	logger.Info("deployment queued",
-		slog.String("app_id", app.ID),
-		slog.String("app_name", app.Name),
-		slog.String("deployment_id", deployment.ID),
-	)
-
-	return c.Status(fiber.StatusAccepted).JSON(fiber.Map{
-		"success": true,
-		"data": fiber.Map{
-			"message":      "deployment queued",
-			"deploymentId": deployment.ID,
-			"appId":        app.ID,
-			"commitSha":    event.After,
-		},
-		"meta": fiber.Map{
-			"traceId": c.Locals("traceId"),
-		},
-	})
+	return false
 }
 
 func getCommitMessage(event *PushEvent) string {

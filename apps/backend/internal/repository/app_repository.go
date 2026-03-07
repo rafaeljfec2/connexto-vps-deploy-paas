@@ -143,6 +143,31 @@ func (r *PostgresAppRepository) FindByRepoURL(repoURL string) (*domain.App, erro
 	return r.scanApp(r.db.QueryRow(query, repoURL))
 }
 
+func (r *PostgresAppRepository) FindAllByRepoURL(repoURL string) ([]domain.App, error) {
+	query := `SELECT ` + appSelectColumns + ` FROM apps WHERE repository_url = $1 AND status != 'deleted' ORDER BY created_at ASC`
+
+	rows, err := r.db.Query(query, repoURL)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var apps []domain.App
+	for rows.Next() {
+		var f appScanFields
+		if err := rows.Scan(f.scanDest()...); err != nil {
+			return nil, err
+		}
+		apps = append(apps, *f.toApp())
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return apps, nil
+}
+
 func (r *PostgresAppRepository) FindByServerID(serverID string) ([]domain.App, error) {
 	query := `SELECT ` + appSelectColumns + ` FROM apps WHERE server_id = $1 AND status != 'deleted' ORDER BY created_at DESC`
 

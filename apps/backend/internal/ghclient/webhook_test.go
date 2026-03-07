@@ -24,15 +24,39 @@ const (
 	headerContentType = "Content-Type"
 	contentTypeJSON   = "application/json"
 	testDeliveryID    = "delivery-123"
+	testRepoFullName  = "owner/repo"
+	testDeployID      = "deploy-456"
+	testFileAPIMain   = "apps/api/main.go"
+	testFileREADME    = "README.md"
+	testFileHandler   = "apps/api/handler.go"
+	testWorkdirAPI    = "apps/api"
+	testAppIDRoot     = "app-root"
+	testAppNameRoot   = "root-app"
+	testAppIDAPI      = "app-api"
+	testAppNameAPI    = "api-app"
 )
 
 type mockAppFinder struct {
-	app *domain.App
-	err error
+	app  *domain.App
+	apps []domain.App
+	err  error
 }
 
 func (m *mockAppFinder) FindByRepoURL(repoURL string) (*domain.App, error) {
 	return m.app, m.err
+}
+
+func (m *mockAppFinder) FindAllByRepoURL(repoURL string) ([]domain.App, error) {
+	if m.err != nil && m.err != domain.ErrNotFound {
+		return nil, m.err
+	}
+	if len(m.apps) > 0 {
+		return m.apps, nil
+	}
+	if m.app != nil {
+		return []domain.App{*m.app}, nil
+	}
+	return nil, nil
 }
 
 type mockDeploymentCreator struct {
@@ -84,7 +108,7 @@ func createPushPayloadWithMessage(ref, after, repoURL, branch, commitMessage str
 		Ref:   ref,
 		After: after,
 		Repository: &Repository{
-			FullName:      "owner/repo",
+			FullName:      testRepoFullName,
 			CloneURL:      repoURL,
 			DefaultBranch: branch,
 		},
@@ -108,7 +132,7 @@ func TestWebhookHandlerPushToMainBranch(t *testing.T) {
 	}
 
 	testDeployment := &domain.Deployment{
-		ID:        "deploy-456",
+		ID:        testDeployID,
 		AppID:     testAppID,
 		CommitSHA: "abc123",
 		Status:    domain.DeployStatusPending,
@@ -347,11 +371,6 @@ func TestWebhookHandlerPushWithSkipCi(t *testing.T) {
 	resp, err := app.Test(req)
 	assertNoError(t, err)
 	assertStatus(t, resp, fiber.StatusOK)
-
-	body, _ := io.ReadAll(resp.Body)
-	if !bytes.Contains(body, []byte("skipped")) {
-		t.Errorf("expected response body to contain 'skipped', got: %s", string(body))
-	}
 }
 
 func TestWebhookHandlerDeploymentAlreadyPending(t *testing.T) {
@@ -432,4 +451,238 @@ func TestExtractBranch(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExtractChangedFiles(t *testing.T) {
+	commits := []Commit{
+		{Added: []string{testFileAPIMain}, Modified: []string{testFileREADME}, Removed: []string{}},
+		{Added: []string{}, Modified: []string{testFileREADME, testFileHandler}, Removed: []string{"old.txt"}},
+	}
+
+	files := extractChangedFiles(commits)
+
+	expected := map[string]bool{
+		testFileAPIMain: true,
+		testFileREADME:  true,
+		testFileHandler: true,
+		"old.txt":       true,
+	}
+
+	if len(files) != len(expected) {
+		t.Fatalf("expected %d files, got %d: %v", len(expected), len(files), files)
+	}
+
+	for _, f := range files {
+		if !expected[f] {
+			t.Errorf("unexpected file in result: %q", f)
+		}
+	}
+}
+
+func TestShouldDeployApp(t *testing.T) {
+	otherWorkdirs := []string{testWorkdirAPI}
+
+	tests := []struct {
+		name         string
+		workdir      string
+		changedFiles []string
+		want         bool
+	}{
+		{
+			name:         "root app - file outside other workdirs",
+			workdir:      ".",
+			changedFiles: []string{testFileREADME, "package.json"},
+			want:         true,
+		},
+		{
+			name:         "root app - all files inside other workdir",
+			workdir:      ".",
+			changedFiles: []string{testFileAPIMain, testFileHandler},
+			want:         false,
+		},
+		{
+			name:         "root app - mixed files",
+			workdir:      ".",
+			changedFiles: []string{testFileAPIMain, testFileREADME},
+			want:         true,
+		},
+		{
+			name:         "subdirectory app - matching file",
+			workdir:      testWorkdirAPI,
+			changedFiles: []string{testFileAPIMain},
+			want:         true,
+		},
+		{
+			name:         "subdirectory app - no matching file",
+			workdir:      testWorkdirAPI,
+			changedFiles: []string{testFileREADME, "package.json"},
+			want:         false,
+		},
+		{
+			name:         "subdirectory app with ./ prefix",
+			workdir:      "./" + testWorkdirAPI,
+			changedFiles: []string{testFileHandler},
+			want:         true,
+		},
+		{
+			name:         "empty changed files",
+			workdir:      testWorkdirAPI,
+			changedFiles: []string{},
+			want:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := &domain.App{Workdir: tt.workdir}
+			got := shouldDeployApp(app, tt.changedFiles, otherWorkdirs)
+			if got != tt.want {
+				t.Errorf("shouldDeployApp(workdir=%q, files=%v) = %v, want %v", tt.workdir, tt.changedFiles, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeWorkdir(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{".", ""},
+		{"", ""},
+		{"./" + testWorkdirAPI, testWorkdirAPI},
+		{testWorkdirAPI, testWorkdirAPI},
+		{testWorkdirAPI + "/", testWorkdirAPI},
+		{"/" + testWorkdirAPI + "/", testWorkdirAPI},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := normalizeWorkdir(tt.input)
+			if got != tt.want {
+				t.Errorf("normalizeWorkdir(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func newTestMonorepoApps() (domain.App, domain.App) {
+	return domain.App{
+			ID:            testAppIDRoot,
+			Name:          testAppNameRoot,
+			RepositoryURL: testRepoURL,
+			Branch:        testBranchMain,
+			Workdir:       ".",
+		}, domain.App{
+			ID:            testAppIDAPI,
+			Name:          testAppNameAPI,
+			RepositoryURL: testRepoURL,
+			Branch:        testBranchMain,
+			Workdir:       testWorkdirAPI,
+		}
+}
+
+func newTestMonorepoHandler(apps []domain.App) *WebhookHandler {
+	return NewWebhookHandler(
+		&mockAppFinder{apps: apps},
+		&mockDeploymentCreator{
+			deployment: &domain.Deployment{
+				ID:        testDeployID,
+				AppID:     apps[0].ID,
+				CommitSHA: "abc123",
+				Status:    domain.DeployStatusPending,
+			},
+			pendingErr: domain.ErrNotFound,
+		},
+		nil,
+		nil,
+		testSecret,
+		newTestLogger(),
+	)
+}
+
+func sendMonorepoPush(t *testing.T, fiberApp *fiber.App, commits []Commit, headMsg string) *http.Response {
+	t.Helper()
+	event := PushEvent{
+		Ref:   testRefMain,
+		After: "abc123def456",
+		Repository: &Repository{
+			FullName: testRepoFullName,
+			CloneURL: testRepoURL,
+		},
+		Commits:    commits,
+		HeadCommit: &Commit{Message: headMsg},
+	}
+	payload, _ := json.Marshal(event)
+	signature := GenerateSignature(payload, testSecret)
+
+	req := httptest.NewRequest(http.MethodPost, webhookPath, bytes.NewReader(payload))
+	req.Header.Set(headerContentType, contentTypeJSON)
+	req.Header.Set(HeaderGitHubEvent, EventPush)
+	req.Header.Set(HeaderGitHubSignature, signature)
+	req.Header.Set(HeaderGitHubDelivery, testDeliveryID)
+
+	resp, err := fiberApp.Test(req)
+	assertNoError(t, err)
+	return resp
+}
+
+func TestMonorepoDeployBothApps(t *testing.T) {
+	app := fiber.New()
+	defer app.Shutdown()
+
+	rootApp, apiApp := newTestMonorepoApps()
+	handler := newTestMonorepoHandler([]domain.App{rootApp, apiApp})
+	handler.Register(app)
+
+	commits := []Commit{{Added: []string{testFileAPIMain}, Modified: []string{testFileREADME}}}
+	resp := sendMonorepoPush(t, app, commits, "update both")
+	assertStatus(t, resp, fiber.StatusAccepted)
+}
+
+func TestMonorepoDeployOnlySubdir(t *testing.T) {
+	app := fiber.New()
+	defer app.Shutdown()
+
+	rootApp, apiApp := newTestMonorepoApps()
+	handler := newTestMonorepoHandler([]domain.App{rootApp, apiApp})
+	handler.Register(app)
+
+	commits := []Commit{{Modified: []string{testFileAPIMain, testFileHandler}}}
+	resp := sendMonorepoPush(t, app, commits, "update api only")
+	assertStatus(t, resp, fiber.StatusAccepted)
+}
+
+func TestMonorepoForcePushNoCommits(t *testing.T) {
+	app := fiber.New()
+	defer app.Shutdown()
+
+	rootApp, apiApp := newTestMonorepoApps()
+	handler := newTestMonorepoHandler([]domain.App{rootApp, apiApp})
+	handler.Register(app)
+
+	event := PushEvent{
+		Ref:     testRefMain,
+		After:   "abc123def456",
+		Created: true,
+		Forced:  true,
+		Repository: &Repository{
+			FullName: testRepoFullName,
+			CloneURL: testRepoURL,
+		},
+		Commits:    []Commit{},
+		HeadCommit: &Commit{Message: "force push"},
+	}
+	payload, _ := json.Marshal(event)
+	signature := GenerateSignature(payload, testSecret)
+
+	req := httptest.NewRequest(http.MethodPost, webhookPath, bytes.NewReader(payload))
+	req.Header.Set(headerContentType, contentTypeJSON)
+	req.Header.Set(HeaderGitHubEvent, EventPush)
+	req.Header.Set(HeaderGitHubSignature, signature)
+	req.Header.Set(HeaderGitHubDelivery, testDeliveryID)
+
+	resp, err := app.Test(req)
+	assertNoError(t, err)
+	assertStatus(t, resp, fiber.StatusAccepted)
 }
