@@ -73,7 +73,7 @@ func (s *Server) setupMiddlewares() {
 	}
 	corsConfig := cors.Config{
 		AllowOrigins:  corsOrigins,
-		AllowMethods:  "GET,POST,PUT,DELETE,OPTIONS",
+		AllowMethods:  "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders:  "Content-Type,Authorization,X-Trace-ID,X-GitHub-Event,X-Hub-Signature-256,X-GitHub-Delivery",
 		ExposeHeaders: "X-Trace-ID",
 	}

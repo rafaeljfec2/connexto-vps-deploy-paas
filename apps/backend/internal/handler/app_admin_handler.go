@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/agentclient"
@@ -393,7 +394,11 @@ func (h *AppAdminHandler) UpdateApp(c *fiber.Ctx) error {
 
 	updateInput := domain.UpdateAppInput{}
 	if input.Name != nil {
-		updateInput.Name = input.Name
+		trimmed := strings.TrimSpace(*input.Name)
+		if trimmed == "" {
+			return response.BadRequest(c, "application name cannot be empty")
+		}
+		updateInput.Name = &trimmed
 	}
 	if input.Branch != nil {
 		updateInput.Branch = input.Branch
@@ -404,6 +409,9 @@ func (h *AppAdminHandler) UpdateApp(c *fiber.Ctx) error {
 
 	updatedApp, err := h.appRepo.Update(app.ID, updateInput)
 	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
+			return response.Conflict(c, "an application with this name already exists")
+		}
 		return response.InternalError(c)
 	}
 
