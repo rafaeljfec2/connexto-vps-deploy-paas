@@ -24,25 +24,29 @@ interface AppSettingsDialogProps {
 
 export function AppSettingsDialog({ app }: AppSettingsDialogProps) {
   const [open, setOpen] = useState(false);
+  const [name, setName] = useState(app.name);
   const [branch, setBranch] = useState(app.branch);
   const [workdir, setWorkdir] = useState(app.workdir);
   const updateApp = useUpdateApp();
 
   useEffect(() => {
     if (open) {
+      setName(app.name);
       setBranch(app.branch);
       setWorkdir(app.workdir);
     }
-  }, [open, app.branch, app.workdir]);
+  }, [open, app.name, app.branch, app.workdir]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const nameChanged = name.trim() !== app.name;
     const branchChanged = branch !== app.branch;
     const workdirChanged = workdir !== app.workdir;
     updateApp.mutate(
       {
         id: app.id,
         input: {
+          name: nameChanged ? name.trim() : undefined,
           branch: branchChanged ? branch : undefined,
           workdir: workdirChanged ? workdir : undefined,
         },
@@ -53,7 +57,10 @@ export function AppSettingsDialog({ app }: AppSettingsDialogProps) {
     );
   };
 
-  const hasChanges = branch !== app.branch || workdir !== app.workdir;
+  const hasChanges =
+    name.trim() !== app.name ||
+    branch !== app.branch ||
+    workdir !== app.workdir;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -73,6 +80,20 @@ export function AppSettingsDialog({ app }: AppSettingsDialogProps) {
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label htmlFor="app-name" className="text-sm font-medium">
+                Application Name
+              </label>
+              <Input
+                id="app-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="my-app"
+              />
+              <p className="text-xs text-muted-foreground">
+                The display name for this application
+              </p>
+            </div>
             <div className="space-y-2">
               <label htmlFor="branch" className="text-sm font-medium">
                 Branch

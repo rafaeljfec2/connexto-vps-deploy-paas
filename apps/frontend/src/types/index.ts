@@ -207,6 +207,7 @@ export interface ContainerActionResult {
 }
 
 export interface UpdateAppInput {
+  readonly name?: string;
   readonly branch?: string;
   readonly workdir?: string;
 }

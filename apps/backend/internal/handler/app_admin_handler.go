@@ -375,6 +375,7 @@ func (h *AppAdminHandler) StartContainer(c *fiber.Ctx) error {
 }
 
 type UpdateAppInput struct {
+	Name    *string `json:"name,omitempty"`
 	Branch  *string `json:"branch,omitempty"`
 	Workdir *string `json:"workdir,omitempty"`
 }
@@ -391,6 +392,9 @@ func (h *AppAdminHandler) UpdateApp(c *fiber.Ctx) error {
 	}
 
 	updateInput := domain.UpdateAppInput{}
+	if input.Name != nil {
+		updateInput.Name = input.Name
+	}
 	if input.Branch != nil {
 		updateInput.Branch = input.Branch
 	}
