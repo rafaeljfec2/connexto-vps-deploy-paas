@@ -373,20 +373,36 @@ func (e *Executor) syncGit(ctx context.Context, req *pb.DeployRequest, repoDir s
 	}
 
 	if _, err := os.Stat(repoDir); os.IsNotExist(err) {
-		e.logger.Info("Cloning repository", "url", gitCfg.RepositoryUrl, "target", repoDir)
-		if err := os.MkdirAll(filepath.Dir(repoDir), 0755); err != nil {
-			return fmt.Errorf("failed to create repo directory: %w", err)
-		}
-		if err := e.git.CloneWithToken(ctx, gitCfg.RepositoryUrl, repoDir, token); err != nil {
-			return fmt.Errorf("clone failed: %w", err)
+		if err := e.cloneRepo(ctx, gitCfg.RepositoryUrl, repoDir, token); err != nil {
+			return err
 		}
 	}
 
 	e.logger.Info("Syncing repository", "commitSha", gitCfg.CommitSha)
 	if err := e.git.SyncWithToken(ctx, repoDir, gitCfg.CommitSha, gitCfg.RepositoryUrl, token); err != nil {
-		return fmt.Errorf("sync failed: %w", err)
+		e.logger.Warn("Sync failed, removing corrupt cache and re-cloning", "error", err)
+		if removeErr := os.RemoveAll(repoDir); removeErr != nil {
+			return fmt.Errorf("sync failed: %w (cache cleanup also failed: %v)", err, removeErr)
+		}
+		if cloneErr := e.cloneRepo(ctx, gitCfg.RepositoryUrl, repoDir, token); cloneErr != nil {
+			return fmt.Errorf("sync failed: %w (re-clone also failed: %v)", err, cloneErr)
+		}
+		if retryErr := e.git.SyncWithToken(ctx, repoDir, gitCfg.CommitSha, gitCfg.RepositoryUrl, token); retryErr != nil {
+			return fmt.Errorf("sync failed after re-clone: %w", retryErr)
+		}
 	}
 
+	return nil
+}
+
+func (e *Executor) cloneRepo(ctx context.Context, repoURL, repoDir, token string) error {
+	e.logger.Info("Cloning repository", "url", repoURL, "target", repoDir)
+	if err := os.MkdirAll(filepath.Dir(repoDir), 0755); err != nil {
+		return fmt.Errorf("failed to create repo directory: %w", err)
+	}
+	if err := e.git.CloneWithToken(ctx, repoURL, repoDir, token); err != nil {
+		return fmt.Errorf("clone failed: %w", err)
+	}
 	return nil
 }
 

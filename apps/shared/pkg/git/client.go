@@ -143,10 +143,39 @@ func (g *Client) SyncWithToken(ctx context.Context, repoDir, commitSHA, repoURL,
 	}
 
 	if err := g.ResetHard(ctx, repoDir, commitSHA); err != nil {
-		return err
+		g.logger.Warn("Reset failed, attempting unshallow fetch", "commit", commitSHA, "error", err)
+		if unshallowErr := g.unshallowFetch(ctx, repoDir, repoURL, token); unshallowErr != nil {
+			return fmt.Errorf("git reset failed: %w (unshallow also failed: %v)", err, unshallowErr)
+		}
+
+		if retryErr := g.ResetHard(ctx, repoDir, commitSHA); retryErr != nil {
+			return retryErr
+		}
 	}
 
 	return nil
+}
+
+func (g *Client) unshallowFetch(ctx context.Context, repoDir, repoURL, token string) error {
+	g.logger.Info("Performing unshallow fetch", "dir", repoDir)
+	g.executor.SetWorkDir(repoDir)
+
+	if token != "" && repoURL != "" {
+		authenticatedURL, err := InjectTokenIntoURL(repoURL, token)
+		if err != nil {
+			return fmt.Errorf("failed to create authenticated URL: %w", err)
+		}
+		_, _ = g.executor.Run(ctx, "git", "remote", "set-url", "origin", authenticatedURL)
+		defer func() {
+			_, _ = g.executor.Run(ctx, "git", "remote", "set-url", "origin", repoURL)
+		}()
+	}
+
+	_, err := g.executor.Run(ctx, "git", "fetch", "--unshallow", "origin")
+	if err != nil {
+		_, err = g.executor.Run(ctx, "git", "fetch", "origin")
+	}
+	return err
 }
 
 func (g *Client) GetBranch(ctx context.Context, repoDir string) (string, error) {
