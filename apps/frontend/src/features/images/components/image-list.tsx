@@ -269,7 +269,9 @@ export function ImageList({ serverId }: ImageListProps = {}) {
                         onClick={() =>
                           setImageToDelete({
                             id: image.id,
-                            ref: `${image.repository}:${image.tag}`,
+                            ref: image.dangling
+                              ? image.id
+                              : `${image.repository}:${image.tag}`,
                           })
                         }
                         disabled={removeImage.isPending}

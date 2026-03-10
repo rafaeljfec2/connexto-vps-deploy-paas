@@ -166,7 +166,7 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 	}
 
 	target := id
-	if ref != "" {
+	if ref != "" && !strings.Contains(ref, "<none>") {
 		target = ref
 	}
 
