@@ -113,10 +113,13 @@ export function ContainerLogsViewer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const expandedScrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const isStreamingIntentRef = useRef(false);
 
   const { data: logsData, refetch, isLoading } = useContainerLogs(appId, tail);
 
-  const startStreaming = useCallback(() => {
+  const connectStream = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
@@ -124,21 +127,50 @@ export function ContainerLogsViewer({
     const url = api.container.logsStreamUrl(appId);
     const eventSource = new EventSource(url, { withCredentials: true });
 
+    eventSource.onopen = () => {
+      reconnectAttemptsRef.current = 0;
+    };
+
     eventSource.onmessage = (event) => {
       setStreamedLogs((prev) => [...prev, event.data]);
     };
 
     eventSource.onerror = () => {
-      setIsStreaming(false);
       eventSource.close();
+      eventSourceRef.current = null;
+
+      if (!isStreamingIntentRef.current) return;
+
+      const delay = Math.min(
+        1000 * Math.pow(2, reconnectAttemptsRef.current),
+        30000,
+      );
+      reconnectAttemptsRef.current++;
+
+      reconnectTimeoutRef.current = setTimeout(() => {
+        if (isStreamingIntentRef.current) {
+          connectStream();
+        }
+      }, delay);
     };
 
     eventSourceRef.current = eventSource;
-    setIsStreaming(true);
-    setStreamedLogs([]);
   }, [appId]);
 
+  const startStreaming = useCallback(() => {
+    isStreamingIntentRef.current = true;
+    reconnectAttemptsRef.current = 0;
+    setIsStreaming(true);
+    setStreamedLogs([]);
+    connectStream();
+  }, [connectStream]);
+
   const stopStreaming = useCallback(() => {
+    isStreamingIntentRef.current = false;
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
@@ -148,6 +180,10 @@ export function ContainerLogsViewer({
 
   useEffect(() => {
     return () => {
+      isStreamingIntentRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }

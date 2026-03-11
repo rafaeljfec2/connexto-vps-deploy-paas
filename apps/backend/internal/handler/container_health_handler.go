@@ -221,12 +221,37 @@ func (h *ContainerHealthHandler) streamRemoteContainerLogs(c *fiber.Ctx, app *do
 
 	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 		ctx := c.Context()
-		err := h.agentClient.GetContainerLogs(ctx, host, h.agentPort, app.Name, 100, true, func(entry *pb.ContainerLogEntry) {
-			fmt.Fprintf(w, "data: %s\n\n", entry.Message)
-			_ = w.Flush()
-		})
-		if err != nil {
-			h.logger.Debug("Remote log stream ended", "app_id", app.ID, "error", err)
+		output := make(chan string, 100)
+
+		go func() {
+			defer close(output)
+			_ = h.agentClient.GetContainerLogs(ctx, host, h.agentPort, app.Name, 100, true, func(entry *pb.ContainerLogEntry) {
+				select {
+				case output <- entry.Message:
+				default:
+				}
+			})
+		}()
+
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case line, ok := <-output:
+				if !ok {
+					return
+				}
+				fmt.Fprintf(w, "data: %s\n\n", line)
+				if err := w.Flush(); err != nil {
+					return
+				}
+			case <-ticker.C:
+				fmt.Fprintf(w, ": keepalive\n\n")
+				if err := w.Flush(); err != nil {
+					return
+				}
+			}
 		}
 	}))
 
