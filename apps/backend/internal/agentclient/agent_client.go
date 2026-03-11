@@ -77,13 +77,21 @@ func (c *AgentClient) ExecuteDeployWithLogs(
 		return nil, fmt.Errorf("failed to connect to agent: %w", err)
 	}
 	if onLog != nil {
-		go c.streamLogs(ctx, cl, req.DeploymentId, onLog)
+		ready := make(chan struct{})
+		go c.streamLogs(ctx, cl, req.DeploymentId, onLog, ready)
+		select {
+		case <-ready:
+		case <-time.After(5 * time.Second):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 	return cl.ExecuteDeploy(ctx, req)
 }
 
-func (c *AgentClient) streamLogs(ctx context.Context, cl pb.AgentServiceClient, deploymentID string, onLog DeployLogHandler) {
+func (c *AgentClient) streamLogs(ctx context.Context, cl pb.AgentServiceClient, deploymentID string, onLog DeployLogHandler, ready chan<- struct{}) {
 	stream, err := cl.StreamDeployLogs(ctx, &pb.DeployLogSubscription{DeploymentId: deploymentID})
+	close(ready)
 	if err != nil {
 		return
 	}
