@@ -107,7 +107,8 @@ func (p *NginxParser) ParseAllSites() ([]NginxSite, error) {
 				continue
 			}
 
-			filePath := filepath.Join(basePath, file.Name())
+			fileName := filepath.Base(file.Name())
+			filePath := filepath.Join(basePath, fileName)
 			site, err := p.ParseFile(filePath)
 			if err != nil {
 				continue

@@ -70,8 +70,9 @@ func detectRubyVersion(appDir string) string {
 		return ""
 	}
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".gemspec") {
-			if v := extractRegex(filepath.Join(appDir, entry.Name()), `\.version\s*=\s*["']([^"']+)["']`); v != "" {
+		name := filepath.Base(entry.Name())
+		if !entry.IsDir() && strings.HasSuffix(name, ".gemspec") {
+			if v := extractRegex(filepath.Join(appDir, name), `\.version\s*=\s*["']([^"']+)["']`); v != "" {
 				return v
 			}
 		}
@@ -85,8 +86,9 @@ func detectDotnetVersion(appDir string) string {
 		return ""
 	}
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".csproj") {
-			if v := extractRegex(filepath.Join(appDir, entry.Name()), `<Version>([^<]+)</Version>`); v != "" {
+		name := filepath.Base(entry.Name())
+		if !entry.IsDir() && strings.HasSuffix(name, ".csproj") {
+			if v := extractRegex(filepath.Join(appDir, name), `<Version>([^<]+)</Version>`); v != "" {
 				return v
 			}
 		}

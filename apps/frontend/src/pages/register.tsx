@@ -21,6 +21,15 @@ import { ApiError } from "@/types";
 
 const MIN_PASSWORD_LENGTH = 8;
 
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= (a.codePointAt(i) ?? 0) ^ (b.codePointAt(i) ?? 0);
+  }
+  return result === 0;
+}
+
 function validateForm(fields: {
   readonly name: string;
   readonly email: string;
@@ -36,7 +45,7 @@ function validateForm(fields: {
   if (fields.password.length < MIN_PASSWORD_LENGTH) {
     return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
   }
-  if (fields.password !== fields.confirmPassword) {
+  if (!constantTimeEqual(fields.password, fields.confirmPassword)) {
     return "Passwords do not match.";
   }
   return null;

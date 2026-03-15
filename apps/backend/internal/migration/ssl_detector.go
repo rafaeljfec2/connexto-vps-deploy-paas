@@ -65,7 +65,7 @@ func (d *SSLDetector) detectLetsEncryptCerts() ([]SSLCertificate, error) {
 			continue
 		}
 
-		domain := entry.Name()
+		domain := filepath.Base(entry.Name())
 		certDir := filepath.Join(d.letsencryptPath, domain)
 
 		cert := SSLCertificate{

@@ -12,11 +12,7 @@ const (
 
 func TraceID() fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		traceID := c.Get(TraceIDHeader)
-
-		if traceID == "" {
-			traceID = uuid.New().String()
-		}
+		traceID := uuid.New().String()
 
 		c.Locals(TraceIDKey, traceID)
 		c.Set(TraceIDHeader, traceID)

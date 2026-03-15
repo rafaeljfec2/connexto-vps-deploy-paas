@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -93,7 +94,11 @@ func (l *Locker) CleanupStale() error {
 		if entry.IsDir() {
 			continue
 		}
-		lockFile := filepath.Join(lockDir, entry.Name())
+		name := filepath.Base(entry.Name())
+		if !strings.HasSuffix(name, ".lock") {
+			continue
+		}
+		lockFile := filepath.Join(lockDir, name)
 		os.Remove(lockFile)
 	}
 

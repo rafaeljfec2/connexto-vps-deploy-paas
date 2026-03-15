@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -454,17 +455,10 @@ type paasDeployConfig struct {
 
 func (h *AppAdminHandler) readAppConfig(appID, workdir string) (*paasDeployConfig, error) {
 	repoDir := filepath.Join(h.dataDir, appID)
+	sandboxed := os.DirFS(repoDir)
 
-	var appDir string
-	if workdir == "" || workdir == "." {
-		appDir = repoDir
-	} else {
-		appDir = filepath.Join(repoDir, workdir)
-	}
-
-	configPath := filepath.Join(appDir, "paasdeploy.json")
-
-	data, err := os.ReadFile(configPath)
+	configRelPath := filepath.Join(workdir, "paasdeploy.json")
+	data, err := fs.ReadFile(sandboxed, configRelPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read paasdeploy.json: %w", err)
 	}
