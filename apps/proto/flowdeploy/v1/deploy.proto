@@ -117,6 +117,7 @@ message DeployResult {
   int32 exposed_port = 8;
   string container_ip = 9;
   string app_version = 10;
+  string runtime = 11;
 }
 
 message DeployError {

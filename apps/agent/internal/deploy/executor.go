@@ -135,6 +135,7 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 			CompletedAt: timestamppb.New(completedAt),
 			ExposedPort: int32(cfg.Port),
 			AppVersion:  appVersion,
+			Runtime:     cfg.Runtime,
 		},
 	}
 }
@@ -199,6 +200,7 @@ func (e *Executor) mergeLocalConfig(cfg *compose.Config, req *pb.DeployRequest, 
 
 	e.logger.Info("Merging local paasdeploy.json",
 		"appDir", appDir,
+		"localRuntime", localCfg.Runtime,
 		"localPort", localCfg.Port,
 		"localHealthPath", localCfg.Healthcheck.Path,
 		"localBuildContext", localCfg.Build.Context,
@@ -209,6 +211,10 @@ func (e *Executor) mergeLocalConfig(cfg *compose.Config, req *pb.DeployRequest, 
 }
 
 func (e *Executor) mergeRuntimeConfig(cfg *compose.Config, localCfg *compose.Config) {
+	if localCfg.Runtime != "" {
+		cfg.Runtime = localCfg.Runtime
+	}
+
 	if localCfg.Port > 0 {
 		cfg.Port = localCfg.Port
 	}

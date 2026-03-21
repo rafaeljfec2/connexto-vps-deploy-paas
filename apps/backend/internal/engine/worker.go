@@ -178,15 +178,10 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 		return w.fail(deploy, app, fmt.Errorf("remote deploy failed: %s", errMsg))
 	}
 
-	imageTag := ""
-	appVersion := ""
-	if resp.Result != nil {
-		imageTag = resp.Result.ImageTag
-		appVersion = resp.Result.AppVersion
-	}
+	imageTag, appVersion, remoteRuntime := extractDeployResult(resp)
 
 	w.log(deploy.ID, app.ID, "Remote deployment completed successfully")
-	return w.success(deploy, app, imageTag, appVersion)
+	return w.success(deploy, app, imageTag, appVersion, remoteRuntime)
 }
 
 func (w *Worker) runLocalDeploy(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
@@ -236,7 +231,7 @@ func (w *Worker) runLocalDeploy(ctx context.Context, deploy *domain.Deployment, 
 
 	appVersion := version.DetectAppVersion(w.deployConfig.Runtime, appDir)
 
-	return w.success(deploy, app, imageTag, appVersion)
+	return w.success(deploy, app, imageTag, appVersion, w.deployConfig.Runtime)
 }
 
 func (w *Worker) getAppDir(repoDir, workdir string) string {
@@ -472,7 +467,7 @@ func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *d
 	return nil
 }
 
-func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag, appVersion string) error {
+func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag, appVersion, runtime string) error {
 	w.log(deploy.ID, app.ID, "Deployment completed successfully")
 
 	if w.deps.AuditService != nil {
@@ -488,8 +483,8 @@ func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag, a
 		w.deps.Logger.Error("Failed to update app last deployed at", "error", err)
 	}
 
-	if w.deployConfig != nil && w.deployConfig.Runtime != "" {
-		if err := w.deps.Dispatcher.UpdateAppRuntime(app.ID, w.deployConfig.Runtime); err != nil {
+	if runtime != "" {
+		if err := w.deps.Dispatcher.UpdateAppRuntime(app.ID, runtime); err != nil {
 			w.deps.Logger.Error("Failed to update app runtime", "error", err)
 		}
 	}
@@ -505,6 +500,13 @@ func (w *Worker) success(deploy *domain.Deployment, app *domain.App, imageTag, a
 	w.deps.Notifier.EmitDeploySuccess(deploy.ID, app.ID)
 
 	return nil
+}
+
+func extractDeployResult(resp *pb.DeployResponse) (imageTag, appVersion, runtime string) {
+	if resp.Result == nil {
+		return "", "", ""
+	}
+	return resp.Result.ImageTag, resp.Result.AppVersion, resp.Result.Runtime
 }
 
 func (w *Worker) cleanupOldImages(deploy *domain.Deployment) {
