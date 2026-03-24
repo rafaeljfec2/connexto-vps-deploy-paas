@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  AlertCircle,
   AlertTriangle,
   HardDrive,
   Loader2,
@@ -56,6 +57,7 @@ export function ImageList({ serverId }: ImageListProps = {}) {
     readonly ref: string;
   } | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [pruneError, setPruneError] = useState<string | null>(null);
 
   const { data: images, isLoading, error } = useImages(serverId);
   const removeImage = useRemoveImage();
@@ -74,6 +76,7 @@ export function ImageList({ serverId }: ImageListProps = {}) {
   });
 
   const danglingCount = images?.filter((img) => img.dangling).length ?? 0;
+  const unusedCount = images?.filter((img) => img.containers === 0).length ?? 0;
   const totalSize = images?.reduce((sum, img) => sum + img.size, 0) ?? 0;
 
   if (isLoading) {
@@ -114,18 +117,23 @@ export function ImageList({ serverId }: ImageListProps = {}) {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant={showDanglingOnly ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowDanglingOnly(!showDanglingOnly)}
-          >
-            Dangling Only ({danglingCount})
-          </Button>
           {danglingCount > 0 && (
+            <Button
+              variant={showDanglingOnly ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowDanglingOnly(!showDanglingOnly)}
+            >
+              Dangling Only ({danglingCount})
+            </Button>
+          )}
+          {unusedCount > 0 && (
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => setShowPruneDialog(true)}
+              onClick={() => {
+                setPruneError(null);
+                setShowPruneDialog(true);
+              }}
               disabled={pruneImages.isPending}
             >
               {pruneImages.isPending ? (
@@ -133,16 +141,22 @@ export function ImageList({ serverId }: ImageListProps = {}) {
               ) : (
                 <Trash2 className="h-4 w-4 mr-2" />
               )}
-              Prune All
+              Prune Unused ({unusedCount})
             </Button>
           )}
         </div>
       </div>
 
-      <div className="flex gap-4 text-sm text-muted-foreground">
+      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
         <span>{images?.length ?? 0} total images</span>
         <span>•</span>
         <span>{formatBytes(totalSize)} total size</span>
+        {unusedCount > 0 && (
+          <>
+            <span>•</span>
+            <span className="text-yellow-500">{unusedCount} unused</span>
+          </>
+        )}
         {danglingCount > 0 && (
           <>
             <span>•</span>
@@ -287,23 +301,48 @@ export function ImageList({ serverId }: ImageListProps = {}) {
         </Card>
       )}
 
-      <AlertDialog open={showPruneDialog} onOpenChange={setShowPruneDialog}>
+      <AlertDialog
+        open={showPruneDialog}
+        onOpenChange={(open) => {
+          if (!open) setPruneError(null);
+          setShowPruneDialog(open);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Prune all dangling images?</AlertDialogTitle>
+            <AlertDialogTitle>Prune all unused images?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all dangling images ({danglingCount} images) that
-              are not being used by any container. This action cannot be undone.
+              This will remove all {unusedCount} unused images that are not
+              being used by any running container. Images currently in use will
+              not be affected. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {pruneError && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{pruneError}</AlertDescription>
+            </Alert>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={pruneImages.isPending}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault();
+                setPruneError(null);
                 pruneImages.mutate(serverId, {
-                  onSuccess: () => setShowPruneDialog(false),
+                  onSuccess: () => {
+                    setPruneError(null);
+                    setShowPruneDialog(false);
+                  },
+                  onError: (err) => {
+                    const message =
+                      err instanceof ApiError
+                        ? err.message
+                        : "Failed to prune images";
+                    setPruneError(message);
+                  },
                 });
               }}
               disabled={pruneImages.isPending}
