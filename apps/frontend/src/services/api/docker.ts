@@ -215,6 +215,49 @@ export const networksApi = {
     ),
 };
 
+export interface PruneResponse {
+  readonly itemsRemoved: number;
+  readonly spaceReclaimedBytes: number;
+  readonly cleanupType: string;
+}
+
+export interface CleanupLog {
+  readonly id: string;
+  readonly serverId: string;
+  readonly cleanupType: string;
+  readonly itemsRemoved: number;
+  readonly spaceReclaimedBytes: number;
+  readonly trigger: string;
+  readonly status: string;
+  readonly errorMessage?: string;
+  readonly createdAt: string;
+}
+
+export const cleanupApi = {
+  pruneContainers: (serverId: string): Promise<PruneResponse> =>
+    fetchApi<PruneResponse>(
+      `${API_BASE}/servers/${serverId}/cleanup/containers`,
+      { method: "POST" },
+    ),
+
+  pruneVolumes: (serverId: string): Promise<PruneResponse> =>
+    fetchApi<PruneResponse>(`${API_BASE}/servers/${serverId}/cleanup/volumes`, {
+      method: "POST",
+    }),
+
+  getLogs: (
+    serverId: string,
+    limit = 50,
+    offset = 0,
+  ): Promise<readonly CleanupLog[]> =>
+    fetchApiList<CleanupLog>(
+      buildUrl(`${API_BASE}/servers/${serverId}/cleanup/logs`, {
+        limit,
+        offset,
+      }),
+    ),
+};
+
 export const volumesApi = {
   list: async (serverId?: string): Promise<readonly DockerVolumeInfo[]> => {
     const data = await fetchApiList<string | Partial<DockerVolumeInfo>>(

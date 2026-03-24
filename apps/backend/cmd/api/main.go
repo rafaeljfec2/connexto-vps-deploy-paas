@@ -189,6 +189,7 @@ func registerProtectedRoutes(app *di.Application) {
 
 	registerOptionalProtectedHandler(app.ImageHandler, authRequired)
 	registerOptionalProtectedHandler(app.ResourceHandler, authRequired)
+	app.CleanupHandler.Register(authRequired)
 
 	app.SystemHandler.Register(authRequired)
 

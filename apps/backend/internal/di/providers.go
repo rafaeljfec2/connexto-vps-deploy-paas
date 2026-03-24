@@ -72,6 +72,8 @@ var RepositorySet = wire.NewSet(
 	wire.Bind(new(domain.ServerRepository), new(*repository.PostgresServerRepository)),
 	repository.NewPostgresWebhookPayloadRepository,
 	wire.Bind(new(ghclient.WebhookPayloadStore), new(*repository.PostgresWebhookPayloadRepository)),
+	repository.NewPostgresCleanupLogRepository,
+	wire.Bind(new(domain.CleanupLogRepository), new(*repository.PostgresCleanupLogRepository)),
 )
 
 var AuthSet = wire.NewSet(
@@ -127,6 +129,7 @@ var HandlerSet = wire.NewSet(
 	ProvideAgentHealthChecker,
 	ProvideServerHandlerAgentDeps,
 	ProvideServerHandler,
+	ProvideCleanupHandler,
 )
 
 var ServerSet = wire.NewSet(
@@ -371,6 +374,7 @@ type Application struct {
 	ServerHandler          *handler.ServerHandler
 	SystemHandler          *handler.SystemHandler
 	AgentDownloadHandler   *agentdownload.Handler
+	CleanupHandler         *handler.CleanupHandler
 }
 
 func ProvideTokenEncryptor(cfg *config.Config, logger *slog.Logger) *crypto.TokenEncryptor {
@@ -728,6 +732,22 @@ func ProvideAgentDownloadHandler(
 	logger *slog.Logger,
 ) *agentdownload.Handler {
 	return agentdownload.NewHandler(store, cfg.GRPC.AgentBinaryPath, logger)
+}
+
+func ProvideCleanupHandler(
+	serverRepo domain.ServerRepository,
+	cleanupLogRepo domain.CleanupLogRepository,
+	agentClient *agentclient.AgentClient,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *handler.CleanupHandler {
+	return handler.NewCleanupHandler(handler.CleanupHandlerConfig{
+		AgentClient:    agentClient,
+		ServerRepo:     serverRepo,
+		CleanupLogRepo: cleanupLogRepo,
+		AgentPort:      cfg.GRPC.AgentPort,
+		Logger:         logger,
+	})
 }
 
 func ProvideGrpcServer(

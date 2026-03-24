@@ -700,13 +700,17 @@ func (d *Client) RemoveImageByID(ctx context.Context, imageID string, force bool
 	return nil
 }
 
+const pruneReclaimedPrefix = "Total reclaimed space"
+
 type PruneResult struct {
-	ImagesDeleted  int
-	SpaceReclaimed int64
+	ImagesDeleted      int
+	ContainersDeleted  int
+	VolumesDeleted     int
+	SpaceReclaimed     int64
 }
 
 func (d *Client) PruneImages(ctx context.Context) (*PruneResult, error) {
-	d.logger.Info("Pruning all dangling Docker images")
+	d.logger.Info("Pruning all unused Docker images")
 
 	result, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", "image", "prune", "-a", "-f")
 	if err != nil {
@@ -716,16 +720,80 @@ func (d *Client) PruneImages(ctx context.Context) (*PruneResult, error) {
 	pruneResult := &PruneResult{}
 	lines := strings.Split(result.Stdout, "\n")
 	for _, line := range lines {
-		if strings.Contains(line, "Total reclaimed space") {
+		if strings.Contains(line, pruneReclaimedPrefix) {
 			parts := strings.Split(line, ":")
 			if len(parts) > 1 {
 				pruneResult.SpaceReclaimed = ParseImageSize(strings.TrimSpace(parts[1]))
 			}
 		}
-		if strings.HasPrefix(line, "deleted:") || strings.HasPrefix(line, "Deleted:") {
+		if strings.HasPrefix(line, "Untagged:") {
 			pruneResult.ImagesDeleted++
 		}
 	}
 
 	return pruneResult, nil
+}
+
+func (d *Client) PruneContainers(ctx context.Context) (*PruneResult, error) {
+	d.logger.Info("Pruning stopped Docker containers")
+
+	result, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", "container", "prune", "-f")
+	if err != nil {
+		return nil, fmt.Errorf("failed to prune containers: %w", err)
+	}
+
+	pruneResult := &PruneResult{}
+	lines := strings.Split(result.Stdout, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, pruneReclaimedPrefix) {
+			parts := strings.Split(line, ":")
+			if len(parts) > 1 {
+				pruneResult.SpaceReclaimed = ParseImageSize(strings.TrimSpace(parts[1]))
+			}
+		}
+		trimmed := strings.TrimSpace(line)
+		if isHexContainerID(trimmed) {
+			pruneResult.ContainersDeleted++
+		}
+	}
+
+	return pruneResult, nil
+}
+
+func (d *Client) PruneVolumes(ctx context.Context) (*PruneResult, error) {
+	d.logger.Info("Pruning anonymous Docker volumes")
+
+	result, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", "volume", "prune", "-f")
+	if err != nil {
+		return nil, fmt.Errorf("failed to prune volumes: %w", err)
+	}
+
+	pruneResult := &PruneResult{}
+	lines := strings.Split(result.Stdout, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, pruneReclaimedPrefix) {
+			parts := strings.Split(line, ":")
+			if len(parts) > 1 {
+				pruneResult.SpaceReclaimed = ParseImageSize(strings.TrimSpace(parts[1]))
+			}
+		}
+		trimmed := strings.TrimSpace(line)
+		if len(trimmed) > 0 && !strings.Contains(trimmed, pruneReclaimedPrefix) && !strings.HasPrefix(trimmed, "Deleted") {
+			pruneResult.VolumesDeleted++
+		}
+	}
+
+	return pruneResult, nil
+}
+
+func isHexContainerID(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
 }

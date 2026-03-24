@@ -7,7 +7,13 @@ import {
   webhooksApi,
 } from "./apps";
 import { authApi, githubApi } from "./auth";
-import { containersApi, imagesApi, networksApi, volumesApi } from "./docker";
+import {
+  cleanupApi,
+  containersApi,
+  imagesApi,
+  networksApi,
+  volumesApi,
+} from "./docker";
 import {
   certificatesApi,
   cloudflareApi,
@@ -26,9 +32,11 @@ export type {
   ReposResponse,
 } from "./auth";
 export type {
+  CleanupLog,
   DockerImageInfo,
   DockerNetworkInfo,
   DockerVolumeInfo,
+  PruneResponse,
 } from "./docker";
 
 export { API_BASE, API_URL } from "./client";
@@ -53,4 +61,5 @@ export const api = {
   migration: migrationApi,
   templates: templatesApi,
   system: systemApi,
+  cleanup: cleanupApi,
 } as const;

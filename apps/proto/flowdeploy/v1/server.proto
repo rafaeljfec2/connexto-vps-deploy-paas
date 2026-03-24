@@ -399,3 +399,17 @@ message CertificateInfo {
 message GetCertificatesResponse {
   repeated CertificateInfo certificates = 1;
 }
+
+message PruneContainersRequest {}
+
+message PruneContainersResponse {
+  int32 containers_removed = 1;
+  int64 space_reclaimed_bytes = 2;
+}
+
+message PruneVolumesRequest {}
+
+message PruneVolumesResponse {
+  int32 volumes_removed = 1;
+  int64 space_reclaimed_bytes = 2;
+}

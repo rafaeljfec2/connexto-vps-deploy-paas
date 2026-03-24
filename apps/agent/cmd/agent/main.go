@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/paasdeploy/agent/internal/agent"
+	"github.com/paasdeploy/agent/internal/cleanup"
 	"github.com/paasdeploy/agent/internal/grpcserver"
 )
 
@@ -49,6 +50,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	cleanupScheduler := cleanup.NewScheduler(grpcSrv.Docker(), logger)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -66,7 +69,10 @@ func main() {
 		}
 	}()
 
+	cleanupScheduler.Start(ctx)
+
 	waitForShutdown(ctx, cancel)
+	cleanupScheduler.Stop()
 	grpcSrv.Stop()
 }
 

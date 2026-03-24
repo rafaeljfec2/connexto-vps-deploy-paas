@@ -120,6 +120,8 @@ func InitializeApplication() (*Application, func(), error) {
 	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, serverHandlerAgentDeps, appService, logger)
 	systemHandler := handler.NewSystemHandler()
 	agentdownloadHandler := ProvideAgentDownloadHandler(tokenStore, config, logger)
+	postgresCleanupLogRepository := repository.NewPostgresCleanupLogRepository(db)
+	cleanupHandler := ProvideCleanupHandler(postgresServerRepository, postgresCleanupLogRepository, agentClientForEngine, config, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -154,6 +156,7 @@ func InitializeApplication() (*Application, func(), error) {
 		ServerHandler:          serverHandler,
 		SystemHandler:          systemHandler,
 		AgentDownloadHandler:   agentdownloadHandler,
+		CleanupHandler:         cleanupHandler,
 	}
 	return application, func() {
 		cleanup()

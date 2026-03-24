@@ -64,6 +64,10 @@ service AgentService {
   rpc PushUpdate(stream UpdateBinaryChunk) returns (UpdateBinaryResponse);
 
   rpc GetCertificates(GetCertificatesRequest) returns (GetCertificatesResponse);
+
+  rpc PruneContainers(PruneContainersRequest) returns (PruneContainersResponse);
+
+  rpc PruneVolumes(PruneVolumesRequest) returns (PruneVolumesResponse);
 }
 
 message UpdateBinaryChunk {

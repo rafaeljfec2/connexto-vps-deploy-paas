@@ -282,6 +282,26 @@ func (c *AgentClient) PruneImages(ctx context.Context, host string, port int) (*
 	return cl.PruneImages(ctx, &pb.PruneImagesRequest{})
 }
 
+func (c *AgentClient) PruneContainers(ctx context.Context, host string, port int) (*pb.PruneContainersResponse, error) {
+	cl, err := c.client(host, port)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	return cl.PruneContainers(ctx, &pb.PruneContainersRequest{})
+}
+
+func (c *AgentClient) PruneVolumes(ctx context.Context, host string, port int) (*pb.PruneVolumesResponse, error) {
+	cl, err := c.client(host, port)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	return cl.PruneVolumes(ctx, &pb.PruneVolumesRequest{})
+}
+
 func (c *AgentClient) ListNetworks(ctx context.Context, host string, port int) ([]*pb.NetworkInfo, error) {
 	cl, err := c.client(host, port)
 	if err != nil {

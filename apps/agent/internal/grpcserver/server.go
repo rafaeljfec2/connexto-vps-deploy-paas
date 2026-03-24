@@ -48,6 +48,7 @@ type Config struct {
 type Server struct {
 	cfg        Config
 	grpcServer *grpc.Server
+	docker     *docker.Client
 	logger     *slog.Logger
 }
 
@@ -139,6 +140,7 @@ func New(cfg Config, logger *slog.Logger) (*Server, error) {
 	return &Server{
 		cfg:        cfg,
 		grpcServer: grpcServer,
+		docker:     dockerClient,
 		logger:     logger.With("component", "agent-grpc"),
 	}, nil
 }
@@ -155,6 +157,10 @@ func (s *Server) Start() error {
 
 func (s *Server) Stop() {
 	s.grpcServer.GracefulStop()
+}
+
+func (s *Server) Docker() *docker.Client {
+	return s.docker
 }
 
 const defaultTraefikURL = "http://127.0.0.1:8081"
@@ -537,6 +543,28 @@ func (s *AgentService) PruneImages(ctx context.Context, _ *pb.PruneImagesRequest
 	}
 	return &pb.PruneImagesResponse{
 		ImagesRemoved:       int32(result.ImagesDeleted),
+		SpaceReclaimedBytes: result.SpaceReclaimed,
+	}, nil
+}
+
+func (s *AgentService) PruneContainers(ctx context.Context, _ *pb.PruneContainersRequest) (*pb.PruneContainersResponse, error) {
+	result, err := s.docker.PruneContainers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prune containers: %w", err)
+	}
+	return &pb.PruneContainersResponse{
+		ContainersRemoved:   int32(result.ContainersDeleted),
+		SpaceReclaimedBytes: result.SpaceReclaimed,
+	}, nil
+}
+
+func (s *AgentService) PruneVolumes(ctx context.Context, _ *pb.PruneVolumesRequest) (*pb.PruneVolumesResponse, error) {
+	result, err := s.docker.PruneVolumes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prune volumes: %w", err)
+	}
+	return &pb.PruneVolumesResponse{
+		VolumesRemoved:      int32(result.VolumesDeleted),
 		SpaceReclaimedBytes: result.SpaceReclaimed,
 	}, nil
 }

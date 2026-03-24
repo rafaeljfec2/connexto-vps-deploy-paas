@@ -1,5 +1,6 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   Box,
   HardDrive,
@@ -7,6 +8,7 @@ import {
   RefreshCw,
   Server as ServerIcon,
   Settings,
+  Wrench,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,12 +23,14 @@ import {
   AgentVersionCard,
   ResourceUsageSection,
   ServerAppsSection,
+  ServerMaintenanceSection,
   ServerSettingsSection,
   SystemInfoBar,
 } from "@/features/servers/components/server-details";
 import { useServerStats } from "@/features/servers/hooks/use-server-stats";
 import { useServer } from "@/features/servers/hooks/use-servers";
 import { cn } from "@/lib/utils";
+import { api } from "@/services/api";
 import type { Server } from "@/types";
 
 function getStatusBadgeVariant(
@@ -82,6 +86,22 @@ export function ServerDetailsPage() {
     refetch: refetchStats,
     isFetching,
   } = useServerStats(id);
+
+  const { data: containers } = useQuery({
+    queryKey: ["containers", id, "overview"],
+    queryFn: () => api.containers.list(true, id),
+    enabled: Boolean(id),
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+
+  const containerCounts = useMemo(() => {
+    if (!containers) return undefined;
+    const stopped = containers.filter(
+      (c) => c.state === "exited" || c.state === "dead",
+    ).length;
+    return { stopped, total: containers.length };
+  }, [containers]);
 
   const refetchAll = useCallback(() => {
     refetchServer();
@@ -156,6 +176,10 @@ export function ServerDetailsPage() {
             <HardDrive className="h-3.5 w-3.5 mr-1.5" />
             Images
           </TabsTrigger>
+          <TabsTrigger value="maintenance">
+            <Wrench className="h-3.5 w-3.5 mr-1.5" />
+            Maintenance
+          </TabsTrigger>
           <TabsTrigger value="settings">
             <Settings className="h-3.5 w-3.5 mr-1.5" />
             Settings
@@ -170,6 +194,8 @@ export function ServerDetailsPage() {
             stats={stats ?? null}
             refetch={refetchStats}
             isFetching={isFetching}
+            stoppedContainers={containerCounts?.stopped}
+            totalContainers={containerCounts?.total}
           />
           <ServerAppsSection serverId={server.id} />
         </TabsContent>
@@ -180,6 +206,10 @@ export function ServerDetailsPage() {
 
         <TabsContent value="images">
           <ImageList serverId={server.id} />
+        </TabsContent>
+
+        <TabsContent value="maintenance">
+          <ServerMaintenanceSection serverId={server.id} />
         </TabsContent>
 
         <TabsContent value="settings">

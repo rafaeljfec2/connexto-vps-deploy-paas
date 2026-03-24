@@ -1,4 +1,4 @@
-import { Activity, Cpu, HardDrive, Network } from "lucide-react";
+import { Activity, Box, Cpu, HardDrive, Network } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +28,8 @@ interface ResourceUsageSectionProps {
   readonly stats: ServerStats | null;
   readonly refetch: () => void;
   readonly isFetching: boolean;
+  readonly stoppedContainers?: number;
+  readonly totalContainers?: number;
 }
 
 export function ResourceUsageSection({
@@ -37,6 +39,8 @@ export function ResourceUsageSection({
   stats,
   refetch,
   isFetching,
+  stoppedContainers,
+  totalContainers,
 }: ResourceUsageSectionProps) {
   if (statsLoading && !hasStats) {
     return (
@@ -114,6 +118,14 @@ export function ResourceUsageSection({
           title="Load avg"
           value={`1m: ${(m.load_average_1m ?? 0).toFixed(2)}`}
           subValue={`5m: ${(m.load_average_5m ?? 0).toFixed(2)} · 15m: ${(m.load_average_15m ?? 0).toFixed(2)}`}
+        />
+      )}
+      {stoppedContainers !== undefined && (
+        <MetricCard
+          icon={Box}
+          title="Containers"
+          value={`${stoppedContainers} stopped`}
+          subValue={`/ ${totalContainers ?? 0} total`}
         />
       )}
     </div>
