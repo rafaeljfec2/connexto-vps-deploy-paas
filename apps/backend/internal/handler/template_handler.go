@@ -212,6 +212,12 @@ func (h *TemplateHandler) buildContainerOptions(template *Template, req DeployTe
 
 	opts.Ports = h.buildPortMappings(template, req.Ports)
 
+	for _, v := range template.Volumes {
+		opts.Volumes = append(opts.Volumes, docker.VolumeMapping{
+			ContainerPath: v,
+		})
+	}
+
 	return opts
 }
 

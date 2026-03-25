@@ -250,7 +250,12 @@ func buildEnvArgs(env map[string]string) []string {
 func buildVolumeArgs(volumes []VolumeMapping) []string {
 	args := make([]string, 0, len(volumes)*2)
 	for _, v := range volumes {
-		volumeArg := fmt.Sprintf("%s:%s", v.HostPath, v.ContainerPath)
+		var volumeArg string
+		if v.HostPath != "" {
+			volumeArg = fmt.Sprintf("%s:%s", v.HostPath, v.ContainerPath)
+		} else {
+			volumeArg = v.ContainerPath
+		}
 		if v.ReadOnly {
 			volumeArg += ":ro"
 		}
