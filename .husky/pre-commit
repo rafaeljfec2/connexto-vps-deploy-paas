@@ -23,4 +23,13 @@ pnpm run typecheck:frontend || {
   exit 1
 }
 
+# Auto-bump patch versions for changed packages (main branch only)
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [ "$CURRENT_BRANCH" = "main" ]; then
+  SCRIPT_DIR="$(git rev-parse --show-toplevel)/scripts/bump-versions.sh"
+  if [ -x "$SCRIPT_DIR" ]; then
+    "$SCRIPT_DIR"
+  fi
+fi
+
 exit 0

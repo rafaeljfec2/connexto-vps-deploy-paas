@@ -92,6 +92,7 @@ message HealthCheckConfig {
   string timeout = 3;
   int32 retries = 4;
   string start_period = 5;
+  bool tls = 6;
 }
 
 message DeployResponse {

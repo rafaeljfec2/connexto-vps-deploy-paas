@@ -911,6 +911,7 @@ type HealthCheckConfig struct {
 	Timeout       string                 `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	Retries       int32                  `protobuf:"varint,4,opt,name=retries,proto3" json:"retries,omitempty"`
 	StartPeriod   string                 `protobuf:"bytes,5,opt,name=start_period,json=startPeriod,proto3" json:"start_period,omitempty"`
+	Tls           bool                   `protobuf:"varint,6,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -978,6 +979,13 @@ func (x *HealthCheckConfig) GetStartPeriod() string {
 		return x.StartPeriod
 	}
 	return ""
+}
+
+func (x *HealthCheckConfig) GetTls() bool {
+	if x != nil {
+		return x.Tls
+	}
+	return false
 }
 
 type DeployResponse struct {

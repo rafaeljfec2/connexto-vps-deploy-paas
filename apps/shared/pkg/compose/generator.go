@@ -42,7 +42,7 @@ func GenerateContent(params GenerateParams) string {
 	envYAML := BuildEnvVarsYAML(cfg, params.EnvVars)
 	labels := BuildLabelsYAML(params.AppName, params.Domains, cfg.Port)
 	portMapping := BuildPortMapping(cfg.HostPort, cfg.Port)
-	healthCmd := BuildHealthCheckCommand(cfg.Runtime, cfg.Port, cfg.Healthcheck.Path)
+	healthCmd := BuildHealthCheckCommandTLS(cfg.Runtime, cfg.Port, cfg.Healthcheck.Path, cfg.Healthcheck.TLS)
 	serviceVolumes, topLevelVolumes := BuildVolumesYAML(cfg.Volumes)
 
 	var sb strings.Builder
@@ -125,35 +125,92 @@ func EscapeEnvValue(value string) string {
 }
 
 func BuildHealthCheckCommand(runtime string, port int, path string) string {
+	return buildHealthCheckCmd(runtime, port, path, false)
+}
+
+func BuildHealthCheckCommandTLS(runtime string, port int, path string, tls bool) string {
+	return buildHealthCheckCmd(runtime, port, path, tls)
+}
+
+func buildHealthCheckCmd(runtime string, port int, path string, useTLS bool) string {
 	path = sanitizeHealthCheckPath(path)
-	url := fmt.Sprintf("http://127.0.0.1:%d%s", port, path)
+	scheme := "http"
+	if useTLS {
+		scheme = "https"
+	}
+	url := fmt.Sprintf("%s://127.0.0.1:%d%s", scheme, port, path)
 
 	switch strings.ToLower(runtime) {
 	case "node", "nodejs", "node.js":
-		return fmt.Sprintf(
-			`node -e 'const h=require("http");h.get("%s",(r)=>process.exit(r.statusCode>=200&&r.statusCode<400?0:1)).on("error",()=>process.exit(1))'`,
-			url,
-		)
+		return buildNodeHealthCmd(url, useTLS)
 	case "python", "python3":
-		return fmt.Sprintf(
-			`python3 -c 'import urllib.request,sys;urllib.request.urlopen("%s");sys.exit(0)' 2>/dev/null || python -c 'import urllib.request,sys;urllib.request.urlopen("%s");sys.exit(0)'`,
-			url, url,
-		)
-	case "go", "golang":
-		return fmt.Sprintf("curl -sf %s || wget -q --spider %s || exit 1", url, url)
+		return buildPythonHealthCmd(url, useTLS)
 	case "ruby":
-		return fmt.Sprintf(
-			`ruby -e 'require "net/http";exit(Net::HTTP.get_response(URI("%s")).is_a?(Net::HTTPSuccess)?0:1)'`,
-			url,
-		)
+		return buildRubyHealthCmd(url, useTLS)
 	case "php":
+		return buildPHPHealthCmd(url, useTLS)
+	default:
+		return buildCurlHealthCmd(url, useTLS)
+	}
+}
+
+func buildNodeHealthCmd(url string, useTLS bool) string {
+	mod := "http"
+	tlsOpt := ""
+	if useTLS {
+		mod = "https"
+		tlsOpt = `,{rejectUnauthorized:false}`
+	}
+	return fmt.Sprintf(
+		`node -e 'const h=require("%s");h.get("%s"%s,(r)=>process.exit(r.statusCode>=200&&r.statusCode<400?0:1)).on("error",()=>process.exit(1))'`,
+		mod, url, tlsOpt,
+	)
+}
+
+func buildPythonHealthCmd(url string, useTLS bool) string {
+	if useTLS {
 		return fmt.Sprintf(
-			`php -r 'exit(file_get_contents("%s")!==false?0:1);'`,
+			`python3 -c 'import urllib.request,ssl,sys;ctx=ssl.create_default_context();ctx.check_hostname=False;ctx.verify_mode=ssl.CERT_NONE;urllib.request.urlopen("%s",context=ctx);sys.exit(0)'`,
 			url,
 		)
-	default:
-		return fmt.Sprintf("curl -sf %s || wget -q --spider %s || exit 1", url, url)
 	}
+	return fmt.Sprintf(
+		`python3 -c 'import urllib.request,sys;urllib.request.urlopen("%s");sys.exit(0)' 2>/dev/null || python -c 'import urllib.request,sys;urllib.request.urlopen("%s");sys.exit(0)'`,
+		url, url,
+	)
+}
+
+func buildRubyHealthCmd(url string, useTLS bool) string {
+	if useTLS {
+		return fmt.Sprintf(
+			`ruby -e 'require "net/http";require "openssl";u=URI("%s");h=Net::HTTP.new(u.host,u.port);h.use_ssl=true;h.verify_mode=OpenSSL::SSL::VERIFY_NONE;exit(h.get(u.path).is_a?(Net::HTTPSuccess)?0:1)'`,
+			url,
+		)
+	}
+	return fmt.Sprintf(
+		`ruby -e 'require "net/http";exit(Net::HTTP.get_response(URI("%s")).is_a?(Net::HTTPSuccess)?0:1)'`,
+		url,
+	)
+}
+
+func buildPHPHealthCmd(url string, useTLS bool) string {
+	if useTLS {
+		return fmt.Sprintf(
+			`php -r '$c=stream_context_create(["ssl"=>["verify_peer"=>false,"verify_peer_name"=>false]]);exit(file_get_contents("%s",false,$c)!==false?0:1);'`,
+			url,
+		)
+	}
+	return fmt.Sprintf(
+		`php -r 'exit(file_get_contents("%s")!==false?0:1);'`,
+		url,
+	)
+}
+
+func buildCurlHealthCmd(url string, useTLS bool) string {
+	if useTLS {
+		return fmt.Sprintf("curl -sfk %s || wget -q --no-check-certificate --spider %s || exit 1", url, url)
+	}
+	return fmt.Sprintf("curl -sf %s || wget -q --spider %s || exit 1", url, url)
 }
 
 func BuildLabelsYAML(appName string, domains []DomainRoute, port int) string {

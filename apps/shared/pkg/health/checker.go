@@ -2,24 +2,33 @@ package health
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 )
 
 type Checker struct {
-	client   *http.Client
-	logger   *slog.Logger
-	timeout  time.Duration
-	retries  int
-	interval time.Duration
+	client    *http.Client
+	tlsClient *http.Client
+	logger    *slog.Logger
+	timeout   time.Duration
+	retries   int
+	interval  time.Duration
 }
 
 func NewChecker(timeout time.Duration, retries int, interval time.Duration, logger *slog.Logger) *Checker {
 	return &Checker{
 		client: &http.Client{
 			Timeout: 10 * time.Second,
+		},
+		tlsClient: &http.Client{
+			Timeout: 10 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // health check against self-signed certs
+			},
 		},
 		logger:   logger,
 		timeout:  timeout,
@@ -75,7 +84,12 @@ func (h *Checker) singleCheck(ctx context.Context, url string) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := h.client.Do(req)
+	client := h.client
+	if strings.HasPrefix(url, "https://") {
+		client = h.tlsClient
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}

@@ -37,6 +37,7 @@ type Config struct {
 		Timeout     string `json:"timeout"`
 		Retries     int    `json:"retries"`
 		StartPeriod string `json:"startPeriod"`
+		TLS         bool   `json:"tls,omitempty"`
 	} `json:"healthcheck"`
 	Port      int               `json:"port"`
 	HostPort  int               `json:"hostPort,omitempty"`

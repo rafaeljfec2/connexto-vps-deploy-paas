@@ -176,6 +176,7 @@ func (e *Executor) buildConfig(req *pb.DeployRequest) *compose.Config {
 		cfg.Healthcheck.Timeout = req.HealthCheck.Timeout
 		cfg.Healthcheck.Retries = int(req.HealthCheck.Retries)
 		cfg.Healthcheck.StartPeriod = req.HealthCheck.StartPeriod
+		cfg.Healthcheck.TLS = req.HealthCheck.Tls
 	}
 
 	compose.ApplyDefaults(cfg)
@@ -504,7 +505,11 @@ func (e *Executor) checkHealth(ctx context.Context, req *pb.DeployRequest, cfg *
 		return fmt.Errorf("failed to get container IP: %w", err)
 	}
 
-	healthURL := fmt.Sprintf("http://%s:%d%s", containerIP, cfg.Port, cfg.Healthcheck.Path)
+	scheme := "http"
+	if cfg.Healthcheck.TLS {
+		scheme = "https"
+	}
+	healthURL := fmt.Sprintf("%s://%s:%d%s", scheme, containerIP, cfg.Port, cfg.Healthcheck.Path)
 	e.logger.Info("Running health check", "url", healthURL)
 
 	return e.health.CheckWithBackoff(ctx, healthURL)
