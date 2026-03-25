@@ -61,9 +61,7 @@ func (m *mockAppFinder) FindAllByRepoURL(repoURL string) ([]domain.App, error) {
 
 type mockDeploymentCreator struct {
 	deployment *domain.Deployment
-	pending    *domain.Deployment
 	createErr  error
-	pendingErr error
 }
 
 func (m *mockDeploymentCreator) Create(input domain.CreateDeploymentInput) (*domain.Deployment, error) {
@@ -71,13 +69,6 @@ func (m *mockDeploymentCreator) Create(input domain.CreateDeploymentInput) (*dom
 		return nil, m.createErr
 	}
 	return m.deployment, nil
-}
-
-func (m *mockDeploymentCreator) FindPendingByAppID(appID string) (*domain.Deployment, error) {
-	if m.pendingErr != nil {
-		return nil, m.pendingErr
-	}
-	return m.pending, nil
 }
 
 func newTestLogger() *slog.Logger {
@@ -140,7 +131,7 @@ func TestWebhookHandlerPushToMainBranch(t *testing.T) {
 
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
-		&mockDeploymentCreator{deployment: testDeployment, pendingErr: domain.ErrNotFound},
+		&mockDeploymentCreator{deployment: testDeployment},
 		nil,
 		nil,
 		testSecret,
@@ -176,7 +167,7 @@ func TestWebhookHandlerPushToDifferentBranch(t *testing.T) {
 
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
-		&mockDeploymentCreator{pendingErr: domain.ErrNotFound},
+		&mockDeploymentCreator{},
 		nil,
 		nil,
 		testSecret,
@@ -350,7 +341,7 @@ func TestWebhookHandlerPushWithSkipCi(t *testing.T) {
 
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
-		&mockDeploymentCreator{pendingErr: domain.ErrNotFound},
+		&mockDeploymentCreator{},
 		nil,
 		nil,
 		testSecret,
@@ -384,15 +375,9 @@ func TestWebhookHandlerDeploymentAlreadyPending(t *testing.T) {
 		Branch:        testBranchMain,
 	}
 
-	pendingDeployment := &domain.Deployment{
-		ID:     "deploy-existing",
-		AppID:  testAppID,
-		Status: domain.DeployStatusPending,
-	}
-
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
-		&mockDeploymentCreator{pending: pendingDeployment},
+		&mockDeploymentCreator{createErr: domain.ErrDeploymentAlreadyActive},
 		nil,
 		nil,
 		testSecret,
@@ -592,7 +577,6 @@ func newTestMonorepoHandler(apps []domain.App) *WebhookHandler {
 				CommitSHA: "abc123",
 				Status:    domain.DeployStatusPending,
 			},
-			pendingErr: domain.ErrNotFound,
 		},
 		nil,
 		nil,

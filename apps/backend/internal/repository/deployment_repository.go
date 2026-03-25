@@ -147,10 +147,25 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (
 }
 
 func (r *PostgresDeploymentRepository) Create(input domain.CreateDeploymentInput) (*domain.Deployment, error) {
-	query := `INSERT INTO deployments (app_id, commit_sha, commit_message, status, created_at)
-		VALUES ($1, $2, $3, 'pending', NOW())
+	var deliveryID *string
+	if input.DeliveryID != "" {
+		deliveryID = &input.DeliveryID
+	}
+
+	query := `INSERT INTO deployments (app_id, commit_sha, commit_message, status, delivery_id, created_at)
+		VALUES ($1, $2, $3, 'pending', $4, NOW())
+		ON CONFLICT (app_id, commit_sha) WHERE status IN ('pending', 'running') DO NOTHING
 		RETURNING ` + deploymentSelectColumns
-	return scanDeploymentRow(r.db.QueryRow(query, input.AppID, input.CommitSHA, input.CommitMessage))
+
+	row := r.db.QueryRow(query, input.AppID, input.CommitSHA, input.CommitMessage, deliveryID)
+	d, err := scanDeploymentRowNullable(row)
+	if err != nil {
+		return nil, err
+	}
+	if d == nil {
+		return nil, domain.ErrDeploymentAlreadyActive
+	}
+	return d, nil
 }
 
 func (r *PostgresDeploymentRepository) Update(id string, input domain.UpdateDeploymentInput) (*domain.Deployment, error) {

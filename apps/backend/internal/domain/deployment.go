@@ -34,6 +34,7 @@ type CreateDeploymentInput struct {
 	AppID         string `json:"appId"`
 	CommitSHA     string `json:"commitSha"`
 	CommitMessage string `json:"commitMessage,omitempty"`
+	DeliveryID    string `json:"deliveryId,omitempty"`
 }
 
 type UpdateDeploymentInput struct {

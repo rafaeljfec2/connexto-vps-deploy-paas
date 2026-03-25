@@ -16,5 +16,6 @@ var (
 	ErrBuildFailed          = errors.New("docker build failed")
 	ErrGitSyncFailed        = errors.New("git sync failed")
 	ErrTimeout              = errors.New("operation timed out")
-	ErrWebhookNotConfigured = errors.New("webhook management not configured")
+	ErrWebhookNotConfigured    = errors.New("webhook management not configured")
+	ErrDeploymentAlreadyActive = errors.New("deployment already active for this app and commit")
 )

@@ -35,7 +35,6 @@ type AppFinder interface {
 
 type DeploymentCreator interface {
 	Create(input domain.CreateDeploymentInput) (*domain.Deployment, error)
-	FindPendingByAppID(appID string) (*domain.Deployment, error)
 }
 
 type DeployAuditLogger interface {
@@ -249,7 +248,7 @@ func (h *WebhookHandler) handlePushEvent(c *fiber.Ctx, logger *slog.Logger, even
 			continue
 		}
 
-		result := h.tryCreateDeployment(appLogger, app, event)
+		result := h.tryCreateDeployment(appLogger, app, event, deliveryID)
 		if result != nil {
 			deployments = append(deployments, result)
 		}
@@ -285,7 +284,7 @@ func (h *WebhookHandler) findAppsByRepository(repo *Repository, logger *slog.Log
 	return nil, nil
 }
 
-func (h *WebhookHandler) tryCreateDeployment(logger *slog.Logger, app *domain.App, event *PushEvent) fiber.Map {
+func (h *WebhookHandler) tryCreateDeployment(logger *slog.Logger, app *domain.App, event *PushEvent, deliveryID string) fiber.Map {
 	commitMessage := getCommitMessage(event)
 
 	if commitMessageSkipsDeploy(commitMessage) {
@@ -293,23 +292,18 @@ func (h *WebhookHandler) tryCreateDeployment(logger *slog.Logger, app *domain.Ap
 		return nil
 	}
 
-	hasPending, err := h.hasPendingDeployment(app.ID, logger)
-	if err != nil {
-		logger.Error("error checking pending deployments", slog.String("error", err.Error()))
-		return nil
-	}
-	if hasPending {
-		logger.Info("deployment already pending for app")
-		return nil
-	}
-
 	input := domain.CreateDeploymentInput{
 		AppID:         app.ID,
 		CommitSHA:     event.After,
 		CommitMessage: commitMessage,
+		DeliveryID:    deliveryID,
 	}
 
 	deployment, err := h.deploymentCreator.Create(input)
+	if errors.Is(err, domain.ErrDeploymentAlreadyActive) {
+		logger.Info("deployment already active for app and commit", slog.String("commit_sha", event.After))
+		return nil
+	}
 	if err != nil {
 		logger.Error("failed to create deployment", slog.String("error", err.Error()))
 		return nil
@@ -327,18 +321,6 @@ func (h *WebhookHandler) tryCreateDeployment(logger *slog.Logger, app *domain.Ap
 		"appName":      app.Name,
 		"commitSha":    event.After,
 	}
-}
-
-func (h *WebhookHandler) hasPendingDeployment(appID string, logger *slog.Logger) (bool, error) {
-	pending, err := h.deploymentCreator.FindPendingByAppID(appID)
-	if errors.Is(err, domain.ErrNotFound) {
-		return false, nil
-	}
-	if err != nil {
-		logger.Error("error checking pending deployments", slog.String("error", err.Error()))
-		return false, err
-	}
-	return pending != nil, nil
 }
 
 func strPtr(s string) *string {
