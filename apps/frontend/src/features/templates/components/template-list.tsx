@@ -18,7 +18,11 @@ const CATEGORIES = [
   { id: "storage", label: "Storage" },
 ];
 
-export function TemplateList() {
+interface TemplateListProps {
+  readonly serverId?: string;
+}
+
+export function TemplateList({ serverId }: TemplateListProps) {
   const [category, setCategory] = useState("all");
   const [search, setSearch] = useState("");
 
@@ -94,7 +98,11 @@ export function TemplateList() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredTemplates.map((template) => (
-            <TemplateCard key={template.id} template={template} />
+            <TemplateCard
+              key={template.id}
+              template={template}
+              serverId={serverId}
+            />
           ))}
         </div>
       )}

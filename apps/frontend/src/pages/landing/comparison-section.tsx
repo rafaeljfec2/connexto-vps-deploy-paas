@@ -97,11 +97,12 @@ export function ComparisonSection() {
           {COMPARISONS.map((row, index) => (
             <div
               key={row.feature}
-              className={`grid grid-cols-4 gap-0 border-b border-border/30 px-4 py-3 text-sm last:border-b-0 sm:px-6 transition-all ${tableVisible ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0"}`}
-              style={{
-                transitionDuration: "500ms",
-                transitionDelay: tableVisible ? `${200 + index * 80}ms` : "0ms",
-              }}
+              className={`grid grid-cols-4 gap-0 border-b border-border/30 px-4 py-3 text-sm last:border-b-0 sm:px-6 transition-all duration-500 ${tableVisible ? "translate-x-0 opacity-100" : "translate-x-4 opacity-0 delay-0"}`}
+              style={
+                tableVisible
+                  ? { transitionDelay: `${200 + index * 80}ms` }
+                  : undefined
+              }
             >
               <div className="text-muted-foreground">{row.feature}</div>
               <div className="flex justify-center">

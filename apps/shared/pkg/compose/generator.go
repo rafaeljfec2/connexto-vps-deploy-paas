@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/paasdeploy/shared/pkg/docker"
 )
 
 var safeHealthCheckPathRe = regexp.MustCompile(`^[a-zA-Z0-9/_\-.\?=&%+:@]+$`)
@@ -158,7 +160,7 @@ func BuildLabelsYAML(appName string, domains []DomainRoute, port int) string {
 	if len(domains) > 0 {
 		var labels strings.Builder
 		labels.WriteString("    labels:\n")
-		labels.WriteString(fmt.Sprintf("      - \"paasdeploy.app=%s\"\n", appName))
+		labels.WriteString(fmt.Sprintf("      - \"%s=%s\"\n", docker.LabelPaasDeployApp, appName))
 		labels.WriteString("      - \"traefik.enable=true\"\n")
 		labels.WriteString("      - \"traefik.docker.network=paasdeploy\"\n")
 		labels.WriteString(fmt.Sprintf("      - \"traefik.http.services.%s.loadbalancer.server.port=%d\"\n", appName, port))
@@ -190,7 +192,7 @@ func BuildLabelsYAML(appName string, domains []DomainRoute, port int) string {
 	}
 
 	return fmt.Sprintf("    labels:\n"+
-		"      - \"paasdeploy.app=%s\"\n"+
+		"      - \""+docker.LabelPaasDeployApp+"=%s\"\n"+
 		"      - \"traefik.enable=true\"\n"+
 		"      - \"traefik.docker.network=paasdeploy\"\n"+
 		"      - \"traefik.http.routers.%s.rule=Host(`%s.localhost`)\"\n"+

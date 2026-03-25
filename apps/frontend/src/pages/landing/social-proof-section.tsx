@@ -85,8 +85,7 @@ export function SocialProofSection() {
         </div>
         <div ref={statsRef} className="mt-12 grid gap-6 sm:grid-cols-3">
           <div
-            className={`rounded-xl border border-border/50 bg-background p-6 text-center transition-all duration-600 ${statsVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}
-            style={{ transitionDelay: "0ms" }}
+            className={`rounded-xl border border-border/50 bg-background p-6 text-center transition-all duration-600 ${statsVisible ? "translate-y-0 opacity-100 delay-0" : "translate-y-8 opacity-0 delay-0"}`}
           >
             <p className="text-3xl font-bold text-foreground">
               <AnimatedCounter
@@ -98,8 +97,7 @@ export function SocialProofSection() {
             <p className="mt-1 text-sm text-muted-foreground">Deployments</p>
           </div>
           <div
-            className={`rounded-xl border border-border/50 bg-background p-6 text-center transition-all duration-600 ${statsVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}
-            style={{ transitionDelay: statsVisible ? "120ms" : "0ms" }}
+            className={`rounded-xl border border-border/50 bg-background p-6 text-center transition-all duration-600 ${statsVisible ? "translate-y-0 opacity-100 delay-[120ms]" : "translate-y-8 opacity-0 delay-0"}`}
           >
             <div className="flex items-center justify-center gap-1">
               <Star
@@ -113,8 +111,7 @@ export function SocialProofSection() {
             </p>
           </div>
           <div
-            className={`rounded-xl border border-border/50 bg-background p-6 text-center transition-all duration-600 ${statsVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}
-            style={{ transitionDelay: statsVisible ? "240ms" : "0ms" }}
+            className={`rounded-xl border border-border/50 bg-background p-6 text-center transition-all duration-600 ${statsVisible ? "translate-y-0 opacity-100 delay-[240ms]" : "translate-y-8 opacity-0 delay-0"}`}
           >
             <p className="text-3xl font-bold text-foreground">
               <AnimatedCounter
@@ -135,11 +132,12 @@ export function SocialProofSection() {
           {techLogos.map((name, index) => (
             <div
               key={name}
-              className={`rounded-lg border border-border/50 bg-muted/30 px-4 py-2 text-sm text-muted-foreground transition-all hover:border-border hover:text-foreground ${logosVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}
-              style={{
-                transitionDuration: "400ms",
-                transitionDelay: logosVisible ? `${index * 60}ms` : "0ms",
-              }}
+              className={`rounded-lg border border-border/50 bg-muted/30 px-4 py-2 text-sm text-muted-foreground transition-all duration-[400ms] hover:border-border hover:text-foreground ${logosVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0 delay-0"}`}
+              style={
+                logosVisible
+                  ? { transitionDelay: `${index * 60}ms` }
+                  : undefined
+              }
             >
               {name}
             </div>

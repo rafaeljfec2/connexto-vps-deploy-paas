@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { TAIL_OPTIONS } from "@/constants/log-tail-options";
 import { Check, Copy, Pause, Play, RefreshCw, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/empty-state";
+import { LogLine } from "@/components/logs/container-log-line";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
 import { type ContainerLogLine, parseContainerLogLine } from "@/lib/log-utils";
 import { cn } from "@/lib/utils";
@@ -27,47 +29,6 @@ interface ContainerLogsDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
 }
-
-function LogLine({ line }: { readonly line: ContainerLogLine }) {
-  if (!line.content) {
-    return null;
-  }
-
-  return (
-    <div className="flex group hover:bg-white/5 transition-colors py-1 border-b border-slate-800/40 last:border-b-0">
-      <span className="select-none text-muted-foreground/30 w-10 text-right mr-3 shrink-0 text-[11px] leading-5 tabular-nums pt-px">
-        {line.lineNumber}
-      </span>
-
-      <div className="flex items-start gap-2.5 min-w-0 flex-1">
-        {line.timestamp && (
-          <span className="text-slate-500 shrink-0 font-medium text-[11px] leading-5 tabular-nums">
-            {line.timestamp}
-          </span>
-        )}
-
-        <span
-          className={cn(
-            "whitespace-pre-wrap break-words text-[13px] leading-5 min-w-0",
-            line.type === "error" && "text-red-400 font-medium",
-            line.type === "warning" && "text-yellow-400",
-            line.type === "info" && "text-sky-400",
-            line.type === "default" && "text-slate-300",
-          )}
-        >
-          {line.content}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-const TAIL_OPTIONS = [
-  { value: 100, label: "Last 100 lines" },
-  { value: 500, label: "Last 500 lines" },
-  { value: 1000, label: "Last 1000 lines" },
-  { value: 5000, label: "Last 5000 lines" },
-] as const;
 
 interface LogsContentProps {
   readonly isLoading: boolean;

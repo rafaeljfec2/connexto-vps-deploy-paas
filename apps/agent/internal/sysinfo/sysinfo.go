@@ -8,9 +8,12 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
 )
+
+const cpuSampleInterval = 200 * time.Millisecond
 
 const (
 	procMemInfo   = "/proc/meminfo"
@@ -149,7 +152,10 @@ func readOSRelease() (name, version string) {
 			version = strings.Trim(strings.TrimPrefix(line, "VERSION_ID="), "\"")
 		}
 	}
-	return "linux", version
+	if name == "" {
+		name = "linux"
+	}
+	return name, version
 }
 
 func readKernelVersion() string {
@@ -201,16 +207,33 @@ func readLoadAvg() (load1, load5, load15 float64) {
 }
 
 func readCPUUsagePercent() float64 {
-	vals, err := readProcStatCPU()
-	if err != nil || len(vals) < 4 {
+	before, err := readProcStatCPU()
+	if err != nil || len(before) < 4 {
 		return 0
 	}
-	total := vals[0] + vals[1] + vals[2] + vals[3]
-	idle := vals[3]
-	if total == 0 {
+
+	time.Sleep(cpuSampleInterval)
+
+	after, err := readProcStatCPU()
+	if err != nil || len(after) < 4 {
 		return 0
 	}
-	return 100 * (1 - float64(idle)/float64(total))
+
+	var totalBefore, totalAfter uint64
+	for i := 0; i < len(before) && i < 8; i++ {
+		totalBefore += before[i]
+	}
+	for i := 0; i < len(after) && i < 8; i++ {
+		totalAfter += after[i]
+	}
+
+	deltaTotal := totalAfter - totalBefore
+	deltaIdle := after[3] - before[3]
+
+	if deltaTotal == 0 {
+		return 0
+	}
+	return 100 * (1 - float64(deltaIdle)/float64(deltaTotal))
 }
 
 func readProcStatCPU() ([]uint64, error) {

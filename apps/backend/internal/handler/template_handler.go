@@ -1,22 +1,40 @@
 package handler
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/gofiber/fiber/v2"
+	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
+	"github.com/paasdeploy/backend/internal/agentclient"
+	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 )
 
 type TemplateHandler struct {
-	docker *docker.Client
-	logger *slog.Logger
+	docker      *docker.Client
+	agentClient *agentclient.AgentClient
+	serverRepo  domain.ServerRepository
+	agentPort   int
+	logger      *slog.Logger
 }
 
-func NewTemplateHandler(docker *docker.Client, logger *slog.Logger) *TemplateHandler {
+type TemplateHandlerConfig struct {
+	Docker      *docker.Client
+	AgentClient *agentclient.AgentClient
+	ServerRepo  domain.ServerRepository
+	AgentPort   int
+	Logger      *slog.Logger
+}
+
+func NewTemplateHandler(cfg TemplateHandlerConfig) *TemplateHandler {
 	return &TemplateHandler{
-		docker: docker,
-		logger: logger,
+		docker:      cfg.Docker,
+		agentClient: cfg.AgentClient,
+		serverRepo:  cfg.ServerRepo,
+		agentPort:   cfg.AgentPort,
+		logger:      cfg.Logger,
 	}
 }
 
@@ -66,6 +84,11 @@ type DeployTemplateRequest struct {
 
 func (h *TemplateHandler) DeployTemplate(c *fiber.Ctx) error {
 	id := c.Params("id")
+	serverID := c.Query("serverId", "")
+
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
 
 	template := findTemplate(id)
 	if template == nil {
@@ -77,11 +100,19 @@ func (h *TemplateHandler) DeployTemplate(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Invalid request body")
 	}
 
+	if serverID != "" {
+		return h.deployTemplateRemote(c, serverID, template, req)
+	}
+
+	return h.deployTemplateLocal(c, id, template, req)
+}
+
+func (h *TemplateHandler) deployTemplateLocal(c *fiber.Ctx, templateID string, template *Template, req DeployTemplateRequest) error {
 	opts := h.buildContainerOptions(template, req)
 
 	containerID, err := h.docker.CreateContainer(c.Context(), opts)
 	if err != nil {
-		h.logger.Error("Failed to deploy template", "template", id, "error", err)
+		h.logger.Error("Failed to deploy template", "template", templateID, "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to deploy template")
 	}
 
@@ -98,6 +129,66 @@ func (h *TemplateHandler) DeployTemplate(c *fiber.Ctx) error {
 		"ipAddress": container.IPAddress,
 		"message":   "Container created from template",
 	})
+}
+
+func (h *TemplateHandler) deployTemplateRemote(c *fiber.Ctx, serverID string, template *Template, req DeployTemplateRequest) error {
+	user := GetUserFromContext(c)
+	if user == nil {
+		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
+	server, err := h.serverRepo.FindByIDForUser(serverID, user.ID)
+	if err != nil {
+		h.logger.Error("Failed to resolve server for template deploy", "serverId", serverID, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
+	}
+
+	grpcReq := h.buildGRPCCreateContainerRequest(template, req)
+
+	resp, err := h.agentClient.CreateContainerFromTemplate(c.Context(), server.Host, h.agentPort, grpcReq)
+	if err != nil {
+		h.logger.Error("Failed to deploy template on remote agent", "serverId", serverID, "template", template.ID, "error", err)
+		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to deploy template on remote server")
+	}
+
+	if !resp.Success {
+		return response.ServerError(c, fiber.StatusInternalServerError, fmt.Sprintf("Remote template deploy failed: %s", resp.Message))
+	}
+
+	return response.Created(c, map[string]interface{}{
+		"id":      resp.ContainerId,
+		"message": "Container created from template on remote server",
+	})
+}
+
+func (h *TemplateHandler) buildGRPCCreateContainerRequest(template *Template, req DeployTemplateRequest) *pb.CreateContainerFromTemplateRequest {
+	name := req.Name
+	if name == "" {
+		name = template.ID
+	}
+
+	restartPolicy := req.RestartPolicy
+	if restartPolicy == "" {
+		restartPolicy = "unless-stopped"
+	}
+
+	grpcReq := &pb.CreateContainerFromTemplateRequest{
+		Name:          name,
+		Image:         template.Image,
+		Env:           req.Env,
+		Network:       req.Network,
+		RestartPolicy: restartPolicy,
+	}
+
+	grpcReq.Ports = h.buildGRPCPortMappings(template, req.Ports)
+
+	for _, v := range template.Volumes {
+		grpcReq.Volumes = append(grpcReq.Volumes, &pb.CreateContainerVolumeMapping{
+			ContainerPath: v,
+		})
+	}
+
+	return grpcReq
 }
 
 func (h *TemplateHandler) buildContainerOptions(template *Template, req DeployTemplateRequest) docker.CreateContainerOptions {
@@ -142,6 +233,34 @@ func (h *TemplateHandler) buildPortMappings(template *Template, requestPorts []P
 		ports = append(ports, docker.PortMapping{
 			HostPort:      port + i,
 			ContainerPort: port,
+			Protocol:      "tcp",
+		})
+	}
+	return ports
+}
+
+func (h *TemplateHandler) buildGRPCPortMappings(template *Template, requestPorts []PortMappingRequest) []*pb.CreateContainerPortMapping {
+	if len(requestPorts) > 0 {
+		ports := make([]*pb.CreateContainerPortMapping, 0, len(requestPorts))
+		for _, p := range requestPorts {
+			protocol := p.Protocol
+			if protocol == "" {
+				protocol = "tcp"
+			}
+			ports = append(ports, &pb.CreateContainerPortMapping{
+				HostPort:      int32(p.HostPort),
+				ContainerPort: int32(p.ContainerPort),
+				Protocol:      protocol,
+			})
+		}
+		return ports
+	}
+
+	ports := make([]*pb.CreateContainerPortMapping, 0, len(template.Ports))
+	for i, port := range template.Ports {
+		ports = append(ports, &pb.CreateContainerPortMapping{
+			HostPort:      int32(port + i),
+			ContainerPort: int32(port),
 			Protocol:      "tcp",
 		})
 	}

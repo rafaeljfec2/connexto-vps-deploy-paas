@@ -1,6 +1,6 @@
 # FlowDeploy
 
-[![Go](https://img.shields.io/badge/Go-1.23+-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org/)
+[![Go](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go&logoColor=white)](https://golang.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react&logoColor=black)](https://reactjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
@@ -8,79 +8,123 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Vite](https://img.shields.io/badge/Vite-5.0-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Traefik](https://img.shields.io/badge/Traefik-3.0-24A1C1?style=flat&logo=traefikproxy&logoColor=white)](https://traefik.io/)
+[![gRPC](https://img.shields.io/badge/gRPC-Protocol_Buffers-244c5a?style=flat&logo=grpc&logoColor=white)](https://grpc.io/)
 [![pnpm](https://img.shields.io/badge/pnpm-9+-F69220?style=flat&logo=pnpm&logoColor=white)](https://pnpm.io/)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat)](LICENSE)
+[![License](https://img.shields.io/badge/License-Proprietary-red?style=flat)](LICENSE)
 
-A lightweight, self-hosted PaaS (Platform as a Service) for automatic deployments from GitHub repositories.
+A lightweight, self-hosted PaaS (Platform as a Service) for automatic deployments from GitHub repositories with multi-server management via remote agents.
 
 ## Overview
 
-FlowDeploy is a local deployment platform that automatically deploys applications when changes are pushed to the `main` branch of connected GitHub repositories. It provides a simple, Vercel-like experience for self-hosted environments.
+FlowDeploy is a deployment platform that automatically deploys applications when changes are pushed to connected GitHub repositories. It supports both local deployments on the backend host and remote deployments on distributed servers via a gRPC agent architecture. It provides a modern, Vercel-like experience for self-hosted environments.
 
 ## Features
 
-### Core Features
+### Deployment Engine
 
-- **Automatic Deployments**: Push to `main` → automatic deploy
-- **Real-time Logs**: Watch deployment progress via SSE (Server-Sent Events)
-- **Rollback Support**: One-click rollback to previous versions
+- **Automatic Deployments**: Push to branch &rarr; automatic deploy via GitHub webhooks
+- **Remote Agent Deploys**: Deploy applications to remote servers via gRPC agent communication
+- **Real-time Logs**: Watch deployment progress via SSE (Server-Sent Events) with live streaming
+- **Rollback Support**: One-click rollback to previous versions with health verification
 - **Docker-based**: All applications run in isolated containers
-- **Queue Management**: One deploy per application at a time
-- **Health Checks**: Automatic health verification with rollback on failure
-
-### Recent Additions
-
+- **Queue Management**: PostgreSQL-backed queue with `SELECT FOR UPDATE SKIP LOCKED`
+- **Health Checks**: Automatic health verification with configurable retries, intervals, and rollback on failure
 - **Monorepo Support**: Deploy specific applications from monorepo structures using `workdir` configuration
-- **Light/Dark Theme**: System-aware theme with manual toggle (light, dark, system)
-- **Database Migrations**: Automatic schema management with golang-migrate
-- **Reusable Components**: Modular UI with PageHeader, IconText, FormField, LoadingGrid, ErrorMessage
-- **Developer Experience**: VSCode configurations, ESLint, Prettier integration
+
+### Multi-Server Management
+
+- **Remote Agents**: Lightweight Go agents installed on remote servers communicate via gRPC with mTLS
+- **Agent Auto-Update**: Push binary updates to agents from the control plane
+- **Server Registration**: Agents self-register with system info and Docker metadata
+- **Heartbeat Monitoring**: Real-time server health and status tracking
+- **SSH Provisioning**: Automated agent installation on new servers
+
+### Container Management
+
+- **Full Lifecycle**: Start, stop, restart, remove containers on local and remote servers
+- **Live Logs**: Stream container logs in real-time with follow mode
+- **Container Stats**: CPU, memory, network, and disk I/O monitoring
+- **Interactive Terminal**: WebSocket-based `docker exec` with PTY support
+- **Template Catalog**: Deploy pre-configured applications (PostgreSQL, MySQL, Redis, MongoDB, Nginx, RabbitMQ, Grafana, etc.) on local and remote servers
+
+### Docker Resource Management
+
+- **Image Management**: List, remove, and prune Docker images
+- **Network Management**: Create, list, and remove Docker networks
+- **Volume Management**: Create, list, and remove Docker volumes
+- **Automated Cleanup**: Scheduled pruning of unused containers, images, and volumes with cleanup history logging
+
+### Infrastructure
+
+- **Traefik Integration**: Automatic reverse proxy configuration with dynamic routing
+- **Let's Encrypt SSL**: Automatic TLS certificate provisioning and renewal
+- **Cloudflare DNS**: Optional DNS management integration
+- **Domain Management**: Custom domain routing per application
+
+### Platform Features
+
+- **GitHub OAuth**: Authentication via GitHub with role-based access control (admin/user)
+- **Notification System**: Configurable alerts via Slack, Discord, and Email for deploy events
+- **Audit Logging**: Platform event tracking with webhook payload history
+- **Environment Variables**: Encrypted environment variable management per application
+- **Light/Dark Theme**: System-aware theme with manual toggle
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Traefik                               │
-│                    (Reverse Proxy)                           │
-└──────────────┬────────────────────────────┬─────────────────┘
-               │                            │
-       ┌───────▼───────┐           ┌────────▼────────┐
-       │   Frontend    │           │     Backend     │
-       │  React + Vite │           │    Go API       │
-       └───────────────┘           └────────┬────────┘
-                                            │
-                                   ┌────────▼────────┐
-                                   │  Deploy Engine  │
-                                   │   (Workers)     │
-                                   └────────┬────────┘
-                                            │
-               ┌────────────────────────────┼────────────────┐
-               │                            │                │
-       ┌───────▼───────┐           ┌────────▼────────┐      │
-       │  PostgreSQL   │           │  Docker Engine  │      │
-       │   (Queue)     │           │  (Containers)   │      │
-       └───────────────┘           └─────────────────┘      │
+┌─────────────────────────────────────────────────────────────────┐
+│                          Traefik                                │
+│                    (Reverse Proxy + TLS)                        │
+└─────────┬──────────────────────────────────┬────────────────────┘
+          │                                  │
+  ┌───────▼───────┐                 ┌────────▼────────┐
+  │   Frontend    │                 │     Backend     │
+  │  React + Vite │                 │  Go Fiber API   │
+  └───────────────┘                 └────────┬────────┘
+                                             │
+                            ┌────────────────┼────────────────┐
+                            │                │                │
+                   ┌────────▼────────┐  ┌────▼─────┐  ┌──────▼──────┐
+                   │  Deploy Engine  │  │ gRPC     │  │  PostgreSQL │
+                   │   (Workers)     │  │ Server   │  │  (Queue +   │
+                   └────────┬────────┘  └────┬─────┘  │   Data)     │
+                            │                │        └─────────────┘
+               ┌────────────┤                │
+               │            │         ┌──────▼──────────────────┐
+       ┌───────▼───────┐    │         │   Remote Agents (gRPC)  │
+       │ Docker Engine │    │         │  ┌───────┐ ┌───────┐   │
+       │   (Local)     │    │         │  │Agent 1│ │Agent N│   │
+       └───────────────┘    │         │  │+Docker│ │+Docker│   │
+                            │         │  └───────┘ └───────┘   │
+                   ┌────────▼─────┐   └─────────────────────────┘
+                   │   GitHub     │
+                   │  (Webhooks)  │
+                   └──────────────┘
 ```
 
 ## Tech Stack
 
-| Component        | Technology                   |
-| ---------------- | ---------------------------- |
-| Frontend         | React 18 + Vite + TypeScript |
-| UI Library       | shadcn/ui + Tailwind CSS     |
-| State Management | React Query                  |
-| Backend          | Go 1.23+                     |
-| Database         | PostgreSQL                   |
-| Containers       | Docker + Docker Compose v2   |
-| Reverse Proxy    | Traefik                      |
-| Monorepo         | pnpm + Turborepo             |
+| Component        | Technology                       |
+| ---------------- | -------------------------------- |
+| Frontend         | React 18 + Vite + TypeScript     |
+| UI Library       | shadcn/ui + Tailwind CSS         |
+| State Management | React Query (TanStack Query)     |
+| Backend          | Go 1.24+ (Fiber framework)       |
+| Agent            | Go 1.24+ (gRPC server)           |
+| RPC              | gRPC + Protocol Buffers (buf)    |
+| Database         | PostgreSQL 16+                   |
+| Migrations       | golang-migrate                   |
+| Containers       | Docker + Docker Compose v2       |
+| Reverse Proxy    | Traefik 3.x                      |
+| Authentication   | GitHub OAuth + session cookies   |
+| Monorepo         | pnpm + Turborepo                 |
 
 ## Requirements
 
-- Ubuntu Server 22.04 LTS (or compatible Linux)
+- Ubuntu Server 22.04+ (or compatible Linux)
 - Docker Engine 24+
 - Docker Compose v2
-- Go 1.23+
+- Go 1.24+
 - Node.js 20+ (for frontend build)
 - pnpm 9+
 - PostgreSQL 16+
@@ -90,8 +134,8 @@ FlowDeploy is a local deployment platform that automatically deploys application
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-org/paasdeploy.git
-cd paasdeploy
+git clone https://github.com/your-org/flowdeploy.git
+cd flowdeploy
 ```
 
 ### 2. Install dependencies
@@ -127,17 +171,61 @@ Open `http://localhost:3000` in your browser.
 ## Project Structure
 
 ```
-paasdeploy/
+flowdeploy/
 ├── apps/
-│   ├── frontend/          # React dashboard
-│   └── backend/           # Go API + Deploy Engine
+│   ├── frontend/              # React dashboard (SPA)
+│   ├── backend/               # Go API + Deploy Engine + gRPC server
+│   │   ├── cmd/api/           # Application entrypoint
+│   │   ├── internal/
+│   │   │   ├── agentclient/   # gRPC client for remote agents
+│   │   │   ├── config/        # Configuration management
+│   │   │   ├── di/            # Dependency injection (Wire)
+│   │   │   ├── domain/        # Domain models and interfaces
+│   │   │   ├── engine/        # Deploy engine and worker pool
+│   │   │   ├── grpcserver/    # Backend gRPC server (agent registration)
+│   │   │   ├── handler/       # HTTP handlers (Fiber)
+│   │   │   ├── middleware/    # Auth, CORS, tracing middleware
+│   │   │   ├── repository/    # PostgreSQL repositories
+│   │   │   ├── requestctx/    # Request context utilities
+│   │   │   └── service/       # Business logic services
+│   │   ├── gen/go/            # Generated protobuf/gRPC code
+│   │   └── migrations/        # SQL migration files
+│   ├── agent/                 # Remote agent binary
+│   │   ├── cmd/agent/         # Agent entrypoint
+│   │   └── internal/
+│   │       ├── agent/         # Agent core (registration, heartbeat)
+│   │       ├── cleanup/       # Docker cleanup scheduler
+│   │       ├── deploy/        # Deployment executor
+│   │       ├── grpcserver/    # Agent gRPC handlers
+│   │       │   ├── handlers_containers.go
+│   │       │   ├── handlers_deploy.go
+│   │       │   ├── handlers_exec.go
+│   │       │   ├── handlers_images.go
+│   │       │   ├── handlers_resources.go
+│   │       │   └── handlers_update.go
+│   │       └── sysinfo/       # System metrics collection
+│   ├── shared/                # Shared Go packages
+│   │   └── pkg/
+│   │       ├── docker/        # Docker CLI client
+│   │       ├── executor/      # Shell command executor
+│   │       ├── health/        # Health check utilities
+│   │       ├── paths/         # Path resolution utilities
+│   │       └── version/       # App version detection
+│   └── proto/                 # Protocol Buffer definitions
+│       └── flowdeploy/v1/
+│           ├── agent.proto    # Agent service definition
+│           ├── server.proto   # Server/container messages
+│           ├── deploy.proto   # Deployment messages
+│           └── common.proto   # Shared messages
 ├── deploy/
-│   ├── traefik/           # Traefik configuration
-│   └── docker-compose.yml # Infrastructure services
-├── docs/                  # Documentation
-├── package.json           # Root workspace
-├── pnpm-workspace.yaml    # pnpm workspace config
-└── turbo.json             # Turborepo config
+│   ├── traefik/               # Traefik configuration
+│   └── docker-compose.yml     # Infrastructure services
+├── .github/workflows/         # CI/CD pipelines
+├── AGENT_VERSION              # Current agent version
+├── CHANGELOG.md               # Version history
+├── package.json               # Root workspace (v0.2.0)
+├── pnpm-workspace.yaml        # pnpm workspace config
+└── turbo.json                 # Turborepo config
 ```
 
 ## Configuration
@@ -183,8 +271,6 @@ For monorepo projects, specify the `workdir` when creating an application to poi
 }
 ```
 
-The deploy engine will look for configuration files at `{repo_root}/{workdir}/paasdeploy.json`.
-
 ## Environment Variables
 
 | Variable          | Description                              | Default                       |
@@ -194,8 +280,15 @@ The deploy engine will look for configuration files at `{repo_root}/{workdir}/pa
 | `DEPLOY_DATA_DIR` | Directory for cloned repositories        | `/data/apps`                  |
 | `DOCKER_HOST`     | Docker daemon socket                     | `unix:///var/run/docker.sock` |
 | `LOG_LEVEL`       | Logging level (debug, info, warn, error) | `info`                        |
+| `CORS_ORIGINS`    | Allowed CORS origins                     | -                             |
+| `GRPC_PORT`       | Backend gRPC server port                 | `50051`                       |
+| `GRPC_AGENT_PORT` | Agent gRPC server port                   | `50052`                       |
+| `GITHUB_CLIENT_ID`     | GitHub OAuth application client ID  | -                             |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth application secret     | -                             |
 
 ## API Endpoints
+
+### Applications
 
 | Method | Endpoint                    | Description                  |
 | ------ | --------------------------- | ---------------------------- |
@@ -208,6 +301,37 @@ The deploy engine will look for configuration files at `{repo_root}/{workdir}/pa
 | POST   | `/api/apps/:id/redeploy`    | Trigger manual redeploy      |
 | POST   | `/api/apps/:id/rollback`    | Rollback to previous version |
 | GET    | `/events/deploys`           | SSE stream for deploy events |
+
+### Containers
+
+| Method | Endpoint                       | Description                     |
+| ------ | ------------------------------ | ------------------------------- |
+| GET    | `/api/containers`              | List containers (?serverId=)    |
+| POST   | `/api/containers`              | Create container                |
+| POST   | `/api/containers/:id/start`    | Start container (?serverId=)    |
+| POST   | `/api/containers/:id/stop`     | Stop container (?serverId=)     |
+| POST   | `/api/containers/:id/restart`  | Restart container (?serverId=)  |
+| DELETE | `/api/containers/:id`          | Remove container (?serverId=)   |
+| GET    | `/api/containers/:id/logs`     | Stream container logs (SSE)     |
+
+### Templates
+
+| Method | Endpoint                            | Description                        |
+| ------ | ----------------------------------- | ---------------------------------- |
+| GET    | `/api/templates`                    | List available templates           |
+| GET    | `/api/templates/:id`                | Get template details               |
+| POST   | `/api/templates/:id/deploy`         | Deploy template (?serverId=)       |
+
+### Infrastructure
+
+| Method | Endpoint                       | Description                     |
+| ------ | ------------------------------ | ------------------------------- |
+| GET    | `/api/images`                  | List Docker images (?serverId=) |
+| DELETE | `/api/images/:id`              | Remove image (?serverId=)       |
+| GET    | `/api/networks`                | List networks (?serverId=)      |
+| GET    | `/api/volumes`                 | List volumes (?serverId=)       |
+| GET    | `/api/servers`                 | List registered servers         |
+| GET    | `/api/certificates`            | List TLS certificates           |
 
 ## Development
 
@@ -223,6 +347,20 @@ pnpm dev
 ```bash
 cd apps/backend
 go run cmd/api/main.go
+```
+
+### Agent
+
+```bash
+cd apps/agent
+go run cmd/agent/main.go --server-addr=localhost:50051 --server-id=<id> --agent-port=50052
+```
+
+### Protobuf Generation
+
+```bash
+cd apps/proto
+buf generate
 ```
 
 ### Running Tests
@@ -245,6 +383,9 @@ pnpm build
 
 # Build backend binary
 pnpm backend:build
+
+# Build agent binary
+cd apps/agent && go build -ldflags "-X github.com/paasdeploy/agent/internal/agent.Version=$(cat ../../AGENT_VERSION)" -o bin/agent cmd/agent/main.go
 ```
 
 ### Docker Deployment
@@ -253,21 +394,16 @@ pnpm backend:build
 docker compose -f deploy/docker-compose.yml up -d
 ```
 
-## Security Considerations
+## Security
 
-- Never run the deploy engine as root
+- mTLS authentication between backend and agents
+- GitHub OAuth for user authentication
+- Role-based access control (admin/user)
+- Encrypted environment variable storage
 - All shell commands use explicit arguments (no `sh -c`)
-- CORS is restricted to specific origins
-- No sensitive data in frontend bundle
-- Health checks prevent broken deployments
-
-## Contributing
-
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for development guidelines.
-
-## Architecture Details
-
-See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for in-depth architecture documentation.
+- CORS restricted to explicit origins (no wildcard fallback)
+- Input validation and sanitization on all endpoints
+- Alpine-based Docker images for minimal attack surface
 
 ## Changelog
 
@@ -275,38 +411,4 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and recent changes.
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Roadmap
-
-### Completed
-
-- [x] Core deployment pipeline with queue management
-- [x] Real-time logs via Server-Sent Events (SSE)
-- [x] Rollback support with health check verification
-- [x] Docker-based containerization
-- [x] PostgreSQL-backed deployment queue
-- [x] Monorepo support with `workdir` configuration
-- [x] Light/Dark/System theme support
-- [x] Database migrations with golang-migrate
-- [x] Reusable frontend components
-- [x] ESLint + Prettier code quality tools
-- [x] VSCode debug and task configurations
-
-### In Progress
-
-- [ ] GitHub Webhook integration for automatic triggers
-- [ ] Build logs persistence and search
-
-### Planned
-
-- [ ] User authentication (JWT-based)
-- [ ] Multi-tenant support with workspaces
-- [ ] SSL/TLS with Let's Encrypt auto-renewal
-- [ ] Metrics and monitoring dashboard (Prometheus/Grafana)
-- [ ] Slack/Discord/Email notifications
-- [ ] Environment variable management UI
-- [ ] Deploy previews for pull requests
-- [ ] Custom domain routing
-- [ ] Horizontal scaling with multiple workers
-- [ ] CLI tool for local development
+Proprietary - see LICENSE file for details.

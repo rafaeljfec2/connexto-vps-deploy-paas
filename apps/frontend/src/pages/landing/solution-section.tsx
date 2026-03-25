@@ -1,6 +1,7 @@
 import { GitBranch, Globe, Server } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAnimateOnScroll } from "@/hooks/use-animate-on-scroll";
+import { cn } from "@/lib/utils";
 
 interface StepItem {
   readonly step: number;
@@ -8,6 +9,8 @@ interface StepItem {
   readonly title: string;
   readonly description: string;
 }
+
+const STEP_STAGGER_DELAYS = ["delay-0", "delay-150", "delay-300"] as const;
 
 const STEPS: readonly StepItem[] = [
   {
@@ -42,12 +45,19 @@ function StepCard({
 }) {
   const { ref, isVisible } = useAnimateOnScroll({ threshold: 0.2 });
   const Icon = item.icon;
+  const motionClass = isVisible
+    ? "translate-x-0 opacity-100"
+    : "-translate-x-8 opacity-0 delay-0";
+  const delayClass = isVisible ? STEP_STAGGER_DELAYS[index] : "";
 
   return (
     <div
       ref={ref}
-      className={`relative flex flex-col gap-6 transition-all duration-700 lg:flex-row lg:items-center lg:gap-12 ${isVisible ? "translate-x-0 opacity-100" : "-translate-x-8 opacity-0"}`}
-      style={{ transitionDelay: isVisible ? `${index * 150}ms` : "0ms" }}
+      className={cn(
+        "relative flex flex-col gap-6 transition-all duration-700 lg:flex-row lg:items-center lg:gap-12",
+        motionClass,
+        delayClass,
+      )}
     >
       <div className="flex shrink-0 items-center gap-4 lg:w-16">
         <div

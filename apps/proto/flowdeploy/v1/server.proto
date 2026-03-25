@@ -413,3 +413,32 @@ message PruneVolumesResponse {
   int32 volumes_removed = 1;
   int64 space_reclaimed_bytes = 2;
 }
+
+message CreateContainerPortMapping {
+  int32 host_port = 1;
+  int32 container_port = 2;
+  string protocol = 3;
+}
+
+message CreateContainerVolumeMapping {
+  string host_path = 1;
+  string container_path = 2;
+  bool read_only = 3;
+}
+
+message CreateContainerFromTemplateRequest {
+  string name = 1;
+  string image = 2;
+  map<string, string> env = 3;
+  repeated CreateContainerPortMapping ports = 4;
+  repeated CreateContainerVolumeMapping volumes = 5;
+  string network = 6;
+  string restart_policy = 7;
+  repeated string command = 8;
+}
+
+message CreateContainerFromTemplateResponse {
+  bool success = 1;
+  string container_id = 2;
+  string message = 3;
+}

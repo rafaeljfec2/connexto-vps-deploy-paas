@@ -17,6 +17,7 @@ interface TemplateDeployDialogProps {
   readonly template: Template;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
+  readonly serverId?: string;
 }
 
 interface PortState {
@@ -30,6 +31,7 @@ export function TemplateDeployDialog({
   template,
   open,
   onOpenChange,
+  serverId,
 }: TemplateDeployDialogProps) {
   const [containerName, setContainerName] = useState(template.id);
   const [envValues, setEnvValues] = useState<Record<string, string>>(() => {
@@ -67,6 +69,7 @@ export function TemplateDeployDialog({
           env: envValues,
           ports,
         },
+        serverId,
       },
       { onSuccess: () => onOpenChange(false) },
     );

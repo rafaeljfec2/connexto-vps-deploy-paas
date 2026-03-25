@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/gofiber/contrib/websocket"
@@ -84,7 +85,7 @@ func (h *ContainerExecHandler) handleConsole(c *websocket.Conn) {
 	cols := parseUint16Query(c, "cols", defaultCols)
 	rows := parseUint16Query(c, "rows", defaultRows)
 	serverID := c.Query("serverId", "")
-	user, _ := c.Locals(userContextKey).(*domain.User)
+	user, _ := c.Locals("user").(*domain.User)
 
 	if serverID == "" {
 		if user == nil || !user.IsAdmin() {
@@ -147,7 +148,7 @@ func (h *ContainerExecHandler) handleRemoteConsole(c *websocket.Conn, containerI
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 	defer cancel()
 
 	execStream, err := h.agentClient.ExecContainer(ctx, server.Host, h.agentPort)

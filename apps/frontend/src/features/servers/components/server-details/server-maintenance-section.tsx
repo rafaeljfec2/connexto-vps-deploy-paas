@@ -15,21 +15,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatBytes } from "@/lib/format";
+import { formatBytes, formatDateCompact } from "@/lib/format";
 import { api } from "@/services/api";
 import type { CleanupLog } from "@/services/api/docker";
 
 interface ServerMaintenanceSectionProps {
   readonly serverId: string;
-}
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function CleanupTypeBadge({ type }: { readonly type: string }) {
@@ -286,7 +277,7 @@ function CleanupLogList({
             <span>&middot;</span>
             <span>{formatBytes(log.spaceReclaimedBytes)}</span>
             <span>&middot;</span>
-            <span>{formatDate(log.createdAt)}</span>
+            <span>{formatDateCompact(log.createdAt)}</span>
           </div>
         </div>
       ))}

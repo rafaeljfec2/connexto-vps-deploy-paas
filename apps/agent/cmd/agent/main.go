@@ -15,12 +15,12 @@ import (
 )
 
 func main() {
-	serverAddr := flag.String("server-addr", "", "")
-	serverID := flag.String("server-id", "", "")
-	caCert := flag.String("ca-cert", "", "")
-	cert := flag.String("cert", "", "")
-	key := flag.String("key", "", "")
-	agentPort := flag.Int("agent-port", 50052, "")
+	serverAddr := flag.String("server-addr", "", "gRPC address of the control plane (backend) to connect to")
+	serverID := flag.String("server-id", "", "unique server identifier used when registering with the control plane")
+	caCert := flag.String("ca-cert", "", "path to PEM CA bundle for verifying the control plane TLS certificate")
+	cert := flag.String("cert", "", "path to this agent's PEM TLS certificate")
+	key := flag.String("key", "", "path to this agent's PEM TLS private key")
+	agentPort := flag.Int("agent-port", 50052, "TCP port for the agent gRPC API server")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{}))
@@ -69,6 +69,7 @@ func main() {
 		}
 	}()
 
+	go cleanupScheduler.RunOnce(ctx)
 	cleanupScheduler.Start(ctx)
 
 	waitForShutdown(ctx, cancel)

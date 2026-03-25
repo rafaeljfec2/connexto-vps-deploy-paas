@@ -165,7 +165,7 @@ func (h *ContainerHandler) listRemoteContainers(c *fiber.Ctx, serverID string, a
 		}
 
 		isManaged := false
-		if _, ok := labels["paasdeploy.app"]; ok {
+		if _, ok := labels[docker.LabelPaasDeployApp]; ok {
 			isManaged = true
 		}
 
@@ -440,7 +440,7 @@ func (h *ContainerHandler) streamRemoteContainerLogs(c *fiber.Ctx, host, contain
 	c.Set("Transfer-Encoding", "chunked")
 
 	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 		defer cancel()
 
 		done := make(chan struct{})
@@ -569,7 +569,7 @@ func (h *ContainerHandler) toContainerResponse(container docker.ContainerInfo) C
 	}
 
 	isFlowDeployManaged := false
-	if _, ok := container.Labels["paasdeploy.app"]; ok {
+	if _, ok := container.Labels[docker.LabelPaasDeployApp]; ok {
 		isFlowDeployManaged = true
 	}
 	if network, ok := container.Labels["traefik.docker.network"]; ok {

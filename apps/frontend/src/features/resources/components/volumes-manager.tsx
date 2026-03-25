@@ -38,23 +38,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { formatDate } from "@/lib/format";
 import type { ContainerMount } from "@/types";
 import {
   useCreateVolume,
   useRemoveVolume,
   useVolumes,
 } from "../hooks/use-volumes";
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 interface VolumesManagerProps {
   readonly containerVolumes?: readonly string[];

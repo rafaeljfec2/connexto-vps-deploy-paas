@@ -16,6 +16,7 @@ import (
 	"github.com/paasdeploy/shared/pkg/docker"
 	"github.com/paasdeploy/shared/pkg/git"
 	"github.com/paasdeploy/shared/pkg/health"
+	"github.com/paasdeploy/shared/pkg/paths"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -42,18 +43,8 @@ type Executor struct {
 	logger  *slog.Logger
 }
 
-func resolveDataDir() string {
-	if dir := os.Getenv("DEPLOY_DATA_DIR"); dir != "" {
-		return dir
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".paasdeploy", "apps")
-	}
-	return filepath.Join(os.TempDir(), "paasdeploy", "apps")
-}
-
 func NewExecutor(logger *slog.Logger) *Executor {
-	dataDir := resolveDataDir()
+	dataDir := paths.ResolveDataDir()
 
 	registry := os.Getenv("DOCKER_REGISTRY")
 
@@ -452,9 +443,7 @@ func (e *Executor) buildImage(ctx context.Context, req *pb.DeployRequest, repoDi
 		}
 	}()
 
-	err := e.docker.BuildWithOptions(ctx, fullContext, fullDockerfile, imageTag, opts, output)
-	close(output)
-	return err
+	return e.docker.BuildWithOptions(ctx, fullContext, fullDockerfile, imageTag, opts, output)
 }
 
 func (e *Executor) deployContainer(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config, appDir, imageTag string, logFn LogFunc) error {
@@ -492,9 +481,7 @@ func (e *Executor) deployContainer(ctx context.Context, req *pb.DeployRequest, c
 		}
 	}()
 
-	err := e.docker.ComposeUp(ctx, appDir, req.AppId, output)
-	close(output)
-	return err
+	return e.docker.ComposeUp(ctx, appDir, req.AppId, output)
 }
 
 func (e *Executor) checkHealth(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config) error {
@@ -506,7 +493,11 @@ func (e *Executor) checkHealth(ctx context.Context, req *pb.DeployRequest, cfg *
 	}
 
 	e.logger.Info("Waiting for container startup", "delay", startDelay)
-	time.Sleep(startDelay)
+	select {
+	case <-time.After(startDelay):
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 
 	containerIP, err := e.docker.GetContainerIP(ctx, req.AppName, docker.DefaultNetworkName)
 	if err != nil {

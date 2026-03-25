@@ -490,7 +490,10 @@ func (h *ServerHandler) HealthCheck(c *fiber.Ctx) error {
 		return response.BadRequest(c, "health check not available")
 	}
 
-	latency, err := h.healthChecker.Check(context.Background(), server.Host, h.agentPort)
+	ctx, cancel := context.WithTimeout(c.Context(), agentStatsTimeout)
+	defer cancel()
+
+	latency, err := h.healthChecker.Check(ctx, server.Host, h.agentPort)
 	if err != nil {
 		h.logger.Error("health check failed", "serverId", server.ID, "error", err)
 		return response.BadRequest(c, "health check failed")
@@ -531,8 +534,11 @@ func (h *ServerHandler) updateAgentViaGRPC(c *fiber.Ctx, server *domain.Server) 
 			h.sseHandler.NotifyUpdateDelivered(server.ID)
 		}
 
+		pushCtx, pushCancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer pushCancel()
+
 		err := h.agentClient.PushUpdate(
-			context.Background(),
+			pushCtx,
 			server.Host,
 			h.agentPort,
 			h.agentBinaryPath,

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { CheckCircle2, Circle, Clock, Loader2, XCircle } from "lucide-react";
-import { cn, formatRelativeTime, truncateCommitSha } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/format";
+import { cn, truncateCommitSha } from "@/lib/utils";
 import type { DeployStatus } from "@/types";
 
 interface ActivityFeedItemProps {

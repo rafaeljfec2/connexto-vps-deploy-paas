@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { REFETCH_INTERVALS } from "@/constants/query-config";
 import {
   Cloud,
   ExternalLink,
@@ -142,7 +143,7 @@ export function DomainManager({ appId }: DomainManagerProps) {
   const { data: certificates = [] } = useQuery({
     queryKey: ["certificates"],
     queryFn: () => api.certificates.list(),
-    refetchInterval: 30000,
+    refetchInterval: REFETCH_INTERVALS.SLOW,
   });
 
   const getCertificateStatus = (

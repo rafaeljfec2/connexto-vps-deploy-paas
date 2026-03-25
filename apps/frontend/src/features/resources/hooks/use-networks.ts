@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { STALE_TIMES } from "@/constants/query-config";
 import { api } from "@/services/api";
 
 export interface DockerNetwork {
@@ -14,7 +15,7 @@ export function useNetworks(serverId?: string) {
   return useQuery({
     queryKey: ["networks", serverId],
     queryFn: () => api.networks.list(serverId),
-    staleTime: 30_000,
+    staleTime: STALE_TIMES.SHORT,
   });
 }
 

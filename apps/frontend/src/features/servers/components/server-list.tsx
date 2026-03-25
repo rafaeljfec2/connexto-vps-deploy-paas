@@ -31,7 +31,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorMessage } from "@/components/error-message";
-import { formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/format";
 import type { Server, ServerStatus } from "@/types";
 import { useProvisionProgress } from "../hooks/use-provision-progress";
 import {

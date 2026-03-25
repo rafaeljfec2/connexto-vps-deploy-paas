@@ -94,9 +94,17 @@ export const templatesApi = {
   get: (id: string): Promise<Template> =>
     fetchApi<Template>(`${API_BASE}/templates/${id}`),
 
-  deploy: (id: string, input: DeployTemplateInput): Promise<Container> =>
-    fetchApi<Container>(`${API_BASE}/templates/${id}/deploy`, {
+  deploy: (
+    id: string,
+    input: DeployTemplateInput,
+    serverId?: string,
+  ): Promise<Container> => {
+    const url = serverId
+      ? `${API_BASE}/templates/${id}/deploy?serverId=${serverId}`
+      : `${API_BASE}/templates/${id}/deploy`;
+    return fetchApi<Container>(url, {
       method: "POST",
       body: JSON.stringify(input),
-    }),
+    });
+  },
 };

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { STALE_TIMES } from "@/constants/routes";
+import { STALE_TIMES } from "@/constants/query-config";
 import { api } from "@/services/api";
 import type { CreateServerInput } from "@/types";
 

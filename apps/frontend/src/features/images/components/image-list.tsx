@@ -31,18 +31,9 @@ import {
 } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorMessage } from "@/components/error-message";
-import { formatBytes } from "@/lib/format";
+import { formatBytes, formatDateOnly } from "@/lib/format";
 import { ApiError } from "@/types";
 import { useImages, usePruneImages, useRemoveImage } from "../hooks/use-images";
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 interface ImageListProps {
   readonly serverId?: string;
@@ -272,7 +263,7 @@ export function ImageList({ serverId }: ImageListProps = {}) {
                     </td>
                     <td className="py-3 px-4 hidden md:table-cell whitespace-nowrap">
                       <span className="text-xs text-muted-foreground">
-                        {formatDate(image.created)}
+                        {formatDateOnly(image.created)}
                       </span>
                     </td>
                     <td className="py-3 px-4">

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { STALE_TIMES } from "@/constants/query-config";
 import { api } from "@/services/api";
 
 export interface DockerVolume {
@@ -13,7 +14,7 @@ export function useVolumes(serverId?: string) {
   return useQuery({
     queryKey: ["volumes", serverId],
     queryFn: () => api.volumes.list(serverId),
-    staleTime: 30_000,
+    staleTime: STALE_TIMES.SHORT,
   });
 }
 

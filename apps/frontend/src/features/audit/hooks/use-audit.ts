@@ -1,5 +1,6 @@
 import type { UseQueryOptions } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
+import { REFETCH_INTERVALS } from "@/constants/query-config";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
 const API_BASE = `${API_URL}/paas-deploy/v1`;
@@ -68,7 +69,7 @@ export function useAuditLogs(
   return useQuery({
     queryKey: ["audit-logs", filter],
     queryFn: () => fetchAuditLogs(filter),
-    refetchInterval: 30000,
+    refetchInterval: REFETCH_INTERVALS.SLOW,
     ...options,
   });
 }
@@ -125,7 +126,7 @@ export function useWebhookPayloads(
   return useQuery({
     queryKey: ["webhook-payloads", filter],
     queryFn: () => fetchWebhookPayloads(filter),
-    refetchInterval: 30000,
+    refetchInterval: REFETCH_INTERVALS.SLOW,
     ...options,
   });
 }

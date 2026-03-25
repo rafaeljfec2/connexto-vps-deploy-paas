@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { REFETCH_INTERVALS } from "@/constants/query-config";
 import { api } from "@/services/api";
 import type { CreateContainerInput } from "@/types";
 
@@ -6,7 +7,7 @@ export function useContainers(all = true, serverId?: string) {
   return useQuery({
     queryKey: ["containers", all, serverId],
     queryFn: () => api.containers.list(all, serverId),
-    refetchInterval: 10000,
+    refetchInterval: REFETCH_INTERVALS.NORMAL,
     refetchOnWindowFocus: true,
   });
 }
@@ -28,7 +29,7 @@ export function useContainerLogs(
     queryKey: ["containers", id, "logs", tail, serverId],
     queryFn: () => api.containers.logs(id!, tail, serverId),
     enabled: Boolean(id),
-    refetchInterval: 5000,
+    refetchInterval: REFETCH_INTERVALS.FAST,
   });
 }
 

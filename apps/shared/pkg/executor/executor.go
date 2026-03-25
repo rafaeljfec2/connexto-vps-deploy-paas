@@ -82,7 +82,7 @@ func (e *Executor) run(ctx context.Context, logErrors bool, timeout time.Duratio
 	}
 
 	if ctx.Err() == context.DeadlineExceeded {
-		return result, fmt.Errorf("command timed out after %v", e.timeout)
+		return result, fmt.Errorf("command timed out after %v", timeout)
 	}
 
 	if err != nil {
@@ -118,6 +118,7 @@ func (e *Executor) RunWithStreamingTimeout(ctx context.Context, timeout time.Dur
 func (e *Executor) runWithStreaming(ctx context.Context, timeout time.Duration, output chan<- string, name string, args ...string) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	defer close(output)
 
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = e.workDir
@@ -168,9 +169,9 @@ func (e *Executor) runWithStreaming(ctx context.Context, timeout time.Duration, 
 		e.logger.Error("Command timed out",
 			"command", name,
 			"args", args,
-			"timeout", e.timeout,
+			"timeout", timeout,
 		)
-		return fmt.Errorf("command timed out after %v", e.timeout)
+		return fmt.Errorf("command timed out after %v", timeout)
 	case err := <-done:
 		if err != nil {
 			e.logger.Error("Command failed",

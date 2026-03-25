@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DEFAULTS, STALE_TIMES } from "@/constants/routes";
+import { STALE_TIMES } from "@/constants/query-config";
+import { DEFAULTS } from "@/constants/routes";
 import { api } from "@/services/api";
 import type { CreateAppInput, UpdateAppInput } from "@/types";
 
@@ -150,7 +151,7 @@ export function useStartContainer() {
   });
 }
 
-export function useContainerLogs(
+export function useAppContainerLogs(
   appId: string | undefined,
   tail = DEFAULTS.LOGS_TAIL,
 ) {

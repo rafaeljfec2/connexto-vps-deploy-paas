@@ -28,13 +28,10 @@ import { IconText } from "@/components/icon-text";
 import { StatusBadge } from "@/components/status-badge";
 import { usePurgeApp } from "@/features/apps/hooks/use-apps";
 import { useAppHealth } from "@/hooks/use-sse";
-import {
-  cn,
-  formatDuration,
-  formatRelativeTime,
-  formatRepositoryUrl,
-} from "@/lib/utils";
+import { formatDuration, formatRelativeTime } from "@/lib/format";
+import { cn, formatRepositoryUrl } from "@/lib/utils";
 import type { App, Deployment, DeploymentSummary } from "@/types";
+import { deriveDeployProgressState } from "../utils/deploy-progress";
 import {
   type TechTag,
   detectTechTags,
@@ -42,68 +39,33 @@ import {
 } from "../utils/tech-tags";
 import { AppDeleteDialog } from "./app-delete-dialog";
 
+const DEPLOY_ICON_MAP = {
+  loader: Loader2,
+  rocket: Rocket,
+  hammer: Hammer,
+} as const;
+
 function DeployProgress({
   deploy,
 }: {
   readonly deploy: Deployment | DeploymentSummary;
 }) {
+  const state = deriveDeployProgressState(deploy.logs, deploy.status);
+  if (!state) return null;
+
+  const Icon = DEPLOY_ICON_MAP[state.icon];
   const isRunning = deploy.status === "running";
-  const isPending = deploy.status === "pending";
-
-  if (!isRunning && !isPending) return null;
-
-  const logs = deploy.logs ?? "";
-  const isBuildPhase =
-    logs.includes("[build]") && !logs.includes("Container deployed");
-  const isDeployPhase =
-    logs.includes("Deploying container") || logs.includes("[deploy]");
-  const isHealthCheck = logs.includes("Waiting for health check");
-
-  let phase = "Initializing";
-  let Icon = Loader2;
-  let progress = 10;
-
-  if (isPending) {
-    phase = "Queued";
-    progress = 5;
-  } else if (isHealthCheck) {
-    phase = "Health check";
-    Icon = Rocket;
-    progress = 90;
-  } else if (isDeployPhase) {
-    phase = "Deploying";
-    Icon = Rocket;
-    progress = 75;
-  } else if (isBuildPhase) {
-    phase = "Building";
-    Icon = Hammer;
-    const buildSteps = logs.match(/Step \d+\/\d+/g) ?? [];
-    const lastStep = buildSteps.at(-1);
-    if (lastStep) {
-      const match = /Step (\d+)\/(\d+)/.exec(lastStep);
-      const currentStep = match?.[1];
-      const totalSteps = match?.[2];
-      if (currentStep && totalSteps) {
-        const current = Number.parseInt(currentStep, 10);
-        const total = Number.parseInt(totalSteps, 10);
-        progress = Math.round((current / total) * 60) + 15;
-        phase = `Building (${current}/${total})`;
-      }
-    } else {
-      progress = 20;
-    }
-  }
 
   return (
     <div className="absolute inset-0 z-5 bg-background/80 backdrop-blur-[2px] rounded-lg flex flex-col items-center justify-center gap-2 p-4 pointer-events-none">
       <div className="flex items-center gap-2 text-primary">
         <Icon className={cn("h-5 w-5", isRunning && "animate-spin")} />
-        <span className="font-medium text-sm">{phase}</span>
+        <span className="font-medium text-sm">{state.phase}</span>
       </div>
       <div className="w-full max-w-[200px] h-1.5 bg-muted rounded-full overflow-hidden">
         <div
           className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
-          style={{ width: `${progress}%` }}
+          style={{ width: `${state.progress}%` }}
         />
       </div>
       <span className="text-[10px] text-muted-foreground">

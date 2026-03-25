@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -56,116 +55,6 @@ func (d *Client) initBuildx() {
 
 	d.buildxAvailable = false
 	d.logger.Info("Buildx default builder not available, using legacy builder")
-}
-
-type BuildOptions struct {
-	BuildArgs map[string]string
-	Target    string
-}
-
-func (d *Client) Build(ctx context.Context, workDir, dockerfile, tag string, output chan<- string) error {
-	return d.BuildWithOptions(ctx, workDir, dockerfile, tag, nil, output)
-}
-
-func (d *Client) BuildWithOptions(ctx context.Context, workDir, dockerfile, tag string, opts *BuildOptions, output chan<- string) error {
-	d.logger.Info("Building Docker image", "workDir", workDir, "dockerfile", dockerfile, "tag", tag)
-
-	d.executor.SetWorkDir(workDir)
-
-	var args []string
-	if d.buildxAvailable {
-		args = []string{
-			"buildx", "build",
-			"--builder", "default",
-			"--load",
-			"-t", tag,
-			"-f", dockerfile,
-		}
-	} else {
-		args = []string{
-			"build",
-			"-t", tag,
-			"-f", dockerfile,
-		}
-	}
-
-	if opts != nil {
-		for k, v := range opts.BuildArgs {
-			args = append(args, "--build-arg", fmt.Sprintf("%s=%s", k, v))
-		}
-		if opts.Target != "" {
-			args = append(args, "--target", opts.Target)
-		}
-	}
-
-	args = append(args, ".")
-
-	if output != nil {
-		err := d.executor.RunWithStreamingTimeout(ctx, 15*time.Minute, output, "docker", args...)
-		if err != nil {
-			d.logger.Error("Docker build failed", "tag", tag, "workDir", workDir, "error", err)
-			return fmt.Errorf("docker build failed: %w", err)
-		}
-		return nil
-	}
-
-	_, err := d.executor.RunWithTimeout(ctx, 15*time.Minute, "docker", args...)
-	if err != nil {
-		d.logger.Error("Docker build failed", "tag", tag, "workDir", workDir, "error", err)
-		return fmt.Errorf("docker build failed: %w", err)
-	}
-
-	return nil
-}
-
-func (d *Client) ComposeUp(ctx context.Context, projectDir, projectName string, output chan<- string) error {
-	d.logger.Info("Starting containers with docker compose", "dir", projectDir)
-
-	d.executor.SetWorkDir(projectDir)
-
-	composeFile := filepath.Join(projectDir, "docker-compose.yml")
-
-	args := []string{
-		"compose",
-		"-f", composeFile,
-		"-p", projectName,
-		"up",
-		"-d",
-		"--force-recreate",
-		"--remove-orphans",
-	}
-
-	if output != nil {
-		err := d.executor.RunWithStreamingTimeout(ctx, 5*time.Minute, output, "docker", args...)
-		if err != nil {
-			d.logger.Error("Docker compose up failed", "projectName", projectName, "dir", projectDir, "error", err)
-			return fmt.Errorf("docker compose up failed: %w", err)
-		}
-		return nil
-	}
-
-	_, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", args...)
-	if err != nil {
-		d.logger.Error("Docker compose up failed", "projectName", projectName, "dir", projectDir, "error", err)
-		return fmt.Errorf("docker compose up failed: %w", err)
-	}
-
-	return nil
-}
-
-func (d *Client) ComposeDown(ctx context.Context, projectDir, projectName string) error {
-	d.logger.Info("Stopping containers with docker compose", "dir", projectDir)
-
-	d.executor.SetWorkDir(projectDir)
-
-	composeFile := filepath.Join(projectDir, "docker-compose.yml")
-
-	_, err := d.executor.RunWithTimeout(ctx, 2*time.Minute, "docker", "compose", "-f", composeFile, "-p", projectName, "down")
-	if err != nil {
-		return fmt.Errorf("docker compose down failed: %w", err)
-	}
-
-	return nil
 }
 
 func (d *Client) Pull(ctx context.Context, image string) error {
@@ -224,42 +113,6 @@ func (d *Client) RemoveImage(ctx context.Context, tag string) error {
 		d.logger.Debug("Failed to remove image (may not exist or in use)", "tag", tag)
 		return nil
 	}
-	return nil
-}
-
-func (d *Client) EnsureNetwork(ctx context.Context, networkName string) error {
-	d.logger.Info("Checking Docker network", "network", networkName)
-
-	result, err := d.executor.Run(ctx, "docker", "network", "inspect", networkName)
-	if err == nil {
-		d.logger.Info("Network already exists", "network", networkName)
-		return nil
-	}
-
-	if !strings.Contains(result.Stderr, "No such network") && !strings.Contains(result.Stderr, "network") {
-		return fmt.Errorf("failed to inspect network: %w", err)
-	}
-
-	d.logger.Info("Creating Docker network", "network", networkName)
-	_, err = d.executor.Run(ctx, "docker", "network", "create", networkName)
-	if err != nil {
-		return fmt.Errorf("failed to create network %s: %w", networkName, err)
-	}
-
-	d.logger.Info("Docker network created successfully", "network", networkName)
-	return nil
-}
-
-func (d *Client) ConnectToNetwork(ctx context.Context, containerName, networkName string) error {
-	result, err := d.executor.RunQuiet(ctx, "docker", "network", "connect", networkName, containerName)
-	if err != nil {
-		if strings.Contains(result.Stderr, "already exists") {
-			d.logger.Debug("Container already connected to network", "container", containerName, "network", networkName)
-			return nil
-		}
-		return fmt.Errorf("failed to connect container to network: %w", err)
-	}
-	d.logger.Info("Container connected to network", "container", containerName, "network", networkName)
 	return nil
 }
 
@@ -584,18 +437,6 @@ func ParseNetworkValue(s string) int64 {
 	return int64(value * float64(multiplier))
 }
 
-func (d *Client) PruneUnusedImages(ctx context.Context) error {
-	d.logger.Info("Pruning unused Docker images")
-
-	_, err := d.executor.RunQuietWithTimeout(ctx, 5*time.Minute, "docker", "image", "prune", "-f")
-	if err != nil {
-		d.logger.Debug("Failed to prune images", "error", err)
-		return nil
-	}
-
-	return nil
-}
-
 type ImageInfo struct {
 	ID         string   `json:"id"`
 	Repository string   `json:"repository"`
@@ -698,102 +539,4 @@ func (d *Client) RemoveImageByID(ctx context.Context, imageID string, force bool
 	}
 
 	return nil
-}
-
-const pruneReclaimedPrefix = "Total reclaimed space"
-
-type PruneResult struct {
-	ImagesDeleted      int
-	ContainersDeleted  int
-	VolumesDeleted     int
-	SpaceReclaimed     int64
-}
-
-func (d *Client) PruneImages(ctx context.Context) (*PruneResult, error) {
-	d.logger.Info("Pruning all unused Docker images")
-
-	result, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", "image", "prune", "-a", "-f")
-	if err != nil {
-		return nil, fmt.Errorf("failed to prune images: %w", err)
-	}
-
-	pruneResult := &PruneResult{}
-	lines := strings.Split(result.Stdout, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, pruneReclaimedPrefix) {
-			parts := strings.Split(line, ":")
-			if len(parts) > 1 {
-				pruneResult.SpaceReclaimed = ParseImageSize(strings.TrimSpace(parts[1]))
-			}
-		}
-		if strings.HasPrefix(line, "Untagged:") {
-			pruneResult.ImagesDeleted++
-		}
-	}
-
-	return pruneResult, nil
-}
-
-func (d *Client) PruneContainers(ctx context.Context) (*PruneResult, error) {
-	d.logger.Info("Pruning stopped Docker containers")
-
-	result, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", "container", "prune", "-f")
-	if err != nil {
-		return nil, fmt.Errorf("failed to prune containers: %w", err)
-	}
-
-	pruneResult := &PruneResult{}
-	lines := strings.Split(result.Stdout, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, pruneReclaimedPrefix) {
-			parts := strings.Split(line, ":")
-			if len(parts) > 1 {
-				pruneResult.SpaceReclaimed = ParseImageSize(strings.TrimSpace(parts[1]))
-			}
-		}
-		trimmed := strings.TrimSpace(line)
-		if isHexContainerID(trimmed) {
-			pruneResult.ContainersDeleted++
-		}
-	}
-
-	return pruneResult, nil
-}
-
-func (d *Client) PruneVolumes(ctx context.Context) (*PruneResult, error) {
-	d.logger.Info("Pruning anonymous Docker volumes")
-
-	result, err := d.executor.RunWithTimeout(ctx, 5*time.Minute, "docker", "volume", "prune", "-f")
-	if err != nil {
-		return nil, fmt.Errorf("failed to prune volumes: %w", err)
-	}
-
-	pruneResult := &PruneResult{}
-	lines := strings.Split(result.Stdout, "\n")
-	for _, line := range lines {
-		if strings.Contains(line, pruneReclaimedPrefix) {
-			parts := strings.Split(line, ":")
-			if len(parts) > 1 {
-				pruneResult.SpaceReclaimed = ParseImageSize(strings.TrimSpace(parts[1]))
-			}
-		}
-		trimmed := strings.TrimSpace(line)
-		if len(trimmed) > 0 && !strings.Contains(trimmed, pruneReclaimedPrefix) && !strings.HasPrefix(trimmed, "Deleted") {
-			pruneResult.VolumesDeleted++
-		}
-	}
-
-	return pruneResult, nil
-}
-
-func isHexContainerID(s string) bool {
-	if len(s) != 64 {
-		return false
-	}
-	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
-			return false
-		}
-	}
-	return true
 }

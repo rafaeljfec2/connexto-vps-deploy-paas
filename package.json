@@ -1,13 +1,14 @@
 {
   "name": "paasdeploy",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "UNLICENSED",
   "description": "A lightweight, self-hosted PaaS for automatic deployments",
   "scripts": {
     "prepare": "husky",
     "dev": "turbo run dev --filter=@paasdeploy/backend & sleep 3 && turbo run dev --filter=@paasdeploy/frontend",
-    "dev:parallel": "turbo run dev",
+    "dev:web": "pnpm --filter @paasdeploy/frontend run dev",
+    "dev:api": "cd apps/backend && air",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "lint:frontend": "pnpm --filter @paasdeploy/frontend run lint",

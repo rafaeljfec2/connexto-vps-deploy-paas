@@ -8,12 +8,22 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAnimateOnScroll } from "@/hooks/use-animate-on-scroll";
+import { cn } from "@/lib/utils";
 
 interface FeatureItem {
   readonly icon: LucideIcon;
   readonly title: string;
   readonly description: string;
 }
+
+const FEATURE_STAGGER_DELAYS = [
+  "delay-0",
+  "delay-100",
+  "delay-200",
+  "delay-300",
+  "delay-400",
+  "delay-500",
+] as const;
 
 const FEATURES: readonly FeatureItem[] = [
   {
@@ -78,14 +88,18 @@ export function FeaturesSection() {
         >
           {FEATURES.map((feature, index) => {
             const Icon = feature.icon;
+            const motionClass = gridVisible
+              ? "translate-y-0 opacity-100"
+              : "translate-y-8 opacity-0 delay-0";
+            const delayClass = gridVisible ? FEATURE_STAGGER_DELAYS[index] : "";
             return (
               <div
                 key={feature.title}
-                className={`group rounded-xl border border-border/50 bg-background p-6 transition-all hover:border-emerald-500/30 hover:-translate-y-1 hover:shadow-md ${gridVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}
-                style={{
-                  transitionDuration: "600ms",
-                  transitionDelay: gridVisible ? `${index * 100}ms` : "0ms",
-                }}
+                className={cn(
+                  "group rounded-xl border border-border/50 bg-background p-6 transition-all duration-[600ms] hover:border-emerald-500/30 hover:-translate-y-1 hover:shadow-md",
+                  motionClass,
+                  delayClass,
+                )}
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 transition-colors group-hover:bg-emerald-500/20">
                   <Icon

@@ -24,21 +24,18 @@ export function CtaSection() {
           />
           <div className="relative">
             <h2
-              className={`text-3xl font-bold tracking-tight text-foreground transition-all duration-700 sm:text-4xl ${isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}
-              style={{ transitionDelay: isVisible ? "200ms" : "0ms" }}
+              className={`text-3xl font-bold tracking-tight text-foreground transition-all duration-700 sm:text-4xl ${isVisible ? "translate-y-0 opacity-100 delay-200" : "translate-y-4 opacity-0 delay-0"}`}
             >
               Stop managing deploys. Start shipping.
             </h2>
             <p
-              className={`mx-auto mt-4 max-w-xl text-lg text-muted-foreground transition-all duration-700 ${isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}
-              style={{ transitionDelay: isVisible ? "350ms" : "0ms" }}
+              className={`mx-auto mt-4 max-w-xl text-lg text-muted-foreground transition-all duration-700 ${isVisible ? "translate-y-0 opacity-100 delay-[350ms]" : "translate-y-4 opacity-0 delay-0"}`}
             >
               Set up flowDeploy on your server in under 5 minutes. Free, open
               source, forever.
             </p>
             <div
-              className={`mt-8 flex flex-col items-center gap-4 transition-all duration-700 sm:flex-row sm:justify-center ${isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}
-              style={{ transitionDelay: isVisible ? "500ms" : "0ms" }}
+              className={`mt-8 flex flex-col items-center gap-4 transition-all duration-700 sm:flex-row sm:justify-center ${isVisible ? "translate-y-0 opacity-100 delay-500" : "translate-y-4 opacity-0 delay-0"}`}
             >
               <Button
                 asChild
@@ -52,8 +49,7 @@ export function CtaSection() {
               </Button>
             </div>
             <p
-              className={`mt-4 text-sm text-muted-foreground transition-all duration-700 ${isVisible ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"}`}
-              style={{ transitionDelay: isVisible ? "600ms" : "0ms" }}
+              className={`mt-4 text-sm text-muted-foreground transition-all duration-700 ${isVisible ? "translate-y-0 opacity-100 delay-[600ms]" : "translate-y-4 opacity-0 delay-0"}`}
             >
               No credit card required. Self-hosted on your infrastructure.
             </p>

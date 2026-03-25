@@ -90,6 +90,67 @@ func (d *Client) parseContainerList(ctx context.Context, output string) []Contai
 	return containers
 }
 
+type containerInspectResult struct {
+	Health   string
+	IP       string
+	Networks []string
+	Mounts   []ContainerMount
+}
+
+const inspectTemplate = `{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}` +
+	`||{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}` +
+	`||{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}` +
+	`||{{range .Mounts}}{{.Type}}|{{.Source}}|{{.Destination}}|{{.RW}};{{end}}`
+
+func (d *Client) inspectContainerDetails(ctx context.Context, containerID string) *containerInspectResult {
+	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, inspectTemplate, containerID)
+	if err != nil {
+		return &containerInspectResult{Health: "none"}
+	}
+
+	sections := strings.Split(strings.TrimSpace(result.Stdout), "||")
+	if len(sections) < 4 {
+		return &containerInspectResult{Health: "none"}
+	}
+
+	health := strings.TrimSpace(sections[0])
+	if health == "" {
+		health = "none"
+	}
+
+	ip := strings.TrimSpace(sections[1])
+
+	var networks []string
+	if netStr := strings.TrimSpace(sections[2]); netStr != "" {
+		networks = strings.Fields(netStr)
+	}
+
+	var mounts []ContainerMount
+	mountEntries := strings.Split(strings.TrimSpace(sections[3]), ";")
+	for _, entry := range mountEntries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		entryParts := strings.Split(entry, "|")
+		if len(entryParts) >= 4 {
+			mounts = append(mounts, ContainerMount{
+				Type:        entryParts[0],
+				Source:      entryParts[1],
+				Destination: entryParts[2],
+				ReadOnly:    entryParts[3] != "true",
+			})
+		}
+	}
+
+	return &containerInspectResult{
+		Health:   health,
+		IP:       ip,
+		Networks: networks,
+		Mounts:   mounts,
+	}
+}
+
 func (d *Client) parseContainerLine(ctx context.Context, line string) *ContainerInfo {
 	parts := strings.Split(line, "|")
 	if len(parts) < 7 {
@@ -112,82 +173,13 @@ func (d *Client) parseContainerLine(ctx context.Context, line string) *Container
 		Ports:   parsePorts(parts[5]),
 	}
 
-	container.Health, _ = d.getContainerHealth(ctx, container.ID)
-	if ip, err := d.GetContainerIP(ctx, container.Name, DefaultNetworkName); err == nil && ip != "" {
-		container.IPAddress = ip
-	} else {
-		container.IPAddress, _ = d.getContainerIPAny(ctx, container.ID)
-	}
-	container.Networks, _ = d.getContainerNetworks(ctx, container.ID)
-	container.Mounts, _ = d.getContainerMounts(ctx, container.ID)
+	details := d.inspectContainerDetails(ctx, container.ID)
+	container.Health = details.Health
+	container.IPAddress = details.IP
+	container.Networks = details.Networks
+	container.Mounts = details.Mounts
 
 	return container
-}
-
-func (d *Client) getContainerHealth(ctx context.Context, containerID string) (string, error) {
-	format := "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerID)
-	if err != nil {
-		return "none", nil
-	}
-	return strings.TrimSpace(result.Stdout), nil
-}
-
-func (d *Client) getContainerIPAny(ctx context.Context, containerID string) (string, error) {
-	format := "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerID)
-	if err != nil {
-		return "", nil
-	}
-	return strings.TrimSpace(result.Stdout), nil
-}
-
-func (d *Client) getContainerNetworks(ctx context.Context, containerID string) ([]string, error) {
-	format := "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerID)
-	if err != nil {
-		return nil, nil
-	}
-
-	networksStr := strings.TrimSpace(result.Stdout)
-	if networksStr == "" {
-		return []string{}, nil
-	}
-
-	networks := strings.Fields(networksStr)
-	return networks, nil
-}
-
-func (d *Client) getContainerMounts(ctx context.Context, containerID string) ([]ContainerMount, error) {
-	format := "{{range .Mounts}}{{.Type}}|{{.Source}}|{{.Destination}}|{{.RW}};{{end}}"
-	result, err := d.executor.RunQuiet(ctx, "docker", "inspect", formatFlag, format, containerID)
-	if err != nil {
-		return nil, nil
-	}
-
-	mountsStr := strings.TrimSpace(result.Stdout)
-	if mountsStr == "" {
-		return []ContainerMount{}, nil
-	}
-
-	mounts := []ContainerMount{}
-	mountEntries := strings.Split(mountsStr, ";")
-	for _, entry := range mountEntries {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			continue
-		}
-		entryParts := strings.Split(entry, "|")
-		if len(entryParts) >= 4 {
-			mounts = append(mounts, ContainerMount{
-				Type:        entryParts[0],
-				Source:      entryParts[1],
-				Destination: entryParts[2],
-				ReadOnly:    entryParts[3] != "true",
-			})
-		}
-	}
-	return mounts, nil
 }
 
 func (d *Client) CreateContainer(ctx context.Context, opts CreateContainerOptions) (string, error) {
@@ -313,10 +305,11 @@ func (d *Client) parseContainerDetails(ctx context.Context, containerID, output 
 		Labels: ParseLabels(labelsStr),
 	}
 
-	container.Health, _ = d.getContainerHealth(ctx, containerID)
-	container.IPAddress, _ = d.getContainerIPAny(ctx, containerID)
-	container.Networks, _ = d.getContainerNetworks(ctx, containerID)
-	container.Mounts, _ = d.getContainerMounts(ctx, containerID)
+	details := d.inspectContainerDetails(ctx, containerID)
+	container.Health = details.Health
+	container.IPAddress = details.IP
+	container.Networks = details.Networks
+	container.Mounts = details.Mounts
 
 	portsResult, err := d.executor.RunQuiet(ctx, "docker", "port", containerID)
 	if err == nil {

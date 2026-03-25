@@ -42,6 +42,10 @@ func (s *Scheduler) Stop() {
 	s.logger.Info("Cleanup scheduler stopped")
 }
 
+func (s *Scheduler) RunOnce(ctx context.Context) {
+	s.performCleanup(ctx)
+}
+
 func (s *Scheduler) run(ctx context.Context) {
 	defer s.wg.Done()
 
@@ -64,7 +68,7 @@ func (s *Scheduler) performCleanup(ctx context.Context) {
 	if ctx.Err() != nil {
 		return
 	}
-	s.logger.Info("Starting scheduled Docker cleanup")
+	s.logger.Info("Starting Docker cleanup")
 
 	containerResult, err := s.docker.PruneContainers(ctx)
 	if err != nil {
@@ -86,5 +90,5 @@ func (s *Scheduler) performCleanup(ctx context.Context) {
 		)
 	}
 
-	s.logger.Info("Scheduled Docker cleanup completed")
+	s.logger.Info("Docker cleanup completed")
 }

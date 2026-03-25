@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -9,6 +10,7 @@ import {
   Key,
   Rocket,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,6 +47,7 @@ export function AppForm() {
   const [newEnvKey, setNewEnvKey] = useState("");
   const [newEnvValue, setNewEnvValue] = useState("");
   const [newEnvIsSecret, setNewEnvIsSecret] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const isStep1Valid = name.length >= 2 && repositoryUrl.includes("github.com");
 
@@ -82,6 +85,7 @@ export function AppForm() {
   };
 
   const handleDeploy = async () => {
+    setSubmitError(null);
     try {
       const app = await createApp.mutateAsync({
         name,
@@ -103,7 +107,9 @@ export function AppForm() {
 
       navigate(`/apps/${app.id}`);
     } catch (error) {
-      console.error("Failed to create app:", error);
+      const message =
+        error instanceof Error ? error.message : "Failed to create application";
+      setSubmitError(message);
     }
   };
 
@@ -445,6 +451,13 @@ export function AppForm() {
           </Button>
         )}
       </div>
+
+      {submitError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{submitError}</AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
-	"github.com/paasdeploy/backend/internal/handler"
+	"github.com/paasdeploy/backend/internal/requestctx"
 	"github.com/paasdeploy/backend/internal/response"
 )
 
@@ -54,7 +54,7 @@ func (m *AuthMiddleware) Require() fiber.Handler {
 			return response.Unauthorized(c, "user not found")
 		}
 
-		handler.SetUserInContext(c, user)
+		requestctx.SetUserInContext(c, user)
 
 		return c.Next()
 	}
@@ -79,7 +79,7 @@ func (m *AuthMiddleware) Optional() fiber.Handler {
 			return c.Next()
 		}
 
-		handler.SetUserInContext(c, user)
+		requestctx.SetUserInContext(c, user)
 
 		return c.Next()
 	}

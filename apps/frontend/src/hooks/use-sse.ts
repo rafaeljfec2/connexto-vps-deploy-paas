@@ -1,5 +1,6 @@
 import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { STALE_TIMES } from "@/constants/query-config";
 import { applyAgentUpdateEvent } from "@/features/servers/agent-update-store";
 import { applyProvisionEvent } from "@/features/servers/provision-progress-store";
 import { api } from "@/services/api";
@@ -135,6 +136,6 @@ export function useAppHealth(appId: string | undefined) {
       return api.apps.health(appId);
     },
     enabled: !!appId,
-    staleTime: 60 * 1000,
+    staleTime: STALE_TIMES.NORMAL,
   });
 }

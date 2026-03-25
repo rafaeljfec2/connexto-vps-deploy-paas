@@ -1,12 +1,19 @@
 import { AlertTriangle, DollarSign, Monitor } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAnimateOnScroll } from "@/hooks/use-animate-on-scroll";
+import { cn } from "@/lib/utils";
 
 interface ProblemItem {
   readonly icon: LucideIcon;
   readonly title: string;
   readonly description: string;
 }
+
+const PROBLEM_STAGGER_DELAYS = [
+  "delay-0",
+  "delay-[120ms]",
+  "delay-[240ms]",
+] as const;
 
 const PROBLEMS: readonly ProblemItem[] = [
   {
@@ -55,14 +62,20 @@ export function ProblemSection() {
         >
           {PROBLEMS.map((problem, index) => {
             const Icon = problem.icon;
+            const motionClass = cardsVisible
+              ? "translate-y-0 opacity-100"
+              : "translate-y-8 opacity-0 delay-0";
+            const delayClass = cardsVisible
+              ? PROBLEM_STAGGER_DELAYS[index]
+              : "";
             return (
               <div
                 key={problem.title}
-                className={`rounded-xl border border-border/50 bg-background p-6 transition-all hover:border-border hover:-translate-y-1 hover:shadow-md ${cardsVisible ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"}`}
-                style={{
-                  transitionDuration: "600ms",
-                  transitionDelay: cardsVisible ? `${index * 120}ms` : "0ms",
-                }}
+                className={cn(
+                  "rounded-xl border border-border/50 bg-background p-6 transition-all duration-[600ms] hover:border-border hover:-translate-y-1 hover:shadow-md",
+                  motionClass,
+                  delayClass,
+                )}
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
                   <Icon

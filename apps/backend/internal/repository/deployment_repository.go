@@ -2,10 +2,14 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/paasdeploy/backend/internal/domain"
 )
+
+const deploymentSelectColumns = `id, app_id, commit_sha, commit_message, status, started_at, finished_at,
+       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at`
 
 type PostgresDeploymentRepository struct {
 	db *sql.DB
@@ -15,55 +19,74 @@ func NewPostgresDeploymentRepository(db *sql.DB) *PostgresDeploymentRepository {
 	return &PostgresDeploymentRepository{db: db}
 }
 
-func (r *PostgresDeploymentRepository) FindByID(id string) (*domain.Deployment, error) {
-	query := `
-		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
-		FROM deployments
-		WHERE id = $1
-	`
+type deploymentScanTargets struct {
+	d                domain.Deployment
+	startedAt        sql.NullTime
+	finishedAt       sql.NullTime
+	commitMessage    sql.NullString
+	errorMessage     sql.NullString
+	logs             sql.NullString
+	previousImageTag sql.NullString
+	currentImageTag  sql.NullString
+	appVersion       sql.NullString
+}
 
-	var d domain.Deployment
-	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
-
-	err := r.db.QueryRow(query, id).Scan(
-		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
-		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+func (t *deploymentScanTargets) scanArgs() []interface{} {
+	return []interface{}{
+		&t.d.ID, &t.d.AppID, &t.d.CommitSHA, &t.commitMessage, &t.d.Status,
+		&t.startedAt, &t.finishedAt, &t.errorMessage, &t.logs,
+		&t.previousImageTag, &t.currentImageTag, &t.appVersion, &t.d.CreatedAt,
 	}
-	if err != nil {
+}
+
+func (t *deploymentScanTargets) toDeployment() domain.Deployment {
+	if t.startedAt.Valid {
+		t.d.StartedAt = &t.startedAt.Time
+	}
+	if t.finishedAt.Valid {
+		t.d.FinishedAt = &t.finishedAt.Time
+	}
+	t.d.CommitMessage = t.commitMessage.String
+	t.d.ErrorMessage = t.errorMessage.String
+	t.d.Logs = t.logs.String
+	t.d.PreviousImageTag = t.previousImageTag.String
+	t.d.CurrentImageTag = t.currentImageTag.String
+	t.d.AppVersion = t.appVersion.String
+	return t.d
+}
+
+func scanDeploymentRow(row *sql.Row) (*domain.Deployment, error) {
+	var t deploymentScanTargets
+	if err := row.Scan(t.scanArgs()...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
 		return nil, err
 	}
-
-	if startedAt.Valid {
-		d.StartedAt = &startedAt.Time
-	}
-	if finishedAt.Valid {
-		d.FinishedAt = &finishedAt.Time
-	}
-	d.CommitMessage = commitMessage.String
-	d.ErrorMessage = errorMessage.String
-	d.Logs = logs.String
-	d.PreviousImageTag = previousImageTag.String
-	d.CurrentImageTag = currentImageTag.String
- d.AppVersion = appVersion.String
-
+	d := t.toDeployment()
 	return &d, nil
 }
 
+func scanDeploymentRowNullable(row *sql.Row) (*domain.Deployment, error) {
+	var t deploymentScanTargets
+	if err := row.Scan(t.scanArgs()...); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	d := t.toDeployment()
+	return &d, nil
+}
+
+func (r *PostgresDeploymentRepository) FindByID(id string) (*domain.Deployment, error) {
+	query := `SELECT ` + deploymentSelectColumns + ` FROM deployments WHERE id = $1`
+	return scanDeploymentRow(r.db.QueryRow(query, id))
+}
+
 func (r *PostgresDeploymentRepository) FindByAppID(appID string, limit int) ([]domain.Deployment, error) {
-	query := `
-		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
-		FROM deployments
-		WHERE app_id = $1
-		ORDER BY created_at DESC
-		LIMIT $2
-	`
+	query := `SELECT ` + deploymentSelectColumns + `
+		FROM deployments WHERE app_id = $1 ORDER BY created_at DESC LIMIT $2`
 
 	rows, err := r.db.Query(query, appID, limit)
 	if err != nil {
@@ -71,164 +94,28 @@ func (r *PostgresDeploymentRepository) FindByAppID(appID string, limit int) ([]d
 	}
 	defer rows.Close()
 
-	var deployments []domain.Deployment
-	for rows.Next() {
-		var d domain.Deployment
-		var startedAt, finishedAt sql.NullTime
-		var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
-
-		err := rows.Scan(
-			&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
-			&startedAt, &finishedAt, &errorMessage, &logs,
-			&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		if startedAt.Valid {
-			d.StartedAt = &startedAt.Time
-		}
-		if finishedAt.Valid {
-			d.FinishedAt = &finishedAt.Time
-		}
-		d.CommitMessage = commitMessage.String
-		d.ErrorMessage = errorMessage.String
-		d.Logs = logs.String
-		d.PreviousImageTag = previousImageTag.String
-		d.CurrentImageTag = currentImageTag.String
-  d.AppVersion = appVersion.String
-
-		deployments = append(deployments, d)
-	}
-
-	return deployments, nil
+	return scanDeploymentRows(rows)
 }
 
 func (r *PostgresDeploymentRepository) FindPendingByAppID(appID string) (*domain.Deployment, error) {
-	query := `
-		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
-		FROM deployments
-		WHERE app_id = $1 AND status = 'pending'
-		ORDER BY created_at ASC
-		LIMIT 1
-	`
-
-	var d domain.Deployment
-	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
-
-	err := r.db.QueryRow(query, appID).Scan(
-		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
-		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if startedAt.Valid {
-		d.StartedAt = &startedAt.Time
-	}
-	if finishedAt.Valid {
-		d.FinishedAt = &finishedAt.Time
-	}
-	d.CommitMessage = commitMessage.String
-	d.ErrorMessage = errorMessage.String
-	d.Logs = logs.String
-	d.PreviousImageTag = previousImageTag.String
-	d.CurrentImageTag = currentImageTag.String
- d.AppVersion = appVersion.String
-
-	return &d, nil
+	query := `SELECT ` + deploymentSelectColumns + `
+		FROM deployments WHERE app_id = $1 AND status = 'pending'
+		ORDER BY created_at ASC LIMIT 1`
+	return scanDeploymentRow(r.db.QueryRow(query, appID))
 }
 
 func (r *PostgresDeploymentRepository) FindLatestByAppID(appID string) (*domain.Deployment, error) {
-	query := `
-		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
-		FROM deployments
-		WHERE app_id = $1 AND status = 'success'
-		ORDER BY created_at DESC
-		LIMIT 1
-	`
-
-	var d domain.Deployment
-	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
-
-	err := r.db.QueryRow(query, appID).Scan(
-		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
-		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if startedAt.Valid {
-		d.StartedAt = &startedAt.Time
-	}
-	if finishedAt.Valid {
-		d.FinishedAt = &finishedAt.Time
-	}
-	d.CommitMessage = commitMessage.String
-	d.ErrorMessage = errorMessage.String
-	d.Logs = logs.String
-	d.PreviousImageTag = previousImageTag.String
-	d.CurrentImageTag = currentImageTag.String
- d.AppVersion = appVersion.String
-
-	return &d, nil
+	query := `SELECT ` + deploymentSelectColumns + `
+		FROM deployments WHERE app_id = $1 AND status = 'success'
+		ORDER BY created_at DESC LIMIT 1`
+	return scanDeploymentRow(r.db.QueryRow(query, appID))
 }
 
 func (r *PostgresDeploymentRepository) FindMostRecentByAppID(appID string) (*domain.Deployment, error) {
-	query := `
-		SELECT id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
-		FROM deployments
-		WHERE app_id = $1
-		ORDER BY created_at DESC
-		LIMIT 1
-	`
-
-	var d domain.Deployment
-	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
-
-	err := r.db.QueryRow(query, appID).Scan(
-		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
-		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	if startedAt.Valid {
-		d.StartedAt = &startedAt.Time
-	}
-	if finishedAt.Valid {
-		d.FinishedAt = &finishedAt.Time
-	}
-	d.CommitMessage = commitMessage.String
-	d.ErrorMessage = errorMessage.String
-	d.Logs = logs.String
-	d.PreviousImageTag = previousImageTag.String
-	d.CurrentImageTag = currentImageTag.String
- d.AppVersion = appVersion.String
-
-	return &d, nil
+	query := `SELECT ` + deploymentSelectColumns + `
+		FROM deployments WHERE app_id = $1
+		ORDER BY created_at DESC LIMIT 1`
+	return scanDeploymentRowNullable(r.db.QueryRow(query, appID))
 }
 
 func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (map[string]*domain.Deployment, error) {
@@ -236,14 +123,9 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (
 		return make(map[string]*domain.Deployment), nil
 	}
 
-	query := `
-		SELECT DISTINCT ON (app_id) 
-		       id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		       error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
-		FROM deployments
-		WHERE app_id = ANY($1)
-		ORDER BY app_id, created_at DESC
-	`
+	query := `SELECT DISTINCT ON (app_id) ` + deploymentSelectColumns + `
+		FROM deployments WHERE app_id = ANY($1)
+		ORDER BY app_id, created_at DESC`
 
 	rows, err := r.db.Query(query, appIDs)
 	if err != nil {
@@ -253,32 +135,11 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (
 
 	result := make(map[string]*domain.Deployment)
 	for rows.Next() {
-		var d domain.Deployment
-		var startedAt, finishedAt sql.NullTime
-		var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
-
-		err := rows.Scan(
-			&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
-			&startedAt, &finishedAt, &errorMessage, &logs,
-			&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
-		)
-		if err != nil {
+		var t deploymentScanTargets
+		if err := rows.Scan(t.scanArgs()...); err != nil {
 			return nil, err
 		}
-
-		if startedAt.Valid {
-			d.StartedAt = &startedAt.Time
-		}
-		if finishedAt.Valid {
-			d.FinishedAt = &finishedAt.Time
-		}
-		d.CommitMessage = commitMessage.String
-		d.ErrorMessage = errorMessage.String
-		d.Logs = logs.String
-		d.PreviousImageTag = previousImageTag.String
-		d.CurrentImageTag = currentImageTag.String
-  d.AppVersion = appVersion.String
-
+		d := t.toDeployment()
 		result[d.AppID] = &d
 	}
 
@@ -286,40 +147,10 @@ func (r *PostgresDeploymentRepository) FindMostRecentByAppIDs(appIDs []string) (
 }
 
 func (r *PostgresDeploymentRepository) Create(input domain.CreateDeploymentInput) (*domain.Deployment, error) {
-	query := `
-		INSERT INTO deployments (app_id, commit_sha, commit_message, status, created_at)
+	query := `INSERT INTO deployments (app_id, commit_sha, commit_message, status, created_at)
 		VALUES ($1, $2, $3, 'pending', NOW())
-		RETURNING id, app_id, commit_sha, commit_message, status, started_at, finished_at,
-		          error_message, logs, previous_image_tag, current_image_tag, app_version, created_at
-	`
-
-	var d domain.Deployment
-	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
-
-	err := r.db.QueryRow(query, input.AppID, input.CommitSHA, input.CommitMessage).Scan(
-		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
-		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if startedAt.Valid {
-		d.StartedAt = &startedAt.Time
-	}
-	if finishedAt.Valid {
-		d.FinishedAt = &finishedAt.Time
-	}
-	d.CommitMessage = commitMessage.String
-	d.ErrorMessage = errorMessage.String
-	d.Logs = logs.String
-	d.PreviousImageTag = previousImageTag.String
-	d.CurrentImageTag = currentImageTag.String
- d.AppVersion = appVersion.String
-
-	return &d, nil
+		RETURNING ` + deploymentSelectColumns
+	return scanDeploymentRow(r.db.QueryRow(query, input.AppID, input.CommitSHA, input.CommitMessage))
 }
 
 func (r *PostgresDeploymentRepository) Update(id string, input domain.UpdateDeploymentInput) (*domain.Deployment, error) {
@@ -350,12 +181,10 @@ func (r *PostgresDeploymentRepository) Update(id string, input domain.UpdateDepl
 		d.CurrentImageTag = *input.CurrentImageTag
 	}
 
-	query := `
-		UPDATE deployments
+	query := `UPDATE deployments
 		SET status = $2, started_at = $3, finished_at = $4, error_message = $5,
 		    logs = $6, previous_image_tag = $7, current_image_tag = $8
-		WHERE id = $1
-	`
+		WHERE id = $1`
 
 	_, err = r.db.Exec(query, id, d.Status, d.StartedAt, d.FinishedAt, d.ErrorMessage, d.Logs, d.PreviousImageTag, d.CurrentImageTag)
 	if err != nil {
@@ -372,48 +201,23 @@ func (r *PostgresDeploymentRepository) AppendLogs(id string, logs string) error 
 }
 
 func (r *PostgresDeploymentRepository) GetNextPending() (*domain.Deployment, error) {
-	query := `
-		SELECT d.id, d.app_id, d.commit_sha, d.commit_message, d.status, d.started_at, d.finished_at,
-		       d.error_message, d.logs, d.previous_image_tag, d.current_image_tag, d.created_at
-		FROM deployments d
-		WHERE d.status = 'pending'
-		AND d.app_id NOT IN (
-			SELECT app_id FROM deployments WHERE status = 'running'
-		)
-		ORDER BY d.created_at ASC
+	query := `SELECT ` + deploymentSelectColumns + `
+		FROM deployments
+		WHERE status = 'pending'
+		AND app_id NOT IN (SELECT app_id FROM deployments WHERE status = 'running')
+		ORDER BY created_at ASC
 		LIMIT 1
-		FOR UPDATE SKIP LOCKED
-	`
+		FOR UPDATE SKIP LOCKED`
 
-	var d domain.Deployment
-	var startedAt, finishedAt sql.NullTime
-	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
-
-	err := r.db.QueryRow(query).Scan(
-		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
-		&startedAt, &finishedAt, &errorMessage, &logs,
-		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
-	)
-	if err == sql.ErrNoRows {
-		return nil, nil
-	}
+	var t deploymentScanTargets
+	err := r.db.QueryRow(query).Scan(t.scanArgs()...)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
 		return nil, err
 	}
-
-	if startedAt.Valid {
-		d.StartedAt = &startedAt.Time
-	}
-	if finishedAt.Valid {
-		d.FinishedAt = &finishedAt.Time
-	}
-	d.CommitMessage = commitMessage.String
-	d.ErrorMessage = errorMessage.String
-	d.Logs = logs.String
-	d.PreviousImageTag = previousImageTag.String
-	d.CurrentImageTag = currentImageTag.String
- d.AppVersion = appVersion.String
-
+	d := t.toDeployment()
 	return &d, nil
 }
 
@@ -442,4 +246,16 @@ func (r *PostgresDeploymentRepository) DeleteByAppID(appID string) error {
 	query := `DELETE FROM deployments WHERE app_id = $1`
 	_, err := r.db.Exec(query, appID)
 	return err
+}
+
+func scanDeploymentRows(rows *sql.Rows) ([]domain.Deployment, error) {
+	var deployments []domain.Deployment
+	for rows.Next() {
+		var t deploymentScanTargets
+		if err := rows.Scan(t.scanArgs()...); err != nil {
+			return nil, err
+		}
+		deployments = append(deployments, t.toDeployment())
+	}
+	return deployments, nil
 }

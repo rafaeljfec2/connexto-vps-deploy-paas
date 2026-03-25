@@ -29,7 +29,7 @@ RUN AGENT_VER=$(cat /build/AGENT_VERSION | tr -d '\n') && \
     -o /build/api \
     ./cmd/api
 
-FROM alpine:edge AS production
+FROM alpine:3.21 AS production
 RUN apk add --no-cache \
     ca-certificates \
     git \

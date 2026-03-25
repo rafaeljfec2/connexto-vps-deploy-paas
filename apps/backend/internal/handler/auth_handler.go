@@ -12,6 +12,7 @@ import (
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/ghclient"
 	"github.com/paasdeploy/backend/internal/password"
+	"github.com/paasdeploy/backend/internal/requestctx"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/backend/internal/service"
 )
@@ -597,16 +598,10 @@ func toUserResponse(user *domain.User) UserResponse {
 	}
 }
 
-const userContextKey = "user"
-
 func SetUserInContext(c *fiber.Ctx, user *domain.User) {
-	c.Locals(userContextKey, user)
+	requestctx.SetUserInContext(c, user)
 }
 
 func GetUserFromContext(c *fiber.Ctx) *domain.User {
-	user, ok := c.Locals(userContextKey).(*domain.User)
-	if !ok {
-		return nil
-	}
-	return user
+	return requestctx.GetUserFromContext(c)
 }

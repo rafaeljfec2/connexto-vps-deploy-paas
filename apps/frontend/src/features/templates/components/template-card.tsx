@@ -8,6 +8,7 @@ import { TemplateDeployDialog } from "./template-deploy-dialog";
 
 interface TemplateCardProps {
   readonly template: Template;
+  readonly serverId?: string;
 }
 
 function TemplateLogo({ template }: { readonly template: Template }) {
@@ -31,7 +32,7 @@ function TemplateLogo({ template }: { readonly template: Template }) {
   );
 }
 
-export function TemplateCard({ template }: TemplateCardProps) {
+export function TemplateCard({ template, serverId }: TemplateCardProps) {
   const [showDeployDialog, setShowDeployDialog] = useState(false);
 
   return (
@@ -68,6 +69,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
         template={template}
         open={showDeployDialog}
         onOpenChange={setShowDeployDialog}
+        serverId={serverId}
       />
     </>
   );

@@ -105,7 +105,7 @@ func InitializeApplication() (*Application, func(), error) {
 	migrationHandler := ProvideMigrationHandler(logger)
 	containerHandler := ProvideContainerHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
 	containerExecHandler := ProvideContainerExecHandler(postgresServerRepository, agentClientForEngine, config, logger)
-	templateHandler := ProvideTemplateHandler(engineEngine, logger)
+	templateHandler := ProvideTemplateHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
 	imageHandler := ProvideImageHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
 	certificateHandler := ProvideCertificateHandler(config, postgresServerRepository, agentClientForEngine, logger)
 	auditHandler := ProvideAuditHandler(auditService, postgresWebhookPayloadRepository)

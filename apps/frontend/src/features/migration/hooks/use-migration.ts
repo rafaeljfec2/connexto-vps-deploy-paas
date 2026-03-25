@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { REFETCH_INTERVALS } from "@/constants/query-config";
 import { api } from "@/services/api";
 
 const QUERY_KEYS = {
@@ -9,7 +10,7 @@ export function useMigrationStatus() {
   return useQuery({
     queryKey: QUERY_KEYS.status,
     queryFn: () => api.migration.status(),
-    refetchInterval: 10000,
+    refetchInterval: REFETCH_INTERVALS.NORMAL,
   });
 }
 

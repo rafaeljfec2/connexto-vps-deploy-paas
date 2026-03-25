@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { STALE_TIMES } from "@/constants/routes";
+import { STALE_TIMES } from "@/constants/query-config";
 import {
   Check,
   ChevronsUpDown,

@@ -8,11 +8,11 @@ import (
 )
 
 type NetworkInfo struct {
-	Name     string   `json:"name"`
-	ID       string   `json:"id"`
-	Driver   string   `json:"driver"`
-	Scope    string   `json:"scope"`
-	Internal bool     `json:"internal"`
+	Name       string   `json:"name"`
+	ID         string   `json:"id"`
+	Driver     string   `json:"driver"`
+	Scope      string   `json:"scope"`
+	Internal   bool     `json:"internal"`
 	Containers []string `json:"containers"`
 }
 
@@ -20,6 +20,42 @@ type VolumeInfo struct {
 	Name       string `json:"name"`
 	Driver     string `json:"driver"`
 	Mountpoint string `json:"mountpoint"`
+}
+
+func (d *Client) EnsureNetwork(ctx context.Context, networkName string) error {
+	d.logger.Info("Checking Docker network", "network", networkName)
+
+	result, err := d.executor.Run(ctx, "docker", "network", "inspect", networkName)
+	if err == nil {
+		d.logger.Info("Network already exists", "network", networkName)
+		return nil
+	}
+
+	if !strings.Contains(result.Stderr, "No such network") && !strings.Contains(result.Stderr, "network") {
+		return fmt.Errorf("failed to inspect network: %w", err)
+	}
+
+	d.logger.Info("Creating Docker network", "network", networkName)
+	_, err = d.executor.Run(ctx, "docker", "network", "create", networkName)
+	if err != nil {
+		return fmt.Errorf("failed to create network %s: %w", networkName, err)
+	}
+
+	d.logger.Info("Docker network created successfully", "network", networkName)
+	return nil
+}
+
+func (d *Client) ConnectToNetwork(ctx context.Context, containerName, networkName string) error {
+	result, err := d.executor.RunQuiet(ctx, "docker", "network", "connect", networkName, containerName)
+	if err != nil {
+		if strings.Contains(result.Stderr, "already exists") {
+			d.logger.Debug("Container already connected to network", "container", containerName, "network", networkName)
+			return nil
+		}
+		return fmt.Errorf("failed to connect container to network: %w", err)
+	}
+	d.logger.Info("Container connected to network", "container", containerName, "network", networkName)
+	return nil
 }
 
 func (d *Client) ListNetworks(ctx context.Context) ([]NetworkInfo, error) {
