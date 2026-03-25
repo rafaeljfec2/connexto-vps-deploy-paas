@@ -230,6 +230,9 @@ func (e *Executor) mergeRuntimeConfig(cfg *compose.Config, localCfg *compose.Con
 	if localCfg.Healthcheck.StartPeriod != "" {
 		cfg.Healthcheck.StartPeriod = localCfg.Healthcheck.StartPeriod
 	}
+	if localCfg.Healthcheck.TLS {
+		cfg.Healthcheck.TLS = true
+	}
 
 	if localCfg.Resources.Memory != "" {
 		cfg.Resources.Memory = localCfg.Resources.Memory

@@ -2,7 +2,7 @@
   "name": "@paasdeploy/backend",
   "private": true,
   "license": "UNLICENSED",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "scripts": {
     "dev": "air",
     "build": "AGENT_VER=$(cat ../../AGENT_VERSION | tr -d '\\n') && go build -ldflags \"-X github.com/paasdeploy/backend/internal/handler.LatestAgentVersion=${AGENT_VER}\" -o bin/api cmd/api/main.go",

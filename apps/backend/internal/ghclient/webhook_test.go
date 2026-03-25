@@ -498,16 +498,22 @@ func TestShouldDeployApp(t *testing.T) {
 			want:         true,
 		},
 		{
-			name:         "subdirectory app - no matching file",
+			name:         "subdirectory app - shared files trigger deploy",
 			workdir:      testWorkdirAPI,
 			changedFiles: []string{testFileREADME, "package.json"},
-			want:         false,
+			want:         true,
 		},
 		{
 			name:         "subdirectory app with ./ prefix",
 			workdir:      "./" + testWorkdirAPI,
 			changedFiles: []string{testFileHandler},
 			want:         true,
+		},
+		{
+			name:         "subdirectory app - files only in other workdir do not trigger",
+			workdir:      "apps/worker",
+			changedFiles: []string{testFileAPIMain, testFileHandler},
+			want:         false,
 		},
 		{
 			name:         "empty changed files",

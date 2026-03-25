@@ -395,7 +395,8 @@ func shouldDeployApp(app *domain.App, changedFiles []string, otherWorkdirs []str
 			return true
 		}
 	}
-	return false
+
+	return hasFilesOutsideWorkdirs(changedFiles, otherWorkdirs)
 }
 
 func hasFilesOutsideWorkdirs(changedFiles []string, workdirs []string) bool {
