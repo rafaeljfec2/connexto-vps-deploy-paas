@@ -2,12 +2,22 @@ package grpcserver
 
 import (
 	"context"
+	"sync"
 
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+func (s *AgentService) getAppDeployLock(appName string) *sync.Mutex {
+	val, _ := s.deployLocks.LoadOrStore(appName, &sync.Mutex{})
+	return val.(*sync.Mutex)
+}
+
 func (s *AgentService) ExecuteDeploy(ctx context.Context, req *pb.DeployRequest) (*pb.DeployResponse, error) {
+	mu := s.getAppDeployLock(req.AppName)
+	mu.Lock()
+	defer mu.Unlock()
+
 	s.getOrCreateLogStream(req.DeploymentId)
 	logFn := s.buildLogFunc(req.DeploymentId)
 	resp := s.deployExecutor.Execute(ctx, req, logFn)

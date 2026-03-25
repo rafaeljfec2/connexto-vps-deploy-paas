@@ -26,7 +26,14 @@ func NewDispatcher(queue *Queue, locker *lock.Locker, logger *slog.Logger) *Disp
 }
 
 func (d *Dispatcher) Next(ctx context.Context) (*domain.Deployment, *domain.App, error) {
-	deploy, err := d.queue.GetNextPending()
+	tx, err := d.queue.BeginTx(ctx)
+	if err != nil {
+		d.logger.Error("Failed to begin transaction", "error", err)
+		return nil, nil, err
+	}
+	defer tx.Rollback()
+
+	deploy, err := d.queue.GetNextPendingTx(tx)
 	if err != nil {
 		d.logger.Error("Failed to get next pending deployment", "error", err)
 		return nil, nil, err
@@ -52,9 +59,15 @@ func (d *Dispatcher) Next(ctx context.Context) (*domain.Deployment, *domain.App,
 		return nil, nil, err
 	}
 
-	if err := d.queue.MarkAsRunning(deploy.ID); err != nil {
+	if err := d.queue.MarkAsRunningTx(tx, deploy.ID); err != nil {
 		d.locker.Release(deploy.AppID)
 		d.logger.Error("Failed to mark deployment as running", "deployId", deploy.ID, "error", err)
+		return nil, nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		d.locker.Release(deploy.AppID)
+		d.logger.Error("Failed to commit dispatch transaction", "deployId", deploy.ID, "error", err)
 		return nil, nil, err
 	}
 
@@ -100,6 +113,10 @@ func (d *Dispatcher) AppendLogs(deployID, logs string) error {
 
 func (d *Dispatcher) SetPreviousImageTag(deployID, tag string) error {
 	return d.queue.SetPreviousImageTag(deployID, tag)
+}
+
+func (d *Dispatcher) GetLastSuccessfulImageTag(appID string) (string, error) {
+	return d.queue.GetLastSuccessfulImageTag(appID)
 }
 
 func (d *Dispatcher) UpdateAppLastDeployedAt(appID string) error {

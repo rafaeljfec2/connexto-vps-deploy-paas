@@ -106,7 +106,7 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 		fmt.Sprintf("Running health check on port %d path %s ...", cfg.Port, cfg.Healthcheck.Path))
 	if err := e.checkHealth(ctx, req, cfg); err != nil {
 		emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
-		e.rollback(ctx, req, appDir)
+		e.rollback(ctx, req, cfg, appDir)
 		return e.failResponse(req, pb.DeployErrorCode_DEPLOY_ERROR_HEALTH_CHECK_FAILED, "health_check", err, startedAt)
 	}
 	emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Health check passed")
@@ -510,16 +510,36 @@ func (e *Executor) checkHealth(ctx context.Context, req *pb.DeployRequest, cfg *
 	return e.health.CheckWithBackoff(ctx, healthURL)
 }
 
-func (e *Executor) rollback(ctx context.Context, req *pb.DeployRequest, appDir string) {
+func (e *Executor) rollback(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config, appDir string) {
 	if req.RollbackImage == nil || *req.RollbackImage == "" {
 		e.logger.Info("No rollback image specified, skipping rollback")
 		return
 	}
 
 	e.logger.Info("Rolling back deployment", "appName", req.AppName, "rollbackImage", *req.RollbackImage)
-	if err := e.docker.ComposeDown(ctx, appDir, req.AppId); err != nil {
-		e.logger.Error("Rollback compose down failed", "error", err)
+
+	var domainRoutes []compose.DomainRoute
+	for _, d := range cfg.Domains {
+		domainRoutes = append(domainRoutes, compose.DomainRoute{Domain: d})
 	}
+
+	if err := compose.WriteComposeFile(appDir, compose.GenerateParams{
+		AppName:  req.AppName,
+		ImageTag: *req.RollbackImage,
+		Config:   cfg,
+		Domains:  domainRoutes,
+		EnvVars:  req.EnvVars,
+	}); err != nil {
+		e.logger.Error("Rollback compose generation failed", "error", err)
+		return
+	}
+
+	if err := e.docker.ComposeUp(ctx, appDir, req.AppId, nil); err != nil {
+		e.logger.Error("Rollback compose up failed", "error", err)
+		return
+	}
+
+	e.logger.Info("Rollback completed, restored previous image", "appName", req.AppName)
 }
 
 func (e *Executor) cleanupOldImages(currentTag string) {

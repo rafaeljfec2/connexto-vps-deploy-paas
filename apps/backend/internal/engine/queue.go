@@ -1,11 +1,17 @@
 package engine
 
 import (
+	"context"
 	"database/sql"
 	"time"
 
 	"github.com/paasdeploy/backend/internal/domain"
 )
+
+type dbQuerier interface {
+	QueryRow(query string, args ...interface{}) *sql.Row
+	Exec(query string, args ...interface{}) (sql.Result, error)
+}
 
 type Queue struct {
 	db *sql.DB
@@ -15,25 +21,16 @@ func NewQueue(db *sql.DB) *Queue {
 	return &Queue{db: db}
 }
 
-func (q *Queue) GetNextPending() (*domain.Deployment, error) {
-	query := `
-		SELECT d.id, d.app_id, d.commit_sha, d.commit_message, d.status, d.started_at, d.finished_at,
-		       d.error_message, d.logs, d.previous_image_tag, d.current_image_tag, d.app_version, d.created_at
-		FROM deployments d
-		WHERE d.status = 'pending'
-		AND d.app_id NOT IN (
-			SELECT app_id FROM deployments WHERE status = 'running'
-		)
-		ORDER BY d.created_at ASC
-		LIMIT 1
-		FOR UPDATE SKIP LOCKED
-	`
+func (q *Queue) BeginTx(ctx context.Context) (*sql.Tx, error) {
+	return q.db.BeginTx(ctx, nil)
+}
 
+func scanPendingDeploy(row *sql.Row) (*domain.Deployment, error) {
 	var d domain.Deployment
 	var startedAt, finishedAt sql.NullTime
 	var commitMessage, errorMessage, logs, previousImageTag, currentImageTag, appVersion sql.NullString
 
-	err := q.db.QueryRow(query).Scan(
+	err := row.Scan(
 		&d.ID, &d.AppID, &d.CommitSHA, &commitMessage, &d.Status,
 		&startedAt, &finishedAt, &errorMessage, &logs,
 		&previousImageTag, &currentImageTag, &appVersion, &d.CreatedAt,
@@ -61,10 +58,39 @@ func (q *Queue) GetNextPending() (*domain.Deployment, error) {
 	return &d, nil
 }
 
+const pendingDeployQuery = `
+	SELECT d.id, d.app_id, d.commit_sha, d.commit_message, d.status, d.started_at, d.finished_at,
+	       d.error_message, d.logs, d.previous_image_tag, d.current_image_tag, d.app_version, d.created_at
+	FROM deployments d
+	WHERE d.status = 'pending'
+	AND d.app_id NOT IN (
+		SELECT app_id FROM deployments WHERE status = 'running'
+	)
+	ORDER BY d.created_at ASC
+	LIMIT 1
+	FOR UPDATE SKIP LOCKED
+`
+
+func (q *Queue) GetNextPending() (*domain.Deployment, error) {
+	return scanPendingDeploy(q.db.QueryRow(pendingDeployQuery))
+}
+
+func (q *Queue) GetNextPendingTx(tx *sql.Tx) (*domain.Deployment, error) {
+	return scanPendingDeploy(tx.QueryRow(pendingDeployQuery))
+}
+
 func (q *Queue) MarkAsRunning(id string) error {
+	return q.markAsRunningWith(q.db, id)
+}
+
+func (q *Queue) MarkAsRunningTx(tx *sql.Tx, id string) error {
+	return q.markAsRunningWith(tx, id)
+}
+
+func (q *Queue) markAsRunningWith(db dbQuerier, id string) error {
 	now := time.Now()
 	query := `UPDATE deployments SET status = 'running', started_at = $2 WHERE id = $1`
-	_, err := q.db.Exec(query, id, now)
+	_, err := db.Exec(query, id, now)
 	return err
 }
 
@@ -130,6 +156,24 @@ func (q *Queue) UpdateAppVersion(appID, appVersion string) error {
 	query := `UPDATE apps SET app_version = $2, updated_at = NOW() WHERE id = $1`
 	_, err := q.db.Exec(query, appID, appVersion)
 	return err
+}
+
+func (q *Queue) GetLastSuccessfulImageTag(appID string) (string, error) {
+	query := `
+		SELECT current_image_tag FROM deployments
+		WHERE app_id = $1 AND status = 'success' AND current_image_tag IS NOT NULL AND current_image_tag != ''
+		ORDER BY finished_at DESC
+		LIMIT 1
+	`
+	var tag string
+	err := q.db.QueryRow(query, appID).Scan(&tag)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return tag, nil
 }
 
 func (q *Queue) GetAppByID(appID string) (*domain.App, error) {

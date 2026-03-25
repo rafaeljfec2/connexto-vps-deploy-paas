@@ -56,6 +56,7 @@ type AgentService struct {
 	executor       *executor.Executor
 	traefikClient  *traefik.Client
 	logStreams     sync.Map
+	deployLocks    sync.Map
 	logger         *slog.Logger
 }
 

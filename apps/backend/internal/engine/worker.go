@@ -100,6 +100,8 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 		w.deps.Logger.Warn("Failed to load env vars for remote deploy", "error", err, "appId", app.ID)
 	}
 
+	w.capturePreviousImage(ctx, deploy, app)
+
 	token := w.getGitToken(ctx, app.RepositoryURL)
 
 	domainRoutes := w.collectDomainRoutes(ctx, app.ID)
@@ -207,6 +209,8 @@ func (w *Worker) runLocalDeploy(ctx context.Context, deploy *domain.Deployment, 
 		return w.fail(deploy, app, fmt.Errorf("failed to load paasdeploy.json: %w", err))
 	}
 
+	w.capturePreviousImage(ctx, deploy, app)
+
 	imageTag := w.deps.Docker.GetImageTag(app.Name, deploy.CommitSHA)
 
 	if err := w.buildDocker(ctx, deploy, app, appDir, imageTag); err != nil {
@@ -242,6 +246,32 @@ func (w *Worker) getAppDir(repoDir, workdir string) string {
 	}
 	w.deps.Logger.Info("Calculated appDir", "repoDir", repoDir, "workdir", workdir, "appDir", safe)
 	return safe
+}
+
+func (w *Worker) capturePreviousImage(ctx context.Context, deploy *domain.Deployment, app *domain.App) {
+	health, err := w.deps.Docker.InspectContainer(ctx, app.Name)
+	if err == nil && health != nil && health.Status != "not_found" && health.Image != "" {
+		deploy.PreviousImageTag = health.Image
+		if setErr := w.deps.Dispatcher.SetPreviousImageTag(deploy.ID, health.Image); setErr != nil {
+			w.deps.Logger.Warn("Failed to persist previous image tag", "error", setErr)
+		}
+		w.log(deploy.ID, app.ID, "Captured previous image for rollback: %s", health.Image)
+		return
+	}
+
+	tag, dbErr := w.deps.Dispatcher.GetLastSuccessfulImageTag(app.ID)
+	if dbErr != nil {
+		w.deps.Logger.Warn("Failed to query last successful image tag", "error", dbErr)
+		return
+	}
+	if tag == "" {
+		return
+	}
+	deploy.PreviousImageTag = tag
+	if setErr := w.deps.Dispatcher.SetPreviousImageTag(deploy.ID, tag); setErr != nil {
+		w.deps.Logger.Warn("Failed to persist previous image tag", "error", setErr)
+	}
+	w.log(deploy.ID, app.ID, "Captured previous image for rollback (from DB): %s", tag)
 }
 
 func (w *Worker) loadEnvVars(appID string) error {
@@ -450,7 +480,7 @@ func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app
 	return nil
 }
 
-func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *domain.App, repoDir string) error {
+func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *domain.App, appDir string) error {
 	if deploy.PreviousImageTag == "" {
 		w.log(deploy.ID, app.ID, "No previous image to rollback to")
 		return nil
@@ -458,12 +488,24 @@ func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *d
 
 	w.log(deploy.ID, app.ID, "Rolling back to: %s", deploy.PreviousImageTag)
 
-	if err := w.deps.Docker.ComposeDown(ctx, repoDir, app.ID); err != nil {
-		w.deps.Logger.Warn("Failed to stop containers during rollback", "deployId", deploy.ID, "appName", app.Name, "error", err)
-		return err
+	domainRoutes := w.collectDomainRoutes(ctx, app.ID)
+	if err := compose.WriteComposeFile(appDir, compose.GenerateParams{
+		AppName:  app.Name,
+		ImageTag: deploy.PreviousImageTag,
+		Config:   w.deployConfig,
+		Domains:  domainRoutes,
+		EnvVars:  w.appEnvVars,
+	}); err != nil {
+		w.deps.Logger.Error("Rollback compose generation failed", "error", err)
+		return fmt.Errorf("rollback compose generation failed: %w", err)
 	}
 
-	w.deps.Logger.Info("Rollback completed", "deployId", deploy.ID, "appName", app.Name, "previousImage", deploy.PreviousImageTag)
+	if err := w.deps.Docker.ComposeUp(ctx, appDir, app.ID, nil); err != nil {
+		w.deps.Logger.Error("Rollback compose up failed", "error", err)
+		return fmt.Errorf("rollback compose up failed: %w", err)
+	}
+
+	w.log(deploy.ID, app.ID, "Rollback completed, restored previous image")
 	return nil
 }
 
