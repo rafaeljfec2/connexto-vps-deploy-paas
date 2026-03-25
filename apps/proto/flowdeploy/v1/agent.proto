@@ -70,6 +70,10 @@ service AgentService {
   rpc PruneVolumes(PruneVolumesRequest) returns (PruneVolumesResponse);
 
   rpc CreateContainerFromTemplate(CreateContainerFromTemplateRequest) returns (CreateContainerFromTemplateResponse);
+
+  rpc ConfigureContainerSSL(ConfigureContainerSSLRequest) returns (ConfigureContainerSSLResponse);
+
+  rpc GetContainerSSLStatus(GetContainerSSLStatusRequest) returns (GetContainerSSLStatusResponse);
 }
 
 message UpdateBinaryChunk {

@@ -159,7 +159,7 @@ var file_flowdeploy_v1_agent_proto_rawDesc = []byte{
 	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73,
 	0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x73, 0x75, 0x63, 0x63, 0x65, 0x73, 0x73,
 	0x12, 0x18, 0x0a, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x32, 0xf9, 0x14, 0x0a, 0x0c, 0x41,
+	0x09, 0x52, 0x07, 0x6d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x32, 0xe1, 0x16, 0x0a, 0x0c, 0x41,
 	0x67, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x12, 0x4b, 0x0a, 0x08, 0x52,
 	0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x12, 0x1e, 0x2e, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65,
 	0x70, 0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72,
@@ -327,12 +327,26 @@ var file_flowdeploy_v1_agent_proto_rawDesc = []byte{
 	0x73, 0x74, 0x1a, 0x32, 0x2e, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2e,
 	0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e,
 	0x65, 0x72, 0x46, 0x72, 0x6f, 0x6d, 0x54, 0x65, 0x6d, 0x70, 0x6c, 0x61, 0x74, 0x65, 0x52, 0x65,
-	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x41, 0x5a, 0x3f, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62,
-	0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x61, 0x61, 0x73, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2f,
-	0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x67, 0x6f, 0x2f, 0x66,
-	0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2f, 0x76, 0x31, 0x3b, 0x66, 0x6c, 0x6f,
-	0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
-	0x33,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x72, 0x0a, 0x15, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67,
+	0x75, 0x72, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x53, 0x53, 0x4c, 0x12,
+	0x2b, 0x2e, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31, 0x2e,
+	0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x75, 0x72, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e,
+	0x65, 0x72, 0x53, 0x53, 0x4c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x2c, 0x2e, 0x66,
+	0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6e,
+	0x66, 0x69, 0x67, 0x75, 0x72, 0x65, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x53,
+	0x53, 0x4c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x72, 0x0a, 0x15, 0x47, 0x65,
+	0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x53, 0x53, 0x4c, 0x53, 0x74, 0x61,
+	0x74, 0x75, 0x73, 0x12, 0x2b, 0x2e, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79,
+	0x2e, 0x76, 0x31, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72,
+	0x53, 0x53, 0x4c, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x2c, 0x2e, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2e, 0x76, 0x31,
+	0x2e, 0x47, 0x65, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x61, 0x69, 0x6e, 0x65, 0x72, 0x53, 0x53, 0x4c,
+	0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x41,
+	0x5a, 0x3f, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x70, 0x61, 0x61,
+	0x73, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x2f, 0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x2f,
+	0x67, 0x65, 0x6e, 0x2f, 0x67, 0x6f, 0x2f, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f,
+	0x79, 0x2f, 0x76, 0x31, 0x3b, 0x66, 0x6c, 0x6f, 0x77, 0x64, 0x65, 0x70, 0x6c, 0x6f, 0x79, 0x76,
+	0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -378,35 +392,39 @@ var file_flowdeploy_v1_agent_proto_goTypes = []any{
 	(*PruneContainersRequest)(nil),              // 26: flowdeploy.v1.PruneContainersRequest
 	(*PruneVolumesRequest)(nil),                 // 27: flowdeploy.v1.PruneVolumesRequest
 	(*CreateContainerFromTemplateRequest)(nil),  // 28: flowdeploy.v1.CreateContainerFromTemplateRequest
-	(*RegisterResponse)(nil),                    // 29: flowdeploy.v1.RegisterResponse
-	(*HeartbeatResponse)(nil),                   // 30: flowdeploy.v1.HeartbeatResponse
-	(*DeployResponse)(nil),                      // 31: flowdeploy.v1.DeployResponse
-	(*DeployLogEntry)(nil),                      // 32: flowdeploy.v1.DeployLogEntry
-	(*ListContainersResponse)(nil),              // 33: flowdeploy.v1.ListContainersResponse
-	(*ContainerLogEntry)(nil),                   // 34: flowdeploy.v1.ContainerLogEntry
-	(*ContainerStats)(nil),                      // 35: flowdeploy.v1.ContainerStats
-	(*RestartContainerResponse)(nil),            // 36: flowdeploy.v1.RestartContainerResponse
-	(*StopContainerResponse)(nil),               // 37: flowdeploy.v1.StopContainerResponse
-	(*SystemInfo)(nil),                          // 38: flowdeploy.v1.SystemInfo
-	(*SystemMetrics)(nil),                       // 39: flowdeploy.v1.SystemMetrics
-	(*DockerInfo)(nil),                          // 40: flowdeploy.v1.DockerInfo
-	(*StartContainerResponse)(nil),              // 41: flowdeploy.v1.StartContainerResponse
-	(*ListImagesResponse)(nil),                  // 42: flowdeploy.v1.ListImagesResponse
-	(*RemoveImageResponse)(nil),                 // 43: flowdeploy.v1.RemoveImageResponse
-	(*PruneImagesResponse)(nil),                 // 44: flowdeploy.v1.PruneImagesResponse
-	(*ListNetworksResponse)(nil),                // 45: flowdeploy.v1.ListNetworksResponse
-	(*CreateNetworkResponse)(nil),               // 46: flowdeploy.v1.CreateNetworkResponse
-	(*RemoveNetworkResponse)(nil),               // 47: flowdeploy.v1.RemoveNetworkResponse
-	(*ListVolumesResponse)(nil),                 // 48: flowdeploy.v1.ListVolumesResponse
-	(*CreateVolumeResponse)(nil),                // 49: flowdeploy.v1.CreateVolumeResponse
-	(*RemoveVolumeResponse)(nil),                // 50: flowdeploy.v1.RemoveVolumeResponse
-	(*RemoveContainerResponse)(nil),             // 51: flowdeploy.v1.RemoveContainerResponse
-	(*UpdateDomainsResponse)(nil),               // 52: flowdeploy.v1.UpdateDomainsResponse
-	(*ExecOutput)(nil),                          // 53: flowdeploy.v1.ExecOutput
-	(*GetCertificatesResponse)(nil),             // 54: flowdeploy.v1.GetCertificatesResponse
-	(*PruneContainersResponse)(nil),             // 55: flowdeploy.v1.PruneContainersResponse
-	(*PruneVolumesResponse)(nil),                // 56: flowdeploy.v1.PruneVolumesResponse
-	(*CreateContainerFromTemplateResponse)(nil), // 57: flowdeploy.v1.CreateContainerFromTemplateResponse
+	(*ConfigureContainerSSLRequest)(nil),        // 29: flowdeploy.v1.ConfigureContainerSSLRequest
+	(*GetContainerSSLStatusRequest)(nil),        // 30: flowdeploy.v1.GetContainerSSLStatusRequest
+	(*RegisterResponse)(nil),                    // 31: flowdeploy.v1.RegisterResponse
+	(*HeartbeatResponse)(nil),                   // 32: flowdeploy.v1.HeartbeatResponse
+	(*DeployResponse)(nil),                      // 33: flowdeploy.v1.DeployResponse
+	(*DeployLogEntry)(nil),                      // 34: flowdeploy.v1.DeployLogEntry
+	(*ListContainersResponse)(nil),              // 35: flowdeploy.v1.ListContainersResponse
+	(*ContainerLogEntry)(nil),                   // 36: flowdeploy.v1.ContainerLogEntry
+	(*ContainerStats)(nil),                      // 37: flowdeploy.v1.ContainerStats
+	(*RestartContainerResponse)(nil),            // 38: flowdeploy.v1.RestartContainerResponse
+	(*StopContainerResponse)(nil),               // 39: flowdeploy.v1.StopContainerResponse
+	(*SystemInfo)(nil),                          // 40: flowdeploy.v1.SystemInfo
+	(*SystemMetrics)(nil),                       // 41: flowdeploy.v1.SystemMetrics
+	(*DockerInfo)(nil),                          // 42: flowdeploy.v1.DockerInfo
+	(*StartContainerResponse)(nil),              // 43: flowdeploy.v1.StartContainerResponse
+	(*ListImagesResponse)(nil),                  // 44: flowdeploy.v1.ListImagesResponse
+	(*RemoveImageResponse)(nil),                 // 45: flowdeploy.v1.RemoveImageResponse
+	(*PruneImagesResponse)(nil),                 // 46: flowdeploy.v1.PruneImagesResponse
+	(*ListNetworksResponse)(nil),                // 47: flowdeploy.v1.ListNetworksResponse
+	(*CreateNetworkResponse)(nil),               // 48: flowdeploy.v1.CreateNetworkResponse
+	(*RemoveNetworkResponse)(nil),               // 49: flowdeploy.v1.RemoveNetworkResponse
+	(*ListVolumesResponse)(nil),                 // 50: flowdeploy.v1.ListVolumesResponse
+	(*CreateVolumeResponse)(nil),                // 51: flowdeploy.v1.CreateVolumeResponse
+	(*RemoveVolumeResponse)(nil),                // 52: flowdeploy.v1.RemoveVolumeResponse
+	(*RemoveContainerResponse)(nil),             // 53: flowdeploy.v1.RemoveContainerResponse
+	(*UpdateDomainsResponse)(nil),               // 54: flowdeploy.v1.UpdateDomainsResponse
+	(*ExecOutput)(nil),                          // 55: flowdeploy.v1.ExecOutput
+	(*GetCertificatesResponse)(nil),             // 56: flowdeploy.v1.GetCertificatesResponse
+	(*PruneContainersResponse)(nil),             // 57: flowdeploy.v1.PruneContainersResponse
+	(*PruneVolumesResponse)(nil),                // 58: flowdeploy.v1.PruneVolumesResponse
+	(*CreateContainerFromTemplateResponse)(nil), // 59: flowdeploy.v1.CreateContainerFromTemplateResponse
+	(*ConfigureContainerSSLResponse)(nil),       // 60: flowdeploy.v1.ConfigureContainerSSLResponse
+	(*GetContainerSSLStatusResponse)(nil),       // 61: flowdeploy.v1.GetContainerSSLStatusResponse
 }
 var file_flowdeploy_v1_agent_proto_depIdxs = []int32{
 	2,  // 0: flowdeploy.v1.AgentService.Register:input_type -> flowdeploy.v1.RegisterRequest
@@ -439,38 +457,42 @@ var file_flowdeploy_v1_agent_proto_depIdxs = []int32{
 	26, // 27: flowdeploy.v1.AgentService.PruneContainers:input_type -> flowdeploy.v1.PruneContainersRequest
 	27, // 28: flowdeploy.v1.AgentService.PruneVolumes:input_type -> flowdeploy.v1.PruneVolumesRequest
 	28, // 29: flowdeploy.v1.AgentService.CreateContainerFromTemplate:input_type -> flowdeploy.v1.CreateContainerFromTemplateRequest
-	29, // 30: flowdeploy.v1.AgentService.Register:output_type -> flowdeploy.v1.RegisterResponse
-	30, // 31: flowdeploy.v1.AgentService.Heartbeat:output_type -> flowdeploy.v1.HeartbeatResponse
-	31, // 32: flowdeploy.v1.AgentService.ExecuteDeploy:output_type -> flowdeploy.v1.DeployResponse
-	32, // 33: flowdeploy.v1.AgentService.StreamDeployLogs:output_type -> flowdeploy.v1.DeployLogEntry
-	33, // 34: flowdeploy.v1.AgentService.ListContainers:output_type -> flowdeploy.v1.ListContainersResponse
-	34, // 35: flowdeploy.v1.AgentService.GetContainerLogs:output_type -> flowdeploy.v1.ContainerLogEntry
-	35, // 36: flowdeploy.v1.AgentService.GetContainerStats:output_type -> flowdeploy.v1.ContainerStats
-	36, // 37: flowdeploy.v1.AgentService.RestartContainer:output_type -> flowdeploy.v1.RestartContainerResponse
-	37, // 38: flowdeploy.v1.AgentService.StopContainer:output_type -> flowdeploy.v1.StopContainerResponse
-	38, // 39: flowdeploy.v1.AgentService.GetSystemInfo:output_type -> flowdeploy.v1.SystemInfo
-	39, // 40: flowdeploy.v1.AgentService.GetSystemMetrics:output_type -> flowdeploy.v1.SystemMetrics
-	40, // 41: flowdeploy.v1.AgentService.GetDockerInfo:output_type -> flowdeploy.v1.DockerInfo
-	41, // 42: flowdeploy.v1.AgentService.StartContainer:output_type -> flowdeploy.v1.StartContainerResponse
-	42, // 43: flowdeploy.v1.AgentService.ListImages:output_type -> flowdeploy.v1.ListImagesResponse
-	43, // 44: flowdeploy.v1.AgentService.RemoveImage:output_type -> flowdeploy.v1.RemoveImageResponse
-	44, // 45: flowdeploy.v1.AgentService.PruneImages:output_type -> flowdeploy.v1.PruneImagesResponse
-	45, // 46: flowdeploy.v1.AgentService.ListNetworks:output_type -> flowdeploy.v1.ListNetworksResponse
-	46, // 47: flowdeploy.v1.AgentService.CreateNetwork:output_type -> flowdeploy.v1.CreateNetworkResponse
-	47, // 48: flowdeploy.v1.AgentService.RemoveNetwork:output_type -> flowdeploy.v1.RemoveNetworkResponse
-	48, // 49: flowdeploy.v1.AgentService.ListVolumes:output_type -> flowdeploy.v1.ListVolumesResponse
-	49, // 50: flowdeploy.v1.AgentService.CreateVolume:output_type -> flowdeploy.v1.CreateVolumeResponse
-	50, // 51: flowdeploy.v1.AgentService.RemoveVolume:output_type -> flowdeploy.v1.RemoveVolumeResponse
-	51, // 52: flowdeploy.v1.AgentService.RemoveContainer:output_type -> flowdeploy.v1.RemoveContainerResponse
-	52, // 53: flowdeploy.v1.AgentService.UpdateDomains:output_type -> flowdeploy.v1.UpdateDomainsResponse
-	53, // 54: flowdeploy.v1.AgentService.ExecContainer:output_type -> flowdeploy.v1.ExecOutput
-	1,  // 55: flowdeploy.v1.AgentService.PushUpdate:output_type -> flowdeploy.v1.UpdateBinaryResponse
-	54, // 56: flowdeploy.v1.AgentService.GetCertificates:output_type -> flowdeploy.v1.GetCertificatesResponse
-	55, // 57: flowdeploy.v1.AgentService.PruneContainers:output_type -> flowdeploy.v1.PruneContainersResponse
-	56, // 58: flowdeploy.v1.AgentService.PruneVolumes:output_type -> flowdeploy.v1.PruneVolumesResponse
-	57, // 59: flowdeploy.v1.AgentService.CreateContainerFromTemplate:output_type -> flowdeploy.v1.CreateContainerFromTemplateResponse
-	30, // [30:60] is the sub-list for method output_type
-	0,  // [0:30] is the sub-list for method input_type
+	29, // 30: flowdeploy.v1.AgentService.ConfigureContainerSSL:input_type -> flowdeploy.v1.ConfigureContainerSSLRequest
+	30, // 31: flowdeploy.v1.AgentService.GetContainerSSLStatus:input_type -> flowdeploy.v1.GetContainerSSLStatusRequest
+	31, // 32: flowdeploy.v1.AgentService.Register:output_type -> flowdeploy.v1.RegisterResponse
+	32, // 33: flowdeploy.v1.AgentService.Heartbeat:output_type -> flowdeploy.v1.HeartbeatResponse
+	33, // 34: flowdeploy.v1.AgentService.ExecuteDeploy:output_type -> flowdeploy.v1.DeployResponse
+	34, // 35: flowdeploy.v1.AgentService.StreamDeployLogs:output_type -> flowdeploy.v1.DeployLogEntry
+	35, // 36: flowdeploy.v1.AgentService.ListContainers:output_type -> flowdeploy.v1.ListContainersResponse
+	36, // 37: flowdeploy.v1.AgentService.GetContainerLogs:output_type -> flowdeploy.v1.ContainerLogEntry
+	37, // 38: flowdeploy.v1.AgentService.GetContainerStats:output_type -> flowdeploy.v1.ContainerStats
+	38, // 39: flowdeploy.v1.AgentService.RestartContainer:output_type -> flowdeploy.v1.RestartContainerResponse
+	39, // 40: flowdeploy.v1.AgentService.StopContainer:output_type -> flowdeploy.v1.StopContainerResponse
+	40, // 41: flowdeploy.v1.AgentService.GetSystemInfo:output_type -> flowdeploy.v1.SystemInfo
+	41, // 42: flowdeploy.v1.AgentService.GetSystemMetrics:output_type -> flowdeploy.v1.SystemMetrics
+	42, // 43: flowdeploy.v1.AgentService.GetDockerInfo:output_type -> flowdeploy.v1.DockerInfo
+	43, // 44: flowdeploy.v1.AgentService.StartContainer:output_type -> flowdeploy.v1.StartContainerResponse
+	44, // 45: flowdeploy.v1.AgentService.ListImages:output_type -> flowdeploy.v1.ListImagesResponse
+	45, // 46: flowdeploy.v1.AgentService.RemoveImage:output_type -> flowdeploy.v1.RemoveImageResponse
+	46, // 47: flowdeploy.v1.AgentService.PruneImages:output_type -> flowdeploy.v1.PruneImagesResponse
+	47, // 48: flowdeploy.v1.AgentService.ListNetworks:output_type -> flowdeploy.v1.ListNetworksResponse
+	48, // 49: flowdeploy.v1.AgentService.CreateNetwork:output_type -> flowdeploy.v1.CreateNetworkResponse
+	49, // 50: flowdeploy.v1.AgentService.RemoveNetwork:output_type -> flowdeploy.v1.RemoveNetworkResponse
+	50, // 51: flowdeploy.v1.AgentService.ListVolumes:output_type -> flowdeploy.v1.ListVolumesResponse
+	51, // 52: flowdeploy.v1.AgentService.CreateVolume:output_type -> flowdeploy.v1.CreateVolumeResponse
+	52, // 53: flowdeploy.v1.AgentService.RemoveVolume:output_type -> flowdeploy.v1.RemoveVolumeResponse
+	53, // 54: flowdeploy.v1.AgentService.RemoveContainer:output_type -> flowdeploy.v1.RemoveContainerResponse
+	54, // 55: flowdeploy.v1.AgentService.UpdateDomains:output_type -> flowdeploy.v1.UpdateDomainsResponse
+	55, // 56: flowdeploy.v1.AgentService.ExecContainer:output_type -> flowdeploy.v1.ExecOutput
+	1,  // 57: flowdeploy.v1.AgentService.PushUpdate:output_type -> flowdeploy.v1.UpdateBinaryResponse
+	56, // 58: flowdeploy.v1.AgentService.GetCertificates:output_type -> flowdeploy.v1.GetCertificatesResponse
+	57, // 59: flowdeploy.v1.AgentService.PruneContainers:output_type -> flowdeploy.v1.PruneContainersResponse
+	58, // 60: flowdeploy.v1.AgentService.PruneVolumes:output_type -> flowdeploy.v1.PruneVolumesResponse
+	59, // 61: flowdeploy.v1.AgentService.CreateContainerFromTemplate:output_type -> flowdeploy.v1.CreateContainerFromTemplateResponse
+	60, // 62: flowdeploy.v1.AgentService.ConfigureContainerSSL:output_type -> flowdeploy.v1.ConfigureContainerSSLResponse
+	61, // 63: flowdeploy.v1.AgentService.GetContainerSSLStatus:output_type -> flowdeploy.v1.GetContainerSSLStatusResponse
+	32, // [32:64] is the sub-list for method output_type
+	0,  // [0:32] is the sub-list for method input_type
 	0,  // [0:0] is the sub-list for extension type_name
 	0,  // [0:0] is the sub-list for extension extendee
 	0,  // [0:0] is the sub-list for field type_name

@@ -442,3 +442,32 @@ message CreateContainerFromTemplateResponse {
   string container_id = 2;
   string message = 3;
 }
+
+message ConfigureContainerSSLRequest {
+  string container_id = 1;
+  string database_type = 2;
+  string database_user = 3;
+  string database_name = 4;
+}
+
+message ConfigureContainerSSLResponse {
+  bool success = 1;
+  string message = 2;
+  bool ssl_enabled = 3;
+  string tls_version = 4;
+  string certificate_expiry = 5;
+}
+
+message GetContainerSSLStatusRequest {
+  string container_id = 1;
+  string database_type = 2;
+  string database_user = 3;
+  string database_name = 4;
+}
+
+message GetContainerSSLStatusResponse {
+  bool ssl_enabled = 1;
+  string tls_version = 2;
+  string cipher = 3;
+  string certificate_expiry = 4;
+}

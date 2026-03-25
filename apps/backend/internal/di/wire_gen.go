@@ -122,6 +122,7 @@ func InitializeApplication() (*Application, func(), error) {
 	agentdownloadHandler := ProvideAgentDownloadHandler(tokenStore, config, logger)
 	postgresCleanupLogRepository := repository.NewPostgresCleanupLogRepository(db)
 	cleanupHandler := ProvideCleanupHandler(postgresServerRepository, postgresCleanupLogRepository, agentClientForEngine, config, logger)
+	containerSSLHandler := ProvideContainerSSLHandler(postgresServerRepository, agentClientForEngine, config, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -157,6 +158,7 @@ func InitializeApplication() (*Application, func(), error) {
 		SystemHandler:          systemHandler,
 		AgentDownloadHandler:   agentdownloadHandler,
 		CleanupHandler:         cleanupHandler,
+		ContainerSSLHandler:    containerSSLHandler,
 	}
 	return application, func() {
 		cleanup()

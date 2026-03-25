@@ -50,6 +50,8 @@ const (
 	AgentService_PruneContainers_FullMethodName             = "/flowdeploy.v1.AgentService/PruneContainers"
 	AgentService_PruneVolumes_FullMethodName                = "/flowdeploy.v1.AgentService/PruneVolumes"
 	AgentService_CreateContainerFromTemplate_FullMethodName = "/flowdeploy.v1.AgentService/CreateContainerFromTemplate"
+	AgentService_ConfigureContainerSSL_FullMethodName       = "/flowdeploy.v1.AgentService/ConfigureContainerSSL"
+	AgentService_GetContainerSSLStatus_FullMethodName       = "/flowdeploy.v1.AgentService/GetContainerSSLStatus"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -86,6 +88,8 @@ type AgentServiceClient interface {
 	PruneContainers(ctx context.Context, in *PruneContainersRequest, opts ...grpc.CallOption) (*PruneContainersResponse, error)
 	PruneVolumes(ctx context.Context, in *PruneVolumesRequest, opts ...grpc.CallOption) (*PruneVolumesResponse, error)
 	CreateContainerFromTemplate(ctx context.Context, in *CreateContainerFromTemplateRequest, opts ...grpc.CallOption) (*CreateContainerFromTemplateResponse, error)
+	ConfigureContainerSSL(ctx context.Context, in *ConfigureContainerSSLRequest, opts ...grpc.CallOption) (*ConfigureContainerSSLResponse, error)
+	GetContainerSSLStatus(ctx context.Context, in *GetContainerSSLStatusRequest, opts ...grpc.CallOption) (*GetContainerSSLStatusResponse, error)
 }
 
 type agentServiceClient struct {
@@ -429,6 +433,26 @@ func (c *agentServiceClient) CreateContainerFromTemplate(ctx context.Context, in
 	return out, nil
 }
 
+func (c *agentServiceClient) ConfigureContainerSSL(ctx context.Context, in *ConfigureContainerSSLRequest, opts ...grpc.CallOption) (*ConfigureContainerSSLResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConfigureContainerSSLResponse)
+	err := c.cc.Invoke(ctx, AgentService_ConfigureContainerSSL_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) GetContainerSSLStatus(ctx context.Context, in *GetContainerSSLStatusRequest, opts ...grpc.CallOption) (*GetContainerSSLStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetContainerSSLStatusResponse)
+	err := c.cc.Invoke(ctx, AgentService_GetContainerSSLStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -463,6 +487,8 @@ type AgentServiceServer interface {
 	PruneContainers(context.Context, *PruneContainersRequest) (*PruneContainersResponse, error)
 	PruneVolumes(context.Context, *PruneVolumesRequest) (*PruneVolumesResponse, error)
 	CreateContainerFromTemplate(context.Context, *CreateContainerFromTemplateRequest) (*CreateContainerFromTemplateResponse, error)
+	ConfigureContainerSSL(context.Context, *ConfigureContainerSSLRequest) (*ConfigureContainerSSLResponse, error)
+	GetContainerSSLStatus(context.Context, *GetContainerSSLStatusRequest) (*GetContainerSSLStatusResponse, error)
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -562,6 +588,12 @@ func (UnimplementedAgentServiceServer) PruneVolumes(context.Context, *PruneVolum
 }
 func (UnimplementedAgentServiceServer) CreateContainerFromTemplate(context.Context, *CreateContainerFromTemplateRequest) (*CreateContainerFromTemplateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateContainerFromTemplate not implemented")
+}
+func (UnimplementedAgentServiceServer) ConfigureContainerSSL(context.Context, *ConfigureContainerSSLRequest) (*ConfigureContainerSSLResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConfigureContainerSSL not implemented")
+}
+func (UnimplementedAgentServiceServer) GetContainerSSLStatus(context.Context, *GetContainerSSLStatusRequest) (*GetContainerSSLStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetContainerSSLStatus not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -1081,6 +1113,42 @@ func _AgentService_CreateContainerFromTemplate_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ConfigureContainerSSL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfigureContainerSSLRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ConfigureContainerSSL(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ConfigureContainerSSL_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ConfigureContainerSSL(ctx, req.(*ConfigureContainerSSLRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_GetContainerSSLStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetContainerSSLStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).GetContainerSSLStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_GetContainerSSLStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).GetContainerSSLStatus(ctx, req.(*GetContainerSSLStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1187,6 +1255,14 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateContainerFromTemplate",
 			Handler:    _AgentService_CreateContainerFromTemplate_Handler,
+		},
+		{
+			MethodName: "ConfigureContainerSSL",
+			Handler:    _AgentService_ConfigureContainerSSL_Handler,
+		},
+		{
+			MethodName: "GetContainerSSLStatus",
+			Handler:    _AgentService_GetContainerSSLStatus_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

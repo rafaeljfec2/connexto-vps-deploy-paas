@@ -83,6 +83,47 @@ export const migrationApi = {
     ),
 };
 
+export interface SSLStatusResult {
+  readonly sslEnabled: boolean;
+  readonly tlsVersion?: string;
+  readonly cipher?: string;
+  readonly certificateExpiry?: string;
+  readonly connectionString?: string;
+}
+
+export interface ConfigureSSLInput {
+  readonly serverId: string;
+  readonly databaseType: string;
+  readonly databaseUser: string;
+  readonly databaseName: string;
+}
+
+export const containerSSLApi = {
+  configure: (
+    containerId: string,
+    input: ConfigureSSLInput,
+  ): Promise<SSLStatusResult> =>
+    fetchApi<SSLStatusResult>(`${API_BASE}/containers/${containerId}/ssl`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  getStatus: (
+    containerId: string,
+    params: {
+      serverId: string;
+      databaseType: string;
+      databaseUser: string;
+      databaseName: string;
+    },
+  ): Promise<SSLStatusResult> => {
+    const qs = new URLSearchParams(params).toString();
+    return fetchApi<SSLStatusResult>(
+      `${API_BASE}/containers/${containerId}/ssl?${qs}`,
+    );
+  },
+};
+
 export const templatesApi = {
   list: (category?: string): Promise<readonly Template[]> => {
     const url = category

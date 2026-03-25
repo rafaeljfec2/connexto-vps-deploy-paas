@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { ROUTES } from "@/constants/routes";
 import { useAuth } from "@/contexts/auth-context";
@@ -7,10 +7,17 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { ServerSelector } from "@/components/server-selector";
 import { ContainerList, CreateContainerDialog } from "@/features/containers";
+import { useServers } from "@/features/servers/hooks/use-servers";
 
 export function ContainersPage() {
   const { isAdmin } = useAuth();
   const [serverId, setServerId] = useState<string | undefined>();
+  const { data: servers } = useServers();
+
+  const serverHost = useMemo(() => {
+    if (!serverId || !servers) return undefined;
+    return servers.find((s) => s.id === serverId)?.host;
+  }, [serverId, servers]);
 
   const effectiveServerId = !isAdmin && !serverId ? "__pending__" : serverId;
 
@@ -34,7 +41,7 @@ export function ContainersPage() {
         }
       />
       {effectiveServerId !== "__pending__" && (
-        <ContainerList serverId={serverId} />
+        <ContainerList serverId={serverId} serverHost={serverHost} />
       )}
     </div>
   );

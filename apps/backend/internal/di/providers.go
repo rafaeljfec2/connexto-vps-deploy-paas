@@ -70,4 +70,5 @@ type Application struct {
 	SystemHandler          *handler.SystemHandler
 	AgentDownloadHandler   *agentdownload.Handler
 	CleanupHandler         *handler.CleanupHandler
+	ContainerSSLHandler    *handler.ContainerSSLHandler
 }

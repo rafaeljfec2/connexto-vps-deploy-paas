@@ -12,9 +12,13 @@ type SortKey = "name" | "state" | "image" | "ip" | "ports" | "resources";
 
 interface ContainerListProps {
   readonly serverId?: string;
+  readonly serverHost?: string;
 }
 
-export function ContainerList({ serverId }: ContainerListProps = {}) {
+export function ContainerList({
+  serverId,
+  serverHost,
+}: ContainerListProps = {}) {
   const [filter, setFilter] = useState<ContainerFilter>("all");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -182,6 +186,7 @@ export function ContainerList({ serverId }: ContainerListProps = {}) {
                     key={container.id}
                     container={container}
                     serverId={serverId}
+                    serverHost={serverHost}
                   />
                 ))}
               </tbody>

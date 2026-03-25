@@ -9,6 +9,7 @@ import {
   Play,
   RefreshCw,
   ScrollText,
+  ShieldCheck,
   Square,
   Terminal,
   Trash2,
@@ -48,6 +49,7 @@ import {
 import { ContainerActions } from "./container-actions";
 import { ContainerConsoleDialog } from "./container-console-dialog";
 import { ContainerLogsDialog } from "./container-logs-dialog";
+import { ContainerSSLDialog, isDatabaseImage } from "./container-ssl-dialog";
 import {
   ContainerHealthBadge,
   ContainerStateBadge,
@@ -56,6 +58,7 @@ import {
 interface ContainerCardProps {
   readonly container: Container;
   readonly serverId?: string;
+  readonly serverHost?: string;
 }
 
 function formatPorts(ports: Container["ports"]): string {
@@ -77,11 +80,18 @@ function formatContainerCreated(created: string): string {
   });
 }
 
-export function ContainerCard({ container, serverId }: ContainerCardProps) {
+export function ContainerCard({
+  container,
+  serverId,
+  serverHost,
+}: ContainerCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showLogsDialog, setShowLogsDialog] = useState(false);
   const [showConsoleDialog, setShowConsoleDialog] = useState(false);
+  const [showSSLDialog, setShowSSLDialog] = useState(false);
   const [expanded, setExpanded] = useState(false);
+
+  const canConfigureSSL = Boolean(serverId) && isDatabaseImage(container.image);
 
   const startContainer = useStartContainer();
   const stopContainer = useStopContainer();
@@ -304,6 +314,12 @@ export function ContainerCard({ container, serverId }: ContainerCardProps) {
                   Open Console
                 </DropdownMenuItem>
               )}
+              {canConfigureSSL && (
+                <DropdownMenuItem onClick={() => setShowSSLDialog(true)}>
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Configure SSL
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => window.open(dockerHubUrl, "_blank")}
@@ -363,6 +379,21 @@ export function ContainerCard({ container, serverId }: ContainerCardProps) {
         open={showConsoleDialog}
         onOpenChange={setShowConsoleDialog}
       />
+
+      {canConfigureSSL && serverId && serverHost && (
+        <ContainerSSLDialog
+          containerId={container.id}
+          containerName={container.name}
+          containerImage={container.image}
+          serverId={serverId}
+          serverHost={serverHost}
+          containerPort={
+            container.ports?.find((p) => (p.publicPort ?? 0) > 0)?.publicPort
+          }
+          open={showSSLDialog}
+          onOpenChange={setShowSSLDialog}
+        />
+      )}
 
       {expanded && hasDetails && (
         <tr className="border-b border-border bg-muted/30">

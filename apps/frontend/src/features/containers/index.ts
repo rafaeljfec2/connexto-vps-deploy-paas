@@ -11,5 +11,9 @@ export {
   ContainerHealthBadge,
   ContainerStateBadge,
 } from "./components/container-state-badge";
+export {
+  ContainerSSLDialog,
+  isDatabaseImage,
+} from "./components/container-ssl-dialog";
 export { CreateContainerDialog } from "./components/create-container-dialog";
 export * from "./hooks/use-containers";

@@ -17,6 +17,7 @@ import {
 import {
   certificatesApi,
   cloudflareApi,
+  containerSSLApi,
   migrationApi,
   templatesApi,
 } from "./infrastructure";
@@ -38,6 +39,7 @@ export type {
   DockerVolumeInfo,
   PruneResponse,
 } from "./docker";
+export type { ConfigureSSLInput, SSLStatusResult } from "./infrastructure";
 
 export { API_BASE, API_URL } from "./client";
 
@@ -62,4 +64,5 @@ export const api = {
   templates: templatesApi,
   system: systemApi,
   cleanup: cleanupApi,
+  containerSSL: containerSSLApi,
 } as const;

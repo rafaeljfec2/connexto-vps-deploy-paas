@@ -5,6 +5,7 @@ import { REFETCH_INTERVALS } from "@/constants/query-config";
 import {
   Box,
   HardDrive,
+  LayoutTemplate,
   Monitor,
   RefreshCw,
   Server as ServerIcon,
@@ -30,6 +31,7 @@ import {
 } from "@/features/servers/components/server-details";
 import { useServerStats } from "@/features/servers/hooks/use-server-stats";
 import { useServer } from "@/features/servers/hooks/use-servers";
+import { TemplateList } from "@/features/templates";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { Server } from "@/types";
@@ -173,6 +175,10 @@ export function ServerDetailsPage() {
             <Box className="h-3.5 w-3.5 mr-1.5" />
             Containers
           </TabsTrigger>
+          <TabsTrigger value="templates">
+            <LayoutTemplate className="h-3.5 w-3.5 mr-1.5" />
+            Templates
+          </TabsTrigger>
           <TabsTrigger value="images">
             <HardDrive className="h-3.5 w-3.5 mr-1.5" />
             Images
@@ -203,6 +209,10 @@ export function ServerDetailsPage() {
 
         <TabsContent value="containers">
           <ContainerList serverId={server.id} />
+        </TabsContent>
+
+        <TabsContent value="templates">
+          <TemplateList serverId={server.id} />
         </TabsContent>
 
         <TabsContent value="images">

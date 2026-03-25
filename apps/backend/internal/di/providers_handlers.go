@@ -57,6 +57,7 @@ var HandlerSet = wire.NewSet(
 	ProvideServerHandlerAgentDeps,
 	ProvideServerHandler,
 	ProvideCleanupHandler,
+	ProvideContainerSSLHandler,
 )
 
 func ProvideHealthHandler() *handler.HealthHandler {
@@ -299,6 +300,20 @@ func ProvideServerHandler(
 		appService,
 		logger,
 	)
+}
+
+func ProvideContainerSSLHandler(
+	serverRepo domain.ServerRepository,
+	agentClient *agentclient.AgentClient,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *handler.ContainerSSLHandler {
+	return handler.NewContainerSSLHandler(handler.ContainerSSLHandlerConfig{
+		AgentClient: agentClient,
+		ServerRepo:  serverRepo,
+		AgentPort:   cfg.GRPC.AgentPort,
+		Logger:      logger,
+	})
 }
 
 func ProvideCleanupHandler(
