@@ -193,12 +193,7 @@ func (h *AppAdminHandler) GetAppConfig(c *fiber.Ctx) error {
 
 	var volumes []VolumeConfigResponse
 	for _, v := range config.Volumes {
-		volumes = append(volumes, VolumeConfigResponse{
-			Name:     v.Name,
-			Source:   v.Source,
-			Target:   v.Target,
-			ReadOnly: v.ReadOnly,
-		})
+		volumes = append(volumes, VolumeConfigResponse(v))
 	}
 
 	return response.OK(c, AppConfigResponse{

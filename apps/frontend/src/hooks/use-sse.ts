@@ -35,11 +35,14 @@ function handleDeployEvent(qc: QueryClient, event: SSEEvent) {
   qc.invalidateQueries({ queryKey: ["app-health", event.appId] });
 
   const status = deployStatusFromEvent(event.type);
+  const isTerminal = event.type === "SUCCESS" || event.type === "FAILED";
+
+  const current = qc.getQueryData<Deployment[]>(["deployments", event.appId]);
+  const deployInCache = current?.some((d) => d.id === event.deployId) ?? false;
 
   qc.setQueryData<Deployment[]>(["deployments", event.appId], (old) => {
     if (!old) return old;
-    const exists = old.some((d) => d.id === event.deployId);
-    if (!exists) return old;
+    if (!old.some((d) => d.id === event.deployId)) return old;
 
     return old.map((deploy) => {
       if (deploy.id !== event.deployId) return deploy;
@@ -54,7 +57,9 @@ function handleDeployEvent(qc: QueryClient, event: SSEEvent) {
     });
   });
 
-  qc.invalidateQueries({ queryKey: ["deployments", event.appId] });
+  if (isTerminal || !deployInCache) {
+    qc.invalidateQueries({ queryKey: ["deployments", event.appId] });
+  }
 
   qc.setQueryData<App[]>(["apps"], (old) => {
     if (!old) return old;

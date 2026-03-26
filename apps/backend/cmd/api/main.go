@@ -74,7 +74,6 @@ func processEvent(app *di.Application, event engine.DeployEvent) {
 	case engine.EventTypeRunning:
 		app.SSEHandler.EmitDeployRunning(event.DeployID, event.AppID)
 		app.NotificationService.NotifyDeployRunning(event.DeployID, event.AppID)
-		app.SSEHandler.EmitInvalidate("deployments")
 	case engine.EventTypeSuccess:
 		app.SSEHandler.EmitDeploySuccess(event.DeployID, event.AppID)
 		app.NotificationService.NotifyDeploySuccess(event.DeployID, event.AppID)

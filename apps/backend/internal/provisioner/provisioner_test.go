@@ -1,7 +1,7 @@
 package provisioner
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"log/slog"
 	"strings"
@@ -197,12 +197,12 @@ func setupDockerMock(t *testing.T, dockerInstalled bool, daemonActive bool) *com
 	if dockerInstalled {
 		mock.setResponse(cmdDockerVersion, mockDockerVersionOut)
 	} else {
-		mock.setError(cmdDockerVersion, fmt.Errorf(errNotFound))
+		mock.setError(cmdDockerVersion, errors.New(errNotFound))
 	}
 	if daemonActive {
 		mock.setResponse(cmdSystemctlIsActive, "active")
 	} else {
-		mock.setError(cmdSystemctlIsActive, fmt.Errorf("inactive"))
+		mock.setError(cmdSystemctlIsActive, errors.New("inactive"))
 	}
 	return mock
 }
@@ -281,8 +281,8 @@ func TestEnsureDockerPlugins(t *testing.T) {
 
 	t.Run("NeitherInstalledInstallsBoth", func(t *testing.T) {
 		mock := newCommandMock()
-		mock.setError(cmdDockerComposeVersion, fmt.Errorf(errNotFound))
-		mock.setError(cmdDockerBuildxVersion, fmt.Errorf(errNotFound))
+		mock.setError(cmdDockerComposeVersion, errors.New(errNotFound))
+		mock.setError(cmdDockerBuildxVersion, errors.New(errNotFound))
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
@@ -295,7 +295,7 @@ func TestEnsureDockerPlugins(t *testing.T) {
 
 	t.Run("OnlyComposeMissing", func(t *testing.T) {
 		mock := newCommandMock()
-		mock.setError(cmdDockerComposeVersion, fmt.Errorf(errNotFound))
+		mock.setError(cmdDockerComposeVersion, errors.New(errNotFound))
 		mock.setResponse(cmdDockerBuildxVersion, "github.com/docker/buildx v0.12.0")
 		defer mock.install(t)()
 
@@ -312,8 +312,8 @@ func TestEnsureDockerPlugins(t *testing.T) {
 
 	t.Run("ComposeInstallFailureIsCritical", func(t *testing.T) {
 		mock := newCommandMock()
-		mock.setError(cmdDockerComposeVersion, fmt.Errorf(errNotFound))
-		mock.setError(cmdComposePlugin, fmt.Errorf("apt-get failed"))
+		mock.setError(cmdDockerComposeVersion, errors.New(errNotFound))
+		mock.setError(cmdComposePlugin, errors.New("apt-get failed"))
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
@@ -326,8 +326,8 @@ func TestEnsureDockerPlugins(t *testing.T) {
 	t.Run("OnlyBuildxFailureIsNonCritical", func(t *testing.T) {
 		mock := newCommandMock()
 		mock.setResponse(cmdDockerComposeVersion, "Docker Compose version v2.24.0")
-		mock.setError(cmdDockerBuildxVersion, fmt.Errorf(errNotFound))
-		mock.setError(cmdBuildxPlugin, fmt.Errorf("apt-get failed"))
+		mock.setError(cmdDockerBuildxVersion, errors.New(errNotFound))
+		mock.setError(cmdBuildxPlugin, errors.New("apt-get failed"))
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
@@ -351,7 +351,7 @@ func TestProvisionDockerNetwork(t *testing.T) {
 
 	t.Run("NotExistsCreatesIt", func(t *testing.T) {
 		mock := newCommandMock()
-		mock.setError(cmdDockerNetworkInspct, fmt.Errorf(errNotFound))
+		mock.setError(cmdDockerNetworkInspct, errors.New(errNotFound))
 		cleanup := mock.install(t)
 		defer cleanup()
 
@@ -371,7 +371,7 @@ func setupTraefikMock(t *testing.T, running bool, image string) *commandMock {
 		mock.setResponse(mockKeyStateRunning, "true")
 		mock.setResponse(mockKeyConfigImage, image)
 	} else {
-		mock.setError(mockKeyStateRunning, fmt.Errorf(errNotFound))
+		mock.setError(mockKeyStateRunning, errors.New(errNotFound))
 	}
 	return mock
 }
