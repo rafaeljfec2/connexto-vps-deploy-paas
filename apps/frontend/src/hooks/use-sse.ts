@@ -15,10 +15,44 @@ import type {
   ServerStats,
 } from "@/types";
 
+function deployStatusFromEvent(type: string): string | undefined {
+  switch (type) {
+    case "RUNNING":
+      return "running";
+    case "SUCCESS":
+      return "success";
+    case "FAILED":
+      return "failed";
+    default:
+      return undefined;
+  }
+}
+
 function handleDeployEvent(qc: QueryClient, event: SSEEvent) {
   qc.invalidateQueries({ queryKey: ["apps"] });
   qc.invalidateQueries({ queryKey: ["app", event.appId] });
   qc.invalidateQueries({ queryKey: ["app-health", event.appId] });
+
+  const status = deployStatusFromEvent(event.type);
+
+  qc.setQueryData<Deployment[]>(["deployments", event.appId], (old) => {
+    if (!old) return old;
+    const exists = old.some((d) => d.id === event.deployId);
+    if (!exists) return old;
+
+    return old.map((deploy) => {
+      if (deploy.id !== event.deployId) return deploy;
+      return {
+        ...deploy,
+        ...(status ? { status } : {}),
+        ...(event.type === "SUCCESS" ? { finishedAt: event.timestamp } : {}),
+        ...(event.type === "FAILED"
+          ? { finishedAt: event.timestamp, errorMessage: event.message }
+          : {}),
+      };
+    });
+  });
+
   qc.invalidateQueries({ queryKey: ["deployments", event.appId] });
 
   qc.setQueryData<App[]>(["apps"], (old) => {
@@ -37,6 +71,13 @@ function handleDeployEvent(qc: QueryClient, event: SSEEvent) {
 }
 
 function handleLogEvent(qc: QueryClient, event: SSEEvent) {
+  const current = qc.getQueryData<Deployment[]>(["deployments", event.appId]);
+
+  if (!current?.some((d) => d.id === event.deployId)) {
+    qc.invalidateQueries({ queryKey: ["deployments", event.appId] });
+    return;
+  }
+
   qc.setQueryData<Deployment[]>(["deployments", event.appId], (old) => {
     if (!old) return old;
     return old.map((deploy) => {

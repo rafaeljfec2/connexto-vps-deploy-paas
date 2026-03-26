@@ -74,16 +74,19 @@ func processEvent(app *di.Application, event engine.DeployEvent) {
 	case engine.EventTypeRunning:
 		app.SSEHandler.EmitDeployRunning(event.DeployID, event.AppID)
 		app.NotificationService.NotifyDeployRunning(event.DeployID, event.AppID)
+		app.SSEHandler.EmitInvalidate("deployments")
 	case engine.EventTypeSuccess:
 		app.SSEHandler.EmitDeploySuccess(event.DeployID, event.AppID)
 		app.NotificationService.NotifyDeploySuccess(event.DeployID, event.AppID)
 		app.SSEHandler.EmitInvalidate("containers")
 		app.SSEHandler.EmitInvalidate("images")
+		app.SSEHandler.EmitInvalidate("deployments")
 	case engine.EventTypeFailed:
 		app.SSEHandler.EmitDeployFailed(event.DeployID, event.AppID, event.Message)
 		app.NotificationService.NotifyDeployFailed(event.DeployID, event.AppID, event.Message)
 		app.SSEHandler.EmitInvalidate("containers")
 		app.SSEHandler.EmitInvalidate("images")
+		app.SSEHandler.EmitInvalidate("deployments")
 	case engine.EventTypeLog:
 		app.SSEHandler.EmitLog(event.DeployID, event.AppID, event.Message)
 	case engine.EventTypeHealth:
