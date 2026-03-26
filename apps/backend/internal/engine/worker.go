@@ -367,7 +367,6 @@ func (w *Worker) buildDocker(ctx context.Context, deploy *domain.Deployment, app
 	}()
 
 	err = w.deps.Docker.Build(ctx, buildContext, dockerfile, imageTag, output)
-	close(output)
 
 	if err != nil {
 		return err
@@ -411,7 +410,6 @@ func (w *Worker) deployContainer(ctx context.Context, deploy *domain.Deployment,
 	}()
 
 	err := w.deps.Docker.ComposeUp(ctx, appDir, app.ID, output)
-	close(output)
 
 	if err != nil {
 		return err
