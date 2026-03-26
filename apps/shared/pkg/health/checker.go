@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -27,7 +28,7 @@ func NewChecker(timeout time.Duration, retries int, interval time.Duration, logg
 		tlsClient: &http.Client{
 			Timeout: 10 * time.Second,
 			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // health check against self-signed certs
+				TLSClientConfig: newHealthCheckTLSConfig(),
 			},
 		},
 		logger:   logger,
@@ -142,6 +143,32 @@ func (h *Checker) CheckWithBackoff(ctx context.Context, url string) error {
 		if backoff > 30*time.Second {
 			backoff = 30 * time.Second
 		}
+	}
+}
+
+func newHealthCheckTLSConfig() *tls.Config {
+	rootCAs, _ := x509.SystemCertPool()
+	if rootCAs == nil {
+		rootCAs = x509.NewCertPool()
+	}
+
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    rootCAs,
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			if len(rawCerts) == 0 {
+				return fmt.Errorf("health check: no TLS certificate presented")
+			}
+			cert, err := x509.ParseCertificate(rawCerts[0])
+			if err != nil {
+				return fmt.Errorf("health check: invalid certificate: %w", err)
+			}
+			now := time.Now()
+			if now.Before(cert.NotBefore) || now.After(cert.NotAfter) {
+				return fmt.Errorf("health check: certificate expired (notBefore=%v, notAfter=%v)", cert.NotBefore, cert.NotAfter)
+			}
+			return nil
+		},
 	}
 }
 

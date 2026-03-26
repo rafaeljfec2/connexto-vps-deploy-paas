@@ -153,6 +153,7 @@ func ProvideContainerHandler(
 	agentClient *agentclient.AgentClient,
 	cfg *config.Config,
 	logger *slog.Logger,
+	sseHandler *handler.SSEHandler,
 ) *handler.ContainerHandler {
 	return handler.NewContainerHandler(handler.ContainerHandlerConfig{
 		Docker:      eng.Docker(),
@@ -160,6 +161,7 @@ func ProvideContainerHandler(
 		ServerRepo:  serverRepo,
 		AgentPort:   cfg.GRPC.AgentPort,
 		Logger:      logger,
+		SSEHandler:  sseHandler,
 	})
 }
 
@@ -199,6 +201,7 @@ func ProvideImageHandler(
 	agentClient *agentclient.AgentClient,
 	cfg *config.Config,
 	logger *slog.Logger,
+	sseHandler *handler.SSEHandler,
 ) *handler.ImageHandler {
 	return handler.NewImageHandler(handler.ImageHandlerConfig{
 		Docker:      eng.Docker(),
@@ -206,6 +209,7 @@ func ProvideImageHandler(
 		ServerRepo:  serverRepo,
 		AgentPort:   cfg.GRPC.AgentPort,
 		Logger:      logger,
+		SSEHandler:  sseHandler,
 	})
 }
 

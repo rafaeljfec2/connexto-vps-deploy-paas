@@ -6,8 +6,10 @@ import (
 
 	"github.com/google/wire"
 
+	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/agentdownload"
 	"github.com/paasdeploy/backend/internal/config"
+	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/ghclient"
 	"github.com/paasdeploy/backend/internal/grpcserver"
@@ -71,4 +73,6 @@ type Application struct {
 	AgentDownloadHandler   *agentdownload.Handler
 	CleanupHandler         *handler.CleanupHandler
 	ContainerSSLHandler    *handler.ContainerSSLHandler
+	ServerRepo             domain.ServerRepository
+	AgentClient            *agentclient.AgentClient
 }

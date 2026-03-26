@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -36,8 +37,11 @@ func main() {
 	startGrpcServer(app)
 	registerHandlers(app)
 	registerProtectedRoutes(app)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	monitors := startMonitors(ctx, app)
 	startServer(app)
-	waitForShutdown(app)
+	waitForShutdown(app, cancel, monitors)
 }
 
 func runMigrationsFirst() error {
@@ -73,9 +77,13 @@ func processEvent(app *di.Application, event engine.DeployEvent) {
 	case engine.EventTypeSuccess:
 		app.SSEHandler.EmitDeploySuccess(event.DeployID, event.AppID)
 		app.NotificationService.NotifyDeploySuccess(event.DeployID, event.AppID)
+		app.SSEHandler.EmitInvalidate("containers")
+		app.SSEHandler.EmitInvalidate("images")
 	case engine.EventTypeFailed:
 		app.SSEHandler.EmitDeployFailed(event.DeployID, event.AppID, event.Message)
 		app.NotificationService.NotifyDeployFailed(event.DeployID, event.AppID, event.Message)
+		app.SSEHandler.EmitInvalidate("containers")
+		app.SSEHandler.EmitInvalidate("images")
 	case engine.EventTypeLog:
 		app.SSEHandler.EmitLog(event.DeployID, event.AppID, event.Message)
 	case engine.EventTypeHealth:
@@ -232,11 +240,70 @@ func startServer(app *di.Application) {
 	}()
 }
 
-func waitForShutdown(app *di.Application) {
+type sseBroadcastAdapter struct {
+	h *handler.SSEHandler
+}
+
+func (a *sseBroadcastAdapter) EmitSystemStats(stats engine.SystemStatsPayload) {
+	a.h.EmitSystemStats(handler.SSESystemStats{
+		SystemInfo:    stats.SystemInfo,
+		SystemMetrics: stats.SystemMetrics,
+	})
+}
+
+func (a *sseBroadcastAdapter) EmitServerStats(serverID string, stats engine.SystemStatsPayload) {
+	a.h.EmitServerStats(serverID, handler.SSESystemStats{
+		SystemInfo:    stats.SystemInfo,
+		SystemMetrics: stats.SystemMetrics,
+	})
+}
+
+func (a *sseBroadcastAdapter) EmitInvalidate(resource string) {
+	a.h.EmitInvalidate(resource)
+}
+
+func (a *sseBroadcastAdapter) EmitInvalidateForServer(serverID, resource string) {
+	a.h.EmitInvalidateForServer(serverID, resource)
+}
+
+type monitorGroup struct {
+	systemStats *engine.SystemStatsMonitor
+	serverStats *engine.ServerStatsMonitor
+}
+
+func startMonitors(ctx context.Context, app *di.Application) *monitorGroup {
+	emitter := &sseBroadcastAdapter{h: app.SSEHandler}
+	mg := &monitorGroup{}
+
+	mg.systemStats = engine.NewSystemStatsMonitor(emitter, app.Logger)
+	mg.systemStats.Start(ctx)
+
+	if app.Config.GRPC.Enabled && app.AgentClient != nil && app.Config.GRPC.AgentPort > 0 {
+		mg.serverStats = engine.NewServerStatsMonitor(
+			app.ServerRepo, app.AgentClient, app.Config.GRPC.AgentPort, emitter, app.Logger,
+		)
+		mg.serverStats.Start(ctx)
+	}
+
+	return mg
+}
+
+func (mg *monitorGroup) Stop() {
+	if mg.systemStats != nil {
+		mg.systemStats.Stop()
+	}
+	if mg.serverStats != nil {
+		mg.serverStats.Stop()
+	}
+}
+
+func waitForShutdown(app *di.Application, cancel context.CancelFunc, monitors *monitorGroup) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
+	cancel()
+	monitors.Stop()
 	app.Engine.Stop()
 
 	if err := app.Server.Shutdown(); err != nil {

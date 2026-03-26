@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { REFETCH_INTERVALS, STALE_TIMES } from "@/constants/query-config";
+import { STALE_TIMES } from "@/constants/query-config";
 import { api } from "@/services/api";
 import { SERVERS_QUERY_KEY } from "./use-servers";
 
@@ -9,6 +9,6 @@ export function useServerStats(serverId: string | undefined) {
     queryFn: () => api.servers.getStats(serverId!),
     enabled: Boolean(serverId),
     staleTime: STALE_TIMES.REALTIME,
-    refetchInterval: REFETCH_INTERVALS.STATS,
+    refetchOnWindowFocus: true,
   });
 }

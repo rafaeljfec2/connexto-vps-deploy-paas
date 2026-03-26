@@ -42,6 +42,10 @@
       "source.organizeImports": "explicit"
     }
   },
+  "go.goroot": "/home/rafael/sdk/go1.24.12",
+  "go.alternateTools": {
+    "go": "/home/rafael/sdk/go1.24.12/bin/go"
+  },
   "go.formatTool": "goimports",
   "go.lintOnSave": "workspace",
   "go.lintTool": "golangci-lint",

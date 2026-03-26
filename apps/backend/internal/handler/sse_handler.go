@@ -34,17 +34,24 @@ type SSEContainerStats struct {
 	PIDs          int     `json:"pids"`
 }
 
+type SSESystemStats struct {
+	SystemInfo    interface{} `json:"systemInfo"`
+	SystemMetrics interface{} `json:"systemMetrics"`
+}
+
 type SSEEvent struct {
-	Type      string             `json:"type"`
-	DeployID  string             `json:"deployId,omitempty"`
-	AppID     string             `json:"appId,omitempty"`
-	ServerID  string             `json:"serverId,omitempty"`
-	Step      string             `json:"step,omitempty"`
-	Status    string             `json:"status,omitempty"`
-	Message   string             `json:"message,omitempty"`
-	Health    *SSEHealthStatus   `json:"health,omitempty"`
-	Stats     *SSEContainerStats `json:"stats,omitempty"`
-	Timestamp time.Time          `json:"timestamp"`
+	Type        string             `json:"type"`
+	DeployID    string             `json:"deployId,omitempty"`
+	AppID       string             `json:"appId,omitempty"`
+	ServerID    string             `json:"serverId,omitempty"`
+	Step        string             `json:"step,omitempty"`
+	Status      string             `json:"status,omitempty"`
+	Message     string             `json:"message,omitempty"`
+	Health      *SSEHealthStatus   `json:"health,omitempty"`
+	Stats       *SSEContainerStats `json:"stats,omitempty"`
+	SystemStats *SSESystemStats    `json:"systemStats,omitempty"`
+	Resource    string             `json:"resource,omitempty"`
+	Timestamp   time.Time          `json:"timestamp"`
 }
 
 type SSEHandler struct {
@@ -87,21 +94,7 @@ func (h *SSEHandler) Stream(c *fiber.Ctx) error {
 				continue
 			}
 
-			eventType := "deploy"
-			switch event.Type {
-			case "LOG":
-				eventType = "log"
-			case "HEALTH":
-				eventType = "health"
-			case "STATS":
-				eventType = "stats"
-			case "PROVISION_STEP", "PROVISION_LOG", "PROVISION_COMPLETED", "PROVISION_FAILED":
-				eventType = "provision"
-			case "AGENT_UPDATE_STEP":
-				eventType = "agent_update"
-			}
-
-			fmt.Fprintf(w, "event: %s\n", eventType)
+			fmt.Fprintf(w, "event: %s\n", sseEventName(event.Type))
 			fmt.Fprintf(w, "data: %s\n\n", data)
 
 			if err := w.Flush(); err != nil {
@@ -288,24 +281,63 @@ func (h *SSEHandler) sendRecentEvents(w *bufio.Writer) {
 			continue
 		}
 
-		eventType := "deploy"
-		switch event.Type {
-		case "LOG":
-			eventType = "log"
-		case "HEALTH":
-			eventType = "health"
-		case "STATS":
-			eventType = "stats"
-		case "PROVISION_STEP", "PROVISION_LOG", "PROVISION_COMPLETED", "PROVISION_FAILED":
-			eventType = "provision"
-		case "AGENT_UPDATE_STEP":
-			eventType = "agent_update"
-		}
-
-		fmt.Fprintf(w, "event: %s\n", eventType)
+		fmt.Fprintf(w, "event: %s\n", sseEventName(event.Type))
 		fmt.Fprintf(w, "data: %s\n\n", data)
 	}
 	w.Flush()
+}
+
+func sseEventName(eventType string) string {
+	switch eventType {
+	case "LOG":
+		return "log"
+	case "HEALTH":
+		return "health"
+	case "STATS":
+		return "stats"
+	case "SYSTEM_STATS":
+		return "system_stats"
+	case "SERVER_STATS":
+		return "server_stats"
+	case "INVALIDATE":
+		return "invalidate"
+	case "PROVISION_STEP", "PROVISION_LOG", "PROVISION_COMPLETED", "PROVISION_FAILED":
+		return "provision"
+	case "AGENT_UPDATE_STEP":
+		return "agent_update"
+	default:
+		return "deploy"
+	}
+}
+
+func (h *SSEHandler) EmitSystemStats(stats SSESystemStats) {
+	h.Emit(SSEEvent{
+		Type:        "SYSTEM_STATS",
+		SystemStats: &stats,
+	})
+}
+
+func (h *SSEHandler) EmitServerStats(serverID string, stats SSESystemStats) {
+	h.Emit(SSEEvent{
+		Type:        "SERVER_STATS",
+		ServerID:    serverID,
+		SystemStats: &stats,
+	})
+}
+
+func (h *SSEHandler) EmitInvalidate(resource string) {
+	h.Emit(SSEEvent{
+		Type:     "INVALIDATE",
+		Resource: resource,
+	})
+}
+
+func (h *SSEHandler) EmitInvalidateForServer(serverID, resource string) {
+	h.Emit(SSEEvent{
+		Type:     "INVALIDATE",
+		ServerID: serverID,
+		Resource: resource,
+	})
 }
 
 func (h *SSEHandler) ClientCount() int {

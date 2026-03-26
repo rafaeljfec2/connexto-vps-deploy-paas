@@ -10,6 +10,9 @@ const SSE_EVENT_NAMES = [
   "log",
   "health",
   "stats",
+  "system_stats",
+  "server_stats",
+  "invalidate",
   "provision",
   "agent_update",
 ] as const;

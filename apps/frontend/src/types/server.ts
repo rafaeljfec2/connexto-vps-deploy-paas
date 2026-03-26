@@ -14,6 +14,9 @@ export type SSEEventType =
   | "LOG"
   | "HEALTH"
   | "STATS"
+  | "SYSTEM_STATS"
+  | "SERVER_STATS"
+  | "INVALIDATE"
   | "PROVISION_STEP"
   | "PROVISION_LOG"
   | "PROVISION_COMPLETED"
@@ -40,6 +43,8 @@ export interface SSEEvent {
   readonly message?: string;
   readonly health?: HealthStatus;
   readonly stats?: ContainerStats;
+  readonly systemStats?: ServerStats;
+  readonly resource?: string;
   readonly timestamp: string;
 }
 

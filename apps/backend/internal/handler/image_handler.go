@@ -18,6 +18,7 @@ type ImageHandler struct {
 	serverRepo  domain.ServerRepository
 	agentPort   int
 	logger      *slog.Logger
+	sseHandler  *SSEHandler
 }
 
 const errListImages = "Failed to list images"
@@ -28,6 +29,7 @@ type ImageHandlerConfig struct {
 	ServerRepo  domain.ServerRepository
 	AgentPort   int
 	Logger      *slog.Logger
+	SSEHandler  *SSEHandler
 }
 
 func NewImageHandler(cfg ImageHandlerConfig) *ImageHandler {
@@ -37,6 +39,13 @@ func NewImageHandler(cfg ImageHandlerConfig) *ImageHandler {
 		serverRepo:  cfg.ServerRepo,
 		agentPort:   cfg.AgentPort,
 		logger:      cfg.Logger,
+		sseHandler:  cfg.SSEHandler,
+	}
+}
+
+func (h *ImageHandler) invalidateImages() {
+	if h.sseHandler != nil {
+		h.sseHandler.EmitInvalidate("images")
 	}
 }
 
@@ -179,6 +188,7 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 			h.logger.Error("Failed to remove remote image", "target", target, "error", err)
 			return h.imageRemoveError(c, err)
 		}
+		h.invalidateImages()
 		return response.NoContent(c)
 	}
 
@@ -187,6 +197,7 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 		return h.imageRemoveError(c, err)
 	}
 
+	h.invalidateImages()
 	return response.NoContent(c)
 }
 
@@ -220,6 +231,7 @@ func (h *ImageHandler) PruneImages(c *fiber.Ctx) error {
 			h.logger.Error("Failed to prune remote images", "serverId", serverID, "error", err)
 			return response.ServerError(c, fiber.StatusInternalServerError, MsgFailedPruneImages)
 		}
+		h.invalidateImages()
 		return response.OK(c, PruneResult{
 			ImagesDeleted:  int(pruneResp.ImagesRemoved),
 			SpaceReclaimed: pruneResp.SpaceReclaimedBytes,
@@ -232,6 +244,7 @@ func (h *ImageHandler) PruneImages(c *fiber.Ctx) error {
 		return response.ServerError(c, fiber.StatusInternalServerError, MsgFailedPruneImages)
 	}
 
+	h.invalidateImages()
 	return response.OK(c, PruneResult{
 		ImagesDeleted:  result.ImagesDeleted,
 		SpaceReclaimed: result.SpaceReclaimed,

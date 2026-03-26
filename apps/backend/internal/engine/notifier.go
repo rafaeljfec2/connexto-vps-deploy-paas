@@ -51,6 +51,18 @@ type Notifier interface {
 	EmitStats(appID string, stats StatsData)
 }
 
+type SystemStatsPayload struct {
+	SystemInfo    interface{} `json:"systemInfo"`
+	SystemMetrics interface{} `json:"systemMetrics"`
+}
+
+type BroadcastEmitter interface {
+	EmitSystemStats(stats SystemStatsPayload)
+	EmitServerStats(serverID string, stats SystemStatsPayload)
+	EmitInvalidate(resource string)
+	EmitInvalidateForServer(serverID, resource string)
+}
+
 type ChannelNotifier struct {
 	events chan DeployEvent
 }

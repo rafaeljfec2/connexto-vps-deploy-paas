@@ -1,4 +1,5 @@
 import { useCallback, useEffect } from "react";
+import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { STALE_TIMES } from "@/constants/query-config";
 import { applyAgentUpdateEvent } from "@/features/servers/agent-update-store";
@@ -11,7 +12,65 @@ import type {
   Deployment,
   HealthStatus,
   SSEEvent,
+  ServerStats,
 } from "@/types";
+
+function handleDeployEvent(qc: QueryClient, event: SSEEvent) {
+  qc.invalidateQueries({ queryKey: ["apps"] });
+  qc.invalidateQueries({ queryKey: ["app", event.appId] });
+  qc.invalidateQueries({ queryKey: ["app-health", event.appId] });
+  qc.invalidateQueries({ queryKey: ["deployments", event.appId] });
+
+  qc.setQueryData<App[]>(["apps"], (old) => {
+    if (!old) return old;
+    return old.map((app) => {
+      if (app.id === event.appId) {
+        return {
+          ...app,
+          lastDeployedAt:
+            event.type === "SUCCESS" ? event.timestamp : app.lastDeployedAt,
+        };
+      }
+      return app;
+    });
+  });
+}
+
+function handleLogEvent(qc: QueryClient, event: SSEEvent) {
+  qc.setQueryData<Deployment[]>(["deployments", event.appId], (old) => {
+    if (!old) return old;
+    return old.map((deploy) => {
+      if (deploy.id === event.deployId) {
+        return {
+          ...deploy,
+          logs: (deploy.logs ?? "") + (event.message ?? "") + "\n",
+        };
+      }
+      return deploy;
+    });
+  });
+}
+
+function handleProvisionEvent(qc: QueryClient, event: SSEEvent) {
+  if (!event.serverId) return;
+  applyProvisionEvent(event.serverId, event);
+
+  const isTerminal =
+    event.type === "PROVISION_COMPLETED" || event.type === "PROVISION_FAILED";
+  if (isTerminal) {
+    qc.invalidateQueries({ queryKey: ["servers"] });
+  }
+}
+
+function handleAgentUpdateEvent(qc: QueryClient, event: SSEEvent) {
+  if (!event.serverId) return;
+  applyAgentUpdateEvent(event.serverId, event);
+
+  if (event.step === "updated") {
+    qc.invalidateQueries({ queryKey: ["server", event.serverId] });
+    qc.invalidateQueries({ queryKey: ["servers"] });
+  }
+}
 
 export function useSSE() {
   const queryClient = useQueryClient();
@@ -22,48 +81,11 @@ export function useSSE() {
         case "RUNNING":
         case "SUCCESS":
         case "FAILED":
-          queryClient.invalidateQueries({ queryKey: ["apps"] });
-          queryClient.invalidateQueries({ queryKey: ["app", event.appId] });
-          queryClient.invalidateQueries({
-            queryKey: ["app-health", event.appId],
-          });
-          queryClient.invalidateQueries({
-            queryKey: ["deployments", event.appId],
-          });
-
-          queryClient.setQueryData<App[]>(["apps"], (old) => {
-            if (!old) return old;
-            return old.map((app) => {
-              if (app.id === event.appId) {
-                return {
-                  ...app,
-                  lastDeployedAt:
-                    event.type === "SUCCESS"
-                      ? event.timestamp
-                      : app.lastDeployedAt,
-                };
-              }
-              return app;
-            });
-          });
+          handleDeployEvent(queryClient, event);
           break;
 
         case "LOG":
-          queryClient.setQueryData<Deployment[]>(
-            ["deployments", event.appId],
-            (old) => {
-              if (!old) return old;
-              return old.map((deploy) => {
-                if (deploy.id === event.deployId) {
-                  return {
-                    ...deploy,
-                    logs: (deploy.logs ?? "") + (event.message ?? "") + "\n",
-                  };
-                }
-                return deploy;
-              });
-            },
-          );
+          handleLogEvent(queryClient, event);
           break;
 
         case "HEALTH":
@@ -84,32 +106,39 @@ export function useSSE() {
           }
           break;
 
-        case "PROVISION_STEP":
-        case "PROVISION_LOG":
-          if (event.serverId) {
-            applyProvisionEvent(event.serverId, event);
-          }
-          break;
-        case "PROVISION_COMPLETED":
-        case "PROVISION_FAILED":
-          if (event.serverId) {
-            applyProvisionEvent(event.serverId, event);
-            void queryClient.invalidateQueries({ queryKey: ["servers"] });
+        case "SYSTEM_STATS":
+          if (event.systemStats) {
+            queryClient.setQueryData<ServerStats>(
+              ["system", "stats"],
+              event.systemStats,
+            );
           }
           break;
 
-        case "AGENT_UPDATE_STEP":
-          if (event.serverId) {
-            applyAgentUpdateEvent(event.serverId, event);
-            if (event.step === "updated") {
-              void queryClient.invalidateQueries({
-                queryKey: ["server", event.serverId],
-              });
-              void queryClient.invalidateQueries({
-                queryKey: ["servers"],
-              });
-            }
+        case "SERVER_STATS":
+          if (event.systemStats && event.serverId) {
+            queryClient.setQueryData<ServerStats>(
+              ["servers", event.serverId, "stats"],
+              event.systemStats,
+            );
           }
+          break;
+
+        case "INVALIDATE":
+          if (event.resource) {
+            queryClient.invalidateQueries({ queryKey: [event.resource] });
+          }
+          break;
+
+        case "PROVISION_STEP":
+        case "PROVISION_LOG":
+        case "PROVISION_COMPLETED":
+        case "PROVISION_FAILED":
+          handleProvisionEvent(queryClient, event);
+          break;
+
+        case "AGENT_UPDATE_STEP":
+          handleAgentUpdateEvent(queryClient, event);
           break;
       }
     },

@@ -1,12 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { REFETCH_INTERVALS } from "@/constants/query-config";
 import { api } from "@/services/api";
 
 export function useImages(serverId?: string) {
   return useQuery({
     queryKey: ["images", serverId],
     queryFn: () => api.images.list(serverId),
-    refetchInterval: REFETCH_INTERVALS.SLOW,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -14,7 +13,7 @@ export function useDanglingImages() {
   return useQuery({
     queryKey: ["images", "dangling"],
     queryFn: () => api.images.listDangling(),
-    refetchInterval: REFETCH_INTERVALS.SLOW,
+    refetchOnWindowFocus: true,
   });
 }
 

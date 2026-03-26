@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { REFETCH_INTERVALS } from "@/constants/query-config";
 import {
   Box,
   HardDrive,
@@ -94,8 +93,7 @@ export function ServerDetailsPage() {
     queryKey: ["containers", id, "overview"],
     queryFn: () => api.containers.list(true, id),
     enabled: Boolean(id),
-    staleTime: REFETCH_INTERVALS.STATS,
-    refetchInterval: REFETCH_INTERVALS.SLOW,
+    refetchOnWindowFocus: true,
   });
 
   const containerCounts = useMemo(() => {

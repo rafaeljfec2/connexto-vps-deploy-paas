@@ -40,6 +40,7 @@ type ContainerHandler struct {
 	serverRepo  domain.ServerRepository
 	agentPort   int
 	logger      *slog.Logger
+	sseHandler  *SSEHandler
 }
 
 type ContainerHandlerConfig struct {
@@ -48,6 +49,7 @@ type ContainerHandlerConfig struct {
 	ServerRepo  domain.ServerRepository
 	AgentPort   int
 	Logger      *slog.Logger
+	SSEHandler  *SSEHandler
 }
 
 func NewContainerHandler(cfg ContainerHandlerConfig) *ContainerHandler {
@@ -57,6 +59,13 @@ func NewContainerHandler(cfg ContainerHandlerConfig) *ContainerHandler {
 		serverRepo:  cfg.ServerRepo,
 		agentPort:   cfg.AgentPort,
 		logger:      cfg.Logger,
+		sseHandler:  cfg.SSEHandler,
+	}
+}
+
+func (h *ContainerHandler) invalidateContainers() {
+	if h.sseHandler != nil {
+		h.sseHandler.EmitInvalidate("containers")
 	}
 }
 
@@ -282,6 +291,7 @@ func (h *ContainerHandler) CreateContainer(c *fiber.Ctx) error {
 		return response.OK(c, map[string]string{"id": containerID, "message": "Container created"})
 	}
 
+	h.invalidateContainers()
 	return response.Created(c, h.toContainerResponse(*container))
 }
 
@@ -302,6 +312,7 @@ func (h *ContainerHandler) StartContainer(c *fiber.Ctx) error {
 			h.logger.Error("Failed to start remote container", "id", id, "serverId", serverID, "error", err)
 			return response.ServerError(c, fiber.StatusInternalServerError, msgFailedStartContainer)
 		}
+		h.invalidateContainers()
 		return response.OK(c, map[string]string{"message": "Container started", "id": id})
 	}
 
@@ -310,6 +321,7 @@ func (h *ContainerHandler) StartContainer(c *fiber.Ctx) error {
 		return response.ServerError(c, fiber.StatusInternalServerError, msgFailedStartContainer)
 	}
 
+	h.invalidateContainers()
 	return response.OK(c, map[string]string{"message": "Container started", "id": id})
 }
 
@@ -330,6 +342,7 @@ func (h *ContainerHandler) StopContainer(c *fiber.Ctx) error {
 			h.logger.Error("Failed to stop remote container", "id", id, "serverId", serverID, "error", err)
 			return response.ServerError(c, fiber.StatusInternalServerError, msgFailedStopContainer)
 		}
+		h.invalidateContainers()
 		return response.OK(c, map[string]string{"message": "Container stopped", "id": id})
 	}
 
@@ -341,6 +354,7 @@ func (h *ContainerHandler) StopContainer(c *fiber.Ctx) error {
 		return response.ServerError(c, fiber.StatusInternalServerError, msgFailedStopContainer)
 	}
 
+	h.invalidateContainers()
 	return response.OK(c, map[string]string{"message": "Container stopped", "id": id})
 }
 
@@ -361,6 +375,7 @@ func (h *ContainerHandler) RestartContainer(c *fiber.Ctx) error {
 			h.logger.Error("Failed to restart remote container", "id", id, "serverId", serverID, "error", err)
 			return response.ServerError(c, fiber.StatusInternalServerError, msgFailedRestartContainer)
 		}
+		h.invalidateContainers()
 		return response.OK(c, map[string]string{"message": "Container restarted", "id": id})
 	}
 
@@ -372,6 +387,7 @@ func (h *ContainerHandler) RestartContainer(c *fiber.Ctx) error {
 		return response.ServerError(c, fiber.StatusInternalServerError, msgFailedRestartContainer)
 	}
 
+	h.invalidateContainers()
 	return response.OK(c, map[string]string{"message": "Container restarted", "id": id})
 }
 
@@ -490,6 +506,7 @@ func (h *ContainerHandler) RemoveContainer(c *fiber.Ctx) error {
 			h.logger.Error("Failed to remove remote container", "id", id, "serverId", serverID, "error", err)
 			return response.ServerError(c, fiber.StatusInternalServerError, msgFailedRemoveContainer)
 		}
+		h.invalidateContainers()
 		return response.NoContent(c)
 	}
 
@@ -498,6 +515,7 @@ func (h *ContainerHandler) RemoveContainer(c *fiber.Ctx) error {
 		return response.ServerError(c, fiber.StatusInternalServerError, msgFailedRemoveContainer)
 	}
 
+	h.invalidateContainers()
 	return response.NoContent(c)
 }
 
