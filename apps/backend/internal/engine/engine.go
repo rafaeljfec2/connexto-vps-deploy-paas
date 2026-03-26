@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -220,13 +221,22 @@ func (e *Engine) runWorkerLoop(worker *Worker) {
 		}
 
 		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					e.logger.Error("Worker panic recovered", "error", r, "workerId", worker.id)
-					e.dispatcher.MarkFailed(deploy.ID, "worker panic")
-				}
-				e.dispatcher.Release(app.ID)
-			}()
+		defer func() {
+			if r := recover(); r != nil {
+				stack := string(debug.Stack())
+				e.logger.Error("Worker panic recovered",
+					"error", r,
+					"workerId", worker.id,
+					"deployId", deploy.ID,
+					"appId", app.ID,
+					"stack", stack,
+				)
+				panicMsg := fmt.Sprintf("worker panic: %v", r)
+				e.dispatcher.MarkFailed(deploy.ID, panicMsg)
+				e.notifier.EmitDeployFailed(deploy.ID, app.ID, panicMsg)
+			}
+			e.dispatcher.Release(app.ID)
+		}()
 
 			ctx, cancel := context.WithTimeout(e.ctx, e.cfg.Deploy.Timeout)
 			defer cancel()
