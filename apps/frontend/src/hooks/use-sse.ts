@@ -9,13 +9,14 @@ import { sseClient } from "@/services/sse";
 import type {
   App,
   ContainerStats,
+  DeployStatus,
   Deployment,
   HealthStatus,
   SSEEvent,
   ServerStats,
 } from "@/types";
 
-function deployStatusFromEvent(type: string): string | undefined {
+function deployStatusFromEvent(type: string): DeployStatus | undefined {
   switch (type) {
     case "RUNNING":
       return "running";
