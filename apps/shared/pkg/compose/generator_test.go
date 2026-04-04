@@ -5,7 +5,10 @@ import (
 	"testing"
 )
 
-const testAppName = "test-app"
+const (
+	testAppName  = "test-app"
+	testImageTag = "test-app:latest"
+)
 
 func TestBuildVolumesYAMLEmpty(t *testing.T) {
 	svc, top := BuildVolumesYAML(nil)
@@ -100,7 +103,7 @@ func TestGenerateContentWithVolumes(t *testing.T) {
 
 	content := GenerateContent(GenerateParams{
 		AppName:  testAppName,
-		ImageTag: testAppName + ":latest",
+		ImageTag: testImageTag,
 		Config:   cfg,
 	})
 
@@ -130,7 +133,7 @@ func TestGenerateContentWithoutVolumes(t *testing.T) {
 
 	content := GenerateContent(GenerateParams{
 		AppName:  testAppName,
-		ImageTag: testAppName + ":latest",
+		ImageTag: testImageTag,
 		Config:   cfg,
 	})
 
@@ -143,6 +146,78 @@ func TestGenerateContentWithoutVolumes(t *testing.T) {
 	}
 	if volumeCount != 0 {
 		t.Errorf("generated compose without volumes should not contain volumes: sections, found %d", volumeCount)
+	}
+}
+
+func TestBuildPortMappingWithHostPort(t *testing.T) {
+	result := BuildPortMapping(3000, 3000)
+	expected := "127.0.0.1:3000:3000"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestBuildPortMappingWithDifferentPorts(t *testing.T) {
+	result := BuildPortMapping(8081, 3000)
+	expected := "127.0.0.1:8081:3000"
+	if result != expected {
+		t.Errorf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestBuildPortMappingWithoutHostPort(t *testing.T) {
+	result := BuildPortMapping(0, 3000)
+	if result != "" {
+		t.Errorf("expected empty string when hostPort is 0, got %q", result)
+	}
+}
+
+func TestGenerateContentWithHostPort(t *testing.T) {
+	cfg := &Config{
+		Name:     testAppName,
+		Port:     3000,
+		HostPort: 3000,
+	}
+	ApplyDefaults(cfg)
+
+	content := GenerateContent(GenerateParams{
+		AppName:  testAppName,
+		ImageTag: testImageTag,
+		Config:   cfg,
+	})
+
+	if !strings.Contains(content, "ports:") {
+		t.Error("generated compose with hostPort should contain ports section")
+	}
+	if !strings.Contains(content, "127.0.0.1:3000:3000") {
+		t.Error("generated compose should bind to 127.0.0.1")
+	}
+	if strings.Contains(content, "expose:") {
+		t.Error("generated compose with hostPort should not contain expose section")
+	}
+}
+
+func TestGenerateContentWithoutHostPort(t *testing.T) {
+	cfg := &Config{
+		Name: testAppName,
+		Port: 3000,
+	}
+	ApplyDefaults(cfg)
+
+	content := GenerateContent(GenerateParams{
+		AppName:  testAppName,
+		ImageTag: testImageTag,
+		Config:   cfg,
+	})
+
+	if strings.Contains(content, "ports:") {
+		t.Error("generated compose without hostPort should not contain ports section")
+	}
+	if !strings.Contains(content, "expose:") {
+		t.Error("generated compose without hostPort should contain expose section")
+	}
+	if !strings.Contains(content, "\"3000\"") {
+		t.Error("generated compose should expose container port 3000")
 	}
 }
 

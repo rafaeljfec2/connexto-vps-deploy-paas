@@ -42,6 +42,7 @@ func GenerateContent(params GenerateParams) string {
 	envYAML := BuildEnvVarsYAML(cfg, params.EnvVars)
 	labels := BuildLabelsYAML(params.AppName, params.Domains, cfg.Port)
 	portMapping := BuildPortMapping(cfg.HostPort, cfg.Port)
+	portsSection := buildPortsSection(portMapping, cfg.Port)
 	healthCmd := BuildHealthCheckCommandTLS(cfg.Runtime, cfg.Port, cfg.Healthcheck.Path, cfg.Healthcheck.TLS)
 	serviceVolumes, topLevelVolumes := BuildVolumesYAML(cfg.Volumes)
 
@@ -51,8 +52,7 @@ func GenerateContent(params GenerateParams) string {
 		"    image: %s\n"+
 		"    container_name: %s\n"+
 		"    restart: unless-stopped\n"+
-		"    ports:\n"+
-		"      - \"%s\"\n"+
+		"%s"+
 		"%s"+
 		"%s"+
 		"%s"+
@@ -71,7 +71,8 @@ func GenerateContent(params GenerateParams) string {
 		"          cpus: '%s'\n"+
 		"    networks:\n"+
 		"      - paasdeploy\n\n",
-		params.AppName, params.ImageTag, params.AppName, portMapping,
+		params.AppName, params.ImageTag, params.AppName,
+		portsSection,
 		envYAML, labels, serviceVolumes,
 		healthCmd,
 		cfg.Healthcheck.Interval, cfg.Healthcheck.Timeout,
@@ -292,9 +293,18 @@ func BuildVolumesYAML(volumes []VolumeConfig) (serviceLevel string, topLevel str
 	return svc.String(), ""
 }
 
+func buildPortsSection(portMapping string, containerPort int) string {
+	if portMapping != "" {
+		return fmt.Sprintf("    ports:\n"+
+			"      - \"%s\"\n", portMapping)
+	}
+	return fmt.Sprintf("    expose:\n"+
+		"      - \"%d\"\n", containerPort)
+}
+
 func BuildPortMapping(hostPort, port int) string {
 	if hostPort > 0 {
-		return fmt.Sprintf("%d:%d", hostPort, port)
+		return fmt.Sprintf("127.0.0.1:%d:%d", hostPort, port)
 	}
-	return fmt.Sprintf("%d", port)
+	return ""
 }

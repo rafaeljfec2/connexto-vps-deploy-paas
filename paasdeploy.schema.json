@@ -136,7 +136,7 @@
     },
     "hostPort": {
       "type": "integer",
-      "description": "Port on the host machine to expose the container (e.g., hostPort: 8081 maps to 8081:port). If not specified, Docker assigns a random port.",
+      "description": "Port on the host machine to expose the container, bound to localhost only (127.0.0.1:hostPort:port). Accessible via SSH tunnel for debugging. If not specified, no host port is published and traffic is routed exclusively through Traefik via Docker network.",
       "minimum": 1,
       "maximum": 65535,
       "examples": [8080, 8081, 3000]
