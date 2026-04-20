@@ -193,6 +193,27 @@
       "minimum": 1,
       "maximum": 10,
       "default": 1
+    },
+    "command": {
+      "type": "array",
+      "description": "Override the default command of the container image. Useful for images that do not define a CMD (e.g. minio/minio requires 'minio server /data').",
+      "items": {
+        "type": "string"
+      },
+      "examples": [
+        ["minio", "server", "/data", "--console-address", ":9001"],
+        ["node", "dist/server.js"]
+      ]
+    },
+    "entrypoint": {
+      "type": "array",
+      "description": "Override the default entrypoint of the container image. Use carefully as it bypasses the image's ENTRYPOINT directive.",
+      "items": {
+        "type": "string"
+      },
+      "examples": [
+        ["/usr/local/bin/custom-entrypoint.sh"]
+      ]
     }
   },
   "additionalProperties": false,

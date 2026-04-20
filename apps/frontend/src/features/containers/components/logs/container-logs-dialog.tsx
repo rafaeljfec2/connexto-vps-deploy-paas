@@ -137,36 +137,34 @@ export function ContainerLogsDialog({
   );
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          className="max-w-[95vw] w-[95vw] max-h-[85vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800"
-          aria-describedby={undefined}
-        >
-          <DialogHeader className="px-4 py-3 border-b border-slate-800 flex-row items-center justify-between space-y-0 shrink-0">
-            <DialogTitle className="flex items-center gap-2 text-base">
-              <Terminal className="h-4 w-4 shrink-0" />
-              Container Logs - {containerName}
-              <span className="text-xs text-muted-foreground font-normal">
-                ({entries.length} lines)
-              </span>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-            {isLoading && !rawLogs ? (
-              <div className="flex-1 flex items-center justify-center min-h-[240px]">
-                <EmptyState
-                  icon={Terminal}
-                  title="Loading logs"
-                  description="Fetching container logs..."
-                />
-              </div>
-            ) : (
-              dialogContent
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="max-w-[95vw] w-[95vw] max-h-[85vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800"
+        aria-describedby={undefined}
+      >
+        <DialogHeader className="px-4 py-3 pr-12 border-b border-slate-800 flex-row items-center justify-between space-y-0 shrink-0">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Terminal className="h-4 w-4 shrink-0" />
+            Container Logs - {containerName}
+            <span className="text-xs text-muted-foreground font-normal">
+              ({entries.length} lines)
+            </span>
+          </DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          {isLoading && !rawLogs ? (
+            <div className="flex-1 flex items-center justify-center min-h-[240px]">
+              <EmptyState
+                icon={Terminal}
+                title="Loading logs"
+                description="Fetching container logs..."
+              />
+            </div>
+          ) : (
+            dialogContent
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

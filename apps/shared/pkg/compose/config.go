@@ -46,8 +46,10 @@ type Config struct {
 		Memory string `json:"memory"`
 		CPU    string `json:"cpu"`
 	} `json:"resources"`
-	Domains []string       `json:"domains,omitempty"`
-	Volumes []VolumeConfig `json:"volumes,omitempty"`
+	Domains    []string       `json:"domains,omitempty"`
+	Volumes    []VolumeConfig `json:"volumes,omitempty"`
+	Command    []string       `json:"command,omitempty"`
+	Entrypoint []string       `json:"entrypoint,omitempty"`
 }
 
 type DomainRoute struct {

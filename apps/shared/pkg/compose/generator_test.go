@@ -221,6 +221,99 @@ func TestGenerateContentWithoutHostPort(t *testing.T) {
 	}
 }
 
+func TestBuildExecListYAMLEmpty(t *testing.T) {
+	if got := BuildExecListYAML("command", nil); got != "" {
+		t.Errorf("expected empty string for nil items, got %q", got)
+	}
+	if got := BuildExecListYAML("command", []string{}); got != "" {
+		t.Errorf("expected empty string for empty slice, got %q", got)
+	}
+}
+
+func TestBuildExecListYAMLCommand(t *testing.T) {
+	got := BuildExecListYAML("command", []string{"minio", "server", "/data"})
+	expected := "    command:\n      - \"minio\"\n      - \"server\"\n      - \"/data\"\n"
+	if got != expected {
+		t.Errorf("expected:\n%q\ngot:\n%q", expected, got)
+	}
+}
+
+func TestBuildExecListYAMLEscapesQuotes(t *testing.T) {
+	got := BuildExecListYAML("command", []string{`echo "hello"`})
+	expected := "    command:\n      - \"echo \\\"hello\\\"\"\n"
+	if got != expected {
+		t.Errorf("expected:\n%q\ngot:\n%q", expected, got)
+	}
+}
+
+func TestGenerateContentWithCommand(t *testing.T) {
+	cfg := &Config{
+		Name:    testAppName,
+		Port:    9000,
+		Command: []string{"minio", "server", "/data"},
+	}
+	ApplyDefaults(cfg)
+
+	content := GenerateContent(GenerateParams{
+		AppName:  testAppName,
+		ImageTag: testImageTag,
+		Config:   cfg,
+	})
+
+	if !strings.Contains(content, "    command:\n") {
+		t.Error("generated compose with command should contain command section")
+	}
+	if !strings.Contains(content, "      - \"minio\"") {
+		t.Error("generated compose should contain 'minio' command argument")
+	}
+	if !strings.Contains(content, "      - \"server\"") {
+		t.Error("generated compose should contain 'server' command argument")
+	}
+}
+
+func TestGenerateContentWithEntrypoint(t *testing.T) {
+	cfg := &Config{
+		Name:       testAppName,
+		Port:       8080,
+		Entrypoint: []string{"/custom-entrypoint.sh"},
+	}
+	ApplyDefaults(cfg)
+
+	content := GenerateContent(GenerateParams{
+		AppName:  testAppName,
+		ImageTag: testImageTag,
+		Config:   cfg,
+	})
+
+	if !strings.Contains(content, "    entrypoint:\n") {
+		t.Error("generated compose with entrypoint should contain entrypoint section")
+	}
+	if !strings.Contains(content, "      - \"/custom-entrypoint.sh\"") {
+		t.Error("generated compose should contain entrypoint script")
+	}
+}
+
+func TestGenerateContentWithoutCommand(t *testing.T) {
+	cfg := &Config{
+		Name: testAppName,
+		Port: 8080,
+	}
+	ApplyDefaults(cfg)
+
+	content := GenerateContent(GenerateParams{
+		AppName:  testAppName,
+		ImageTag: testImageTag,
+		Config:   cfg,
+	})
+
+	if strings.Contains(content, "    command:\n") {
+		t.Error("generated compose without command should not contain command section")
+	}
+	if strings.Contains(content, "    entrypoint:\n") {
+		t.Error("generated compose without entrypoint should not contain entrypoint section")
+	}
+}
+
 func TestVolumeConfigIsNamedVolume(t *testing.T) {
 	named := VolumeConfig{Name: "data", Target: "/data"}
 	if !named.IsNamedVolume() {

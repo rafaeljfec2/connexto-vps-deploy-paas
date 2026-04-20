@@ -338,7 +338,7 @@ export function ContainerLogsViewer({
 
       <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
         <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800">
-          <DialogHeader className="px-4 py-2.5 border-b border-slate-800 flex-row items-center justify-between space-y-0 shrink-0">
+          <DialogHeader className="px-4 py-2.5 pr-12 border-b border-slate-800 flex-row items-center justify-between space-y-0 shrink-0">
             <DialogTitle className="flex items-center gap-2 text-sm font-medium">
               <Terminal className="h-4 w-4 text-muted-foreground" />
               <span className="truncate max-w-[200px] sm:max-w-none">

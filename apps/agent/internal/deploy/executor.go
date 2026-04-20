@@ -244,6 +244,14 @@ func (e *Executor) mergeRuntimeConfig(cfg *compose.Config, localCfg *compose.Con
 	if len(localCfg.Volumes) > 0 {
 		cfg.Volumes = localCfg.Volumes
 	}
+
+	if len(localCfg.Command) > 0 {
+		cfg.Command = localCfg.Command
+	}
+
+	if len(localCfg.Entrypoint) > 0 {
+		cfg.Entrypoint = localCfg.Entrypoint
+	}
 }
 
 func (e *Executor) mergeBuildConfig(req *pb.DeployRequest, localCfg *compose.Config) {

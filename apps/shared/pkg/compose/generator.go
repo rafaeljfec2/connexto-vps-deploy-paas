@@ -45,6 +45,8 @@ func GenerateContent(params GenerateParams) string {
 	portsSection := buildPortsSection(portMapping, cfg.Port)
 	healthCmd := BuildHealthCheckCommandTLS(cfg.Runtime, cfg.Port, cfg.Healthcheck.Path, cfg.Healthcheck.TLS)
 	serviceVolumes, topLevelVolumes := BuildVolumesYAML(cfg.Volumes)
+	entrypointSection := BuildExecListYAML("entrypoint", cfg.Entrypoint)
+	commandSection := BuildExecListYAML("command", cfg.Command)
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("services:\n"+
@@ -52,6 +54,8 @@ func GenerateContent(params GenerateParams) string {
 		"    image: %s\n"+
 		"    container_name: %s\n"+
 		"    restart: unless-stopped\n"+
+		"%s"+
+		"%s"+
 		"%s"+
 		"%s"+
 		"%s"+
@@ -73,6 +77,7 @@ func GenerateContent(params GenerateParams) string {
 		"      - paasdeploy\n\n",
 		params.AppName, params.ImageTag, params.AppName,
 		portsSection,
+		entrypointSection, commandSection,
 		envYAML, labels, serviceVolumes,
 		healthCmd,
 		cfg.Healthcheck.Interval, cfg.Healthcheck.Timeout,
@@ -291,6 +296,24 @@ func BuildVolumesYAML(volumes []VolumeConfig) (serviceLevel string, topLevel str
 	}
 
 	return svc.String(), ""
+}
+
+func BuildExecListYAML(field string, items []string) string {
+	if len(items) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("    %s:\n", field))
+	for _, item := range items {
+		sb.WriteString(fmt.Sprintf("      - %s\n", quoteYAMLString(item)))
+	}
+	return sb.String()
+}
+
+func quoteYAMLString(s string) string {
+	escaped := strings.ReplaceAll(s, `\`, `\\`)
+	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+	return fmt.Sprintf(`"%s"`, escaped)
 }
 
 func buildPortsSection(portMapping string, containerPort int) string {
