@@ -80,6 +80,7 @@ type DeployTemplateRequest struct {
 	Ports         []PortMappingRequest `json:"ports,omitempty"`
 	Network       string               `json:"network,omitempty"`
 	RestartPolicy string               `json:"restartPolicy,omitempty"`
+	Command       []string             `json:"command,omitempty"`
 }
 
 func (h *TemplateHandler) DeployTemplate(c *fiber.Ctx) error {
@@ -178,6 +179,7 @@ func (h *TemplateHandler) buildGRPCCreateContainerRequest(template *Template, re
 		Env:           req.Env,
 		Network:       req.Network,
 		RestartPolicy: restartPolicy,
+		Command:       resolveTemplateCommand(template, req),
 	}
 
 	grpcReq.Ports = h.buildGRPCPortMappings(template, req.Ports)
@@ -208,6 +210,7 @@ func (h *TemplateHandler) buildContainerOptions(template *Template, req DeployTe
 		Env:           req.Env,
 		Network:       req.Network,
 		RestartPolicy: restartPolicy,
+		Command:       resolveTemplateCommand(template, req),
 	}
 
 	opts.Ports = h.buildPortMappings(template, req.Ports)
@@ -243,6 +246,13 @@ func (h *TemplateHandler) buildPortMappings(template *Template, requestPorts []P
 		})
 	}
 	return ports
+}
+
+func resolveTemplateCommand(template *Template, req DeployTemplateRequest) []string {
+	if len(req.Command) > 0 {
+		return req.Command
+	}
+	return template.Command
 }
 
 func (h *TemplateHandler) buildGRPCPortMappings(template *Template, requestPorts []PortMappingRequest) []*pb.CreateContainerPortMapping {

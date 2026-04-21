@@ -31,6 +31,7 @@ type Template struct {
 	Env         []TemplateEnvVar `json:"env,omitempty"`
 	Ports       []int            `json:"ports,omitempty"`
 	Volumes     []string         `json:"volumes,omitempty"`
+	Command     []string         `json:"command,omitempty"`
 }
 
 type TemplateEnvVar struct {
@@ -214,6 +215,7 @@ var templates = []Template{
 		},
 		Ports:   []int{9000, 9001},
 		Volumes: []string{"/data"},
+		Command: []string{"server", "/data", "--console-address", ":9001"},
 	},
 	{
 		ID:          "mailhog",
