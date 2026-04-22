@@ -17,7 +17,6 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 )
 
-
 type GitHubHandler struct {
 	appClient        *ghclient.AppClient
 	installationRepo domain.InstallationRepository

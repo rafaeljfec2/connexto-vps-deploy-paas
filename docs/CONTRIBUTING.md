@@ -1,470 +1,213 @@
 # Contributing to FlowDeploy
 
-Thank you for your interest in contributing to FlowDeploy! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to FlowDeploy. This guide explains
+how to get the project running locally, the workflow we expect from every
+change, and where to look when something does not behave as documented.
 
-## Development Setup
+> Read these first:
+>
+> - [`AGENTS.md`](../AGENTS.md) — high-level mental model and hard rules
+> - [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — runtime architecture
+> - [`docs/SECURITY.md`](./SECURITY.md) — security model and hardening checklist
+> - `.cursor/rules/flowdeploy-*.mdc` — per-area conventions enforced in review
 
-### Prerequisites
+## 1. Prerequisites
 
-- Go 1.23+
-- Node.js 20+
-- pnpm 9+
-- Docker Engine 24+
-- Docker Compose v2
-- PostgreSQL 16+
+| Tool             | Version       | Notes                                                          |
+| ---------------- | ------------- | -------------------------------------------------------------- |
+| Go               | 1.24+         | `go.mod` declares `go 1.24.0`, toolchain `go1.24.13`           |
+| Node.js          | 20+           | LTS line                                                       |
+| pnpm             | 9+            | `packageManager` field pins `pnpm@9.15.0`                      |
+| Docker Engine    | 24+           | Required for the local stack and deploys                       |
+| Docker Compose   | v2            | Used by the platform itself and by deployed apps               |
+| PostgreSQL       | 16+           | Provided by the local compose stack                            |
+| `golangci-lint`  | latest stable | Backend / agent / shared linting                               |
+| `buf`            | 1.38+         | Protobuf generation and breaking-change checks                 |
 
-### Getting Started
+Optional but useful: `air` (Go live reload, used by `pnpm backend:dev`),
+`gh` (GitHub CLI), and `make`.
 
-1. **Clone the repository**
+## 2. Repository layout
 
-```bash
-git clone https://github.com/your-org/paasdeploy.git
-cd paasdeploy
+```
+apps/
+├── backend/      Go HTTP + gRPC + deploy engine
+├── agent/        Go gRPC agent installed on remote VPSs
+├── frontend/     React 18 + Vite 6 SPA
+├── shared/       Zero-dependency Go primitives
+└── proto/        buf workspace and proto definitions
+deploy/           docker-compose.yml + Traefik config
+docs/             Architectural and operational docs
+.cursor/rules/    Workspace rules for AI agents and humans
+AGENT_VERSION     Single source of truth for the agent binary version
 ```
 
-2. **Install dependencies**
+## 3. Local setup
 
 ```bash
+git clone <repo-url> flowdeploy
+cd flowdeploy
 pnpm install
+cp .env.example .env       # adjust values, never commit
+pnpm docker:up             # PostgreSQL + Traefik
+pnpm backend:dev           # backend with live reload (air)
+pnpm dev:web               # frontend on http://localhost:5173
 ```
 
-3. **Configure environment**
+The backend automatically applies the embedded SQL migrations on startup.
+
+To exercise the agent locally, run it against the dev backend:
 
 ```bash
-cp .env.example .env
-# Edit .env with your local settings
+cd apps/agent
+go run cmd/agent/main.go \
+  --server-addr=localhost:50051 \
+  --server-id=<id> \
+  --agent-port=50052
 ```
 
-4. **Start infrastructure**
+## 4. Daily commands
+
+| Command                       | What it does                                          |
+| ----------------------------- | ----------------------------------------------------- |
+| `pnpm dev`                    | Backend + frontend in development                     |
+| `pnpm backend:dev`            | Backend with `air` live reload                        |
+| `pnpm dev:web`                | Frontend only                                         |
+| `pnpm build`                  | Turborepo build for everything                        |
+| `pnpm typecheck`              | TypeScript type-checking across the workspace         |
+| `pnpm lint`                   | All linters (Go + TypeScript)                         |
+| `pnpm lint:frontend`          | ESLint for the SPA                                    |
+| `pnpm lint:go` / `:go-quick`  | `golangci-lint` for backend, agent and shared         |
+| `pnpm backend:test`           | `go test ./...` inside `apps/backend`                 |
+| `pnpm precommit:local`        | Mirrors the husky pre-commit hook                     |
+| `pnpm docker:up` / `:down`    | Bring the local infra stack up/down                   |
+
+## 5. Workflow for every change
+
+1. **Pull and branch**: `git pull --rebase`, then create a focused branch.
+2. **Plan** before coding (Planner Mode). Check the relevant
+   `.cursor/rules/*.mdc`. If the task touches more than one area
+   (backend + proto + frontend), update **all** of them in lockstep.
+3. **Implement** following the conventions of the touched area.
+4. **Validate locally** (mandatory before push):
+   - `pnpm lint`
+   - `pnpm typecheck`
+   - `pnpm backend:test`
+   - `pnpm build` if the change affects build output
+5. **Update docs** when behavior, contracts or operational steps change:
+   - `README.md` for top-level features
+   - `docs/` for architecture, integrations, tutorials
+   - `CHANGELOG.md` under the **Unreleased** section
+6. **Commit** with a meaningful message. The pre-commit hook bumps patch
+   versions of the affected workspaces and runs `lint-staged` automatically.
+7. **Open a PR** describing what changed, why, the impact, and how it was
+   tested. Link related issues.
+
+## 6. Coding standards (high level)
+
+Full rules live in `.cursor/rules/flowdeploy-*.mdc`. Quick reference:
+
+### Go (backend / agent / shared)
+
+- `gofmt`, `goimports`, `golangci-lint` all clean.
+- Layered: `handler → service → repository → domain`.
+- DI through `google/wire` in the backend; struct injection elsewhere.
+- All shell commands via `shared/pkg/executor` with explicit arg vectors.
+- Logging via `log/slog`; no `fmt.Println`.
+- Errors wrapped with `%w`; never swallow with blank identifier.
+- No business logic inside `apps/shared`.
+
+### TypeScript / React (frontend)
+
+- Strict TypeScript; **never** use `any`.
+- Use `??` for nullish defaults, never `||`.
+- Mark React component props as `readonly` (sonarqube `typescript:S6759`).
+- Server state in TanStack Query; UI state in components.
+- Mobile-first Tailwind utility classes; reuse `shadcn/ui` primitives.
+- Prefer `Promise.all` only for independent async work, `Promise.allSettled`
+  when partial failures are acceptable.
+
+### Protobuf
+
+- Edit `.proto` files in `apps/proto`, regenerate with `buf generate`.
+- Run `buf lint` and `buf breaking` before pushing.
+- Update both backend and agent implementations in the same commit.
+
+### General
+
+- Code, identifiers and comments in English (US).
+- Conversation, planning and PR descriptions in PT-BR (project preference).
+- No comments that just narrate the code.
+- Keep files under ~800–1000 lines; split when they grow beyond that.
+
+## 7. Testing expectations
+
+- **Unit tests** for business logic in services and any non-trivial helper.
+- **Repository tests** for SQL queries, using a disposable PostgreSQL.
+- **Frontend tests** for hooks and components with non-trivial logic.
+- Test descriptions in **English**, deterministic, independent of execution
+  order. Use table-driven tests in Go where it improves clarity.
+
+## 8. Database migrations
+
+- Add a new pair `NNN_description.up.sql` / `NNN_description.down.sql` in
+  `apps/backend/migrations/`.
+- Numbering is monotonically increasing — never reuse a number.
+- The backend applies migrations on startup. There is no separate CLI step.
+- Avoid destructive operations (`DROP TABLE`, `DROP COLUMN`) without a clear
+  rollback story; prefer additive migrations.
+
+## 9. Protobuf changes
 
 ```bash
-pnpm docker:up
+cd apps/proto
+buf lint
+buf breaking --against '.git#branch=main'
+buf generate
 ```
 
-5. **Start development servers**
-
-```bash
-# Terminal 1: Backend
-pnpm backend:dev
-
-# Terminal 2: Frontend
-pnpm dev
-```
-
-## Project Structure
-
-```
-paasdeploy/
-├── apps/
-│   ├── frontend/          # React application
-│   │   ├── src/
-│   │   │   ├── app/       # Bootstrap
-│   │   │   ├── pages/     # Route components
-│   │   │   ├── features/  # Domain logic
-│   │   │   ├── components/# UI components
-│   │   │   ├── services/  # API clients
-│   │   │   ├── hooks/     # React hooks
-│   │   │   └── types/     # TypeScript types
-│   │   └── package.json
-│   │
-│   └── backend/           # Go application
-│       ├── cmd/api/       # Entry point
-│       ├── internal/
-│       │   ├── config/    # Configuration
-│       │   ├── domain/    # Domain entities
-│       │   ├── handler/   # HTTP handlers
-│       │   ├── service/   # Business logic
-│       │   ├── repository/# Data access
-│       │   └── engine/    # Deploy engine
-│       └── go.mod
-│
-├── deploy/                # Infrastructure
-├── docs/                  # Documentation
-└── package.json           # Root workspace
-```
-
-## Coding Standards
-
-### Go
-
-- Follow [Effective Go](https://golang.org/doc/effective_go)
-- Use `gofmt` for formatting
-- Run `go vet` before committing
-- Write tests for new functionality
-- Use dependency injection via structs (see `WorkerDeps` pattern)
-
-#### Naming Conventions
-
-```go
-// Exported functions: PascalCase
-func CreateApp(name string) error
-
-// Private functions: camelCase
-func validateAppName(name string) error
-
-// Constants: PascalCase for exported, camelCase for private
-const MaxRetries = 3
-const defaultTimeout = 30 * time.Second
-```
-
-#### Error Handling
-
-```go
-// Always check errors
-result, err := doSomething()
-if err != nil {
-    return fmt.Errorf("failed to do something: %w", err)
-}
-
-// Use domain errors for business logic
-if !isValid {
-    return domain.ErrInvalidInput
-}
-```
-
-### TypeScript/React
-
-- Use TypeScript strict mode
-- Prefer functional components with hooks
-- Use React Query for server state
-- Follow the feature-based structure
-- Use `??` instead of `||` for nullish coalescing
-- Never use `any` type - always define proper types
-
-### Linting and Formatting
-
-The frontend uses ESLint and Prettier for code quality:
-
-```bash
-cd apps/frontend
-
-# Check linting issues
-pnpm lint
-
-# Fix auto-fixable issues
-pnpm lint:fix
-
-# Format code
-pnpm format
-
-# Check formatting without changes
-pnpm format:check
-```
-
-ESLint is configured to:
-
-- Remove unused imports automatically
-- Sort imports consistently
-- Integrate with Prettier for formatting
-
-#### Component Structure
-
-```tsx
-// components should be pure UI
-interface ButtonProps {
-  readonly variant: "primary" | "secondary";
-  readonly onClick: () => void;
-  readonly children: React.ReactNode;
-}
-
-export function Button({ variant, onClick, children }: ButtonProps) {
-  return (
-    <button className={cn(baseStyles, variants[variant])} onClick={onClick}>
-      {children}
-    </button>
-  );
-}
-```
-
-#### Hooks
-
-```tsx
-// Feature hooks encapsulate domain logic
-export function useApps() {
-  return useQuery({
-    queryKey: ["apps"],
-    queryFn: () => api.getApps(),
-  });
-}
-
-export function useCreateApp() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (data: CreateAppInput) => api.createApp(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["apps"] });
-    },
-  });
-}
-```
-
-### CSS/Styling
-
-- Use Tailwind CSS utility classes
-- Follow mobile-first approach
-- Use CSS variables for theming
-- Prefer composition over custom CSS
-
-```tsx
-// Good: Tailwind utilities
-<div className="flex flex-col gap-4 p-4 md:flex-row md:gap-6">
-
-// Avoid: Custom CSS unless necessary
-<div style={{ display: 'flex', flexDirection: 'column' }}>
-```
-
-### Theme Support
-
-When adding new components, ensure they support both light and dark themes:
-
-```tsx
-// Use semantic color variables
-<div className="bg-background text-foreground">
-
-// Use dark: variant for specific overrides
-<div className="border-gray-200 dark:border-gray-700">
-```
-
-### Component Props
-
-Mark component props as readonly (SonarQube S6759):
-
-```tsx
-interface ButtonProps {
-  readonly variant: "primary" | "secondary";
-  readonly onClick: () => void;
-}
-```
-
-## VSCode Configuration
-
-The project includes VSCode configurations for optimal developer experience:
-
-### Debug Configurations
-
-- **Frontend (Chrome/Edge)**: Launch browser with debugger attached
-- **Backend (Go)**: Debug Go API with Delve
-- **Full Stack**: Launch both frontend and backend simultaneously
-
-Access via `Run and Debug` panel or `F5`.
-
-### Tasks
-
-Run common tasks via `Cmd/Ctrl + Shift + P` → `Tasks: Run Task`:
-
-| Task             | Description                   |
-| ---------------- | ----------------------------- |
-| Frontend: Dev    | Start Vite dev server         |
-| Frontend: Lint   | Run ESLint                    |
-| Frontend: Format | Format with Prettier          |
-| Backend: Dev     | Start Go API with hot reload  |
-| Backend: Build   | Build Go binary               |
-| Docker: Up       | Start infrastructure services |
-| Docker: Down     | Stop infrastructure services  |
-
-### Recommended Extensions
-
-Install recommended extensions via `Extensions` → `Show Recommended Extensions`.
-
-## Git Workflow
-
-### Branch Naming
-
-```
-feature/add-webhook-support
-fix/deploy-queue-race-condition
-docs/update-architecture
-refactor/extract-executor
-```
-
-### Commit Messages
-
-Follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-feat: add rollback functionality
-fix: prevent race condition in deploy queue
-docs: update API documentation
-refactor: extract command executor
-test: add unit tests for health checker
-chore: update dependencies
-```
-
-### Pull Request Process
-
-1. Create a feature branch from `main`
-2. Make your changes with clear commits
-3. Ensure tests pass
-4. Update documentation if needed
-5. Create a pull request with description
-6. Wait for code review
-
-### PR Description Template
-
-```markdown
-## Summary
-
-Brief description of the changes.
-
-## Changes
-
-- Added X functionality
-- Fixed Y bug
-- Updated Z documentation
-
-## Testing
-
-- [ ] Unit tests added/updated
-- [ ] Manual testing performed
-- [ ] All tests passing
-
-## Screenshots (if applicable)
-```
-
-## Testing
-
-### Backend Tests
-
-```bash
-cd apps/backend
-
-# Run all tests
-go test ./...
-
-# Run with coverage
-go test -cover ./...
-
-# Run specific package
-go test ./internal/engine/...
-```
-
-### Frontend Tests
-
-```bash
-cd apps/frontend
-
-# Run tests
-pnpm test
-
-# Run with coverage
-pnpm test:coverage
-
-# Run in watch mode
-pnpm test:watch
-```
-
-### Writing Tests
-
-#### Go Tests
-
-```go
-func TestWorker_ExecuteDeploy(t *testing.T) {
-    // Arrange
-    worker := NewWorker(mockExecutor, mockNotifier)
-    deploy := &domain.Deployment{
-        ID:        "test-id",
-        AppID:     "app-id",
-        CommitSHA: "abc123",
-    }
-
-    // Act
-    err := worker.Execute(context.Background(), deploy)
-
-    // Assert
-    if err != nil {
-        t.Errorf("expected no error, got %v", err)
-    }
-}
-```
-
-#### React Tests
-
-```tsx
-describe("AppCard", () => {
-  it("should render app name and status", () => {
-    const app = {
-      id: "1",
-      name: "my-app",
-      status: "deployed",
-    };
-
-    render(<AppCard app={app} />);
-
-    expect(screen.getByText("my-app")).toBeInTheDocument();
-    expect(screen.getByText("deployed")).toBeInTheDocument();
-  });
-});
-```
-
-## Code Review Guidelines
-
-### For Authors
-
-- Keep PRs focused and small
-- Provide context in the description
-- Respond to feedback constructively
-- Update based on review comments
-
-### For Reviewers
-
-- Be constructive and respectful
-- Explain the "why" behind suggestions
-- Approve when ready, don't block unnecessarily
-- Focus on:
-  - Correctness
-  - Security
-  - Performance
-  - Readability
-  - Test coverage
-
-## Security Guidelines
-
-### Do NOT
-
-- Execute shell commands with `sh -c`
-- Store secrets in code or frontend bundle
-- Run processes as root
-- Trust user input without validation
-- Commit `.env` files
-
-### DO
-
-- Use explicit command arguments with `os/exec`
-- Validate and sanitize all inputs
-- Use environment variables for secrets
-- Apply principle of least privilege
-- Review dependencies for vulnerabilities
-
-## Documentation
-
-### Code Comments
-
-```go
-// Executor runs OS commands safely without shell interpretation.
-// It uses os/exec directly with explicit arguments to prevent
-// shell injection attacks.
-type Executor struct {
-    workDir string
-    timeout time.Duration
-}
-```
-
-### API Documentation
-
-Document all public API endpoints with:
-
-- HTTP method and path
-- Request/response format
-- Error codes
-- Example usage
-
-## Getting Help
-
-- Open an issue for bugs or feature requests
-- Join discussions for questions
-- Check existing issues before creating new ones
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the MIT License.
+Generated code lives in `apps/backend/gen/go` and `apps/agent/gen/go`. After
+generating, update both server and client implementations and rerun the linters
+and tests.
+
+## 10. Security checklist
+
+Before opening a PR, confirm that you did **not**:
+
+- Add a secret to the repo (use `.env`, encrypted columns, or a secret store).
+- Build SQL with string interpolation.
+- Run shell commands with `sh -c` or untrusted interpolation.
+- Disable mTLS, CORS allow-listing, or webhook signature verification.
+- Bypass the `RequireAdminForLocal` guard.
+- Log sensitive payloads (tokens, env vars, request bodies with secrets).
+
+See `.cursor/rules/flowdeploy-security.mdc` for the full security playbook.
+
+## 11. Release and versioning
+
+- `package.json` drives the **platform** version.
+- `apps/frontend/package.json` and `apps/backend/package.json` track their own
+  versions for changelog clarity.
+- `AGENT_VERSION` (root file) is the canonical agent version. The backend
+  embeds it via `-ldflags`; the agent reports it on registration.
+- The pre-commit hook bumps the patch version of every workspace touched by
+  the staged files. Bump minor/major manually when needed.
+- Update `CHANGELOG.md` (`## [Unreleased]` section) for every user-facing
+  change. Keep entries short and grouped (Added / Changed / Fixed / Security).
+
+## 12. Reporting issues
+
+When opening an issue, include:
+
+- Component (`backend`, `agent`, `frontend`, `proto`, `infra`).
+- Affected version (`package.json`, `AGENT_VERSION`, commit SHA).
+- Steps to reproduce and expected vs. actual behavior.
+- Relevant logs (with secrets redacted) and, when possible, a minimal
+  `paasdeploy.json` reproducing the issue.
+
+## 13. Where to ask
+
+- Architecture or design questions → start in [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md).
+- Contract questions (gRPC) → look at `apps/proto/flowdeploy/v1/*.proto`.
+- Conventions enforced in review → `.cursor/rules/flowdeploy-*.mdc`.
+- Onboarding for AI agents and new humans → [`AGENTS.md`](../AGENTS.md).

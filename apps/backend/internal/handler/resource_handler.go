@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -12,6 +13,8 @@ import (
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 )
+
+const msgAgentOutdated = "Agent does not support this operation. Please update the agent."
 
 type ResourceHandler struct {
 	docker      *docker.Client
@@ -187,6 +190,12 @@ func (h *ResourceHandler) RemoveNetwork(c *fiber.Ctx) error {
 }
 
 func (h *ResourceHandler) ConnectContainerNetwork(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
+
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	id := c.Params("id")
 	var body struct {
 		Network string `json:"network"`
@@ -194,6 +203,22 @@ func (h *ResourceHandler) ConnectContainerNetwork(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil || body.Network == "" {
 		return response.BadRequest(c, "network is required")
 	}
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
+		}
+		if err := h.agentClient.ConnectContainerNetwork(c.Context(), host, h.agentPort, id, body.Network); err != nil {
+			h.logger.Error("failed to connect remote container to network", "container", id, "network", body.Network, "error", err)
+			if isUnimplementedAgentErr(err) {
+				return response.Conflict(c, msgAgentOutdated)
+			}
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to connect container to network")
+		}
+		return response.OK(c, map[string]string{"connected": body.Network})
+	}
+
 	if err := h.docker.EnsureNetwork(c.Context(), body.Network); err != nil {
 		h.logger.Error("failed to ensure network", "network", body.Network, "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to ensure network")
@@ -206,11 +231,33 @@ func (h *ResourceHandler) ConnectContainerNetwork(c *fiber.Ctx) error {
 }
 
 func (h *ResourceHandler) DisconnectContainerNetwork(c *fiber.Ctx) error {
+	serverID := c.Query("serverId", "")
+
+	if err := RequireAdminForLocal(c, serverID); err != nil {
+		return err
+	}
+
 	id := c.Params("id")
 	name, err := url.PathUnescape(c.Params("name"))
 	if err != nil || name == "" {
 		return response.BadRequest(c, "invalid network name")
 	}
+
+	if serverID != "" {
+		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
+		if err != nil {
+			return response.ServerError(c, fiber.StatusInternalServerError, MsgServerNotFound)
+		}
+		if err := h.agentClient.DisconnectContainerNetwork(c.Context(), host, h.agentPort, id, name); err != nil {
+			h.logger.Error("failed to disconnect remote container from network", "container", id, "network", name, "error", err)
+			if isUnimplementedAgentErr(err) {
+				return response.Conflict(c, msgAgentOutdated)
+			}
+			return response.ServerError(c, fiber.StatusInternalServerError, "Failed to disconnect container from network")
+		}
+		return response.NoContent(c)
+	}
+
 	if err := h.docker.DisconnectFromNetwork(c.Context(), id, name); err != nil {
 		h.logger.Error("failed to disconnect container from network", "container", id, "network", name, "error", err)
 		return response.ServerError(c, fiber.StatusInternalServerError, "Failed to disconnect container from network")
@@ -326,3 +373,13 @@ func (h *ResourceHandler) RemoveVolume(c *fiber.Ctx) error {
 	return response.NoContent(c)
 }
 
+func isUnimplementedAgentErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	var unimpl *agentclient.UnimplementedError
+	if errors.As(err, &unimpl) {
+		return true
+	}
+	return agentclient.IsUnimplemented(err)
+}

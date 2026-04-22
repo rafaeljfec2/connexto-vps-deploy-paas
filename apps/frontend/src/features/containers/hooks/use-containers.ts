@@ -100,3 +100,10 @@ export function useRemoveContainer() {
     },
   });
 }
+
+export function useRunHealthcheck() {
+  return useMutation({
+    mutationFn: ({ id, serverId }: ContainerActionInput) =>
+      api.containers.runHealthcheck(id, serverId),
+  });
+}

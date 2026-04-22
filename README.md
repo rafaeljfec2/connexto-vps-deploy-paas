@@ -6,7 +6,7 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Docker](https://img.shields.io/badge/Docker-24+-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?style=flat&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Vite](https://img.shields.io/badge/Vite-5.0-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Vite](https://img.shields.io/badge/Vite-6.0-646CFF?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Traefik](https://img.shields.io/badge/Traefik-3.0-24A1C1?style=flat&logo=traefikproxy&logoColor=white)](https://traefik.io/)
 [![gRPC](https://img.shields.io/badge/gRPC-Protocol_Buffers-244c5a?style=flat&logo=grpc&logoColor=white)](https://grpc.io/)
 [![pnpm](https://img.shields.io/badge/pnpm-9+-F69220?style=flat&logo=pnpm&logoColor=white)](https://pnpm.io/)
@@ -173,59 +173,85 @@ Open `http://localhost:3000` in your browser.
 ```
 flowdeploy/
 ├── apps/
-│   ├── frontend/              # React dashboard (SPA)
-│   ├── backend/               # Go API + Deploy Engine + gRPC server
-│   │   ├── cmd/api/           # Application entrypoint
+│   ├── frontend/                  # React dashboard (SPA)
+│   ├── backend/                   # Go API + Deploy Engine + gRPC server
+│   │   ├── cmd/api/               # Application entrypoint
 │   │   ├── internal/
-│   │   │   ├── agentclient/   # gRPC client for remote agents
-│   │   │   ├── config/        # Configuration management
-│   │   │   ├── di/            # Dependency injection (Wire)
-│   │   │   ├── domain/        # Domain models and interfaces
-│   │   │   ├── engine/        # Deploy engine and worker pool
-│   │   │   ├── grpcserver/    # Backend gRPC server (agent registration)
-│   │   │   ├── handler/       # HTTP handlers (Fiber)
-│   │   │   ├── middleware/    # Auth, CORS, tracing middleware
-│   │   │   ├── repository/    # PostgreSQL repositories
-│   │   │   ├── requestctx/    # Request context utilities
-│   │   │   └── service/       # Business logic services
-│   │   ├── gen/go/            # Generated protobuf/gRPC code
-│   │   └── migrations/        # SQL migration files
-│   ├── agent/                 # Remote agent binary
-│   │   ├── cmd/agent/         # Agent entrypoint
+│   │   │   ├── agentclient/       # gRPC client for remote agents
+│   │   │   ├── agentdownload/     # Serves agent binaries for self-update
+│   │   │   ├── cloudflare/        # Cloudflare API client (DNS automation)
+│   │   │   ├── config/            # Configuration management
+│   │   │   ├── crypto/            # Token & secret encryption
+│   │   │   ├── database/          # pgx pool and transaction helpers
+│   │   │   ├── di/                # Dependency injection (Wire)
+│   │   │   ├── domain/            # Domain models and interfaces
+│   │   │   ├── engine/            # Deploy engine, workers and monitors
+│   │   │   ├── ghclient/          # Low-level GitHub HTTP client
+│   │   │   ├── github/            # OAuth + GitHub App orchestration
+│   │   │   ├── grpcserver/        # Backend gRPC server (agent registration)
+│   │   │   ├── handler/           # HTTP handlers (Fiber) and SSE hub
+│   │   │   ├── middleware/        # Auth, CORS, tracing middleware
+│   │   │   ├── migration/         # Embedded migration runner (golang-migrate)
+│   │   │   ├── notification/      # Slack, Discord and Email senders
+│   │   │   ├── password/          # bcrypt hashing for email auth
+│   │   │   ├── pki/               # Internal CA, agent certificates
+│   │   │   ├── provisioner/       # SSH-based agent installation
+│   │   │   ├── repository/        # PostgreSQL repositories
+│   │   │   ├── requestctx/        # Request context utilities
+│   │   │   ├── response/          # ApiEnvelope response writer
+│   │   │   ├── server/            # Fiber bootstrap and route registration
+│   │   │   ├── service/           # Business logic services
+│   │   │   ├── sysinfo/           # Platform host metrics
+│   │   │   └── webhook/           # Inbound GitHub webhook ingestion
+│   │   ├── gen/go/                # Generated protobuf/gRPC code
+│   │   └── migrations/            # SQL migration files (28+)
+│   ├── agent/                     # Remote agent binary
+│   │   ├── cmd/agent/             # Agent entrypoint
 │   │   └── internal/
-│   │       ├── agent/         # Agent core (registration, heartbeat)
-│   │       ├── cleanup/       # Docker cleanup scheduler
-│   │       ├── deploy/        # Deployment executor
-│   │       ├── grpcserver/    # Agent gRPC handlers
+│   │       ├── agent/             # Registration, heartbeat, version
+│   │       ├── cleanup/           # Docker cleanup scheduler
+│   │       ├── deploy/            # Deployment executor
+│   │       ├── grpcclient/        # Client used to call back to the backend
+│   │       ├── grpcserver/        # Agent gRPC handlers split by feature
 │   │       │   ├── handlers_containers.go
 │   │       │   ├── handlers_deploy.go
 │   │       │   ├── handlers_exec.go
 │   │       │   ├── handlers_images.go
 │   │       │   ├── handlers_resources.go
+│   │       │   ├── handlers_ssl.go
 │   │       │   └── handlers_update.go
-│   │       └── sysinfo/       # System metrics collection
-│   ├── shared/                # Shared Go packages
+│   │       └── sysinfo/           # System metrics collection
+│   ├── shared/                    # Zero-dependency Go primitives
 │   │   └── pkg/
-│   │       ├── docker/        # Docker CLI client
-│   │       ├── executor/      # Shell command executor
-│   │       ├── health/        # Health check utilities
-│   │       ├── paths/         # Path resolution utilities
-│   │       └── version/       # App version detection
-│   └── proto/                 # Protocol Buffer definitions
+│   │       ├── cleaner/           # Docker resource cleanup
+│   │       ├── compose/           # docker compose wrappers
+│   │       ├── docker/            # Docker CLI client
+│   │       ├── executor/          # Safe shell command executor
+│   │       ├── git/               # Git clone/checkout helpers
+│   │       ├── health/            # Health check utilities
+│   │       ├── lock/              # File-based locking
+│   │       ├── paths/             # Path resolution utilities
+│   │       ├── safepath/          # Path traversal guards
+│   │       ├── traefik/           # Dynamic Traefik file provider
+│   │       └── version/           # App version detection
+│   └── proto/                     # Protocol Buffer definitions
 │       └── flowdeploy/v1/
-│           ├── agent.proto    # Agent service definition
-│           ├── server.proto   # Server/container messages
-│           ├── deploy.proto   # Deployment messages
-│           └── common.proto   # Shared messages
+│           ├── agent.proto        # Agent service definition
+│           ├── server.proto       # Server/container messages
+│           ├── deploy.proto       # Deployment messages
+│           └── common.proto       # Shared messages
 ├── deploy/
-│   ├── traefik/               # Traefik configuration
-│   └── docker-compose.yml     # Infrastructure services
-├── .github/workflows/         # CI/CD pipelines
-├── AGENT_VERSION              # Current agent version
-├── CHANGELOG.md               # Version history
-├── package.json               # Root workspace (v0.2.0)
-├── pnpm-workspace.yaml        # pnpm workspace config
-└── turbo.json                 # Turborepo config
+│   ├── traefik/                   # Traefik configuration
+│   └── docker-compose.yml         # Infrastructure services
+├── docs/                          # Architecture, integrations and tutorials
+├── .cursor/rules/                 # Workspace conventions for AI agents
+├── .github/workflows/             # CI/CD pipelines
+├── AGENT_VERSION                  # Current agent version
+├── AGENTS.md                      # Onboarding for AI agents and humans
+├── CHANGELOG.md                   # Version history
+├── package.json                   # Root workspace
+├── pnpm-workspace.yaml            # pnpm workspace config
+└── turbo.json                     # Turborepo config
 ```
 
 ## Configuration
@@ -404,6 +430,25 @@ docker compose -f deploy/docker-compose.yml up -d
 - CORS restricted to explicit origins (no wildcard fallback)
 - Input validation and sanitization on all endpoints
 - Alpine-based Docker images for minimal attack surface
+
+## Documentation
+
+The [`docs/`](docs/README.md) folder is the source of truth for architecture
+and operations:
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — runtime architecture
+- [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) — local setup and workflow
+- [`docs/REMOTE_SSH_DEPLOY.md`](docs/REMOTE_SSH_DEPLOY.md) — agent + mTLS internals
+- [`docs/REMOTE_SERVER_TUTORIAL.md`](docs/REMOTE_SERVER_TUTORIAL.md) — provision a VPS step by step
+- [`docs/GITHUB_INTEGRATION.md`](docs/GITHUB_INTEGRATION.md) — OAuth, GitHub App, webhooks
+- [`docs/AUTO_DNS_CONFIGURATION.md`](docs/AUTO_DNS_CONFIGURATION.md) — Cloudflare DNS automation
+- [`docs/SECURITY.md`](docs/SECURITY.md) — security model, hardening and threat model
+- [`docs/FEATURES_ROADMAP.md`](docs/FEATURES_ROADMAP.md) — what is implemented today and what is planned
+- [`docs/K3S_DEPLOY_ROADMAP.md`](docs/K3S_DEPLOY_ROADMAP.md) — planned K3s opt-in runtime
+
+Additional onboarding for AI agents and new humans lives in
+[`AGENTS.md`](AGENTS.md). Workspace conventions enforced at review time live
+in [`.cursor/rules/`](.cursor/rules/).
 
 ## Changelog
 

@@ -4,6 +4,7 @@ import {
   ChevronUp,
   ExternalLink,
   HardDrive,
+  HeartPulse,
   MoreVertical,
   Network,
   Play,
@@ -49,11 +50,13 @@ import {
 import { ContainerActions } from "./container-actions";
 import { ContainerConsoleDialog } from "./container-console-dialog";
 import { ContainerLogsDialog } from "./container-logs-dialog";
+import { ContainerNetworksSection } from "./container-networks-section";
 import { ContainerSSLDialog, isDatabaseImage } from "./container-ssl-dialog";
 import {
   ContainerHealthBadge,
   ContainerStateBadge,
 } from "./container-state-badge";
+import { HealthcheckResultDialog } from "./healthcheck-result-dialog";
 
 interface ContainerCardProps {
   readonly container: Container;
@@ -89,6 +92,7 @@ export function ContainerCard({
   const [showLogsDialog, setShowLogsDialog] = useState(false);
   const [showConsoleDialog, setShowConsoleDialog] = useState(false);
   const [showSSLDialog, setShowSSLDialog] = useState(false);
+  const [showHealthcheckDialog, setShowHealthcheckDialog] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const canConfigureSSL = Boolean(serverId) && isDatabaseImage(container.image);
@@ -116,7 +120,9 @@ export function ContainerCard({
 
   const hasNetworks = container.networks && container.networks.length > 0;
   const hasMounts = container.mounts && container.mounts.length > 0;
-  const hasDetails = hasNetworks || hasMounts;
+  const hasHealthcheck = Boolean(
+    container.health && container.health !== "none",
+  );
   const portsStr = formatPorts(container.ports);
 
   return (
@@ -243,20 +249,18 @@ export function ContainerCard({
                 </Tooltip>
               </TooltipProvider>
             )}
-            {hasDetails && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 w-6 p-0"
-                onClick={() => setExpanded(!expanded)}
-              >
-                {expanded ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0"
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+            </Button>
           </div>
         </td>
         <td className="py-3 px-4 hidden lg:table-cell whitespace-nowrap">
@@ -312,6 +316,14 @@ export function ContainerCard({
                 <DropdownMenuItem onClick={() => setShowConsoleDialog(true)}>
                   <Terminal className="mr-2 h-4 w-4" />
                   Open Console
+                </DropdownMenuItem>
+              )}
+              {hasHealthcheck && (
+                <DropdownMenuItem
+                  onClick={() => setShowHealthcheckDialog(true)}
+                >
+                  <HeartPulse className="mr-2 h-4 w-4" />
+                  Test Healthcheck
                 </DropdownMenuItem>
               )}
               {canConfigureSSL && (
@@ -380,6 +392,16 @@ export function ContainerCard({
         onOpenChange={setShowConsoleDialog}
       />
 
+      {hasHealthcheck && (
+        <HealthcheckResultDialog
+          containerId={container.id}
+          containerName={container.name}
+          serverId={serverId}
+          open={showHealthcheckDialog}
+          onOpenChange={setShowHealthcheckDialog}
+        />
+      )}
+
       {canConfigureSSL && serverId && serverHost && (
         <ContainerSSLDialog
           containerId={container.id}
@@ -395,29 +417,15 @@ export function ContainerCard({
         />
       )}
 
-      {expanded && hasDetails && (
+      {expanded && (
         <tr className="border-b border-border bg-muted/30">
           <td colSpan={9} className="py-3 px-4">
             <div className="grid gap-4 md:grid-cols-2">
-              {hasNetworks && (
-                <div>
-                  <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                    <Network className="h-4 w-4" />
-                    Networks ({container.networks.length})
-                  </h4>
-                  <div className="flex flex-wrap gap-1">
-                    {container.networks.map((network) => (
-                      <Badge
-                        key={network}
-                        variant="secondary"
-                        className="text-xs"
-                      >
-                        {network}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <ContainerNetworksSection
+                containerId={container.id}
+                containerNetworks={container.networks ?? []}
+                serverId={serverId}
+              />
               {hasMounts && (
                 <div>
                   <h4 className="text-sm font-medium flex items-center gap-2 mb-2">

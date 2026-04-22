@@ -68,25 +68,25 @@ type UpdateAgentEnqueuer interface {
 }
 
 type ServerHandlerAgentDeps struct {
-	HealthChecker        *agentclient.HealthChecker
-	AgentClient          *agentclient.AgentClient
-	AgentPort            int
-	AgentBinaryPath      string
-	UpdateAgentEnqueuer  UpdateAgentEnqueuer
+	HealthChecker       *agentclient.HealthChecker
+	AgentClient         *agentclient.AgentClient
+	AgentPort           int
+	AgentBinaryPath     string
+	UpdateAgentEnqueuer UpdateAgentEnqueuer
 }
 
 type ServerHandler struct {
 	serverRepo          domain.ServerRepository
-	tokenEncryptor       *crypto.TokenEncryptor
-	provisioner          *provisioner.SSHProvisioner
-	sseHandler           *SSEHandler
-	healthChecker        *agentclient.HealthChecker
-	agentClient          *agentclient.AgentClient
-	agentPort            int
-	agentBinaryPath      string
-	updateAgentEnqueuer  UpdateAgentEnqueuer
-	appService           AppsByServerLister
-	logger               *slog.Logger
+	tokenEncryptor      *crypto.TokenEncryptor
+	provisioner         *provisioner.SSHProvisioner
+	sseHandler          *SSEHandler
+	healthChecker       *agentclient.HealthChecker
+	agentClient         *agentclient.AgentClient
+	agentPort           int
+	agentBinaryPath     string
+	updateAgentEnqueuer UpdateAgentEnqueuer
+	appService          AppsByServerLister
+	logger              *slog.Logger
 }
 
 type AppsByServerLister interface {
@@ -103,17 +103,17 @@ func NewServerHandler(
 	logger *slog.Logger,
 ) *ServerHandler {
 	return &ServerHandler{
-		serverRepo:         serverRepo,
-		tokenEncryptor:     tokenEncryptor,
-		provisioner:        prov,
-		sseHandler:         sseHandler,
-		healthChecker:      agentDeps.HealthChecker,
-		agentClient:        agentDeps.AgentClient,
-		agentPort:          agentDeps.AgentPort,
-		agentBinaryPath:    agentDeps.AgentBinaryPath,
+		serverRepo:          serverRepo,
+		tokenEncryptor:      tokenEncryptor,
+		provisioner:         prov,
+		sseHandler:          sseHandler,
+		healthChecker:       agentDeps.HealthChecker,
+		agentClient:         agentDeps.AgentClient,
+		agentPort:           agentDeps.AgentPort,
+		agentBinaryPath:     agentDeps.AgentBinaryPath,
 		updateAgentEnqueuer: agentDeps.UpdateAgentEnqueuer,
-		appService:         appService,
-		logger:             logger.With("handler", "server"),
+		appService:          appService,
+		logger:              logger.With("handler", "server"),
 	}
 }
 
@@ -134,26 +134,25 @@ func (h *ServerHandler) Register(app fiber.Router) {
 }
 
 type ServerResponse struct {
-	ID                   string  `json:"id"`
-	Name                 string  `json:"name"`
-	Host                 string  `json:"host"`
-	SSHPort              int     `json:"sshPort"`
-	SSHUser              string  `json:"sshUser"`
-	AcmeEmail            *string `json:"acmeEmail,omitempty"`
-	Status               string  `json:"status"`
-	AgentVersion         *string `json:"agentVersion,omitempty"`
-	AgentUpdateMode      string  `json:"agentUpdateMode"`
-	LatestAgentVersion   string  `json:"latestAgentVersion"`
-	LastHeartbeatAt      *string `json:"lastHeartbeatAt,omitempty"`
-	CreatedAt            string  `json:"createdAt"`
-	UpdatedAt            string  `json:"updatedAt"`
+	ID                 string  `json:"id"`
+	Name               string  `json:"name"`
+	Host               string  `json:"host"`
+	SSHPort            int     `json:"sshPort"`
+	SSHUser            string  `json:"sshUser"`
+	AcmeEmail          *string `json:"acmeEmail,omitempty"`
+	Status             string  `json:"status"`
+	AgentVersion       *string `json:"agentVersion,omitempty"`
+	AgentUpdateMode    string  `json:"agentUpdateMode"`
+	LatestAgentVersion string  `json:"latestAgentVersion"`
+	LastHeartbeatAt    *string `json:"lastHeartbeatAt,omitempty"`
+	CreatedAt          string  `json:"createdAt"`
+	UpdatedAt          string  `json:"updatedAt"`
 }
 
 type ServerHealthResponse struct {
 	Status    string `json:"status"`
 	LatencyMs int64  `json:"latencyMs"`
 }
-
 
 func toServerResponse(s *domain.Server) ServerResponse {
 	resp := ServerResponse{
@@ -352,7 +351,7 @@ func (h *ServerHandler) GetStats(c *fiber.Ctx) error {
 	}
 
 	return response.OK(c, fiber.Map{
-		"systemInfo":   sysInfo,
+		"systemInfo":    sysInfo,
 		"systemMetrics": sysMetrics,
 	})
 }

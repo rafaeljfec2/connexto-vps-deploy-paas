@@ -173,6 +173,20 @@ func (c *AgentClient) CreateContainerFromTemplate(ctx context.Context, host stri
 	return cl.CreateContainerFromTemplate(ctx, req)
 }
 
+func (c *AgentClient) RunContainerHealthcheck(ctx context.Context, host string, port int, containerID string) (*pb.RunContainerHealthcheckResponse, error) {
+	cl, err := c.client(host, port)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	defer cancel()
+	resp, err := cl.RunContainerHealthcheck(ctx, &pb.RunContainerHealthcheckRequest{ContainerId: containerID})
+	if err != nil {
+		return nil, wrapUnimplemented("RunContainerHealthcheck", fmt.Errorf("run container healthcheck: %w", err))
+	}
+	return resp, nil
+}
+
 func (c *AgentClient) ExecContainer(ctx context.Context, host string, port int) (*ExecContainerStream, error) {
 	cl, err := c.client(host, port)
 	if err != nil {

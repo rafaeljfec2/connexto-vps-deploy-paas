@@ -48,11 +48,11 @@ type ConfigureSSLRequest struct {
 }
 
 type SSLStatusResponse struct {
-	SSLEnabled       bool   `json:"sslEnabled"`
-	TLSVersion       string `json:"tlsVersion,omitempty"`
-	Cipher           string `json:"cipher,omitempty"`
+	SSLEnabled        bool   `json:"sslEnabled"`
+	TLSVersion        string `json:"tlsVersion,omitempty"`
+	Cipher            string `json:"cipher,omitempty"`
 	CertificateExpiry string `json:"certificateExpiry,omitempty"`
-	ConnectionString string `json:"connectionString,omitempty"`
+	ConnectionString  string `json:"connectionString,omitempty"`
 }
 
 func (h *ContainerSSLHandler) ConfigureSSL(c *fiber.Ctx) error {

@@ -100,6 +100,46 @@ func (c *AgentClient) RemoveNetwork(ctx context.Context, host string, port int, 
 	return nil
 }
 
+func (c *AgentClient) ConnectContainerNetwork(ctx context.Context, host string, port int, containerID, network string) error {
+	cl, err := c.client(host, port)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	resp, err := cl.ConnectContainerNetwork(ctx, &pb.ConnectContainerNetworkRequest{
+		ContainerId: containerID,
+		Network:     network,
+	})
+	if err != nil {
+		return wrapUnimplemented("ConnectContainerNetwork", fmt.Errorf("connect container network: %w", err))
+	}
+	if !resp.Success {
+		return fmt.Errorf("connect container network failed: %s", resp.Message)
+	}
+	return nil
+}
+
+func (c *AgentClient) DisconnectContainerNetwork(ctx context.Context, host string, port int, containerID, network string) error {
+	cl, err := c.client(host, port)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	resp, err := cl.DisconnectContainerNetwork(ctx, &pb.DisconnectContainerNetworkRequest{
+		ContainerId: containerID,
+		Network:     network,
+	})
+	if err != nil {
+		return wrapUnimplemented("DisconnectContainerNetwork", fmt.Errorf("disconnect container network: %w", err))
+	}
+	if !resp.Success {
+		return fmt.Errorf("disconnect container network failed: %s", resp.Message)
+	}
+	return nil
+}
+
 func (c *AgentClient) ListVolumes(ctx context.Context, host string, port int) ([]*pb.VolumeInfo, error) {
 	cl, err := c.client(host, port)
 	if err != nil {

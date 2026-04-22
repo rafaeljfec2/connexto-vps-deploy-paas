@@ -1,432 +1,148 @@
-# FlowDeploy - Estudo de Features
-
-## Comparativo com Coolify
-
-| Feature                                | Coolify | FlowDeploy | Status             |
-| -------------------------------------- | ------- | ---------- | ------------------ |
-| Deploy de aplicacoes Docker            | ✅      | ✅         | Implementado       |
-| Push to Deploy (Git)                   | ✅      | ✅         | Implementado       |
-| Integracao GitHub                      | ✅      | ✅         | Implementado       |
-| SSL Automatico (Traefik/Let's Encrypt) | ✅      | ✅         | Implementado       |
-| Variaveis de Ambiente                  | ✅      | ✅         | Implementado       |
-| Logs em tempo real                     | ✅      | ✅         | Implementado (SSE) |
-| Monitoramento (CPU/RAM/Disk)           | ✅      | ✅         | Implementado (SSE) |
-| Health Checks                          | ✅      | ✅         | Implementado       |
-| Rollback                               | ✅      | ✅         | Implementado       |
-| DNS Automatico (Cloudflare)            | ❌      | ✅         | Implementado       |
-| Notificacoes (Discord/Slack/Email)     | ✅      | ❌         | Planejado          |
-| Backups automaticos de DB              | ✅      | ❌         | Planejado          |
-| Terminal web (real-time)               | ✅      | ❌         | Planejado          |
-| One-click services (Postgres, Redis)   | ✅      | ❌         | Planejado          |
-| Pull Request Deployments               | ✅      | ❌         | Planejado          |
-| Multi-servidor                         | ✅      | ❌         | Futuro             |
-| API Publica                            | ✅      | ❌         | Futuro             |
-| CLI Tool                               | ✅      | ❌         | Futuro             |
-
----
-
-## Estado Atual do Sistema
-
-O FlowDeploy ja possui:
-
-- Deploy automatizado via GitHub webhooks
-- Monitoramento em tempo real (CPU, memoria, rede, PIDs)
-- Logs streaming via SSE
-- Rollback automatico
-- Environment variables com suporte a secrets
-- Health checks configuraveis
-- Container control (start/stop/restart)
-- **DNS Automatico via Cloudflare** (registro A direto para IP do servidor)
-- **Autenticacao via GitHub OAuth + GitHub App**
-
----
-
-## Features Propostas
-
-### Alta Prioridade - Quick Wins
-
-#### 1. Sistema de Notificacoes
-
-**Persona:** DevOps + Dev  
-**Valor:** Alertas proativos sobre falhas de deploy, container down, health checks
-
-```
-Canais:
-- Slack webhook
-- Discord webhook
-- Email (SMTP)
-- Browser notifications (Web Push API)
-```
-
-**Implementacao:**
-
-- Tabela `notification_channels` (type, config JSON, app_id nullable)
-- Tabela `notification_rules` (event_type, channel_id, enabled)
-- Service `NotificationService` que escuta eventos do SSE
-
----
-
-#### 2. Metricas Historicas e Graficos
-
-**Persona:** DevOps  
-**Valor:** Visualizar tendencias de uso de recursos, identificar memory leaks, CPU spikes
-
-```
-Dados a armazenar:
-- CPU % (media por minuto)
-- Memory usage (media por minuto)
-- Network I/O (acumulado por minuto)
-- Request count (se tiver proxy metrics)
-```
-
-**Implementacao:**
-
-- Tabela `app_metrics` (app_id, timestamp, cpu, memory, network_rx, network_tx)
-- Job de agregacao a cada minuto
-- Componente de graficos com Recharts ou Chart.js
-- Retencao configuravel (7 dias default)
-
----
-
-#### 3. Activity Log / Audit Trail
-
-**Persona:** DevOps + Dev  
-**Valor:** Rastreabilidade de quem fez o que, quando
-
-```
-Eventos a logar:
-- Deploy triggered (manual/webhook)
-- Container restart/stop/start
-- Env var created/updated/deleted
-- App settings changed
-- Webhook configured
-```
-
-**Implementacao:**
-
-- Tabela `activity_logs` (id, user_id, app_id, action, details JSONB, ip, timestamp)
-- Middleware para capturar acoes automaticamente
-- Timeline component no frontend
-
----
-
-#### 4. Preview Deployments (Deploy por PR)
-
-**Persona:** Dev  
-**Valor:** Testar mudancas em ambiente isolado antes de merge
-
-```
-Fluxo:
-1. PR aberto -> webhook dispara
-2. Cria ambiente temporario (subdomain: pr-123.app.flowdeploy.io)
-3. Deploy da branch do PR
-4. PR fechado/merged -> cleanup automatico
-```
-
-**Implementacao:**
-
-- Flag `is_preview` na tabela `apps`
-- Tabela `preview_deployments` (pr_number, base_app_id, preview_app_id, status)
-- GitHub webhook handler para eventos `pull_request`
-- TTL para auto-cleanup (24h apos PR fechado)
-
----
-
-#### 5. Controles Administrativos do Agent
-
-**Persona:** DevOps + SRE  
-**Valor:** Diagnosticar agents rapidamente, forcar reprovisionamento sem SSH e testar conectividade SaaS ↔ VPS via CLI.
-
-```
-Capacidades:
-- Endpoint admin (backend) para forcar reprovisionamento de um server
-- Comando CLI/Script que autentica e executa health check gRPC contra o agent
-- Historico de ultimos health checks
-```
-
-**Implementacao:**
-
-- Rota protegida `/servers/:id/reprovision` que reutiliza o provisioner com opcao de regenerar certs
-- CLI `flowdeploy agent health --server-id ...` que chama o novo endpoint ou fala direto com o agent
-- Persistir logs de conectividade (latencia, status) para auditoria
-- UI: botao "Reprovision" + "Test Health" no card do servidor
-
----
-
-### Media Prioridade - Funcionalidades Avancadas
-
-#### 5. Terminal Web (Exec no Container)
-
-**Persona:** Dev  
-**Valor:** Debug em tempo real, executar comandos sem SSH
-
-```
-Tecnologia:
-- WebSocket para terminal interativo
-- xterm.js no frontend
-- docker exec no backend
-```
-
-**Implementacao:**
-
-- Endpoint WebSocket `/apps/:id/terminal`
-- Timeout de sessao (30 min)
-- Audit log de comandos executados
-- Permissoes: apenas owner pode acessar
-
----
-
-#### 6. Build Configuration Avancada
-
-**Persona:** Dev  
-**Valor:** Customizar processo de build sem modificar codigo
-
-```
-Opcoes:
-- Dockerfile path customizado
-- Build arguments (--build-arg)
-- Target stage (multi-stage builds)
-- Build cache toggle
-```
-
-**Implementacao:**
-
-- Campos na tabela `apps`: dockerfile_path, build_args JSONB, target_stage
-- UI para configurar no App Settings
-- Passar para docker build command
-
----
-
-#### 7. Scheduled Tasks (Cron Jobs)
-
-**Persona:** Dev  
-**Valor:** Executar tarefas periodicas (cleanup, reports, sync)
-
-```
-Exemplo:
-- "*/5 * * * * /app/scripts/cleanup.sh"
-- Executa dentro do container da app
-```
-
-**Implementacao:**
-
-- Tabela `scheduled_tasks` (app_id, schedule, command, enabled, last_run, next_run)
-- Worker dedicado para executar crons
-- Logs de execucao separados
-- UI para CRUD de tasks
-
----
-
-#### 8. Custom Domains Management ✅ IMPLEMENTADO
-
-**Persona:** DevOps  
-**Valor:** Gerenciar dominios proprios com SSL automatico
-
-```
-Fluxo Implementado:
-1. Usuario conecta conta Cloudflare (API Token)
-2. Usuario adiciona dominio customizado
-3. Sistema cria registro A automaticamente no Cloudflare
-4. Cloudflare Proxy ativo (SSL automatico)
-5. Traefik atualiza config no proximo deploy
-```
-
-**Implementacao Atual:**
-
-- Tabela `cloudflare_connections` (user_id, access_token_encrypted, account_id)
-- Tabela `custom_domains` (app_id, domain, zone_id, dns_record_id, record_type)
-- Cloudflare API Client para criar/deletar registros DNS
-- Suporte a TLDs compostos (.com.br, .co.uk, etc.)
-- UI para conectar Cloudflare e gerenciar dominios
-
----
-
-#### 9. Resource Limits Editaveis
-
-**Persona:** DevOps  
-**Valor:** Ajustar CPU/Memory sem editar codigo
-
-```
-Campos:
-- Memory limit (128MB - 8GB)
-- Memory reservation
-- CPU limit (0.25 - 4 cores)
-- CPU reservation
-```
-
-**Implementacao:**
-
-- Campos no `config` JSONB da app
-- UI com sliders/inputs
-- Aplica no proximo deploy
-- Warning se exceder limites do host
-
----
-
-### Baixa Prioridade - Nice to Have
-
-#### 10. Multi-Environment Support
-
-**Persona:** DevOps + Dev  
-**Valor:** Staging e Production separados, promote entre ambientes
-
-```
-Estrutura:
-- App e um "projeto"
-- Projeto tem N environments (staging, production)
-- Cada environment tem suas env vars, domain, config
-```
-
-**Complexidade:** Alta - requer refatoracao do modelo de dados
-
----
-
-#### 11. Database Provisioning
-
-**Persona:** Dev  
-**Valor:** Criar databases (Postgres, Redis, MySQL) com um clique
-
-```
-Implementacao:
-- Templates Docker Compose para cada DB
-- Injecao automatica de connection string nas env vars
-- Backup automatico
-```
-
-**Complexidade:** Media-Alta
-
----
-
-#### 12. Feature Flags Service
-
-**Persona:** Dev  
-**Valor:** Toggle features sem redeploy
-
-```
-API:
-- GET /flags/:app_id -> lista de flags
-- SDK client para apps consumirem
-```
-
-**Complexidade:** Media - requer SDK e UI
-
----
-
-#### 13. Secrets Rotation
-
-**Persona:** DevOps  
-**Valor:** Rotacionar secrets automaticamente
-
-```
-Fluxo:
-- Define rotation policy (30 dias)
-- Notifica antes de expirar
-- Gera novo secret
-- Redeploy automatico
-```
-
----
-
-## Diagrama de Arquitetura das Features
-
-```mermaid
-flowchart TB
-    subgraph frontend [Frontend]
-        Dashboard
-        AppDetails
-        Notifications[Notifications UI]
-        Terminal[Web Terminal]
-        Metrics[Metrics Charts]
-        ActivityLog[Activity Log]
-    end
-
-    subgraph backend [Backend]
-        API
-        SSE[SSE Handler]
-        NotificationSvc[Notification Service]
-        MetricsCollector[Metrics Collector]
-        CronWorker[Cron Worker]
-        TerminalWS[Terminal WebSocket]
-    end
-
-    subgraph external [External Services]
-        Slack
-        Discord
-        Email[SMTP Server]
-        LetsEncrypt[Let's Encrypt]
-    end
-
-    subgraph storage [Storage]
-        PostgreSQL
-        TimeSeries[Metrics Table]
-    end
-
-    Dashboard --> API
-    AppDetails --> SSE
-    Notifications --> NotificationSvc
-    Terminal --> TerminalWS
-    Metrics --> MetricsCollector
-
-    NotificationSvc --> Slack
-    NotificationSvc --> Discord
-    NotificationSvc --> Email
-
-    MetricsCollector --> TimeSeries
-    CronWorker --> PostgreSQL
-```
-
----
-
-## Matriz de Prioridade
-
-| Feature             | Esforco | Impacto | ROI   | Status    |
-| ------------------- | ------- | ------- | ----- | --------- |
-| Custom Domains      | Alto    | Alto    | Alto  | ✅ Feito  |
-| Notificacoes        | Medio   | Alto    | Alto  | Proximo   |
-| Preview Deployments | Alto    | Alto    | Alto  | Proximo   |
-| Metricas Historicas | Medio   | Alto    | Alto  | Planejado |
-| Activity Log        | Baixo   | Medio   | Alto  | Planejado |
-| Terminal Web        | Medio   | Alto    | Alto  | Planejado |
-| Database Provision  | Alto    | Alto    | Alto  | Planejado |
-| Build Config        | Baixo   | Medio   | Alto  | Planejado |
-| Scheduled Tasks     | Medio   | Medio   | Medio | Futuro    |
-| Resource Limits UI  | Baixo   | Medio   | Alto  | Futuro    |
-| Multi-Environment   | Alto    | Alto    | Baixo | Futuro    |
-| Feature Flags       | Medio   | Baixo   | Baixo | Futuro    |
-
----
-
-## Recomendacao de Implementacao (MVP)
-
-**Fase 1 - Proximas Features:**
-
-1. **Notificacoes** - Discord/Slack quando deploy falha/sucede
-2. **Preview Deployments** - URLs temporarias para PRs
-3. **One-click Databases** - Postgres, Redis como servico
-
-**Fase 2 - Developer Experience:**
-
-4. Terminal Web - debug sem SSH
-5. Activity Log - auditoria de acoes
-6. Metricas Historicas - graficos de CPU/RAM
-
-**Fase 3 - Enterprise:**
-
-7. Multi-Environment (staging/production)
-8. API Publica + CLI Tool
-9. Backups automaticos S3
-
----
-
-## Features Concluidas
-
-- [x] Deploy automatizado via GitHub
-- [x] Monitoramento real-time (SSE)
-- [x] Logs streaming
-- [x] Rollback
-- [x] Environment variables
-- [x] Health checks
-- [x] Container control
-- [x] DNS Automatico (Cloudflare)
-- [x] Autenticacao GitHub OAuth + App
-- [x] Notificacoes (Discord/Slack/Email)
+# FlowDeploy — Mapa de Features e Roadmap
+
+Este documento mostra **o que ja existe na plataforma hoje** e **o que esta
+planejado para os proximos ciclos**. Use como fonte unica para responder a
+pergunta "o FlowDeploy ja faz X?".
+
+> Convencoes:
+>
+> - ✅ implementado e disponivel na branch principal
+> - 🚧 parcial / experimental (existe codigo mas ainda nao foi promovido)
+> - 📋 planejado (existe um roadmap claro mas nao foi iniciado)
+> - ❌ fora de escopo no momento
+
+## 1. Comparativo com plataformas similares
+
+| Feature                                       | Coolify | FlowDeploy | Status                                    |
+| --------------------------------------------- | ------- | ---------- | ----------------------------------------- |
+| Deploy de aplicacoes Docker                   | ✅      | ✅         | `engine` + `shared/pkg/docker`            |
+| Push to deploy via Git                        | ✅      | ✅         | webhooks GitHub + dedup (`000028`)        |
+| Integracao GitHub (OAuth + App)               | ✅      | ✅         | `internal/github`, `internal/ghclient`    |
+| Multi-servidor remoto                         | ✅      | ✅         | agente gRPC + mTLS (`internal/pki`)       |
+| SSL automatico (Let's Encrypt + Traefik)      | ✅      | ✅         | Traefik 3.x + ACME                        |
+| Variaveis de ambiente criptografadas          | ✅      | ✅         | `internal/crypto`                         |
+| Logs em tempo real                            | ✅      | ✅         | SSE em `/events/deploys`                  |
+| Monitoramento (CPU, RAM, disco, rede)         | ✅      | ✅         | `system_stats_monitor` + `server_stats`   |
+| Health checks com retry e rollback            | ✅      | ✅         | configuravel via `paasdeploy.json`        |
+| Rollback                                      | ✅      | ✅         | rota dedicada `/api/apps/:id/rollback`    |
+| DNS automatico (Cloudflare)                   | ❌      | ✅         | OAuth Cloudflare + `internal/cloudflare`  |
+| Notificacoes (Slack / Discord / Email)        | ✅      | ✅         | `internal/notification`                   |
+| Templates one-click (Postgres, Redis, Nginx…) | ✅      | ✅         | `template_handler` + `template_data`      |
+| Auditoria de eventos                          | ✅      | ✅         | `internal/service/audit_service.go`       |
+| Auto-update do agente                         | parcial | ✅         | `agentdownload` + `handlers_update`       |
+| Provisionamento automatico via SSH            | ✅      | ✅         | `internal/provisioner`                    |
+| Terminal web (docker exec interativo)         | ✅      | ✅         | gRPC bidirecional + `creack/pty`          |
+| Backups automaticos de banco                  | ✅      | 📋         | roadmap (Q3)                              |
+| Runtime K3s (rolling, replicas, ingress)      | parcial | 📋         | ver `docs/K3S_DEPLOY_ROADMAP.md`          |
+| Marketplace de templates                      | parcial | 📋         | catalogo atual e estatico                 |
+| Multi-tenant com cobranca                     | ❌      | ❌         | fora de escopo                            |
+
+## 2. Features implementadas
+
+### 2.1 Pipeline de deploy
+
+- ✅ Fila persistida em PostgreSQL com `SELECT ... FOR UPDATE SKIP LOCKED`.
+- ✅ Pool de workers configuravel (`DEPLOY_WORKERS`).
+- ✅ Suporte a Dockerfile e a `docker-compose.yml` por app.
+- ✅ Suporte a monorepos via campo `workdir` em `paasdeploy.json`.
+- ✅ Health check apos build, com retries e timeout configuraveis.
+- ✅ Rollback automatico em caso de falha de health.
+- ✅ Rollback manual por endpoint REST.
+- ✅ Deduplicacao de deploys (`migration 000028_deploy_dedup`).
+- ✅ Logs em tempo real via SSE, sem polling.
+
+### 2.2 Multi-servidor
+
+- ✅ Agente Go leve por VPS, comunicando via gRPC.
+- ✅ mTLS com CA interna (`internal/pki`) e certificados por agente.
+- ✅ Traefik com TCP route SNI para expor a porta gRPC do backend.
+- ✅ Provisionamento automatico via SSH (chaves geradas pelo backend).
+- ✅ Auto-update do binario do agente: backend serve binario, agente baixa,
+  valida hash e reinicia.
+- ✅ Heartbeat com metricas e versao reportada.
+- ✅ `RequireAdminForLocal` impede usuarios comuns de fazer deploy no host.
+
+### 2.3 Integracoes
+
+- ✅ GitHub OAuth para login e GitHub App para clone de repositorios privados.
+- ✅ Webhooks GitHub com verificacao HMAC-SHA256 em tempo constante.
+- ✅ Cloudflare via OAuth: cria CNAMEs automaticamente em zonas do usuario.
+- ✅ Slack, Discord e Email (SMTP) como canais de notificacao com regras
+  configuraveis por app/evento.
+
+### 2.4 Operacao e seguranca
+
+- ✅ Login com GitHub OAuth ou email/senha (bcrypt).
+- ✅ Sessoes opacas em cookies HttpOnly + Secure + SameSite=Lax.
+- ✅ Roles `admin` e `user`.
+- ✅ Variaveis de ambiente criptografadas no banco.
+- ✅ Tokens GitHub e Cloudflare criptografados antes de persistir.
+- ✅ Auditoria de eventos com payloads de webhook armazenados para replay.
+- ✅ Migracoes embutidas via `golang-migrate` (28+ migracoes).
+
+### 2.5 Frontend
+
+- ✅ React 18 + Vite 6 + Tailwind 3.4 + shadcn/ui.
+- ✅ Mobile-first em todas as telas.
+- ✅ TanStack Query 5 + SSE para zero polling.
+- ✅ Tema light/dark com persistencia.
+- ✅ Editor de variaveis de ambiente com mascara para valores sensiveis.
+
+## 3. Em desenvolvimento (🚧)
+
+| Item                                                | Status                                                   |
+| --------------------------------------------------- | -------------------------------------------------------- |
+| Dashboard de auditoria com filtros avancados        | UI parcial, falta paginacao e exportacao                 |
+| Alertas inteligentes (anomaly detection em metrica) | prototipo so no backend, sem regra ainda                 |
+| Multi-region failover (active-passive)              | discussao tecnica iniciada                               |
+
+## 4. Roadmap (📋)
+
+### Q2
+
+- 📋 **Backups automaticos de banco** — agendamento de `pg_dump` e
+  envio para storage S3-compativel; ja existe modelo de `cleanup_logs`
+  como inspiracao.
+- 📋 **Templates dinamicos** — permitir que o usuario cadastre seus
+  proprios templates (compose + manifesto) sem alterar codigo.
+- 📋 **Webhooks de saida configuraveis** — disparar HTTP arbitrario para
+  eventos de deploy, similar ao Slack/Discord mas generico.
+
+### Q3
+
+- 📋 **Runtime K3s opcional** — adicionar K3s como alternativa ao Docker em
+  servidores remotos, com rolling updates, replicas e ingress automatico.
+  Ver [`K3S_DEPLOY_ROADMAP.md`](./K3S_DEPLOY_ROADMAP.md) para detalhes.
+- 📋 **Pipelines compostos** — declarar etapas extras (lint, testes, smoke
+  tests) que rodam dentro do worker antes do `docker build`.
+- 📋 **Marketplace de templates** — catalogo curado, com versionamento e
+  preview de variaveis.
+
+### Q4
+
+- 📋 **Suporte a GitLab e Bitbucket** — abstrair `ghclient` como `gitclient`
+  e adicionar implementacoes alternativas; o `webhook.Manager` ja esta
+  desenhado para isso.
+- 📋 **Painel multi-cluster** — agrupar servidores por ambiente (dev /
+  staging / prod) e exibir deploys agregados.
+- 📋 **CLI oficial** — comando `flowdeploy` para listar apps, abrir terminal
+  remoto e disparar deploys via gRPC.
+
+## 5. Itens explicitamente fora de escopo
+
+- ❌ Multi-tenant SaaS com cobranca embutida.
+- ❌ Construir nosso proprio orquestrador de containers (continuamos
+  apostando em Docker e, no futuro, K3s).
+- ❌ Substituir Traefik por outro proxy.
+- ❌ Suporte a Kubernetes generico (somente K3s opt-in para a feature
+  planejada).
+
+## 6. Como propor novas features
+
+1. Abra uma issue descrevendo o problema antes da solucao.
+2. Aponte qual area do `.cursor/rules/` seria afetada.
+3. Liste alternativas e impactos em seguranca, performance e UX.
+4. Para mudancas grandes, escreva uma RFC em `docs/` (ver
+   `.cursor/skills/create-rfc/` para template).
+5. Valide o roadmap antes de implementar — features fora do escopo
+   declarado devem virar RFC primeiro.

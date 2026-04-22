@@ -49,6 +49,12 @@ service AgentService {
 
   rpc RemoveNetwork(RemoveNetworkRequest) returns (RemoveNetworkResponse);
 
+  rpc ConnectContainerNetwork(ConnectContainerNetworkRequest) returns (ConnectContainerNetworkResponse);
+
+  rpc DisconnectContainerNetwork(DisconnectContainerNetworkRequest) returns (DisconnectContainerNetworkResponse);
+
+  rpc RunContainerHealthcheck(RunContainerHealthcheckRequest) returns (RunContainerHealthcheckResponse);
+
   rpc ListVolumes(ListVolumesRequest) returns (ListVolumesResponse);
 
   rpc CreateVolume(CreateVolumeRequest) returns (CreateVolumeResponse);

@@ -2,6 +2,7 @@ package grpcserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -255,5 +256,34 @@ func (s *AgentService) CreateContainerFromTemplate(ctx context.Context, req *pb.
 		Success:     true,
 		ContainerId: containerID,
 		Message:     "Container created from template",
+	}, nil
+}
+
+func (s *AgentService) RunContainerHealthcheck(ctx context.Context, req *pb.RunContainerHealthcheckRequest) (*pb.RunContainerHealthcheckResponse, error) {
+	if req.ContainerId == "" {
+		return &pb.RunContainerHealthcheckResponse{Success: false, Message: "container_id is required"}, nil
+	}
+
+	result, err := s.docker.RunHealthcheck(ctx, req.ContainerId)
+	if err != nil {
+		var notConfigured *docker.HealthcheckNotConfiguredError
+		if errors.As(err, &notConfigured) {
+			return &pb.RunContainerHealthcheckResponse{
+				Success:       false,
+				NotConfigured: true,
+				Message:       notConfigured.Error(),
+			}, nil
+		}
+		s.logger.Error("Failed to run healthcheck", "container", req.ContainerId, "error", err)
+		return &pb.RunContainerHealthcheckResponse{Success: false, Message: err.Error()}, nil
+	}
+
+	return &pb.RunContainerHealthcheckResponse{
+		Success:    result.ExitCode == 0,
+		ExitCode:   int32(result.ExitCode),
+		Stdout:     result.Stdout,
+		Stderr:     result.Stderr,
+		Command:    result.Command,
+		DurationMs: result.DurationMs,
 	}, nil
 }

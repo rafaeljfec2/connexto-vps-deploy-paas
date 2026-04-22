@@ -23,7 +23,8 @@ export function useCreateNetwork() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (name: string) => api.networks.create(name),
+    mutationFn: ({ name, serverId }: { name: string; serverId?: string }) =>
+      api.networks.create(name, serverId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["networks"] });
     },
@@ -34,7 +35,8 @@ export function useRemoveNetwork() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (name: string) => api.networks.remove(name),
+    mutationFn: ({ name, serverId }: { name: string; serverId?: string }) =>
+      api.networks.remove(name, serverId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["networks"] });
     },
@@ -48,10 +50,12 @@ export function useConnectContainerToNetwork() {
     mutationFn: ({
       containerId,
       network,
+      serverId,
     }: {
       containerId: string;
       network: string;
-    }) => api.networks.connectContainer(containerId, network),
+      serverId?: string;
+    }) => api.networks.connectContainer(containerId, network, serverId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["networks"] });
       queryClient.invalidateQueries({ queryKey: ["containers"] });
@@ -66,10 +70,12 @@ export function useDisconnectContainerFromNetwork() {
     mutationFn: ({
       containerId,
       network,
+      serverId,
     }: {
       containerId: string;
       network: string;
-    }) => api.networks.disconnectContainer(containerId, network),
+      serverId?: string;
+    }) => api.networks.disconnectContainer(containerId, network, serverId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["networks"] });
       queryClient.invalidateQueries({ queryKey: ["containers"] });

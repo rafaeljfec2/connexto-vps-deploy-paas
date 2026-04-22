@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	maxCleanupLogLimit   = 200
+	maxCleanupLogLimit       = 200
 	errCleanupServerNotFound = "Server not found"
 )
 

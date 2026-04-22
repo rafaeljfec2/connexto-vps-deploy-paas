@@ -437,15 +437,15 @@ type paasDeployConfig struct {
 		Retries     int    `json:"retries"`
 		StartPeriod string `json:"startPeriod"`
 	} `json:"healthcheck"`
-	Port      int                       `json:"port"`
-	HostPort  int                       `json:"hostPort,omitempty"`
-	Env       map[string]string         `json:"env,omitempty"`
+	Port      int               `json:"port"`
+	HostPort  int               `json:"hostPort,omitempty"`
+	Env       map[string]string `json:"env,omitempty"`
 	Resources struct {
 		Memory string `json:"memory"`
 		CPU    string `json:"cpu"`
 	} `json:"resources"`
-	Domains []string                  `json:"domains,omitempty"`
-	Volumes []paasDeployVolumeConfig  `json:"volumes,omitempty"`
+	Domains []string                 `json:"domains,omitempty"`
+	Volumes []paasDeployVolumeConfig `json:"volumes,omitempty"`
 }
 
 func (h *AppAdminHandler) readAppConfig(appID, workdir string) (*paasDeployConfig, error) {

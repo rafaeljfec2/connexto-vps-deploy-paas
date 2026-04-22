@@ -86,6 +86,32 @@ func (s *AgentService) RemoveNetwork(ctx context.Context, req *pb.RemoveNetworkR
 	return &pb.RemoveNetworkResponse{Success: true, Message: "Network removed"}, nil
 }
 
+func (s *AgentService) ConnectContainerNetwork(ctx context.Context, req *pb.ConnectContainerNetworkRequest) (*pb.ConnectContainerNetworkResponse, error) {
+	if req.ContainerId == "" || req.Network == "" {
+		return &pb.ConnectContainerNetworkResponse{Success: false, Message: "container_id and network are required"}, nil
+	}
+	if err := s.docker.EnsureNetwork(ctx, req.Network); err != nil {
+		s.logger.Error("Failed to ensure network", "network", req.Network, "error", err)
+		return &pb.ConnectContainerNetworkResponse{Success: false, Message: err.Error()}, nil
+	}
+	if err := s.docker.ConnectToNetwork(ctx, req.ContainerId, req.Network); err != nil {
+		s.logger.Error("Failed to connect container to network", "container", req.ContainerId, "network", req.Network, "error", err)
+		return &pb.ConnectContainerNetworkResponse{Success: false, Message: err.Error()}, nil
+	}
+	return &pb.ConnectContainerNetworkResponse{Success: true, Message: "Container connected to network"}, nil
+}
+
+func (s *AgentService) DisconnectContainerNetwork(ctx context.Context, req *pb.DisconnectContainerNetworkRequest) (*pb.DisconnectContainerNetworkResponse, error) {
+	if req.ContainerId == "" || req.Network == "" {
+		return &pb.DisconnectContainerNetworkResponse{Success: false, Message: "container_id and network are required"}, nil
+	}
+	if err := s.docker.DisconnectFromNetwork(ctx, req.ContainerId, req.Network); err != nil {
+		s.logger.Error("Failed to disconnect container from network", "container", req.ContainerId, "network", req.Network, "error", err)
+		return &pb.DisconnectContainerNetworkResponse{Success: false, Message: err.Error()}, nil
+	}
+	return &pb.DisconnectContainerNetworkResponse{Success: true, Message: "Container disconnected from network"}, nil
+}
+
 func (s *AgentService) ListVolumes(ctx context.Context, _ *pb.ListVolumesRequest) (*pb.ListVolumesResponse, error) {
 	volumes, err := s.docker.ListVolumes(ctx)
 	if err != nil {

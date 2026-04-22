@@ -55,11 +55,11 @@ type SSEEvent struct {
 }
 
 type SSEHandler struct {
-	clients   map[string]chan SSEEvent
-	mu        sync.RWMutex
-	eventBuf  []SSEEvent
-	bufSize   int
-	bufMu     sync.RWMutex
+	clients  map[string]chan SSEEvent
+	mu       sync.RWMutex
+	eventBuf []SSEEvent
+	bufSize  int
+	bufMu    sync.RWMutex
 }
 
 func NewSSEHandler() *SSEHandler {

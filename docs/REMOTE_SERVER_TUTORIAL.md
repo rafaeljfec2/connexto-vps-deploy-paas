@@ -1,411 +1,208 @@
-# Tutorial: Configurar Servidor Remoto para Deploy
+# Tutorial: Cadastrar e Provisionar um Servidor Remoto
 
-Passo a passo para preparar um servidor (VPS) e provisionar o agent do FlowDeploy automaticamente.
+Passo a passo para preparar um VPS, cadastra-lo no FlowDeploy e provisionar
+o agente automaticamente. Para a arquitetura por tras do que acontece em cada
+etapa, consulte [`REMOTE_SSH_DEPLOY.md`](./REMOTE_SSH_DEPLOY.md).
 
----
+## 1. Visao geral
 
-## Visao geral
+Voce vai:
 
-1. Preparar o servidor remoto (VPS)
-2. Configurar o backend do FlowDeploy
-3. Cadastrar o servidor no painel
-4. Provisionar e verificar
+1. Preparar o VPS de destino (sistema operacional, rede, usuario).
+2. Garantir que o backend do FlowDeploy esta pronto para emitir certificados
+   e expor a porta gRPC.
+3. Cadastrar o servidor no painel.
+4. Disparar o **Provision** e acompanhar os logs.
+5. Validar que o agente esta `online` e usar a maquina para deploys.
 
----
+> Tempo estimado: 5 a 10 minutos por servidor.
 
-## Como o provisionamento funciona
+## 2. Pre-requisitos no VPS
 
-Quando voce clica em **Provision** no painel, o backend executa as seguintes etapas automaticamente via SSH:
+Sistema operacional homologado: **Ubuntu Server 22.04+** (qualquer Linux com
+`systemd` e Docker disponiveis tambem funciona).
+
+| Item                                   | Por que                                                        |
+| -------------------------------------- | -------------------------------------------------------------- |
+| Acesso SSH (chave **ou** senha)        | provisionamento usa SSH                                         |
+| Usuario com `sudo` (ou root)           | instalar Docker e criar a unit `systemd`                        |
+| Conexao a internet                     | baixar Docker, Traefik e o binario do agente                    |
+| Porta TCP 22 aberta                    | SSH durante o provisionamento                                   |
+| Portas TCP 80/443 abertas              | Traefik atender HTTP/HTTPS dos apps                             |
+| Porta TCP 50052 (ou customizada)       | porta gRPC do agente, **so o backend precisa alcancar**         |
+| Hostname publico ou IP fixo            | aparecerá no painel e nos certificados                          |
+
+> O backend nao precisa de IP fixo, mas precisa estar acessivel pelo VPS
+> via HTTPS (para `Register`/`Heartbeat`) e via gRPC (para deploy).
+
+## 3. Pre-requisitos no backend
+
+Antes do primeiro provisionamento, garanta que:
+
+1. As variaveis abaixo estao no `.env` do backend:
+   - `GRPC_PORT` (default `50051`) — porta interna do gRPC do backend.
+   - `GRPC_AGENT_PORT` (default `50052`) — porta exposta para os agentes.
+   - `BACKEND_PUBLIC_HOST` (ou equivalente) — hostname publico do backend.
+2. Traefik esta com **TCP route SNI** publicando `GRPC_AGENT_PORT` para o
+   mesmo hostname (ver `deploy/traefik/`).
+3. A migracao `000014_pki_ca` ja foi aplicada (gera a CA interna
+   automaticamente no startup).
+4. O binario do agente correspondente ao `AGENT_VERSION` esta buildado e
+   acessivel pelo `agentdownload`.
+
+> Em ambiente de desenvolvimento, voce pode rodar o agente apontando direto
+> para `localhost:50051` sem Traefik, conforme o `README.md`.
+
+## 4. Cadastrar o servidor no painel
+
+1. Logue no painel como `admin`.
+2. Acesse **Servers → New Server**.
+3. Preencha:
+   - **Name**: nome amigavel (ex: `prod-eu-1`).
+   - **Host**: IP ou hostname publico do VPS.
+   - **SSH Port**: `22` (default).
+   - **SSH User**: usuario com `sudo` ou `root`.
+   - **Authentication**: cole a chave privada (recomendado) **ou** informe a
+     senha temporaria.
+   - **ACME Email**: email para o Let's Encrypt nesse VPS (opcional, mas
+     necessario para SSL automatico nos apps).
+   - **Agent Update Mode**: `auto` (recomendado) ou `manual`.
+4. Salve. O servidor aparece com status `pending`.
+
+## 5. Disparar o provisionamento
+
+1. Na lista de servidores, clique em **Provision**.
+2. Uma janela com **logs em tempo real** abre. Voce vera as etapas:
 
 ```
-Backend (SSH) ──────────────────────────────> Servidor Remoto
-  |
-  |  1. Conecta via SSH (chave ou senha)
-  |  2. Detecta ambiente (home dir, UID, root ou sudo)
-  |
-  |  3. Verifica Docker
-  |     - Se nao instalado: instala via get.docker.com (timeout: 10 min)
-  |     - Se nao rodando: inicia e habilita via systemctl
-  |     - Loga versao encontrada
-  |
-  |  4. Cria rede Docker "paasdeploy" (se nao existir)
-  |
-  |  5. Configura Traefik (se ACME Email fornecido)
-  |     - Cria /opt/traefik/ e /opt/traefik/letsencrypt/
-  |     - Gera traefik.yml (entrypoints: 80, 443, 50051, 8081)
-  |     - Inicia container Traefik com Let's Encrypt
-  |     - Se ja rodando com versao correta: pula
-  |     - Se rodando com versao antiga: faz upgrade automatico
-  |
-  |  6. Copia binario do agent + certificados mTLS
-  |     - ~/paasdeploy-agent/agent (binario)
-  |     - ~/paasdeploy-agent/ca.pem, cert.pem, key.pem
-  |
-  |  7. Cria servico systemd (user-level)
-  |     - ~/.config/systemd/user/paasdeploy-agent.service
-  |     - Habilita e inicia o agent
-  |
-  |  8. Agent conecta ao backend via gRPC + mTLS
-  |     - Envia Register + Heartbeats periodicos
-  |     - Status muda para "Online" no painel
+[01/10] Conectando via SSH a 203.0.113.10
+[02/10] Detectando privilegios e configurando ambiente remoto
+[03/10] Instalando Docker Engine e Compose v2
+[04/10] Criando rede Docker paasdeploy_net
+[05/10] Instalando Traefik (acme_email configurado)
+[06/10] Gerando certificado mTLS do agente
+[07/10] Enviando binario do agente (paasdeploy-agent vX.Y.Z)
+[08/10] Criando unidade systemd paasdeploy-agent.service
+[09/10] Iniciando servico e aguardando Register
+[10/10] Servidor online
 ```
 
-Cada etapa tem timeout individual: Docker install (10 min), Docker start (30s), Traefik setup (5 min), network (30s).
+3. Em caso de erro, a etapa fica vermelha e o painel mostra a saida
+   completa do comando que falhou. Os logs tambem ficam em
+   `apps/backend` (com `slog` correlacionado por `serverId`).
 
-Se o usuario SSH nao for root, o provisionador usa `sudo -n` automaticamente para comandos privilegiados (instalar Docker, configurar Traefik em /opt).
+> O fluxo e idempotente: rodar **Provision** novamente em um servidor ja
+> provisionado nao reinstala o que ja existe; apenas garante que tudo esta
+> em estado consistente.
 
----
+## 6. Validacao pos-provisionamento
 
-## Parte 1: Preparar o servidor remoto (VPS)
-
-Execute estes comandos **no servidor remoto** (via SSH com usuario root ou com sudo).
-
-### 1.1 Criar usuario para o agent (se ainda nao existir)
+Depois do status `online`, valide rapidamente:
 
 ```bash
-sudo adduser deploy
+ssh <user>@<host>
+sudo systemctl status paasdeploy-agent     # active (running)
+sudo journalctl -u paasdeploy-agent -n 50  # logs recentes
+sudo docker ps                              # paasdeploy-agent + traefik (se ACME)
+sudo docker network ls | grep paasdeploy_net
 ```
 
-Se preferir usar um usuario existente (ex.: `oab-api`), pule para o passo 1.2.
+E no painel:
 
-### 1.2 Habilitar linger para o usuario
+- O cartao do servidor mostra metricas de CPU/RAM/disco recebidas via SSE.
+- A aba **Containers** lista os containers existentes (deve aparecer
+  `paasdeploy-agent` e o `traefik` se foi instalado).
+- A aba **Certificates** lista os certificados do Traefik daquele VPS.
 
-O linger permite que servicos `systemd --user` continuem rodando apos logout. **Obrigatorio** para o agent.
+## 7. Cadastrar e fazer deploy de um app neste servidor
+
+1. **Apps → New App**.
+2. Preencha:
+   - **Repository URL**: `https://github.com/org/repo.git` (ou via GitHub App).
+   - **Branch**: `main` (default).
+   - **Workdir**: caminho relativo no monorepo, se aplicavel.
+   - **Server**: selecione o VPS recem-provisionado.
+   - **Domain**: dominio que sera atendido pelo Traefik desse VPS.
+3. Confirme. O backend cria webhook no GitHub (via GitHub App, se conectado),
+   enfileira o primeiro deploy e exibe os logs em tempo real.
+
+## 8. Operacoes do dia a dia
+
+### Re-deploy manual
+
+Botao **Redeploy** (ou `POST /api/apps/:id/redeploy`). Usa o ultimo SHA
+conhecido da branch.
+
+### Rollback
+
+Botao **Rollback** (ou `POST /api/apps/:id/rollback`). Volta para a versao
+anterior **e** revalida o health check antes de dar sucesso.
+
+### Terminal web
+
+Aba **Terminal** dentro de um container. Usa `ExecContainer` (gRPC
+bidirecional) com PTY de verdade — voce pode rodar `htop`, `vim`, etc.
+
+### Atualizar o agente
+
+- **Auto** (recomendado): backend faz `PushUpdate` ao detectar versao mais
+  nova via heartbeat.
+- **Manual**: na pagina do servidor, clique em **Push Update** apos buildar
+  uma nova versao do binario.
+
+### Limpeza programada
+
+A scheduler de limpeza roda dentro do agente (`apps/agent/internal/cleanup`).
+Voce pode disparar uma execucao agora pela UI ou via
+`POST /api/cleanup/run?serverId=...`.
+
+## 9. Solucao de problemas
+
+| Sintoma                                         | O que checar                                                               |
+| ----------------------------------------------- | -------------------------------------------------------------------------- |
+| Provisionamento para em **Conectando via SSH**  | porta 22 aberta? chave correta? `sudo` exige senha?                         |
+| Erro **Docker install failed**                  | distro suportada? Internet liberada? `apt`/`dnf` disponivel?                |
+| Servidor fica em **registering**                | porta gRPC do backend acessivel pelo VPS? CA presente em `pki_ca`?          |
+| Agente reinicia em loop                         | `journalctl -u paasdeploy-agent` mostra o erro real (ex: porta 50052 ocupada) |
+| Deploy demora a sair de **pending**             | `DEPLOY_WORKERS` zerado? dispatcher logando algo?                           |
+| Healthcheck sempre falha                        | `paasdeploy.json` com `port` e `healthcheck.path` corretos?                 |
+| TLS dos apps nao funciona                       | `acme_email` configurado no servidor? portas 80/443 abertas?                |
+
+## 10. Desprovisionar um servidor
+
+1. **Servers → <servidor> → Delete**. Voce escolhe se quer:
+   - **Apenas remover do painel** (deixa o agente rodando, util para
+     migracao manual).
+   - **Remover completamente** (executa rotina remota: para o servico, remove
+     unit `systemd`, apaga binario, remove certificados).
+2. Apps que estavam atrelados ao servidor ficam orfaos e devem ser
+   reatribuidos antes da exclusao.
+
+## 11. Boas praticas
+
+- Use **um servidor por ambiente logico** (ex: `prod`, `staging`) e nao
+  misture cargas concorrentes em um unico VPS pequeno.
+- Configure `acme_email` em todos os servidores publicos para SSL automatico.
+- Monitore o cartao do servidor regularmente; metricas em vermelho aparecem
+  via SSE em segundos.
+- Mantenha o `AGENT_VERSION` atualizado no repositorio para que o auto-update
+  mantenha a frota homogenea.
+- Faca rotacao periodica dos certificados mTLS (script previsto no roadmap).
+
+## 12. Comandos uteis no VPS
 
 ```bash
-sudo loginctl enable-linger <USUARIO>
+sudo systemctl status paasdeploy-agent
+sudo systemctl restart paasdeploy-agent
+sudo journalctl -u paasdeploy-agent -f
+
+sudo docker ps
+sudo docker logs <container> -f
+sudo docker compose -f /data/apps/<app>/docker-compose.yml logs
+
+sudo cat /etc/systemd/system/paasdeploy-agent.service
+sudo ls -l ~/paasdeploy-agent/
 ```
 
-Exemplo para usuario `deploy`:
-
-```bash
-sudo loginctl enable-linger deploy
-```
-
-### 1.3 Configurar sudo sem senha (se nao for root)
-
-Se voce conecta como usuario nao-root, o provisionamento precisa de `sudo` para instalar Docker e Traefik. Configure sudo sem senha para o usuario:
-
-```bash
-echo "deploy ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/deploy
-```
-
-Alternativa mais restrita (apenas Docker e systemctl):
-
-```bash
-cat << 'EOF' | sudo tee /etc/sudoers.d/deploy
-deploy ALL=(ALL) NOPASSWD: /usr/bin/sh -c *get.docker.com*
-deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl start docker
-deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl enable docker
-deploy ALL=(ALL) NOPASSWD: /usr/sbin/usermod -aG docker *
-deploy ALL=(ALL) NOPASSWD: /usr/bin/mkdir -p /opt/traefik*
-deploy ALL=(ALL) NOPASSWD: /usr/bin/tee /opt/traefik/*
-EOF
-```
-
-Se voce conecta como **root**, o sudo nao e necessario.
-
-### 1.4 Verificar acesso SSH
-
-O usuario precisa conseguir fazer login via SSH com **chave privada** ou **senha**.
-
-**Opcao A - Chave privada (recomendado):**
-
-- Adicione a chave publica em `~/.ssh/authorized_keys` do usuario.
-- Teste: `ssh deploy@IP_DO_SERVIDOR -p PORTA` (deve conectar sem pedir senha).
-
-**Opcao B - Senha:**
-
-- Certifique-se de que o usuario tem senha definida.
-- O FlowDeploy aceita senha; ela sera armazenada criptografada.
-
-### 1.5 Confirmar systemd user
-
-Entre no servidor com o usuario escolhido e teste:
-
-```bash
-ssh deploy@IP_DO_SERVIDOR -p PORTA
-systemctl --user status
-```
-
-Se aparecer "Failed to connect to bus", o linger nao esta habilitado. Volte ao passo 1.2.
-
-### 1.6 Liberar portas no firewall
-
-O Traefik e o agent precisam das seguintes portas acessiveis:
-
-| Porta | Protocolo | Uso                        | Obrigatorio |
-| ----- | --------- | -------------------------- | ----------- |
-| 22    | TCP       | SSH (provisionamento)      | Sim         |
-| 80    | TCP       | HTTP (Traefik)             | Sim         |
-| 443   | TCP       | HTTPS (Traefik + TLS)      | Sim         |
-| 50051 | TCP       | gRPC (Traefik -> backend)  | Se usar gRPC via Traefik |
-| 50052 | TCP       | gRPC (agent health check)  | Sim         |
-| 8081  | TCP       | Traefik Dashboard          | Opcional    |
-
-```bash
-sudo ufw allow 22/tcp
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw allow 50052/tcp
-sudo ufw allow 8081/tcp
-```
-
----
-
-## Parte 2: Configurar o backend do FlowDeploy
-
-Execute no **host onde o backend esta rodando**.
-
-### 2.1 Gerar chave de criptografia
-
-```bash
-openssl rand -base64 32
-```
-
-Use o resultado em `TOKEN_ENCRYPTION_KEY` no `.env`.
-
-### 2.2 Gerar binario do agent
-
-**Desenvolvimento local:**
-
-```bash
-cd apps/agent
-go build -o ../../dist/agent ./cmd/agent
-```
-
-**Producao (Docker):** A imagem do backend ja inclui o agent em `/app/agent`. Configure `AGENT_BINARY_PATH=/app/agent` no container.
-
-### 2.3 Configurar variaveis no `.env`
-
-| Variavel             | Valor exemplo                            | Obrigatorio |
-| -------------------- | ---------------------------------------- | ----------- |
-| TOKEN_ENCRYPTION_KEY | (saida do `openssl rand -base64 32`)     | Sim         |
-| GRPC_ENABLED         | true                                     | Sim         |
-| GRPC_PORT            | 50051                                    | Sim         |
-| GRPC_SERVER_ADDR     | host:50051 (endereco acessivel pela VPS) | Sim         |
-| AGENT_BINARY_PATH    | /caminho/absoluto/para/dist/agent        | Sim         |
-| AGENT_GRPC_PORT      | 50052                                    | Sim         |
-
-### 2.4 Reiniciar o backend
-
-Apos alterar o `.env`, reinicie o backend para carregar as novas variaveis.
-
----
-
-## Parte 3: Cadastrar o servidor no painel
-
-### 3.1 Acessar o FlowDeploy
-
-Abra o painel (ex.: `http://localhost:3000`), faca login e va em **Servers** > **Add Server**.
-
-Cada usuario so ve seus proprios servidores. Servidores cadastrados por um usuario nao aparecem para outros usuarios.
-
-### 3.2 Preencher o formulario
-
-| Campo                       | Descricao                                             |
-| --------------------------- | ----------------------------------------------------- |
-| Name                        | Nome amigavel (ex.: production, staging)              |
-| Host                        | IP ou hostname da VPS                                 |
-| SSH Port                    | Porta SSH (padrao 22)                                 |
-| SSH User                    | Usuario do passo 1.1 (ex.: deploy, root)              |
-| SSH Key                     | Chave privada completa (opcional se usar senha)       |
-| SSH Password                | Senha do usuario (opcional se usar chave)             |
-| ACME Email (Let's Encrypt)  | Email para certificados TLS automaticos via Traefik   |
-
-- E necessario informar **chave** ou **senha**; os dois podem ser usados juntos.
-- O **ACME Email** e necessario para que o Traefik configure TLS automatico. Sem ele, o Traefik nao sera instalado e suas aplicacoes nao terao HTTPS.
-
-### 3.3 Salvar
-
-Apos clicar em **Add Server**, o servidor aparece com status **Pending**.
-
----
-
-## Parte 4: Provisionar e verificar
-
-### 4.1 Provisionar
-
-No card do servidor, clique em **Provision**.
-
-O provisionamento acontece em tempo real com feedback via SSE (Server-Sent Events). Voce vera o progresso de cada etapa no painel:
-
-1. `ssh_connect` - Conectando via SSH
-2. `remote_env` - Verificando ambiente (home dir, UID)
-3. `docker_check` / `docker_install` - Verificando/instalando Docker
-4. `docker_start` - Verificando/iniciando Docker daemon
-5. `docker_network` - Criando rede Docker
-6. `traefik_check` / `traefik_install` - Verificando/instalando Traefik
-7. `sftp_client` - Conectando SFTP
-8. `install_dir` - Criando diretorios
-9. `agent_certs` - Gerando e instalando certificados mTLS
-10. `agent_binary` - Copiando binario do agent
-11. `systemd_unit` - Configurando servico systemd
-12. `start_agent` - Iniciando agent
-
-O status muda para **Online** quando o agent se registrar e enviar heartbeat.
-
-### 4.2 Verificar no servidor remoto
-
-Entre na VPS e confira:
-
-```bash
-ls ~/paasdeploy-agent
-# agent  ca.pem  cert.pem  key.pem
-
-systemctl --user status paasdeploy-agent
-
-journalctl --user -u paasdeploy-agent -f
-```
-
-Verificar Docker:
-
-```bash
-docker --version
-docker ps  # deve mostrar Traefik rodando
-docker network ls  # deve mostrar rede "paasdeploy"
-```
-
-Verificar Traefik:
-
-```bash
-docker inspect traefik --format '{{.Config.Image}}'
-# deve mostrar traefik:v3.2
-
-curl -s http://localhost:8081/api/overview | head -c 200
-# deve retornar JSON do dashboard
-```
-
-### 4.3 Testar conectividade
-
-No painel ou via API:
-
-```
-GET /paas-deploy/v1/servers/:id/health
-```
-
-Resposta esperada: `{ "status": "ok", "latencyMs": ... }`.
-
----
-
-## Resolucao de problemas
-
-### Erros de conexao SSH
-
-| Problema                   | Causa provavel                 | Solucao                                       |
-| -------------------------- | ------------------------------ | --------------------------------------------- |
-| `ssh connect: i/o timeout` | Firewall bloqueando porta SSH  | Liberar porta SSH (22 ou a configurada)       |
-| `unable to authenticate`   | Chave/senha incorretos         | Conferir credenciais; testar `ssh` manualmente |
-| `provision failed: EOF`    | Conexao caiu durante transfer  | Reprovisionar; verificar estabilidade da rede |
-
-### Erros de Docker
-
-| Problema                                      | Causa provavel                | Solucao                                              |
-| --------------------------------------------- | ----------------------------- | ---------------------------------------------------- |
-| `install docker: command timed out after 10m`  | Internet lenta ou sem acesso  | Verificar acesso a internet; instalar Docker manualmente |
-| `start docker daemon: ... sudo -n`            | Sudo sem senha nao configurado | Configurar sudoers (passo 1.3)                       |
-| `create docker network: permission denied`    | Usuario sem acesso ao Docker  | `sudo usermod -aG docker <usuario>` e reconectar     |
-
-### Erros de Traefik
-
-| Problema                                  | Causa provavel                   | Solucao                                           |
-| ----------------------------------------- | -------------------------------- | ------------------------------------------------- |
-| Traefik nao instalado                     | ACME Email nao informado         | Editar servidor e adicionar ACME Email             |
-| `write traefik config: ... sudo -n`       | Sudo sem senha nao configurado   | Configurar sudoers (passo 1.3)                    |
-| Porta 80/443 ja em uso                    | Outro servico (nginx, apache)    | Parar servico conflitante: `sudo systemctl stop nginx` |
-| TLS nao funciona                          | DNS nao aponta para o servidor   | Configurar DNS A record apontando para o IP do servidor |
-
-### Erros de Agent
-
-| Problema                        | Causa provavel                    | Solucao                                          |
-| ------------------------------- | --------------------------------- | ------------------------------------------------ |
-| `Unit ... could not be found`   | Linger nao habilitado             | Executar `sudo loginctl enable-linger <usuario>` |
-| `Failed to connect to bus`      | Linger nao habilitado             | Idem acima                                       |
-| Status permanece "Provisioning" | Processo travado ou em andamento  | Ver logs do backend; conferir se SSH nao caiu     |
-| Status permanece "Pending"      | Provision nao foi executado       | Clicar em Provision no card do servidor          |
-| Agent nao conecta ao backend    | Porta 50051 bloqueada no firewall | Liberar porta 50051 no firewall do backend       |
-| Agent nao conecta ao backend    | GRPC_SERVER_ADDR incorreto        | Verificar se o endereco e acessivel da VPS       |
-
-### Erros de permissao (multi-tenancy)
-
-| Problema                         | Causa provavel                   | Solucao                                    |
-| -------------------------------- | -------------------------------- | ------------------------------------------ |
-| Servidor nao aparece na lista    | Servidor pertence a outro usuario | Cada usuario so ve seus proprios servidores |
-| `server not found` ao acessar    | Tentando acessar servidor alheio  | Verificar se o servidor e seu              |
-| Servidor sumiu apos atualizacao  | Migracao atribuiu a outro usuario | Verificar user_id no banco de dados        |
-
----
-
-## Reprovisionar um servidor
-
-Se algo deu errado, voce pode reprovisionar:
-
-1. No painel, va em **Servers** e clique no servidor
-2. Clique em **Provision** novamente
-
-O provisionamento e **idempotente**:
-- Docker: se ja instalado e rodando, pula instalacao
-- Rede Docker: se ja existe, pula criacao
-- Traefik: se ja rodando com versao correta, pula; se versao antiga, faz upgrade
-- Agent: sobrescreve binario e certificados, reinicia servico
-
----
-
-## Checklist rapido
-
-**No servidor remoto (uma vez):**
-
-- [ ] Usuario criado ou existente
-- [ ] `sudo loginctl enable-linger <usuario>` executado
-- [ ] SSH funcionando (chave ou senha)
-- [ ] `systemctl --user status` funciona sem erro
-- [ ] Sudo sem senha configurado (se nao for root)
-- [ ] Portas liberadas no firewall (22, 80, 443, 50052)
-
-**No backend:**
-
-- [ ] `TOKEN_ENCRYPTION_KEY` definida
-- [ ] `AGENT_BINARY_PATH` apontando para o binario do agent
-- [ ] `GRPC_ENABLED=true` e `GRPC_SERVER_ADDR` configurado
-- [ ] Binario do agent gerado
-
-**No painel:**
-
-- [ ] Servidor cadastrado (Nome, Host, Porta, User, Chave ou Senha)
-- [ ] ACME Email preenchido (para TLS automatico)
-- [ ] Botao **Provision** clicado
-- [ ] Status mudou para **Online**
-
----
-
-## Estrutura de arquivos no servidor remoto
-
-Apos provisionamento completo:
-
-```
-~/paasdeploy-agent/
-  agent          # binario do agent
-  ca.pem         # certificado CA
-  cert.pem       # certificado do agent (mTLS)
-  key.pem        # chave privada do agent
-
-~/.config/systemd/user/
-  paasdeploy-agent.service  # servico systemd
-
-/opt/traefik/              # (se ACME Email configurado)
-  traefik.yml              # configuracao do Traefik
-  letsencrypt/
-    acme.json              # certificados TLS (gerado automaticamente)
-```
-
-Containers Docker criados:
-
-```
-traefik    # reverse proxy (portas 80, 443, 50051, 8081)
-```
-
-Rede Docker:
-
-```
-paasdeploy  # rede compartilhada entre Traefik e apps
-```
+> Em caso de problema persistente, anexe a saida de `journalctl -u
+> paasdeploy-agent --no-pager -n 200` ao abrir uma issue.

@@ -312,6 +312,41 @@ message RemoveNetworkResponse {
   string message = 2;
 }
 
+message ConnectContainerNetworkRequest {
+  string container_id = 1;
+  string network = 2;
+}
+
+message ConnectContainerNetworkResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message DisconnectContainerNetworkRequest {
+  string container_id = 1;
+  string network = 2;
+}
+
+message DisconnectContainerNetworkResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RunContainerHealthcheckRequest {
+  string container_id = 1;
+}
+
+message RunContainerHealthcheckResponse {
+  bool success = 1;
+  int32 exit_code = 2;
+  string stdout = 3;
+  string stderr = 4;
+  repeated string command = 5;
+  int64 duration_ms = 6;
+  string message = 7;
+  bool not_configured = 8;
+}
+
 message ListVolumesRequest {}
 
 message ListVolumesResponse {

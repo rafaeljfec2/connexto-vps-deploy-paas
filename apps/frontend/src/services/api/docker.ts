@@ -144,7 +144,22 @@ export const containersApi = {
     if (serverId) params.set("serverId", serverId);
     return `${base}/paas-deploy/v1/containers/${id}/console?${params.toString()}`;
   },
+
+  runHealthcheck: (id: string, serverId?: string): Promise<HealthcheckResult> =>
+    fetchApi<HealthcheckResult>(
+      buildUrl(`${API_BASE}/containers/${id}/healthcheck`, { serverId }),
+      { method: "POST" },
+    ),
 };
+
+export interface HealthcheckResult {
+  readonly success: boolean;
+  readonly exitCode: number;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly command: readonly string[];
+  readonly durationMs: number;
+}
 
 export const imagesApi = {
   list: (serverId?: string): Promise<readonly DockerImageInfo[]> =>
@@ -203,15 +218,23 @@ export const networksApi = {
   connectContainer: (
     containerId: string,
     network: string,
-  ): Promise<{ message: string }> =>
-    fetchApi<{ message: string }>(
-      `${API_BASE}/containers/${containerId}/networks`,
+    serverId?: string,
+  ): Promise<{ connected: string }> =>
+    fetchApi<{ connected: string }>(
+      buildUrl(`${API_BASE}/containers/${containerId}/networks`, { serverId }),
       { method: "POST", body: JSON.stringify({ network }) },
     ),
 
-  disconnectContainer: (containerId: string, network: string): Promise<void> =>
+  disconnectContainer: (
+    containerId: string,
+    network: string,
+    serverId?: string,
+  ): Promise<void> =>
     fetchApiDelete(
-      `${API_BASE}/containers/${containerId}/networks/${encodeURIComponent(network)}`,
+      buildUrl(
+        `${API_BASE}/containers/${containerId}/networks/${encodeURIComponent(network)}`,
+        { serverId },
+      ),
     ),
 };
 

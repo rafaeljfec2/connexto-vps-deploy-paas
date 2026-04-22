@@ -1,577 +1,209 @@
-# FlowDeploy - Auto DNS Configuration (OAuth)
+# DNS Automatico via Cloudflare (OAuth)
 
-## Objetivo
+O FlowDeploy permite que cada usuario conecte sua propria conta Cloudflare e
+automatize o cadastro de subdominios (CNAME) para os apps. Este documento
+descreve como o fluxo funciona ponta a ponta, qual e a superficie de
+configuracao e como diagnosticar problemas.
 
-1. Usuario conecta conta Cloudflare (igual GitHub)
-2. Usuario digita o dominio
-3. Sistema cria CNAME automaticamente no Cloudflare DO USUARIO
-4. App fica acessivel no dominio
+> Componentes envolvidos:
+>
+> - `apps/backend/internal/cloudflare/client.go` — cliente HTTP da API Cloudflare
+> - `apps/backend/internal/handler/cloudflare_auth_handler.go` — fluxo OAuth + status
+> - `apps/backend/internal/handler/domain_handler.go` — CRUD de dominios por app
+> - Migracao `000007_cloudflare_domains` — tabelas `cloudflare_connections` e `custom_domains`
 
----
+## 1. Visao geral
 
-## Fluxo Completo
+Objetivo:
+
+1. Usuario conecta a conta Cloudflare via OAuth (mesma UX do GitHub).
+2. Usuario digita o dominio que quer usar para o app (`api.empresa.com`).
+3. Backend cria automaticamente o CNAME na zona Cloudflare do **proprio
+   usuario**, apontando para o servidor do FlowDeploy.
+4. App fica acessivel no dominio assim que a propagacao DNS conclui e o
+   Traefik emite o certificado Let's Encrypt.
+
+## 2. Fluxo OAuth + criacao de DNS
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Frontend
-    participant Backend
-    participant Cloudflare
+  participant U as Usuario
+  participant FE as Frontend
+  participant BE as Backend
+  participant CF as Cloudflare
 
-    Note over User,Cloudflare: 1. Conectar Cloudflare (uma vez)
-    User->>Frontend: Clica "Conectar Cloudflare"
-    Frontend->>Cloudflare: Redirect OAuth
-    Cloudflare->>User: Tela de autorizacao
-    User->>Cloudflare: Autoriza
-    Cloudflare->>Backend: Callback com code
-    Backend->>Cloudflare: Troca code por token
-    Cloudflare-->>Backend: Access token
-    Backend->>Backend: Salva token criptografado
-    Backend-->>Frontend: Cloudflare conectado!
+  U->>FE: clica "Conectar Cloudflare"
+  FE->>BE: GET /api/auth/cloudflare
+  BE->>BE: gera state CSRF + cookie
+  BE-->>FE: 307 → dash.cloudflare.com/oauth2/auth
+  U->>CF: autoriza FlowDeploy
+  CF-->>BE: GET /api/auth/cloudflare/callback?code=...&state=...
+  BE->>CF: POST /oauth2/token (code → access_token)
+  BE->>CF: GET /user (account_id, email)
+  BE->>BE: cripto + UPSERT em cloudflare_connections
+  BE-->>FE: 307 → /settings?cloudflare=connected
 
-    Note over User,Cloudflare: 2. Adicionar Dominio
-    User->>Frontend: Digita "api.meusite.com"
-    Frontend->>Backend: POST /apps/:id/domains
-    Backend->>Cloudflare: GET /zones (com token do usuario)
-    Cloudflare-->>Backend: Zone ID
-    Backend->>Cloudflare: POST /dns_records (CNAME)
-    Cloudflare-->>Backend: Record criado
-    Backend-->>Frontend: Dominio ativo!
+  U->>FE: cria/edita app, informa "api.empresa.com"
+  FE->>BE: POST /api/apps/:id/domains
+  BE->>CF: GET /zones?name=empresa.com  (zone_id)
+  BE->>CF: POST /zones/:zone_id/dns_records (type=CNAME, name=api, content=<server-host>, proxied=false)
+  BE->>BE: INSERT em custom_domains
+  BE-->>FE: 201 + status pending
+  Note over BE,CF: Traefik valida ACME quando o DNS propaga
 ```
 
----
+## 3. Modelo de dados
 
-## 1. Configuracao do OAuth Cloudflare
+### `cloudflare_connections`
 
-### Criar OAuth App no Cloudflare
+Uma conexao por usuario (UNIQUE em `user_id`).
 
-1. Acesse: https://dash.cloudflare.com/profile/api-tokens
-2. Crie um "OAuth Application"
-3. Configure:
-   - **Redirect URI**: `https://flowdeploy.io/auth/cloudflare/callback`
-   - **Scopes**: `zone:read`, `dns:edit`
-4. Anote: `Client ID` e `Client Secret`
+| Coluna                    | Descricao                                          |
+| ------------------------- | -------------------------------------------------- |
+| `id`                      | UUID                                               |
+| `user_id`                 | FK -> `users` (ON DELETE CASCADE)                  |
+| `cloudflare_account_id`   | id retornado pela API Cloudflare                   |
+| `cloudflare_email`        | email do dono da conta                             |
+| `access_token_encrypted`  | token AES-encriptado por `internal/crypto`         |
+| `refresh_token_encrypted` | refresh token (quando aplicavel)                   |
+| `token_expires_at`        | quando o token expira (nullable)                   |
 
-### Variaveis de Ambiente
+### `custom_domains`
 
-```env
-# Cloudflare OAuth
-CLOUDFLARE_CLIENT_ID=xxxxx
-CLOUDFLARE_CLIENT_SECRET=xxxxx
-CLOUDFLARE_OAUTH_CALLBACK_URL=https://flowdeploy.io/auth/cloudflare/callback
+Um registro por (app, dominio).
 
-# FlowDeploy Server
-FLOWDEPLOY_SERVER_IP=203.0.113.50
-FLOWDEPLOY_DEFAULT_DOMAIN=apps.flowdeploy.io
+| Coluna           | Descricao                                          |
+| ---------------- | -------------------------------------------------- |
+| `id`             | UUID                                               |
+| `app_id`         | FK -> `apps` (ON DELETE CASCADE)                   |
+| `domain`         | UNIQUE                                             |
+| `zone_id`        | id da zona Cloudflare                              |
+| `dns_record_id`  | id do registro Cloudflare (para update/delete)     |
+| `record_type`    | default `CNAME`                                    |
+| `status`         | `active`, `pending`, `error` (atualizado pelo backend) |
+
+## 4. Configuracao de ambiente
+
+Adicione no `.env` do backend:
+
+```bash
+# Cloudflare OAuth (criar OAuth Application em https://dash.cloudflare.com/)
+CLOUDFLARE_OAUTH_CLIENT_ID=<client_id>
+CLOUDFLARE_OAUTH_CLIENT_SECRET=<client_secret>
+CLOUDFLARE_OAUTH_CALLBACK_URL=https://<deploy-host>/api/auth/cloudflare/callback
+
+# Hostname publico do FlowDeploy (usado como destino do CNAME)
+BACKEND_PUBLIC_HOST=deploy.example.com
 ```
 
----
+> Sem essas variaveis o handler ainda registra as rotas, mas qualquer
+> tentativa de OAuth retorna `503` com `cloudflare_oauth_disabled`.
 
-## 2. Modelo de Dados
+## 5. Endpoints
 
-```sql
--- Conexao Cloudflare do usuario
-CREATE TABLE cloudflare_connections (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    cloudflare_account_id VARCHAR(100) NOT NULL,
-    cloudflare_email VARCHAR(255),
-    access_token_encrypted TEXT NOT NULL,
-    refresh_token_encrypted TEXT,
-    token_expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(user_id)
-);
+| Metodo | Endpoint                                  | Descricao                                          |
+| ------ | ----------------------------------------- | -------------------------------------------------- |
+| `GET`  | `/api/auth/cloudflare`                    | Inicia o fluxo OAuth (gera state, redireciona)     |
+| `GET`  | `/api/auth/cloudflare/callback`           | Recebe `code`, troca por token, salva conexao      |
+| `POST` | `/api/auth/cloudflare/connect`            | Conecta com **API Token** (alternativa ao OAuth)   |
+| `POST` | `/api/auth/cloudflare/disconnect`         | Remove a conexao do usuario                        |
+| `GET`  | `/api/auth/cloudflare/status`             | Mostra se ha conexao ativa e metadados             |
+| `GET`  | `/api/apps/:id/domains`                   | Lista dominios do app                              |
+| `POST` | `/api/apps/:id/domains`                   | Cria CNAME automatico                              |
+| `DELETE` | `/api/apps/:id/domains/:domainId`        | Remove CNAME do Cloudflare e da tabela             |
 
--- Dominios customizados
-CREATE TABLE custom_domains (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    app_id UUID NOT NULL REFERENCES apps(id) ON DELETE CASCADE,
-    domain VARCHAR(255) NOT NULL UNIQUE,
-    zone_id VARCHAR(100) NOT NULL,
-    dns_record_id VARCHAR(100) NOT NULL,
-    record_type VARCHAR(10) NOT NULL DEFAULT 'CNAME',
-    status VARCHAR(50) NOT NULL DEFAULT 'active',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+A alternativa **API Token** (`/connect`) e util para usuarios que preferem
+nao usar OAuth (ex: contas Cloudflare for Teams). O token deve ter as
+permissoes minimas: `Zone.DNS:Edit`, `Zone.Zone:Read`.
 
-CREATE INDEX idx_cloudflare_connections_user ON cloudflare_connections(user_id);
-CREATE INDEX idx_custom_domains_app ON custom_domains(app_id);
-```
+## 6. Conexao via API Token (sem OAuth)
 
----
+```http
+POST /api/auth/cloudflare/connect
+Content-Type: application/json
 
-## 3. Backend - OAuth Handler
-
-```go
-// internal/handler/cloudflare_auth_handler.go
-
-type CloudflareAuthHandler struct {
-    clientID     string
-    clientSecret string
-    callbackURL  string
-    connectionRepo domain.CloudflareConnectionRepository
-    encryptor    *crypto.TokenEncryptor
-    logger       *slog.Logger
-}
-
-// Inicia OAuth - redireciona para Cloudflare
-func (h *CloudflareAuthHandler) StartOAuth(c *fiber.Ctx) error {
-    user := GetUserFromContext(c)
-    if user == nil {
-        return response.Unauthorized(c, "not authenticated")
-    }
-
-    state := generateSecureState()
-    // Salvar state na sessao para validar no callback
-
-    authURL := fmt.Sprintf(
-        "https://dash.cloudflare.com/oauth2/auth?client_id=%s&redirect_uri=%s&response_type=code&state=%s&scope=zone:read+dns:edit",
-        h.clientID,
-        url.QueryEscape(h.callbackURL),
-        state,
-    )
-
-    return c.Redirect(authURL, fiber.StatusTemporaryRedirect)
-}
-
-// Callback OAuth - recebe code e troca por token
-func (h *CloudflareAuthHandler) OAuthCallback(c *fiber.Ctx) error {
-    code := c.Query("code")
-    state := c.Query("state")
-
-    // Validar state
-    // ...
-
-    // Trocar code por token
-    token, err := h.exchangeCodeForToken(c.Context(), code)
-    if err != nil {
-        return c.Redirect("/settings?error=cloudflare_auth_failed", fiber.StatusTemporaryRedirect)
-    }
-
-    // Buscar info da conta Cloudflare
-    accountInfo, err := h.getAccountInfo(c.Context(), token.AccessToken)
-    if err != nil {
-        return c.Redirect("/settings?error=cloudflare_account_error", fiber.StatusTemporaryRedirect)
-    }
-
-    // Criptografar tokens
-    encryptedAccess, _ := h.encryptor.Encrypt(token.AccessToken)
-    encryptedRefresh, _ := h.encryptor.Encrypt(token.RefreshToken)
-
-    // Salvar conexao
-    user := GetUserFromContext(c)
-    connection := &domain.CloudflareConnection{
-        UserID:                user.ID,
-        CloudflareAccountID:   accountInfo.ID,
-        CloudflareEmail:       accountInfo.Email,
-        AccessTokenEncrypted:  encryptedAccess,
-        RefreshTokenEncrypted: encryptedRefresh,
-        TokenExpiresAt:        token.ExpiresAt,
-    }
-
-    if err := h.connectionRepo.Upsert(c.Context(), connection); err != nil {
-        return c.Redirect("/settings?error=save_failed", fiber.StatusTemporaryRedirect)
-    }
-
-    return c.Redirect("/settings?cloudflare=connected", fiber.StatusTemporaryRedirect)
-}
-
-func (h *CloudflareAuthHandler) exchangeCodeForToken(ctx context.Context, code string) (*OAuthToken, error) {
-    data := url.Values{}
-    data.Set("grant_type", "authorization_code")
-    data.Set("code", code)
-    data.Set("client_id", h.clientID)
-    data.Set("client_secret", h.clientSecret)
-    data.Set("redirect_uri", h.callbackURL)
-
-    resp, err := http.Post(
-        "https://api.cloudflare.com/client/v4/user/tokens",
-        "application/x-www-form-urlencoded",
-        strings.NewReader(data.Encode()),
-    )
-    // Parse response...
-}
-
-// Desconectar Cloudflare
-func (h *CloudflareAuthHandler) Disconnect(c *fiber.Ctx) error {
-    user := GetUserFromContext(c)
-    if err := h.connectionRepo.DeleteByUserID(c.Context(), user.ID); err != nil {
-        return response.InternalError(c)
-    }
-    return response.OK(c, fiber.Map{"message": "disconnected"})
+{
+  "apiToken": "<cloudflare-api-token>",
+  "email": "ops@empresa.com"
 }
 ```
 
----
+O backend valida o token chamando `GET /user/tokens/verify` antes de
+persistir, e armazena o token criptografado da mesma forma que o fluxo OAuth.
 
-## 4. Backend - Domain Handler
+## 7. Resolucao de zona
 
-```go
-// internal/handler/domain_handler.go
+Quando um dominio e criado, o backend determina a zona automaticamente:
 
-type DomainHandler struct {
-    appRepo        domain.AppRepository
-    domainRepo     domain.CustomDomainRepository
-    connectionRepo domain.CloudflareConnectionRepository
-    encryptor      *crypto.TokenEncryptor
-    serverIP       string
-    defaultDomain  string
-    logger         *slog.Logger
-}
+1. Quebra o dominio em sufixos (`api.empresa.com` → `empresa.com`, `com`).
+2. Para cada sufixo, chama `GET /zones?name=<sufixo>` na conta do usuario.
+3. Usa a primeira zona encontrada. Se nenhuma zona corresponder, retorna
+   erro `cloudflare_zone_not_found` para o frontend exibir.
 
-func (h *DomainHandler) AddDomain(c *fiber.Ctx) error {
-    user := GetUserFromContext(c)
-    appID := c.Params("id")
+## 8. Tipo do registro
 
-    var input struct {
-        Domain string `json:"domain"`
-    }
-    if err := c.BodyParser(&input); err != nil {
-        return response.BadRequest(c, "invalid request body")
-    }
+- Por padrao, registros sao **CNAME** apontando para `BACKEND_PUBLIC_HOST`.
+- Quando o apex (`empresa.com`) e usado, o backend cria registro `A` para o
+  IP do backend (Cloudflare permite CNAME flattening em zonas com DNSSEC,
+  mas preferimos `A` para evitar surpresas).
+- O campo `proxied` e sempre `false` para nao interferir com o Let's Encrypt
+  resolvido pelo Traefik.
 
-    // 1. Verifica se usuario tem Cloudflare conectado
-    connection, err := h.connectionRepo.FindByUserID(c.Context(), user.ID)
-    if err != nil {
-        return response.BadRequest(c, "connect your Cloudflare account first")
-    }
-
-    // 2. Descriptografa token
-    accessToken, err := h.encryptor.Decrypt(connection.AccessTokenEncrypted)
-    if err != nil {
-        return response.InternalError(c)
-    }
-
-    // 3. Cria cliente Cloudflare com token do usuario
-    cfClient := cloudflare.NewClient(accessToken, h.logger)
-
-    // 4. Normaliza dominio
-    domainName := strings.ToLower(strings.TrimSpace(input.Domain))
-    rootDomain := extractRootDomain(domainName)
-
-    // 5. Busca Zone ID
-    zoneID, err := cfClient.GetZoneID(c.Context(), rootDomain)
-    if err != nil {
-        h.logger.Error("zone not found", "domain", rootDomain, "error", err)
-        return response.BadRequest(c, "domain not found in your Cloudflare account")
-    }
-
-    // 6. Cria registro DNS
-    var recordID string
-    if domainName == rootDomain {
-        recordID, err = cfClient.CreateARecord(c.Context(), zoneID, domainName, h.serverIP)
-    } else {
-        recordID, err = cfClient.CreateCNAME(c.Context(), zoneID, domainName, h.defaultDomain)
-    }
-
-    if err != nil {
-        h.logger.Error("failed to create DNS", "domain", domainName, "error", err)
-        return response.BadRequest(c, "failed to create DNS record: "+err.Error())
-    }
-
-    // 7. Salva no banco
-    customDomain := &domain.CustomDomain{
-        AppID:       appID,
-        Domain:      domainName,
-        ZoneID:      zoneID,
-        DNSRecordID: recordID,
-        RecordType:  "CNAME",
-        Status:      "active",
-    }
-
-    if err := h.domainRepo.Create(c.Context(), customDomain); err != nil {
-        // Rollback
-        _ = cfClient.DeleteRecord(c.Context(), zoneID, recordID)
-        return response.InternalError(c)
-    }
-
-    return response.OK(c, customDomain)
-}
-```
-
----
-
-## 5. API Endpoints
+## 9. Lifecycle de um dominio
 
 ```
-# OAuth Cloudflare
-GET  /auth/cloudflare           # Inicia OAuth
-GET  /auth/cloudflare/callback  # Callback OAuth
-POST /auth/cloudflare/disconnect # Desconecta
-
-# Status da conexao
-GET  /api/cloudflare/status     # Verifica se conectado
-
-# Dominios
-GET    /paas-deploy/v1/apps/:id/domains           # Lista dominios
-POST   /paas-deploy/v1/apps/:id/domains           # Adiciona dominio
-DELETE /paas-deploy/v1/apps/:id/domains/:domainId # Remove dominio
+created  ──►  CNAME criado em Cloudflare
+              │
+              ▼
+pending  ──►  aguardando propagacao DNS + ACME
+              │
+              ▼
+active   ──►  Traefik servindo TLS para o dominio
 ```
 
----
+A coluna `status` e atualizada pela rotina de health do dominio (verifica
+resolucao DNS + handshake TLS). Em caso de falha persistente, vira `error` e
+fica visivel no painel.
 
-## 6. Frontend - UI
+## 10. Remocao
 
-### Settings Page - Conectar Cloudflare
+`DELETE /api/apps/:id/domains/:domainId`:
 
-```tsx
-function CloudflareConnection() {
-  const { data: status } = useCloudflareStatus();
-  const disconnect = useDisconnectCloudflare();
+1. Chama `DELETE /zones/:zone_id/dns_records/:dns_record_id` no Cloudflare.
+2. Remove a linha em `custom_domains`.
+3. Atualiza a configuracao Traefik para parar de atender o dominio.
 
-  if (status?.connected) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Cloud className="h-5 w-5 text-orange-500" />
-            Cloudflare Connected
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">{status.email}</p>
-              <p className="text-sm text-muted-foreground">
-                Account ID: {status.accountId}
-              </p>
-            </div>
-            <Button variant="outline" onClick={() => disconnect.mutate()}>
-              Disconnect
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+Falha na chamada Cloudflare nao bloqueia a remocao local, mas e logada para
+permitir limpeza manual posterior.
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Connect Cloudflare</CardTitle>
-        <CardDescription>
-          Connect your Cloudflare account to automatically configure DNS for
-          custom domains.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button asChild>
-          <a href="/auth/cloudflare">
-            <Cloud className="mr-2 h-4 w-4" />
-            Connect Cloudflare
-          </a>
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-```
+## 11. Boas praticas
 
-### Domain Manager
+- Use sub-dominios dedicados (`api.empresa.com`) ao inves de apex sempre que
+  possivel — propagam mais rapido e evitam impacto em DNS legado.
+- Conecte a conta Cloudflare apenas com as permissoes necessarias (DNS
+  Edit + Zone Read). Reveja periodicamente os tokens em
+  `dash.cloudflare.com → Profile → API Tokens`.
+- Para dominios corporativos com DNS gerenciado fora da Cloudflare, deixe a
+  conexao desconectada e cadastre o CNAME manualmente apontando para o
+  `BACKEND_PUBLIC_HOST`.
 
-```tsx
-function DomainManager({ appId }: Props) {
-  const [domain, setDomain] = useState("");
-  const { data: domains } = useDomains(appId);
-  const { data: cfStatus } = useCloudflareStatus();
-  const addDomain = useAddDomain(appId);
-  const removeDomain = useRemoveDomain(appId);
+## 12. Solucao de problemas
 
-  // Se Cloudflare nao conectado, mostra aviso
-  if (!cfStatus?.connected) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Custom Domains</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <Cloud className="h-4 w-4" />
-            <AlertTitle>Cloudflare Required</AlertTitle>
-            <AlertDescription>
-              Connect your Cloudflare account to add custom domains.
-              <Button variant="link" asChild className="p-0 h-auto ml-1">
-                <Link to="/settings">Connect now</Link>
-              </Button>
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
+| Sintoma                                              | Causa provavel                                          |
+| ---------------------------------------------------- | ------------------------------------------------------- |
+| `cloudflare_oauth_disabled`                          | Variaveis OAuth nao configuradas no backend             |
+| `invalid_state`                                      | Cookie `cloudflare_oauth_state` expirou (TTL 10 min)    |
+| `cloudflare_zone_not_found`                          | Dominio nao pertence a nenhuma zona da conta conectada  |
+| `dns_record_already_exists`                          | Registro existente nao gerenciado pelo FlowDeploy       |
+| Dominio `pending` por muito tempo                    | Propagacao DNS demorando ou registrar nao apontou DNS   |
+| Erro 403 `Insufficient privileges`                   | API Token sem permissao `Zone.DNS:Edit`                 |
+| Token rotacionado externamente                       | Chamada para o backend retorna 401; usuario reconecta   |
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Globe className="h-5 w-5" />
-          Custom Domains
-        </CardTitle>
-        <CardDescription>
-          Add your domain. DNS will be configured automatically in your
-          Cloudflare.
-        </CardDescription>
-      </CardHeader>
+## 13. Onde mexer ao evoluir
 
-      <CardContent className="space-y-4">
-        {/* Input */}
-        <div className="flex gap-2">
-          <Input
-            placeholder="api.yourdomain.com"
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          />
-          <Button
-            onClick={() => {
-              addDomain.mutate({ domain });
-              setDomain("");
-            }}
-            disabled={addDomain.isPending || !domain.trim()}
-          >
-            {addDomain.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Add
-          </Button>
-        </div>
-
-        {/* Error */}
-        {addDomain.isError && (
-          <Alert variant="destructive">
-            <AlertDescription>{addDomain.error?.message}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Lista */}
-        <div className="space-y-2">
-          {domains?.map((d) => (
-            <div
-              key={d.id}
-              className="flex items-center justify-between p-3 border rounded-lg"
-            >
-              <div className="flex items-center gap-3">
-                <Badge variant="success">Active</Badge>
-                <a
-                  href={`https://${d.domain}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-sm hover:underline flex items-center gap-1"
-                >
-                  {d.domain}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => removeDomain.mutate(d.id)}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-```
-
----
-
-## 7. SSL Automatico (Sem Certbot!)
-
-### Como funciona
-
-```
-Usuario ----HTTPS----> Cloudflare ----HTTP----> FlowDeploy Server
-         (SSL auto)                (interno)
-```
-
-### Por que NAO precisa Certbot/Let's Encrypt
-
-Com `proxied: true` no registro DNS:
-
-1. **Cloudflare Proxy ativo** - Todo trafego passa pelo Cloudflare
-2. **SSL automatico** - Cloudflare gera certificado Edge gratuito
-3. **Interno pode ser HTTP** - Conexao Cloudflare -> Servidor pode ser HTTP
-
-### Modos SSL do Cloudflare
-
-| Modo              | Cloudflare -> Servidor | Certificado no Servidor |
-| ----------------- | ---------------------- | ----------------------- |
-| **Flexible**      | HTTP                   | Nao precisa             |
-| **Full**          | HTTPS                  | Self-signed OK          |
-| **Full (Strict)** | HTTPS                  | Certificado valido      |
-
-**Recomendacao: Use Flexible** - mais simples, nao precisa certificado no servidor.
-
-### Configuracao no Cloudflare
-
-O usuario precisa ter SSL/TLS configurado como "Flexible" ou "Full" no painel:
-
-- Cloudflare Dashboard -> SSL/TLS -> Overview -> Flexible
-
-### Codigo - Criar DNS com Proxy
-
-```go
-// Sempre criar com proxied: true para SSL automatico
-record, err := cfClient.CreateRecord(ctx, zoneID, DNSRecord{
-    Type:    "CNAME",
-    Name:    "api.example.com",
-    Content: "apps.flowdeploy.io",
-    TTL:     1,       // Auto
-    Proxied: true,    // IMPORTANTE: ativa Cloudflare Proxy = SSL gratis
-})
-```
-
-### Traefik - Aceitar HTTP interno
-
-```yaml
-# docker-compose.yml do app
-labels:
-  - "traefik.http.routers.myapp.rule=Host(`api.example.com`)"
-  - "traefik.http.routers.myapp.entrypoints=web" # HTTP interno
-  # NAO precisa de certresolver!
-```
-
-### Resumo
-
-| Componente              | Necessario? |
-| ----------------------- | ----------- |
-| Certbot                 | NAO         |
-| Let's Encrypt           | NAO         |
-| Certificado no servidor | NAO         |
-| Cloudflare Proxy        | SIM         |
-| SSL/TLS Flexible        | SIM         |
-
----
-
-## 8. Seguranca
-
-1. Tokens criptografados com AES-256
-2. State parameter para prevenir CSRF
-3. Refresh token para renovar acesso
-4. Validar que usuario tem acesso a zone
-
----
-
-## Estimativa
-
-| Componente          | Tempo      |
-| ------------------- | ---------- |
-| OAuth Handler       | 1.5 dias   |
-| Cloudflare Client   | 1 dia      |
-| Migrations + Repos  | 0.5 dia    |
-| Domain Handler      | 1 dia      |
-| Frontend Settings   | 1 dia      |
-| Frontend Domains    | 1 dia      |
-| Traefik Integration | 0.5 dia    |
-| Testes              | 1.5 dias   |
-| **Total**           | **8 dias** |
+| Mudanca                                  | Arquivos                                                 |
+| ---------------------------------------- | -------------------------------------------------------- |
+| Suporte a outro provedor (Route53, etc.) | abstrair `cloudflare.Client` em uma interface `dns.Provider` |
+| Multiplas contas Cloudflare por usuario  | remover UNIQUE em `cloudflare_connections.user_id`       |
+| Suporte a `proxied=true`                 | adicionar opcao na UI + atualizar `cloudflare/client.go` |
+| Renovacao automatica de tokens           | implementar ciclo de refresh em `handler` + cron         |

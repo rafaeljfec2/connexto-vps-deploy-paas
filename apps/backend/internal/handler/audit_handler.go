@@ -12,7 +12,7 @@ import (
 )
 
 type AuditHandler struct {
-	auditService      *service.AuditService
+	auditService       *service.AuditService
 	webhookPayloadRepo *repository.PostgresWebhookPayloadRepository
 }
 
@@ -31,16 +31,16 @@ func (h *AuditHandler) Register(router fiber.Router) {
 }
 
 type AuditLogResponse struct {
-	ID           string          `json:"id"`
-	EventType    string          `json:"eventType"`
-	ResourceType string          `json:"resourceType"`
-	ResourceID   *string         `json:"resourceId,omitempty"`
-	ResourceName *string         `json:"resourceName,omitempty"`
-	UserID       *string         `json:"userId,omitempty"`
-	UserName     *string         `json:"userName,omitempty"`
-	Details      interface{}     `json:"details,omitempty"`
-	IPAddress    *string         `json:"ipAddress,omitempty"`
-	CreatedAt    time.Time       `json:"createdAt"`
+	ID           string      `json:"id"`
+	EventType    string      `json:"eventType"`
+	ResourceType string      `json:"resourceType"`
+	ResourceID   *string     `json:"resourceId,omitempty"`
+	ResourceName *string     `json:"resourceName,omitempty"`
+	UserID       *string     `json:"userId,omitempty"`
+	UserName     *string     `json:"userName,omitempty"`
+	Details      interface{} `json:"details,omitempty"`
+	IPAddress    *string     `json:"ipAddress,omitempty"`
+	CreatedAt    time.Time   `json:"createdAt"`
 }
 
 type AuditLogsResponse struct {
@@ -86,9 +86,9 @@ type WebhookPayloadResponse struct {
 
 type WebhookPayloadsResponse struct {
 	Payloads []WebhookPayloadResponse `json:"payloads"`
-	Total    int                     `json:"total"`
-	Limit    int                     `json:"limit"`
-	Offset   int                     `json:"offset"`
+	Total    int                      `json:"total"`
+	Limit    int                      `json:"limit"`
+	Offset   int                      `json:"offset"`
 }
 
 func (h *AuditHandler) ListWebhookPayloads(c *fiber.Ctx) error {

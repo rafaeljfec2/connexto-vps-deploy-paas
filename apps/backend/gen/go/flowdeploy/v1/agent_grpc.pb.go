@@ -39,6 +39,9 @@ const (
 	AgentService_ListNetworks_FullMethodName                = "/flowdeploy.v1.AgentService/ListNetworks"
 	AgentService_CreateNetwork_FullMethodName               = "/flowdeploy.v1.AgentService/CreateNetwork"
 	AgentService_RemoveNetwork_FullMethodName               = "/flowdeploy.v1.AgentService/RemoveNetwork"
+	AgentService_ConnectContainerNetwork_FullMethodName     = "/flowdeploy.v1.AgentService/ConnectContainerNetwork"
+	AgentService_DisconnectContainerNetwork_FullMethodName  = "/flowdeploy.v1.AgentService/DisconnectContainerNetwork"
+	AgentService_RunContainerHealthcheck_FullMethodName     = "/flowdeploy.v1.AgentService/RunContainerHealthcheck"
 	AgentService_ListVolumes_FullMethodName                 = "/flowdeploy.v1.AgentService/ListVolumes"
 	AgentService_CreateVolume_FullMethodName                = "/flowdeploy.v1.AgentService/CreateVolume"
 	AgentService_RemoveVolume_FullMethodName                = "/flowdeploy.v1.AgentService/RemoveVolume"
@@ -77,6 +80,9 @@ type AgentServiceClient interface {
 	ListNetworks(ctx context.Context, in *ListNetworksRequest, opts ...grpc.CallOption) (*ListNetworksResponse, error)
 	CreateNetwork(ctx context.Context, in *CreateNetworkRequest, opts ...grpc.CallOption) (*CreateNetworkResponse, error)
 	RemoveNetwork(ctx context.Context, in *RemoveNetworkRequest, opts ...grpc.CallOption) (*RemoveNetworkResponse, error)
+	ConnectContainerNetwork(ctx context.Context, in *ConnectContainerNetworkRequest, opts ...grpc.CallOption) (*ConnectContainerNetworkResponse, error)
+	DisconnectContainerNetwork(ctx context.Context, in *DisconnectContainerNetworkRequest, opts ...grpc.CallOption) (*DisconnectContainerNetworkResponse, error)
+	RunContainerHealthcheck(ctx context.Context, in *RunContainerHealthcheckRequest, opts ...grpc.CallOption) (*RunContainerHealthcheckResponse, error)
 	ListVolumes(ctx context.Context, in *ListVolumesRequest, opts ...grpc.CallOption) (*ListVolumesResponse, error)
 	CreateVolume(ctx context.Context, in *CreateVolumeRequest, opts ...grpc.CallOption) (*CreateVolumeResponse, error)
 	RemoveVolume(ctx context.Context, in *RemoveVolumeRequest, opts ...grpc.CallOption) (*RemoveVolumeResponse, error)
@@ -317,6 +323,36 @@ func (c *agentServiceClient) RemoveNetwork(ctx context.Context, in *RemoveNetwor
 	return out, nil
 }
 
+func (c *agentServiceClient) ConnectContainerNetwork(ctx context.Context, in *ConnectContainerNetworkRequest, opts ...grpc.CallOption) (*ConnectContainerNetworkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ConnectContainerNetworkResponse)
+	err := c.cc.Invoke(ctx, AgentService_ConnectContainerNetwork_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) DisconnectContainerNetwork(ctx context.Context, in *DisconnectContainerNetworkRequest, opts ...grpc.CallOption) (*DisconnectContainerNetworkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DisconnectContainerNetworkResponse)
+	err := c.cc.Invoke(ctx, AgentService_DisconnectContainerNetwork_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) RunContainerHealthcheck(ctx context.Context, in *RunContainerHealthcheckRequest, opts ...grpc.CallOption) (*RunContainerHealthcheckResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RunContainerHealthcheckResponse)
+	err := c.cc.Invoke(ctx, AgentService_RunContainerHealthcheck_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *agentServiceClient) ListVolumes(ctx context.Context, in *ListVolumesRequest, opts ...grpc.CallOption) (*ListVolumesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListVolumesResponse)
@@ -476,6 +512,9 @@ type AgentServiceServer interface {
 	ListNetworks(context.Context, *ListNetworksRequest) (*ListNetworksResponse, error)
 	CreateNetwork(context.Context, *CreateNetworkRequest) (*CreateNetworkResponse, error)
 	RemoveNetwork(context.Context, *RemoveNetworkRequest) (*RemoveNetworkResponse, error)
+	ConnectContainerNetwork(context.Context, *ConnectContainerNetworkRequest) (*ConnectContainerNetworkResponse, error)
+	DisconnectContainerNetwork(context.Context, *DisconnectContainerNetworkRequest) (*DisconnectContainerNetworkResponse, error)
+	RunContainerHealthcheck(context.Context, *RunContainerHealthcheckRequest) (*RunContainerHealthcheckResponse, error)
 	ListVolumes(context.Context, *ListVolumesRequest) (*ListVolumesResponse, error)
 	CreateVolume(context.Context, *CreateVolumeRequest) (*CreateVolumeResponse, error)
 	RemoveVolume(context.Context, *RemoveVolumeRequest) (*RemoveVolumeResponse, error)
@@ -555,6 +594,15 @@ func (UnimplementedAgentServiceServer) CreateNetwork(context.Context, *CreateNet
 }
 func (UnimplementedAgentServiceServer) RemoveNetwork(context.Context, *RemoveNetworkRequest) (*RemoveNetworkResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RemoveNetwork not implemented")
+}
+func (UnimplementedAgentServiceServer) ConnectContainerNetwork(context.Context, *ConnectContainerNetworkRequest) (*ConnectContainerNetworkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ConnectContainerNetwork not implemented")
+}
+func (UnimplementedAgentServiceServer) DisconnectContainerNetwork(context.Context, *DisconnectContainerNetworkRequest) (*DisconnectContainerNetworkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DisconnectContainerNetwork not implemented")
+}
+func (UnimplementedAgentServiceServer) RunContainerHealthcheck(context.Context, *RunContainerHealthcheckRequest) (*RunContainerHealthcheckResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunContainerHealthcheck not implemented")
 }
 func (UnimplementedAgentServiceServer) ListVolumes(context.Context, *ListVolumesRequest) (*ListVolumesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListVolumes not implemented")
@@ -937,6 +985,60 @@ func _AgentService_RemoveNetwork_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_ConnectContainerNetwork_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConnectContainerNetworkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ConnectContainerNetwork(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ConnectContainerNetwork_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ConnectContainerNetwork(ctx, req.(*ConnectContainerNetworkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_DisconnectContainerNetwork_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DisconnectContainerNetworkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).DisconnectContainerNetwork(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_DisconnectContainerNetwork_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).DisconnectContainerNetwork(ctx, req.(*DisconnectContainerNetworkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_RunContainerHealthcheck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RunContainerHealthcheckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).RunContainerHealthcheck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_RunContainerHealthcheck_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).RunContainerHealthcheck(ctx, req.(*RunContainerHealthcheckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AgentService_ListVolumes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListVolumesRequest)
 	if err := dec(in); err != nil {
@@ -1219,6 +1321,18 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RemoveNetwork",
 			Handler:    _AgentService_RemoveNetwork_Handler,
+		},
+		{
+			MethodName: "ConnectContainerNetwork",
+			Handler:    _AgentService_ConnectContainerNetwork_Handler,
+		},
+		{
+			MethodName: "DisconnectContainerNetwork",
+			Handler:    _AgentService_DisconnectContainerNetwork_Handler,
+		},
+		{
+			MethodName: "RunContainerHealthcheck",
+			Handler:    _AgentService_RunContainerHealthcheck_Handler,
 		},
 		{
 			MethodName: "ListVolumes",

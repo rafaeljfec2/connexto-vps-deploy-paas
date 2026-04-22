@@ -316,11 +316,11 @@ type CreateRuleRequest struct {
 }
 
 var validEventTypes = map[string]bool{
-	domain.EventTypeDeployRunning:    true,
-	domain.EventTypeDeploySuccess:    true,
-	domain.EventTypeDeployFailed:     true,
-	domain.EventTypeContainerDown:    true,
-	domain.EventTypeHealthUnhealthy:  true,
+	domain.EventTypeDeployRunning:   true,
+	domain.EventTypeDeploySuccess:   true,
+	domain.EventTypeDeployFailed:    true,
+	domain.EventTypeContainerDown:   true,
+	domain.EventTypeHealthUnhealthy: true,
 }
 
 func (h *NotificationHandler) CreateRule(c *fiber.Ctx) error {

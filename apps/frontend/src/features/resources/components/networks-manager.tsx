@@ -101,14 +101,14 @@ export function NetworksManager({
 
   const handleCreate = async () => {
     if (!newNetworkName.trim()) return;
-    await createNetwork.mutateAsync(newNetworkName.trim());
+    await createNetwork.mutateAsync({ name: newNetworkName.trim(), serverId });
     setNewNetworkName("");
     setShowCreateDialog(false);
   };
 
   const handleDelete = async () => {
     if (!networkToDelete) return;
-    await removeNetwork.mutateAsync(networkToDelete);
+    await removeNetwork.mutateAsync({ name: networkToDelete, serverId });
     setNetworkToDelete(null);
   };
 
@@ -117,6 +117,7 @@ export function NetworksManager({
     await connectToNetwork.mutateAsync({
       containerId,
       network: selectedNetwork,
+      serverId,
     });
     setSelectedNetwork("");
     setShowConnectDialog(false);
@@ -127,6 +128,7 @@ export function NetworksManager({
     await disconnectFromNetwork.mutateAsync({
       containerId,
       network,
+      serverId,
     });
   };
 
