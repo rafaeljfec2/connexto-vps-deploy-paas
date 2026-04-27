@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/paasdeploy/mcp/internal/backend"
+	"github.com/paasdeploy/mcp/internal/metrics"
 )
 
 type ToolHandler[Input any] func(ctx context.Context, req *mcp.CallToolRequest, in Input) (any, error)
@@ -19,6 +21,28 @@ type ToolHandler[Input any] func(ctx context.Context, req *mcp.CallToolRequest, 
 type Deps struct {
 	Logger  *slog.Logger
 	Backend *backend.Client
+}
+
+// mutatingTools is populated at registration time and consulted by the HTTP
+// transport to classify requests into the read or mutate rate-limiter bucket.
+// We keep it package-level (not on Deps) because the registry must outlive any
+// individual server instance and is read-only after startup completes.
+var mutatingTools sync.Map
+
+// IsMutatingTool reports whether the named tool was registered as a write or
+// destructive operation. Reads (and unknown tools, treated as reads
+// conservatively because the SDK validates names) return false.
+func IsMutatingTool(name string) bool {
+	_, ok := mutatingTools.Load(name)
+	return ok
+}
+
+// MarkMutatingForTest seeds the mutating-tools registry for unit tests that
+// need to drive bucket classification logic without registering full *mcp.Tool
+// instances. It is exported because the registry is package-private and the
+// transport tests live in a sibling package; production code MUST NOT call it.
+func MarkMutatingForTest(name string) {
+	mutatingTools.Store(name, struct{}{})
 }
 
 func RegisterReadOnly[Input any](
@@ -46,10 +70,14 @@ func registerTool[Input any](
 	handler ToolHandler[Input],
 	mode string,
 ) {
+	if mode == "write" || mode == "destructive" {
+		mutatingTools.Store(tool.Name, struct{}{})
+	}
 	wrapped := func(ctx context.Context, req *mcp.CallToolRequest, in Input) (*mcp.CallToolResult, any, error) {
 		start := time.Now()
 		out, err := handler(ctx, req, in)
 		latency := time.Since(start)
+		metrics.ObserveToolCall(tool.Name, mode, err == nil, latency.Seconds())
 		if err != nil {
 			deps.Logger.Warn("tool call failed",
 				"tool", tool.Name,

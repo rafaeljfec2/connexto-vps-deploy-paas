@@ -1,0 +1,43 @@
+# Traefik dynamic configuration for the FlowDeploy MCP server.
+#
+# Use this file ONLY when running the MCP outside the main docker-compose (for
+# example, on a dedicated VM or behind an existing Traefik instance reachable
+# via a file provider). The default deployment in deploy/docker-compose.yml
+# already wires the MCP through Docker labels and does NOT need this file.
+#
+# To enable, mount this file under /etc/traefik/dynamic/mcp.yml and add a
+# `file` provider to traefik.yml, e.g.:
+#
+#   providers:
+#     file:
+#       directory: /etc/traefik/dynamic
+#       watch: true
+
+http:
+  routers:
+    # Only the JSON-RPC + SSE endpoint /mcp is exposed publicly.
+    # /metrics, /healthz and /readyz must stay reachable strictly from the
+    # internal network (Prometheus scrape + docker healthcheck).
+    mcp:
+      rule: "Host(`mcp.flowdeploy.example.com`) && PathPrefix(`/mcp`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      service: mcp
+      middlewares:
+        - mcp-headers
+
+  services:
+    mcp:
+      loadBalancer:
+        servers:
+          - url: "http://mcp:3001"
+        passHostHeader: true
+
+  middlewares:
+    mcp-headers:
+      headers:
+        customResponseHeaders:
+          X-Content-Type-Options: "nosniff"
+          Strict-Transport-Security: "max-age=63072000; includeSubDomains"

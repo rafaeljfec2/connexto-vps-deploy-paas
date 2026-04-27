@@ -88,6 +88,40 @@ services:
       - "traefik.http.routers.frontend.priority=1"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
 
+  mcp:
+    build:
+      context: ..
+      dockerfile: apps/mcp/Dockerfile
+    container_name: paasdeploy-mcp
+    restart: unless-stopped
+    environment:
+      FLOWDEPLOY_BACKEND_URL: ${FLOWDEPLOY_BACKEND_URL:-http://backend:8080}
+      FLOWDEPLOY_LOG_LEVEL: ${FLOWDEPLOY_MCP_LOG_LEVEL:-info}
+    command:
+      - "serve"
+      - "--addr=:3001"
+      - "--allowed-clients=${FLOWDEPLOY_MCP_ALLOWED_CLIENTS:-cursor,claude-desktop,custom:*,ci:*}"
+      - "--read-rpm=${FLOWDEPLOY_MCP_READ_RPM:-120}"
+      - "--mutate-rpm=${FLOWDEPLOY_MCP_MUTATE_RPM:-20}"
+    depends_on:
+      backend:
+        condition: service_started
+    networks:
+      - paasdeploy
+    labels:
+      - "traefik.enable=true"
+      # Public router: exposes ONLY the JSON-RPC + SSE endpoint at /mcp.
+      # Internal endpoints (/metrics, /healthz, /readyz) stay reachable from
+      # inside the paasdeploy network for Prometheus / docker healthcheck only.
+      - "traefik.http.routers.mcp.rule=Host(`${MCP_HOST:-mcp.localhost}`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.mcp.entrypoints=websecure"
+      - "traefik.http.routers.mcp.tls=true"
+      - "traefik.http.routers.mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.mcp.loadbalancer.server.port=3001"
+      - "traefik.http.middlewares.mcp-headers.headers.customResponseHeaders.X-Content-Type-Options=nosniff"
+      - "traefik.http.middlewares.mcp-headers.headers.customResponseHeaders.Strict-Transport-Security=max-age=63072000; includeSubDomains"
+      - "traefik.http.routers.mcp.middlewares=mcp-headers@docker"
+
 networks:
   paasdeploy:
     external: true
