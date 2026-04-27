@@ -199,7 +199,8 @@ flowdeploy-mcp serve \
   - `mcp_http_request_duration_seconds{method,path}`
   - `mcp_ratelimit_drops_total{bucket}`
   - `mcp_auth_failures_total{reason}`
-  - `mcp_active_sessions`
+  - `mcp_bucket_classify_failures_total{reason}` — bodies that could not be parsed and were degraded conservatively to mutate (`overflow`, `parse_error`, `read_error`).
+  - `mcp_in_flight_requests` — gauge tracking concurrent HTTP requests.
 
 ### Required headers
 
@@ -237,6 +238,68 @@ curl -sS https://mcp.flowdeploy.example.com/mcp \
 ```
 
 A successful response is a JSON-RPC envelope containing `serverInfo.name = "flowdeploy"`. Subsequent calls reuse the `Mcp-Session-Id` header returned by the server.
+
+## Deploying via GitHub Actions
+
+The repository ships [`/.github/workflows/deploy-mcp.yml`](../.github/workflows/deploy-mcp.yml) which builds the MCP image, pushes to GHCR and deploys it to the production VPS over SSH. It mirrors `deploy-backend.yml` but only manages the `flowdeploy-mcp` container.
+
+### One-time setup (per environment)
+
+1. **DNS** — create an `A` record pointing the public hostname (e.g. `mcp-deploy.connexto.com.br`) to the same IP as the backend; Traefik already accepts wildcard SANs there.
+2. **GitHub → Settings → Environments → Prod → Variables** — add:
+   - `MCP_HOST=mcp-deploy.connexto.com.br`
+   - `FLOWDEPLOY_BACKEND_URL=http://flowdeploy-backend:8080` (internal docker DNS; the MCP runs on the same `paasdeploy` network as the backend)
+   - `FLOWDEPLOY_MCP_ALLOWED_CLIENTS=cursor,claude-desktop,cline`
+   - `FLOWDEPLOY_MCP_READ_RPM=120` *(optional; default applied if omitted)*
+   - `FLOWDEPLOY_MCP_MUTATE_RPM=20` *(optional; default applied if omitted)*
+   - `FLOWDEPLOY_MCP_LOG_LEVEL=info` *(optional)*
+   - `FLOWDEPLOY_MCP_SESSION_MAX_AGE=30m` *(optional)*
+
+   The reused vars (`SERVER_USER`, `SERVER_HOST`, `SERVER_PORT`, `GHCR_USER`) and secrets (`SERVER_PASSWORD`, `GHCR_PAT`) come from the backend deploy and do not need to be duplicated.
+
+### Trigger
+
+The workflow runs automatically on `push` to `main` whenever any of the following changes:
+
+- `apps/mcp/**`
+- `deploy/docker-compose.yml`
+- `.github/workflows/deploy-mcp.yml`
+- `.github/scripts/deploy-mcp.exp`
+
+It can also be dispatched manually from the GitHub Actions UI.
+
+### Smoke test after deploy
+
+```bash
+# Public endpoint must reject without a PAT
+curl -i https://mcp-deploy.connexto.com.br/mcp
+# → HTTP/2 401 (auth_required)
+
+# Internal endpoints stay private (only reachable via docker exec on the VPS)
+ssh user@vps 'docker exec flowdeploy-mcp wget -qO- http://127.0.0.1:3001/healthz'
+# → {"status":"ok"}
+
+# After issuing a PAT in the dashboard, run an initialize round-trip:
+curl -sS https://mcp-deploy.connexto.com.br/mcp \
+  -H "Authorization: Bearer $PDP_TOKEN" \
+  -H 'X-MCP-Client: ci:smoke' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1.0"}}}'
+```
+
+### Rollback
+
+To roll back to a previous image tag without re-running the build:
+
+```bash
+ssh user@vps
+docker pull ghcr.io/<org>/<repo>-mcp:<short-sha>
+docker stop flowdeploy-mcp && docker rm flowdeploy-mcp
+# re-run docker run with the desired tag (or just re-trigger the workflow on the previous commit)
+```
+
+The MCP is stateless across restarts (rate-limit windows reset, no persistent storage), so a rollback is safe and instantaneous.
 
 ## Troubleshooting
 

@@ -3,8 +3,8 @@ package mcpserver
 import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/paasdeploy/mcp/internal/tools"
 	"github.com/paasdeploy/mcp/internal/toolkit"
+	"github.com/paasdeploy/mcp/internal/tools"
 )
 
 func RegisterAllReadOnly(srv *mcp.Server, deps toolkit.Deps) {

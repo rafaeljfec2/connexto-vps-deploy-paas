@@ -149,10 +149,10 @@ func TestContainersLogsFollowEmitsChunks(t *testing.T) {
 	res, err := cs.CallTool(ctx, &mcp.CallToolParams{
 		Name: "containers_logs",
 		Arguments: map[string]any{
-			"id":                "c1",
-			"follow":            true,
-			"timeout_seconds":   3,
-			"interval_seconds":  1,
+			"id":               "c1",
+			"follow":           true,
+			"timeout_seconds":  3,
+			"interval_seconds": 1,
 		},
 		Meta: mcp.Meta{"progressToken": "tok-2"},
 	})

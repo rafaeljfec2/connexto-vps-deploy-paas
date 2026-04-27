@@ -22,10 +22,10 @@ type deployTriggerInput struct {
 }
 
 type deployStatusInput struct {
-	ID                string `json:"id" jsonschema:"the app UUID"`
-	Wait              bool   `json:"wait,omitempty" jsonschema:"when true, poll until deployment reaches a terminal state, emitting progress notifications"`
-	TimeoutSeconds    int    `json:"timeout_seconds,omitempty" jsonschema:"max time to wait when wait=true (default 300, max 1800)"`
-	PollIntervalSec   int    `json:"poll_interval_seconds,omitempty" jsonschema:"interval between polls in seconds when wait=true (default 5)"`
+	ID              string `json:"id" jsonschema:"the app UUID"`
+	Wait            bool   `json:"wait,omitempty" jsonschema:"when true, poll until deployment reaches a terminal state, emitting progress notifications"`
+	TimeoutSeconds  int    `json:"timeout_seconds,omitempty" jsonschema:"max time to wait when wait=true (default 300, max 1800)"`
+	PollIntervalSec int    `json:"poll_interval_seconds,omitempty" jsonschema:"interval between polls in seconds when wait=true (default 5)"`
 }
 
 func RegisterApps(srv *mcp.Server, deps toolkit.Deps) {

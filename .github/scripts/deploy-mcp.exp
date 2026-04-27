@@ -1,0 +1,141 @@
+#!/usr/bin/expect -f
+# Deploy the FlowDeploy MCP server container to the production VPS.
+#
+# Mirrors the structure of deploy.exp (used by the backend) but targets the
+# `flowdeploy-mcp` container only. The MCP exposes:
+#   - /mcp        publicly via Traefik (HTTPS, Let's Encrypt)
+#   - /metrics    INTERNAL ONLY (metrics scrape from inside the network)
+#   - /healthz    INTERNAL ONLY (docker healthcheck + ad-hoc curl on the host)
+#   - /readyz     INTERNAL ONLY (probes the backend reachability)
+#
+# All MCP traffic flows through the same Traefik instance + paasdeploy network
+# already stood up by the backend deploy. This script DOES NOT manage Traefik;
+# it only re-creates the MCP container.
+
+set timeout 600
+
+set user [string trim $env(SERVER_USER)]
+set password [string trim $env(SERVER_PASSWORD)]
+set host [string trim $env(SERVER_HOST)]
+set port [string trim $env(SERVER_PORT)]
+
+set registry [string trim $env(REGISTRY)]
+set image [string trim $env(IMAGE_NAME)]
+set ghcr_user [string trim $env(GHCR_USER)]
+set ghcr_pat [string trim $env(GHCR_PAT)]
+set container_name [string trim $env(CONTAINER_NAME)]
+
+set log_level [string trim $env(LOG_LEVEL)]
+set traefik_network [string trim $env(TRAEFIK_NETWORK)]
+set mcp_host [string trim $env(MCP_HOST)]
+set backend_url [string trim $env(FLOWDEPLOY_BACKEND_URL)]
+set allowed_clients [string trim $env(FLOWDEPLOY_MCP_ALLOWED_CLIENTS)]
+set read_rpm [string trim $env(FLOWDEPLOY_MCP_READ_RPM)]
+set mutate_rpm [string trim $env(FLOWDEPLOY_MCP_MUTATE_RPM)]
+set session_max_age [string trim $env(FLOWDEPLOY_MCP_SESSION_MAX_AGE)]
+
+if {[string length $session_max_age] == 0} {
+  set session_max_age "30m"
+}
+
+puts "🚀 Starting MCP deployment to $host:$port"
+puts "📦 Image: $registry/$image:latest"
+puts "🌐 Public host: $mcp_host"
+puts "🔌 Backend (internal): $backend_url"
+
+spawn ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -p $port $user@$host
+
+expect {
+  "yes/no" { send "yes\r"; exp_continue }
+  "password:" { send "$password\r" }
+  timeout { puts "❌ Connection timeout"; exit 1 }
+}
+
+expect "$ "
+
+send "docker login $registry -u $ghcr_user -p $ghcr_pat\r"
+expect "Login Succeeded"
+expect "$ "
+
+send "docker pull $registry/$image:latest\r"
+expect "$ "
+
+send "docker network create $traefik_network 2>/dev/null || true\r"
+expect "$ "
+
+send "docker stop $container_name 2>/dev/null || true\r"
+expect "$ "
+
+send "docker rm $container_name 2>/dev/null || true\r"
+expect "$ "
+
+# Build a labels file to dodge tcl backtick escaping. Only the /mcp prefix is
+# exposed publicly; /metrics, /healthz and /readyz remain reachable only from
+# inside the paasdeploy network (where Prometheus / docker healthcheck live).
+send "echo 'traefik.enable=true' > /tmp/mcp-labels.txt\r"
+expect "$ "
+send "echo 'traefik.http.routers.$container_name.rule=Host(\`$mcp_host\`) && PathPrefix(\`/mcp\`)' >> /tmp/mcp-labels.txt\r"
+expect "$ "
+send "echo 'traefik.http.routers.$container_name.entrypoints=websecure' >> /tmp/mcp-labels.txt\r"
+expect "$ "
+send "echo 'traefik.http.routers.$container_name.tls=true' >> /tmp/mcp-labels.txt\r"
+expect "$ "
+send "echo 'traefik.http.routers.$container_name.tls.certresolver=letsencrypt' >> /tmp/mcp-labels.txt\r"
+expect "$ "
+send "echo 'traefik.http.services.$container_name.loadbalancer.server.port=3001' >> /tmp/mcp-labels.txt\r"
+expect "$ "
+send "echo 'traefik.http.middlewares.$container_name-headers.headers.customResponseHeaders.X-Content-Type-Options=nosniff' >> /tmp/mcp-labels.txt\r"
+expect "$ "
+send "echo 'traefik.http.middlewares.$container_name-headers.headers.customResponseHeaders.Strict-Transport-Security=max-age=63072000; includeSubDomains' >> /tmp/mcp-labels.txt\r"
+expect "$ "
+send "echo 'traefik.http.routers.$container_name.middlewares=$container_name-headers@docker' >> /tmp/mcp-labels.txt\r"
+expect "$ "
+
+# Build docker run command. The MCP listens on 3001 inside the network.
+# We DO NOT publish 3001 on the host: Traefik fronts it on 443 and the
+# internal endpoints stay reachable only via `docker exec`.
+set cmd "docker run -d"
+append cmd " --name $container_name"
+append cmd " --network $traefik_network"
+append cmd " --restart unless-stopped"
+append cmd " -e LOG_LEVEL=$log_level"
+append cmd " -e FLOWDEPLOY_LOG_LEVEL=$log_level"
+append cmd " -e FLOWDEPLOY_BACKEND_URL=$backend_url"
+append cmd " --label-file /tmp/mcp-labels.txt"
+append cmd " $registry/$image:latest"
+append cmd " serve"
+append cmd " --addr=:3001"
+append cmd " --allowed-clients=$allowed_clients"
+append cmd " --read-rpm=$read_rpm"
+append cmd " --mutate-rpm=$mutate_rpm"
+append cmd " --session-max-age=$session_max_age"
+
+send "$cmd\r"
+
+expect {
+  -re {[0-9a-f]{64}} { puts "✅ Container started successfully" }
+  -re {[0-9a-f]{12}} { puts "✅ Container started successfully" }
+  "Error" { puts "❌ Container failed to start"; exit 1 }
+  timeout { puts "❌ Timeout waiting for container"; exit 1 }
+}
+expect "$ "
+
+send "docker ps --filter name=$container_name --format 'STATUS={{.Status}}'\r"
+expect "$ "
+
+# Smoke-check: the healthz endpoint must answer 200 from inside the network.
+send "sleep 5 && docker exec $container_name wget --no-verbose --tries=1 --timeout=5 -O- http://127.0.0.1:3001/healthz\r"
+expect {
+  -re {"status":"ok"} { puts "✅ /healthz reports OK" }
+  "wget:" { puts "❌ /healthz unreachable inside container" }
+  timeout { puts "⚠️  /healthz check timed out (container may still be starting)" }
+}
+expect "$ "
+
+send "rm /tmp/mcp-labels.txt\r"
+expect "$ "
+
+send "exit\r"
+expect eof
+
+puts "🎉 MCP deployment completed successfully!"

@@ -7,12 +7,12 @@ import (
 
 func TestBuildQueryFiltersZeroValues(t *testing.T) {
 	q := BuildQuery(map[string]any{
-		"limit":    50,
-		"empty":    "",
-		"flag":     true,
+		"limit":     50,
+		"empty":     "",
+		"flag":      true,
 		"falseFlag": false,
-		"nilValue": nil,
-		"actor":    "pat",
+		"nilValue":  nil,
+		"actor":     "pat",
 	})
 	encoded := q.Encode()
 	if !strings.Contains(encoded, "limit=50") {
