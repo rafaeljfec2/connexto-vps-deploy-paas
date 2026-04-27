@@ -13,14 +13,14 @@ var (
 )
 
 const (
-	ScopeRead              = "read"
-	ScopeDeploy            = "deploy"
-	ScopeContainersWrite   = "containers:write"
-	ScopeConfigWrite       = "config:write"
-	ScopeResourcesWrite    = "resources:write"
-	ScopeServersWrite      = "servers:write"
-	ScopeDestructive       = "destructive"
-	ScopeAdmin             = "admin"
+	ScopeRead            = "read"
+	ScopeDeploy          = "deploy"
+	ScopeContainersWrite = "containers:write"
+	ScopeConfigWrite     = "config:write"
+	ScopeResourcesWrite  = "resources:write"
+	ScopeServersWrite    = "servers:write"
+	ScopeDestructive     = "destructive"
+	ScopeAdmin           = "admin"
 )
 
 var AllScopes = []string{

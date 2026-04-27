@@ -149,16 +149,35 @@ jobs:
           FLOWDEPLOY_MCP_MUTATE_RPM: ${{ vars.FLOWDEPLOY_MCP_MUTATE_RPM || '20' }}
           FLOWDEPLOY_MCP_SESSION_MAX_AGE: ${{ vars.FLOWDEPLOY_MCP_SESSION_MAX_AGE || '30m' }}
 
-      - name: Verify deployment
+      - name: Smoke test public endpoint
+        # Issue an unauthenticated POST against /mcp and assert the public
+        # entrypoint is reachable AND rejecting requests without a PAT (401).
+        # Any other outcome (timeout, 5xx, 200, missing TLS) means the deploy
+        # cannot serve traffic and we MUST fail the pipeline.
+        # Allow up to 60s for Let's Encrypt cert hand-off + Traefik reload.
         run: |
-          echo "🔍 MCP deployment completed!"
+          set -euo pipefail
+          MCP_URL="https://${{ vars.MCP_HOST }}/mcp"
+          echo "🧪 Probing $MCP_URL"
+          for attempt in $(seq 1 12); do
+            status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 -X POST "$MCP_URL" || echo "000")
+            if [ "$status" = "401" ]; then
+              echo "✅ /mcp is reachable and correctly rejecting unauth requests (HTTP 401)"
+              exit 0
+            fi
+            echo "  attempt $attempt: got HTTP $status, retrying in 5s..."
+            sleep 5
+          done
+          echo "❌ /mcp did not reach a healthy state within 60s (last status: $status)"
+          exit 1
+
+      - name: Print next steps
+        if: success()
+        run: |
+          echo "🎉 MCP deployment completed!"
           echo "📋 Container: ${{ env.CONTAINER_NAME }}"
           echo "📦 Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           echo "🌐 Public URL: https://${{ vars.MCP_HOST }}/mcp"
-          echo ""
-          echo "🧪 Quick smoke test (run from your machine):"
-          echo "  curl -i https://${{ vars.MCP_HOST }}/mcp"
-          echo "  → Expected: HTTP/2 401 (no PAT)"
           echo ""
           echo "📚 Next steps:"
           echo "  1. Generate a PAT in the dashboard"

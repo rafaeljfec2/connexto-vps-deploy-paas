@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"log/slog"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/paasdeploy/backend/internal/domain"
@@ -52,6 +54,13 @@ func AuditDestructive(eventType domain.EventType, resourceType domain.ResourceTy
 		}
 		svc, ok := c.Locals(auditServiceLocalsKey).(*service.AuditService)
 		if !ok || svc == nil {
+			slog.Default().Error(
+				"audit log skipped: WithAuditService middleware not installed for destructive route",
+				"path", c.Path(),
+				"method", c.Method(),
+				"event", string(eventType),
+				"resource", string(resourceType),
+			)
 			return nil
 		}
 

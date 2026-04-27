@@ -151,7 +151,7 @@ func (r *PostgresPersonalAccessTokenRepository) Revoke(ctx context.Context, id s
 }
 
 func (r *PostgresPersonalAccessTokenRepository) TouchLastUsed(ctx context.Context, id string) error {
-	query := `UPDATE personal_access_tokens SET last_used_at = NOW() WHERE id = $1`
+	query := `UPDATE personal_access_tokens SET last_used_at = NOW() WHERE id = $1 AND revoked_at IS NULL`
 	_, err := r.db.ExecContext(ctx, query, id)
 	return err
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Check, Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,8 +40,17 @@ export function CreateTokenDialog({
   const [formError, setFormError] = useState<string | null>(null);
   const [result, setResult] = useState<CreateTokenResponse | null>(null);
   const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const createMutation = useCreateToken();
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current !== null) {
+        clearTimeout(copiedTimerRef.current);
+      }
+    };
+  }, []);
 
   const resetAndClose = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -110,7 +119,13 @@ export function CreateTokenDialog({
     try {
       await navigator.clipboard.writeText(result.plaintextToken);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      if (copiedTimerRef.current !== null) {
+        clearTimeout(copiedTimerRef.current);
+      }
+      copiedTimerRef.current = setTimeout(() => {
+        setCopied(false);
+        copiedTimerRef.current = null;
+      }, 2000);
     } catch {
       setFormError("Unable to copy to clipboard. Select and copy manually.");
     }

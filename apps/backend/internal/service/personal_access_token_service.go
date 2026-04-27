@@ -14,9 +14,14 @@ import (
 )
 
 const (
-	TokenPrefix           = "pdp_live_"
-	TokenSecretBytes      = 32
-	TokenDisplayPrefixLen = 16
+	TokenPrefix      = "pdp_live_"
+	TokenSecretBytes = 32
+	// TokenDisplayPrefixLen stores ONLY the well-known prefix in the token_prefix
+	// column (no characters from the secret). This avoids leaking ~42 bits of
+	// entropy gratuitously. The UI identifies a token by name + last-used; if a
+	// short visual disambiguator is needed in the future, prefer "pdp_live_…XXXX"
+	// where XXXX is the LAST 4 characters (lower correlation risk than the first).
+	TokenDisplayPrefixLen = len(TokenPrefix)
 	MaxTokenNameLength    = 120
 	MinTokenNameLength    = 3
 	DefaultExpiryDays     = 90
