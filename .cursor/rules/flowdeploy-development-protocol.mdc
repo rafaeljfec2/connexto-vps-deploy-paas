@@ -11,6 +11,18 @@ alwaysApply: true
 
 > **Mandatory orchestration**: every request that implies a file change is routed through [`flowdeploy-orchestrator.mdc`](./flowdeploy-orchestrator.mdc) — Architect → Approval Gate → Developer (Backend/Frontend/Proto/Agent/Shared/Infra/Docs) → Senior Reviewer. The orchestrator prints explicit visual banners and requires human approval between Architect and Developer. Do not bypass it.
 
+> **Mandatory skills** (load on match, before editing):
+>
+> | Trigger | Skill to load | Invocation | When |
+> |---------|---------------|------------|------|
+> | Files touched: `apps/backend/**`, `apps/agent/**`, `apps/shared/**`, `apps/proto/**`, `**/*.go`, `**/*.proto`, `go.mod`, `migrations/**` | `.cursor/skills/golang-engineering-expert/SKILL.md` | inline | **before** editing |
+> | Files touched: `apps/frontend/**`, `**/*.tsx`, `**/*.ts` (frontend scope), Tailwind/shadcn/ui changes | `.cursor/skills/frontend-engineering-expert/SKILL.md` | inline | **before** editing |
+> | **ANY change that produced file modifications** (code, proto, migration, config, rule, skill, docs affecting behavior) | `.cursor/skills/business-rule-guardian/SKILL.md` | **fresh subagent only** (`Task` tool, `subagent_type: generalPurpose`, `readonly: true`) | **after** coding, before declaring the task done |
+>
+> Rules own **conventions** (layout, layering, naming). Engineering-expert skills own **craft** (idioms, error design, concurrency, tests, performance) — load inline before editing. The business-rule guardian is a **guardrail, not a helper**: it MUST run in an isolated subagent with zero developer context, otherwise it inherits the author's bias and the review is invalid. Do not duplicate content between rule and skill.
+>
+> **Mandatory final gate**: every coding turn ends with a `business-rule-guardian` subagent review (see Section 3, step 8). Skipping this gate is a protocol violation. Exceptions listed in Section 3.1.
+
 ---
 
 ## 1. Workspace Topology
@@ -58,13 +70,48 @@ If any instruction conflicts with the above, STOP and ask.
 
 For every task, follow this loop:
 
-1. **Read context** — at minimum: the file you are editing, its consumers (`Grep` for the symbol), and the relevant rule (`flowdeploy-{layer}.mdc`).
+1. **Read context** — at minimum: the file you are editing, its consumers (`Grep` for the symbol), the relevant rule (`flowdeploy-{layer}.mdc`), and the mandatory engineering-expert skill for the scope (Go / frontend).
 2. **Plan briefly** — for anything bigger than a one-liner, state the diff plan (files + intent) before editing.
 3. **Implement** — keep the change minimal and on-topic. Do not opportunistically refactor unrelated code.
 4. **Lint locally** — see Section 6.
 5. **Run tests** — at minimum the package(s) you touched (`go test ./internal/engine/...` or `pnpm --filter @paasdeploy/frontend run typecheck`).
 6. **Self-review** — re-read the diff with the eye of a reviewer; verify naming, error wrapping, missing tests, unused imports.
 7. **Summarize the change** — short technical summary (1–2 paragraphs) plus a list of follow-ups if any.
+8. **Run the business-rule guardian (mandatory final gate)** — invoke `.cursor/skills/business-rule-guardian/SKILL.md` in a **fresh, readonly subagent** (`Task` tool). See §3.1 for the required shape. Apply the verdict: if 🔴 **Rejected** or 🟡 **Approved with conditions**, address the blockers or accept the conditions before closing the turn. Only a ✅ **Approved** (or a conditional approval whose conditions were resolved) closes the task.
+
+### 3.1 Business-rule guardian — mandatory final gate
+
+**When to run**: at the end of every turn that modified any file — code, proto, migration, config, rule, skill, docs that affect behavior. Run **once**, after self-review (step 7), before summarizing to the user.
+
+**How to invoke** (single `Task` call):
+
+- `subagent_type`: `generalPurpose`
+- `readonly`: `true` (the guardian judges, never writes)
+- `description`: `"Guardian review: <short feature name>"`
+- `run_in_background`: `false` (await the verdict before closing the turn)
+- `prompt`: must include the three blocks the skill requires — see the skill's "Prompt template for the subagent" section. In particular:
+  - **Original request (verbatim)**: paste the user's most recent request exactly, no paraphrase.
+  - **Implementation under review**: the list of modified files with absolute paths, or a `git diff` range (`main..HEAD` when on a feature branch).
+  - **Acceptance criteria / linked context** (optional): any doc, ADR, ticket referenced.
+
+**Handling the verdict**:
+
+| Verdict | Parent action |
+|---------|---------------|
+| ✅ Approved | Summarize the change to the user and close the turn. |
+| 🟡 Approved with conditions | Decide: fix now (preferred) or record conditions as explicit follow-ups in the summary. Do not silently drop conditions. |
+| 🔴 Rejected | Fix the blockers. Re-run the guardian on the new state. Repeat until ✅ or 🟡 with accepted conditions. Never ship a 🔴. |
+
+**Exceptions — when the final gate may be skipped**:
+
+- **Pure read/exploration turn** — no tool call modified any file.
+- **Documentation-only change to `docs/*.md` or `README.md`** that does not describe behavior (typos, link fixes, formatting).
+- **User explicitly opts out** for this specific turn (rare; record in the summary).
+- **Already mid-review** — if the current turn was itself invoked as a guardian subagent, do not recurse.
+
+Any other skip is a protocol violation. If you are unsure whether the turn modified files, run the guardian.
+
+**Parent-context boundary**: the parent (this session) MUST pass only the three blocks above. Do **not** attach your own interpretation, rationale, or "why I made this choice" — the guardian's value is judging with no developer bias. The subagent reads the repo itself; it does not need your narrative.
 
 ---
 

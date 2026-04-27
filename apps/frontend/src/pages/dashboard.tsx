@@ -1,14 +1,12 @@
 import { AppList } from "@/features/apps/components/app-list";
 import { ActivityFeed } from "@/features/dashboard/components/activity-feed";
-import { GreetingSection } from "@/features/dashboard/components/greeting-section";
+import { HeroDashboard } from "@/features/dashboard/components/hero-dashboard";
 import { ServerHealthOverview } from "@/features/dashboard/components/server-health-overview";
-import { StatsOverview } from "@/features/dashboard/components/stats-overview";
 
 export function DashboardPage() {
   return (
     <div className="space-y-6">
-      <GreetingSection />
-      <StatsOverview />
+      <HeroDashboard />
       <ServerHealthOverview />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
@@ -18,7 +16,10 @@ export function DashboardPage() {
           </h2>
           <AppList />
         </div>
-        <div className="order-first lg:order-last">
+        <div
+          id="activity-feed"
+          className="order-first scroll-mt-24 lg:order-last"
+        >
           <ActivityFeed />
         </div>
       </div>

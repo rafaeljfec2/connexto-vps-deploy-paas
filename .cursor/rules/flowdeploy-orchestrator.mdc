@@ -222,7 +222,7 @@ Hard stop conditions (the Developer MUST halt and raise to the user):
 ## 6. Phase 4 — Senior Review (🔍)
 
 After the last Developer sub-phase, print the Senior banner and run the
-7-point mandatory checklist below. Each item is PASS / FAIL / N/A with a
+8-point mandatory checklist below. Each item is PASS / FAIL / N/A with a
 one-line justification.
 
 1. **Rules compliance** — re-read the rule that governs each touched area
@@ -246,6 +246,24 @@ one-line justification.
 7. **Cross-references** — verify consistency between touched code and
    `README.md`, `CHANGELOG.md`, `AGENTS.md`, `docs/**`. If any is stale,
    list the follow-up as an open item.
+8. **Business-rule guardian (mandatory final gate)** — spawn a **fresh
+   readonly subagent** (`Task` tool, `subagent_type: generalPurpose`,
+   `readonly: true`) loading
+   `.cursor/skills/business-rule-guardian/SKILL.md`. Pass only the three
+   blocks the skill requires (original request verbatim, files under
+   review, optional acceptance criteria). Do NOT attach the parent's
+   rationale or prior plan — the guardian must judge with zero developer
+   bias. Apply the verdict:
+   - ✅ Approved → PASS; proceed to pipeline closure.
+   - 🟡 Approved with conditions → PASS with open items; list each
+     condition under the warning closure banner.
+   - 🔴 Rejected → FAIL; fix the blockers, re-run the guardian until
+     ✅ or 🟡. Never close the pipeline on a 🔴.
+
+   Exceptions (same as `flowdeploy-development-protocol.mdc` §3.1): pure
+   read/exploration turns, typo/formatting-only doc edits, explicit user
+   opt-out, or when the current session is itself a guardian subagent.
+   Any other skip is a protocol violation.
 
 If any check is FAIL, the Senior Reviewer MUST state it plainly, propose
 a concrete fix, apply it, and re-run the affected checks. Do not close
@@ -256,9 +274,9 @@ Pipeline closure banner (MUST appear at the very end, same 5-line shape):
 ```
 ✅ [PIPELINE COMPLETE] — all checks PASS
 rule    · <union of all rules touched during Developer + Senior Review>
-skill   · senior-code-reviewer, principal-engineering-workflow
-agent   · n/a
-context · Architect plan "<one-liner>" delivered across <areas> with all 7 checks PASS.
+skill   · senior-code-reviewer, principal-engineering-workflow, business-rule-guardian
+agent   · business-rule-guardian subagent: ✅ Approved
+context · Architect plan "<one-liner>" delivered across <areas> with all 8 checks PASS.
 ```
 
 followed by:
@@ -266,7 +284,8 @@ followed by:
 ```
 • Architect approved: <one-liner>
 • Developer areas: <list>
-• Senior Review: all 7 checks PASS (or list of PASS with N/A)
+• Senior Review: all 8 checks PASS (or list of PASS with N/A)
+• Guardian verdict: ✅ Approved
 • Suggested next steps: <0–3 bullets>
 ```
 
@@ -276,8 +295,8 @@ the warning header and list the open items:
 ```
 ⚠️ [PIPELINE COMPLETE WITH OPEN ITEMS]
 rule    · <union of all rules touched>
-skill   · senior-code-reviewer, principal-engineering-workflow
-agent   · n/a
+skill   · senior-code-reviewer, principal-engineering-workflow, business-rule-guardian
+agent   · business-rule-guardian subagent: 🟡 Approved with conditions
 context · <N> open items require follow-up; ranked in the list below.
 ```
 

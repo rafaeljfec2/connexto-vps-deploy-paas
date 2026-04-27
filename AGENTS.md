@@ -4,7 +4,7 @@
 >
 > **Purpose**: a single, authoritative starting point describing how to think, build, test, and ship safely in this repository.
 
-If anything here conflicts with `.cursor/rules/flowdeploy-development-protocol.mdc`, the rule wins. This file is a *guide*; the rules are *contract*.
+If anything here conflicts with `.cursor/rules/flowdeploy-development-protocol.mdc`, the rule wins. This file is a _guide_; the rules are _contract_.
 
 ---
 
@@ -58,29 +58,39 @@ Detailed conventions live under `.cursor/rules/`:
 
 Read the relevant rule before editing files in that area.
 
+**Mandatory skills** (enforced by `flowdeploy-development-protocol.mdc`):
+
+| Trigger | Skill | Invocation | When |
+| ------- | ----- | ---------- | ---- |
+| Files touched: `apps/backend/**`, `apps/agent/**`, `apps/shared/**`, `apps/proto/**`, `**/*.go`, `**/*.proto`, `go.mod`, `migrations/**` | `.cursor/skills/golang-engineering-expert/SKILL.md` | inline | **before** editing |
+| Files touched: `apps/frontend/**`, `**/*.tsx`, `**/*.ts` (frontend scope), Tailwind/shadcn/ui changes | `.cursor/skills/frontend-engineering-expert/SKILL.md` | inline | **before** editing |
+| **ANY coding turn that modified files** (code, proto, migration, config, rule, skill, behavioral docs) | `.cursor/skills/business-rule-guardian/SKILL.md` | fresh readonly subagent (`Task`, `subagent_type: generalPurpose`, `readonly: true`) | **after** coding, as the final gate before closing the turn |
+
+Rules own **conventions** (layout, layering, naming). Engineering-expert skills own **craft** (idioms, error design, concurrency, tests, performance). Load the matching engineering skill **before** editing. The business-rule guardian runs **as the final gate of every coding turn** — never inline (inline inherits developer bias and invalidates the review). Exceptions in `flowdeploy-development-protocol.mdc` §3.1.
+
 ---
 
 ## 3. Tech Stack at a Glance
 
-| Layer            | Choice                                                                    |
-| ---------------- | ------------------------------------------------------------------------- |
-| Backend          | Go 1.24, Fiber v2, pgx/v5 (database/sql), golang-migrate, slog + tint     |
-| Agent            | Go 1.24, gRPC, mTLS, creack/pty                                           |
-| RPC              | Protocol Buffers (proto3) + buf, grpc-go v1.79+                           |
-| Database         | PostgreSQL 16, schema migrations under `apps/backend/migrations/`         |
-| DI               | `google/wire` (`apps/backend/internal/di/`)                               |
-| Auth             | GitHub OAuth (primary) + email/password, opaque session tokens in cookies |
-| Frontend         | React 18 + Vite 6 + TypeScript 5 (strict) + React Router 6                |
-| UI               | shadcn/ui (Radix primitives) + Tailwind 3.4 + lucide-react                |
-| State (server)   | TanStack Query 5                                                          |
-| State (client)   | React Context + local hooks (no Redux/Zustand)                            |
-| Real-time        | SSE (`/events/deploys`) + closed event-name set                           |
-| Reverse proxy    | Traefik 3.x (HTTP + gRPC TCP passthrough)                                 |
-| Containers       | Docker + Docker Compose v2 (CLI subprocess via `shared/pkg/docker`)       |
-| Monorepo         | pnpm 9 + Turborepo                                                        |
-| Linters          | ESLint flat config + Prettier (FE), golangci-lint v1.61 (BE/agent/shared) |
-| Tests (BE)       | Standard library `testing`                                                |
-| CI               | GitHub Actions (`.github/workflows/deploy-backend.yml`)                   |
+| Layer          | Choice                                                                    |
+| -------------- | ------------------------------------------------------------------------- |
+| Backend        | Go 1.24, Fiber v2, pgx/v5 (database/sql), golang-migrate, slog + tint     |
+| Agent          | Go 1.24, gRPC, mTLS, creack/pty                                           |
+| RPC            | Protocol Buffers (proto3) + buf, grpc-go v1.79+                           |
+| Database       | PostgreSQL 16, schema migrations under `apps/backend/migrations/`         |
+| DI             | `google/wire` (`apps/backend/internal/di/`)                               |
+| Auth           | GitHub OAuth (primary) + email/password, opaque session tokens in cookies |
+| Frontend       | React 18 + Vite 6 + TypeScript 5 (strict) + React Router 6                |
+| UI             | shadcn/ui (Radix primitives) + Tailwind 3.4 + lucide-react                |
+| State (server) | TanStack Query 5                                                          |
+| State (client) | React Context + local hooks (no Redux/Zustand)                            |
+| Real-time      | SSE (`/events/deploys`) + closed event-name set                           |
+| Reverse proxy  | Traefik 3.x (HTTP + gRPC TCP passthrough)                                 |
+| Containers     | Docker + Docker Compose v2 (CLI subprocess via `shared/pkg/docker`)       |
+| Monorepo       | pnpm 9 + Turborepo                                                        |
+| Linters        | ESLint flat config + Prettier (FE), golangci-lint v1.61 (BE/agent/shared) |
+| Tests (BE)     | Standard library `testing`                                                |
+| CI             | GitHub Actions (`.github/workflows/deploy-backend.yml`)                   |
 
 ---
 
@@ -183,7 +193,7 @@ pnpm docker:build
 
 ## 6. The Workflow Every Change Must Follow
 
-1. **Read context** — open the file, find consumers (`Grep` for the symbol), open the matching `.cursor/rules/flowdeploy-*.mdc`.
+1. **Read context** — open the file, find consumers (`Grep` for the symbol), open the matching `.cursor/rules/flowdeploy-*.mdc`, **and load the mandatory engineering skill** (`golang-engineering-expert` or `frontend-engineering-expert`) for that area.
 2. **Plan briefly** for anything bigger than a one-liner (intent + diff plan).
 3. **Implement minimally** — no opportunistic refactors.
 4. **Lint locally**:
@@ -200,6 +210,12 @@ pnpm docker:build
    ```
 6. **Self-review the diff**: naming, error wrapping, missing tests, unused imports, no `any`, no `||` for fallbacks.
 7. **Summarize** the change (1–2 paragraphs) and propose follow-ups if any.
+8. **Run the business-rule guardian (mandatory final gate)** — spawn a **fresh readonly subagent** (`Task`, `subagent_type: generalPurpose`, `readonly: true`) loading `.cursor/skills/business-rule-guardian/SKILL.md`. Pass three blocks only: original request (verbatim), files under review, optional acceptance criteria. Do **not** attach your own rationale — the guardian's value is judging with zero developer bias.
+   - ✅ Approved → close the turn.
+   - 🟡 Approved with conditions → fix now or record as explicit follow-ups.
+   - 🔴 Rejected → fix blockers, re-run the guardian. Never ship a 🔴.
+
+   Exceptions: pure read/exploration turns, typo/formatting-only doc edits, explicit user opt-out for that turn, or when the current session is itself a guardian subagent. See `flowdeploy-development-protocol.mdc` §3.1 for the full contract.
 
 The pre-commit hook (`.husky/pre-commit`) runs lint-staged + Go quick lint + frontend typecheck, and on `main` auto-bumps patch versions. Don't bypass it.
 
@@ -329,12 +345,12 @@ Adding a new event = update both sides in the same change.
 
 ## 12. Versioning Cheat Sheet
 
-| Where                          | What                              | When to bump                                                        |
-| ------------------------------ | --------------------------------- | ------------------------------------------------------------------- |
-| Root `package.json`            | Platform meta version             | Auto-bumped by pre-commit when shared/proto/deploy/Dockerfile change |
-| `apps/frontend/package.json`   | Frontend version                  | Auto-bumped when anything under `apps/frontend/**` changes          |
-| `apps/backend/package.json`    | Backend version                   | Auto-bumped when anything under `apps/backend/**` changes           |
-| `AGENT_VERSION`                | Agent binary version              | `make bump-agent-version v=X.Y.Z` whenever agent behavior changes   |
+| Where                        | What                  | When to bump                                                         |
+| ---------------------------- | --------------------- | -------------------------------------------------------------------- |
+| Root `package.json`          | Platform meta version | Auto-bumped by pre-commit when shared/proto/deploy/Dockerfile change |
+| `apps/frontend/package.json` | Frontend version      | Auto-bumped when anything under `apps/frontend/**` changes           |
+| `apps/backend/package.json`  | Backend version       | Auto-bumped when anything under `apps/backend/**` changes            |
+| `AGENT_VERSION`              | Agent binary version  | `make bump-agent-version v=X.Y.Z` whenever agent behavior changes    |
 
 The agent binary embeds `AGENT_VERSION` via `-ldflags -X github.com/paasdeploy/agent/internal/agent.Version=…`. The backend embeds the same value into `internal/handler.LatestAgentVersion` to know what to offer remote agents on update.
 
@@ -382,6 +398,17 @@ The cost of a small wrong change in this codebase is high — it can take down t
 - `docs/FEATURES_ROADMAP.md` — what's implemented today and what's planned next.
 
 Skills in `.cursor/skills/`:
+
+**Engineering expert skills** (mandatory — loaded automatically on matching triggers):
+
+- `golang-engineering-expert` — Go 1.24 + Fiber + pgx + gRPC + wire craft; load for any `apps/backend/**`, `apps/agent/**`, `apps/shared/**`, `apps/proto/**`, or `**/*.go` edit.
+- `frontend-engineering-expert` — React 18 + TanStack Query 5 + shadcn/ui + Tailwind mobile-first craft; load for any `apps/frontend/**` edit.
+
+**Review skills** (mandatory final gate on every coding turn):
+
+- `business-rule-guardian` — critical senior code reviewer that reads the original request, extracts business rules, maps rule → code, audits the full engineering quality axis (architecture, patterns, code smells, error handling, performance, security, observability, tests, docs, build), and refuses scope creep and "works locally". **Runs as the mandatory final gate of every coding turn** via a **fresh readonly subagent** (`Task`, `subagent_type: generalPurpose`, `readonly: true`) — never inline in the same session that wrote the code. Inline invocation inherits developer bias and defeats the skill's purpose. See `flowdeploy-development-protocol.mdc` §3.1 for the invocation contract and exception list, and the skill's "MANDATORY Invocation Rule" section for the exact prompt template.
+
+**Workflow skills** (on demand):
 
 - `create-adr` — for architectural decisions worth recording.
 - `create-rfc` — for proposals before deciding.

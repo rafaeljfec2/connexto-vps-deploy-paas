@@ -9,6 +9,8 @@ globs: ["apps/agent/**"]
 >
 > Module: `github.com/paasdeploy/agent`. Replaces `paasdeploy/backend` (for generated proto) and `paasdeploy/shared`. Subordinate to `flowdeploy-development-protocol.mdc`.
 >
+> **Required skill**: load `.cursor/skills/golang-engineering-expert/SKILL.md` before editing.
+>
 > **Mental model**: the agent is a "tiny remote arm" of the backend. It owns no state of its own — only Docker on the host and a TLS keypair issued by the backend's PKI.
 
 ---

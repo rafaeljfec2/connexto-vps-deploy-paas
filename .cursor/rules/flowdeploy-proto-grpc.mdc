@@ -8,6 +8,8 @@ globs: ["apps/proto/**", "apps/backend/gen/go/**"]
 > **Stack**: Protocol Buffers (proto3), [buf](https://buf.build/) for lint + generate, `google.golang.org/grpc` v1.79+, `google.golang.org/protobuf` v1.36+.
 >
 > The proto package is the **single source of truth** for everything the backend and agent exchange. The generated Go code is checked in (`apps/backend/gen/go/...`) and consumed by both `paasdeploy/backend` and `paasdeploy/agent` (the agent imports it via the `replace` directive on `paasdeploy/backend`).
+>
+> **Required skill**: load `.cursor/skills/golang-engineering-expert/SKILL.md` before editing (gRPC/buf guidance lives there).
 
 ---
 

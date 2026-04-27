@@ -10,6 +10,8 @@ globs: ["apps/shared/**"]
 > **Stack**: Go 1.24, standard library only (zero external dependencies — verify in `go.mod`).
 >
 > Subordinate to `flowdeploy-development-protocol.mdc`.
+>
+> **Required skill**: load `.cursor/skills/golang-engineering-expert/SKILL.md` before editing.
 
 ---
 

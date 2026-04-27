@@ -8,6 +8,8 @@ globs: ["apps/frontend/**"]
 > **Stack**: React 18 (StrictMode), Vite 6, TypeScript 5.6 strict, React Router 6, TanStack Query 5, shadcn/ui (Radix UI primitives), Tailwind 3.4, lucide-react, date-fns, xterm.js for terminals, Prettier + ESLint flat config.
 >
 > Package: `@paasdeploy/frontend`. Subordinate to `flowdeploy-development-protocol.mdc`.
+>
+> **Required skill**: load `.cursor/skills/frontend-engineering-expert/SKILL.md` before editing. This rule defines conventions; the skill defines engineering craft.
 
 ---
 

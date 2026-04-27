@@ -1,4 +1,6 @@
+import { CommandPalette } from "@/components/command-palette";
 import { Header } from "@/components/header";
+import { CommandPaletteProvider } from "@/hooks/use-command-palette";
 
 interface LayoutProps {
   readonly children: React.ReactNode;
@@ -6,11 +8,14 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   return (
-    <div className="h-dvh bg-background flex flex-col overflow-hidden">
-      <Header />
-      <main className="container flex-1 min-h-0 overflow-auto py-4 sm:py-6 md:py-8 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        {children}
-      </main>
-    </div>
+    <CommandPaletteProvider>
+      <div className="min-h-dvh bg-background flex flex-col">
+        <Header />
+        <main className="container flex-1 py-4 sm:py-6 md:py-8 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          {children}
+        </main>
+      </div>
+      <CommandPalette />
+    </CommandPaletteProvider>
   );
 }

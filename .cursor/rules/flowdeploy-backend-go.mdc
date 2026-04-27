@@ -8,6 +8,8 @@ globs: ["apps/backend/**"]
 > **Stack**: Go 1.24, Fiber v2, pgx/v5 via `database/sql`, golang-migrate, google.golang.org/grpc, google/wire, swaggo/swag, log/slog (with `lmittmann/tint` for human formatting).
 >
 > Module: `github.com/paasdeploy/backend`. Subordinate to `flowdeploy-development-protocol.mdc`.
+>
+> **Required skill**: load `.cursor/skills/golang-engineering-expert/SKILL.md` before editing. This rule defines conventions; the skill defines engineering craft.
 
 ---
 
