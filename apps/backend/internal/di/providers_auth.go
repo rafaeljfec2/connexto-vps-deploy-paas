@@ -24,6 +24,8 @@ var AuthSet = wire.NewSet(
 	ProvideAuthMiddleware,
 	ProvideAuthHandler,
 	ProvideGitHubHandler,
+	ProvidePATService,
+	ProvidePATHandler,
 )
 
 var GitHubSet = wire.NewSet(
@@ -98,14 +100,24 @@ func ProvideAuthMiddleware(
 	cfg *config.Config,
 	sessionRepo domain.SessionRepository,
 	userRepo domain.UserRepository,
+	patService *service.PersonalAccessTokenService,
 	logger *slog.Logger,
 ) *middleware.AuthMiddleware {
 	return middleware.NewAuthMiddleware(middleware.AuthMiddlewareConfig{
 		SessionRepo:       sessionRepo,
 		UserRepo:          userRepo,
+		PATService:        patService,
 		Logger:            logger,
 		SessionCookieName: cfg.Auth.SessionCookieName,
 	})
+}
+
+func ProvidePATService(repo domain.PersonalAccessTokenRepository) *service.PersonalAccessTokenService {
+	return service.NewPersonalAccessTokenService(repo)
+}
+
+func ProvidePATHandler(svc *service.PersonalAccessTokenService) *handler.PATHandler {
+	return handler.NewPATHandler(svc)
 }
 
 func ProvideAuthHandler(

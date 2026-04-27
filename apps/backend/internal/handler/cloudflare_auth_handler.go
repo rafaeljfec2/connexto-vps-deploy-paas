@@ -11,6 +11,7 @@ import (
 	"github.com/paasdeploy/backend/internal/cloudflare"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 )
 
@@ -56,8 +57,8 @@ func (h *CloudflareAuthHandler) Register(app fiber.Router) {
 	cf := app.Group("/auth/cloudflare")
 	cf.Get("", h.InitiateOAuth)
 	cf.Get("/callback", h.HandleCallback)
-	cf.Post("/connect", h.ConnectWithToken)
-	cf.Post("/disconnect", h.Disconnect)
+	cf.Post("/connect", middleware.RequireScope(domain.ScopeConfigWrite), h.ConnectWithToken)
+	cf.Post("/disconnect", middleware.RequireScope(domain.ScopeDestructive), h.Disconnect)
 	cf.Get("/status", h.GetStatus)
 }
 

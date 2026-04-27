@@ -23,12 +23,14 @@ func NewAuditService(repo domain.AuditLogRepository, logger *slog.Logger) *Audit
 type AuditContext struct {
 	UserID    *string
 	UserName  *string
+	ActorType domain.ActorType
+	ActorID   *string
 	IPAddress *string
 	UserAgent *string
 }
 
 func (s *AuditService) ExtractContext(c *fiber.Ctx) AuditContext {
-	ctx := AuditContext{}
+	ctx := AuditContext{ActorType: domain.ActorUser}
 
 	if userID := c.Locals("user_id"); userID != nil {
 		if id, ok := userID.(string); ok {
@@ -40,6 +42,12 @@ func (s *AuditService) ExtractContext(c *fiber.Ctx) AuditContext {
 		if name, ok := userName.(string); ok {
 			ctx.UserName = &name
 		}
+	}
+
+	if token, ok := c.Locals("pat").(*domain.PersonalAccessToken); ok && token != nil {
+		ctx.ActorType = domain.ActorPAT
+		id := token.ID
+		ctx.ActorID = &id
 	}
 
 	ip := c.IP()
@@ -54,6 +62,11 @@ func (s *AuditService) ExtractContext(c *fiber.Ctx) AuditContext {
 }
 
 func (s *AuditService) Log(ctx context.Context, auditCtx AuditContext, eventType domain.EventType, resourceType domain.ResourceType, resourceID, resourceName *string, details map[string]interface{}) {
+	actorType := auditCtx.ActorType
+	if actorType == "" {
+		actorType = domain.ActorUser
+	}
+
 	input := domain.CreateAuditLogInput{
 		EventType:    eventType,
 		ResourceType: resourceType,
@@ -61,6 +74,8 @@ func (s *AuditService) Log(ctx context.Context, auditCtx AuditContext, eventType
 		ResourceName: resourceName,
 		UserID:       auditCtx.UserID,
 		UserName:     auditCtx.UserName,
+		ActorType:    actorType,
+		ActorID:      auditCtx.ActorID,
 		Details:      details,
 		IPAddress:    auditCtx.IPAddress,
 		UserAgent:    auditCtx.UserAgent,

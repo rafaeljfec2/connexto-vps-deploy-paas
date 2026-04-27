@@ -10,6 +10,7 @@ import (
 
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 )
@@ -67,14 +68,14 @@ func (h *ResourceHandler) resolveServerHost(serverID, userID string) (string, er
 func (h *ResourceHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/networks", h.ListNetworks)
-	v1.Post("/networks", h.CreateNetwork)
-	v1.Delete("/networks/:name", h.RemoveNetwork)
-	v1.Post("/containers/:id/networks", h.ConnectContainerNetwork)
-	v1.Delete("/containers/:id/networks/:name", h.DisconnectContainerNetwork)
+	v1.Post("/networks", middleware.RequireScope(domain.ScopeResourcesWrite), h.CreateNetwork)
+	v1.Delete("/networks/:name", middleware.RequireScope(domain.ScopeDestructive), h.RemoveNetwork)
+	v1.Post("/containers/:id/networks", middleware.RequireScope(domain.ScopeResourcesWrite), h.ConnectContainerNetwork)
+	v1.Delete("/containers/:id/networks/:name", middleware.RequireScope(domain.ScopeResourcesWrite), h.DisconnectContainerNetwork)
 
 	v1.Get("/volumes", h.ListVolumes)
-	v1.Post("/volumes", h.CreateVolume)
-	v1.Delete("/volumes/:name", h.RemoveVolume)
+	v1.Post("/volumes", middleware.RequireScope(domain.ScopeResourcesWrite), h.CreateVolume)
+	v1.Delete("/volumes/:name", middleware.RequireScope(domain.ScopeDestructive), h.RemoveVolume)
 }
 
 func (h *ResourceHandler) ListNetworks(c *fiber.Ctx) error {

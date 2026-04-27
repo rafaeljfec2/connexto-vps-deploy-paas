@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 )
@@ -61,8 +62,8 @@ func (h *ImageHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/images", h.ListImages)
 	v1.Get("/images/dangling", h.ListDanglingImages)
-	v1.Delete("/images/:id", h.RemoveImage)
-	v1.Post("/images/prune", h.PruneImages)
+	v1.Delete("/images/:id", middleware.RequireScope(domain.ScopeDestructive), h.RemoveImage)
+	v1.Post("/images/prune", middleware.RequireScope(domain.ScopeDestructive), h.PruneImages)
 }
 
 type ImageResponse struct {

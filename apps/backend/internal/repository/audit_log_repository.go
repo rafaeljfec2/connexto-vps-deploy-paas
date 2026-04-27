@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -27,17 +28,18 @@ func (r *PostgresAuditLogRepository) Create(input domain.CreateAuditLogInput) (*
 		}
 	}
 
+	actorType := input.ActorType
+	if actorType == "" {
+		actorType = domain.ActorUser
+	}
+
 	query := `
-		INSERT INTO audit_logs (event_type, resource_type, resource_id, resource_name, user_id, user_name, details, ip_address, user_agent)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, event_type, resource_type, resource_id, resource_name, user_id, user_name, details, ip_address, user_agent, created_at
+		INSERT INTO audit_logs (event_type, resource_type, resource_id, resource_name, user_id, user_name, actor_type, actor_id, details, ip_address, user_agent)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		RETURNING ` + auditLogSelectColumns + `
 	`
 
-	var log domain.AuditLog
-	var resourceID, resourceName, userID, userName, ipAddress, userAgent sql.NullString
-	var details []byte
-
-	err = r.db.QueryRow(
+	row := r.db.QueryRow(
 		query,
 		input.EventType,
 		input.ResourceType,
@@ -45,61 +47,31 @@ func (r *PostgresAuditLogRepository) Create(input domain.CreateAuditLogInput) (*
 		input.ResourceName,
 		input.UserID,
 		input.UserName,
+		actorType,
+		input.ActorID,
 		detailsJSON,
 		input.IPAddress,
 		input.UserAgent,
-	).Scan(
-		&log.ID,
-		&log.EventType,
-		&log.ResourceType,
-		&resourceID,
-		&resourceName,
-		&userID,
-		&userName,
-		&details,
-		&ipAddress,
-		&userAgent,
-		&log.CreatedAt,
 	)
+	log, err := scanAuditLogFromRow(row)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create audit log: %w", err)
 	}
-
-	if resourceID.Valid {
-		log.ResourceID = &resourceID.String
-	}
-	if resourceName.Valid {
-		log.ResourceName = &resourceName.String
-	}
-	if userID.Valid {
-		log.UserID = &userID.String
-	}
-	if userName.Valid {
-		log.UserName = &userName.String
-	}
-	if ipAddress.Valid {
-		log.IPAddress = &ipAddress.String
-	}
-	if userAgent.Valid {
-		log.UserAgent = &userAgent.String
-	}
-	log.Details = details
-
-	return &log, nil
+	return log, nil
 }
 
-func (r *PostgresAuditLogRepository) FindByID(id string) (*domain.AuditLog, error) {
-	query := `
-		SELECT id, event_type, resource_type, resource_id, resource_name, user_id, user_name, details, ip_address, user_agent, created_at
-		FROM audit_logs
-		WHERE id = $1
-	`
+const auditLogSelectColumns = `id, event_type, resource_type, resource_id, resource_name, user_id, user_name, actor_type, actor_id, details, ip_address, user_agent, created_at`
 
+type auditLogScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanAuditLogFromRow(scanner auditLogScanner) (*domain.AuditLog, error) {
 	var log domain.AuditLog
-	var resourceID, resourceName, userID, userName, ipAddress, userAgent sql.NullString
+	var resourceID, resourceName, userID, userName, actorID, ipAddress, userAgent sql.NullString
 	var details []byte
 
-	err := r.db.QueryRow(query, id).Scan(
+	err := scanner.Scan(
 		&log.ID,
 		&log.EventType,
 		&log.ResourceType,
@@ -107,14 +79,13 @@ func (r *PostgresAuditLogRepository) FindByID(id string) (*domain.AuditLog, erro
 		&resourceName,
 		&userID,
 		&userName,
+		&log.ActorType,
+		&actorID,
 		&details,
 		&ipAddress,
 		&userAgent,
 		&log.CreatedAt,
 	)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +102,9 @@ func (r *PostgresAuditLogRepository) FindByID(id string) (*domain.AuditLog, erro
 	if userName.Valid {
 		log.UserName = &userName.String
 	}
+	if actorID.Valid {
+		log.ActorID = &actorID.String
+	}
 	if ipAddress.Valid {
 		log.IPAddress = &ipAddress.String
 	}
@@ -140,6 +114,20 @@ func (r *PostgresAuditLogRepository) FindByID(id string) (*domain.AuditLog, erro
 	log.Details = details
 
 	return &log, nil
+}
+
+func (r *PostgresAuditLogRepository) FindByID(id string) (*domain.AuditLog, error) {
+	query := `SELECT ` + auditLogSelectColumns + ` FROM audit_logs WHERE id = $1`
+
+	row := r.db.QueryRow(query, id)
+	log, err := scanAuditLogFromRow(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return log, nil
 }
 
 func (r *PostgresAuditLogRepository) FindAll(filter domain.AuditLogFilter) ([]domain.AuditLog, int, error) {
@@ -239,57 +227,16 @@ func normalizePagination(limit int, offset int) (int, int) {
 
 func buildAuditLogQuery(whereClause string, argIndex int) string {
 	return fmt.Sprintf(`
-		SELECT id, event_type, resource_type, resource_id, resource_name, user_id, user_name, details, ip_address, user_agent, created_at
+		SELECT %s
 		FROM audit_logs
 		%s
 		ORDER BY created_at DESC
 		LIMIT $%d OFFSET $%d
-	`, whereClause, argIndex, argIndex+1)
+	`, auditLogSelectColumns, whereClause, argIndex, argIndex+1)
 }
 
 func scanAuditLogRow(rows *sql.Rows) (*domain.AuditLog, error) {
-	var log domain.AuditLog
-	var resourceID, resourceName, userID, userName, ipAddress, userAgent sql.NullString
-	var details []byte
-
-	err := rows.Scan(
-		&log.ID,
-		&log.EventType,
-		&log.ResourceType,
-		&resourceID,
-		&resourceName,
-		&userID,
-		&userName,
-		&details,
-		&ipAddress,
-		&userAgent,
-		&log.CreatedAt,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if resourceID.Valid {
-		log.ResourceID = &resourceID.String
-	}
-	if resourceName.Valid {
-		log.ResourceName = &resourceName.String
-	}
-	if userID.Valid {
-		log.UserID = &userID.String
-	}
-	if userName.Valid {
-		log.UserName = &userName.String
-	}
-	if ipAddress.Valid {
-		log.IPAddress = &ipAddress.String
-	}
-	if userAgent.Valid {
-		log.UserAgent = &userAgent.String
-	}
-	log.Details = details
-
-	return &log, nil
+	return scanAuditLogFromRow(rows)
 }
 
 func (r *PostgresAuditLogRepository) DeleteOlderThan(days int) (int64, error) {

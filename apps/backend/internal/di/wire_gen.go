@@ -86,10 +86,13 @@ func InitializeApplication() (*Application, func(), error) {
 	oAuthClient := ProvideOAuthClient(config, logger)
 	postgresUserRepository := repository.NewPostgresUserRepository(db)
 	postgresSessionRepository := repository.NewPostgresSessionRepository(db)
+	postgresPersonalAccessTokenRepository := repository.NewPostgresPersonalAccessTokenRepository(db)
+	personalAccessTokenService := ProvidePATService(postgresPersonalAccessTokenRepository)
+	patHandler := ProvidePATHandler(personalAccessTokenService)
 	tokenEncryptor := ProvideTokenEncryptor(config, logger)
 	authHandler := ProvideAuthHandler(config, oAuthClient, postgresUserRepository, postgresSessionRepository, tokenEncryptor, auditService, logger)
 	gitHubHandler := ProvideGitHubHandler(config, appClient, postgresInstallationRepository, postgresUserRepository, logger)
-	authMiddleware := ProvideAuthMiddleware(config, postgresSessionRepository, postgresUserRepository, logger)
+	authMiddleware := ProvideAuthMiddleware(config, postgresSessionRepository, postgresUserRepository, personalAccessTokenService, logger)
 	postgresCloudflareConnectionRepository := repository.NewPostgresCloudflareConnectionRepository(db)
 	cloudflareAuthHandler := ProvideCloudflareAuthHandler(config, postgresCloudflareConnectionRepository, tokenEncryptor, logger)
 	domainHandler := ProvideDomainHandler(DomainHandlerDeps{
@@ -140,6 +143,7 @@ func InitializeApplication() (*Application, func(), error) {
 		WebhookHandler:         webhookHandler,
 		AuthHandler:            authHandler,
 		GitHubHandler:          gitHubHandler,
+		PATHandler:             patHandler,
 		AuthMiddleware:         authMiddleware,
 		CloudflareAuthHandler:  cloudflareAuthHandler,
 		DomainHandler:          domainHandler,

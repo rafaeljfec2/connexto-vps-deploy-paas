@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRight, Server, Settings } from "lucide-react";
+import { ArrowRight, KeyRound, Server, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -46,6 +46,30 @@ export function SettingsPage() {
               <Button asChild>
                 <Link to="/settings/migration">
                   Open Migration Center
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold mb-4">API access</h2>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5" />
+                Personal access tokens
+              </CardTitle>
+              <CardDescription>
+                Create scoped tokens to authenticate CLI tools, MCP clients and
+                automation pipelines with the FlowDeploy API.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild>
+                <Link to="/settings/tokens">
+                  Manage tokens
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Link>
               </Button>

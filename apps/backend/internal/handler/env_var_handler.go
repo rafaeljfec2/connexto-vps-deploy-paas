@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 )
 
@@ -28,10 +29,10 @@ func (h *EnvVarHandler) Register(app fiber.Router) {
 	apps := v1.Group("/apps")
 
 	apps.Get("/:id/env", h.ListEnvVars)
-	apps.Post("/:id/env", h.CreateEnvVar)
-	apps.Put("/:id/env/bulk", h.BulkUpsertEnvVars)
-	apps.Put("/:id/env/:varId", h.UpdateEnvVar)
-	apps.Delete("/:id/env/:varId", h.DeleteEnvVar)
+	apps.Post("/:id/env", middleware.RequireScope(domain.ScopeConfigWrite), h.CreateEnvVar)
+	apps.Put("/:id/env/bulk", middleware.RequireScope(domain.ScopeConfigWrite), h.BulkUpsertEnvVars)
+	apps.Put("/:id/env/:varId", middleware.RequireScope(domain.ScopeConfigWrite), h.UpdateEnvVar)
+	apps.Delete("/:id/env/:varId", middleware.RequireScope(domain.ScopeDestructive), h.DeleteEnvVar)
 }
 
 func (h *EnvVarHandler) ListEnvVars(c *fiber.Ctx) error {

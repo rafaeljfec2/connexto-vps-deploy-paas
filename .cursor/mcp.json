@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "flowdeploy": {
+      "command": "go",
+      "args": [
+        "run",
+        "./apps/mcp/cmd/flowdeploy-mcp",
+        "--stdio"
+      ],
+      "env": {
+        "FLOWDEPLOY_BACKEND_URL": "http://localhost:8080",
+        "FLOWDEPLOY_TOKEN": "pdp_live_replace_me_with_your_token",
+        "FLOWDEPLOY_LOG_LEVEL": "info",
+        "FLOWDEPLOY_MCP_CLIENT": "cursor"
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 )
 
@@ -45,8 +46,8 @@ func (h *CleanupHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 
 	cleanup := v1.Group("/servers/:serverId/cleanup")
-	cleanup.Post("/containers", h.PruneContainers)
-	cleanup.Post("/volumes", h.PruneVolumes)
+	cleanup.Post("/containers", middleware.RequireScope(domain.ScopeDestructive), h.PruneContainers)
+	cleanup.Post("/volumes", middleware.RequireScope(domain.ScopeDestructive), h.PruneVolumes)
 	cleanup.Get("/logs", h.ListCleanupLogs)
 }
 

@@ -54,6 +54,7 @@ type Application struct {
 	WebhookHandler         *ghclient.WebhookHandler
 	AuthHandler            *handler.AuthHandler
 	GitHubHandler          *handler.GitHubHandler
+	PATHandler             *handler.PATHandler
 	AuthMiddleware         *middleware.AuthMiddleware
 	CloudflareAuthHandler  *handler.CloudflareAuthHandler
 	DomainHandler          *handler.DomainHandler

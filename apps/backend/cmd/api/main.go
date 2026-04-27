@@ -211,6 +211,10 @@ func registerProtectedRoutes(app *di.Application) {
 	if app.AuditHandler != nil {
 		app.AuditHandler.Register(authRequired.Group(handler.APIPrefix))
 	}
+
+	if app.PATHandler != nil {
+		app.PATHandler.Register(authRequired.Group(handler.APIPrefix))
+	}
 }
 
 type protectedRegistrar interface {

@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 )
 
@@ -35,18 +36,18 @@ func (h *NotificationHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	channels := v1.Group("/notifications/channels")
 	channels.Get("/", h.ListChannels)
-	channels.Post("/", h.CreateChannel)
+	channels.Post("/", middleware.RequireScope(domain.ScopeConfigWrite), h.CreateChannel)
 	channels.Get("/:id", h.GetChannel)
-	channels.Put("/:id", h.UpdateChannel)
-	channels.Delete("/:id", h.DeleteChannel)
+	channels.Put("/:id", middleware.RequireScope(domain.ScopeConfigWrite), h.UpdateChannel)
+	channels.Delete("/:id", middleware.RequireScope(domain.ScopeDestructive), h.DeleteChannel)
 	channels.Get("/:id/rules", h.ListRulesByChannel)
 
 	rules := v1.Group("/notifications/rules")
 	rules.Get("/", h.ListRules)
-	rules.Post("/", h.CreateRule)
+	rules.Post("/", middleware.RequireScope(domain.ScopeConfigWrite), h.CreateRule)
 	rules.Get("/:id", h.GetRule)
-	rules.Put("/:id", h.UpdateRule)
-	rules.Delete("/:id", h.DeleteRule)
+	rules.Put("/:id", middleware.RequireScope(domain.ScopeConfigWrite), h.UpdateRule)
+	rules.Delete("/:id", middleware.RequireScope(domain.ScopeDestructive), h.DeleteRule)
 }
 
 type ChannelResponse struct {

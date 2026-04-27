@@ -8,6 +8,7 @@ import (
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 )
 
@@ -36,7 +37,7 @@ func NewContainerSSLHandler(cfg ContainerSSLHandlerConfig) *ContainerSSLHandler 
 
 func (h *ContainerSSLHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
-	v1.Post("/containers/:id/ssl", h.ConfigureSSL)
+	v1.Post("/containers/:id/ssl", middleware.RequireScope(domain.ScopeConfigWrite), h.ConfigureSSL)
 	v1.Get("/containers/:id/ssl", h.GetSSLStatus)
 }
 

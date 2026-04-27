@@ -44,6 +44,8 @@ var RepositorySet = wire.NewSet(
 	wire.Bind(new(domain.UserRepository), new(*repository.PostgresUserRepository)),
 	repository.NewPostgresSessionRepository,
 	wire.Bind(new(domain.SessionRepository), new(*repository.PostgresSessionRepository)),
+	repository.NewPostgresPersonalAccessTokenRepository,
+	wire.Bind(new(domain.PersonalAccessTokenRepository), new(*repository.PostgresPersonalAccessTokenRepository)),
 	repository.NewPostgresInstallationRepository,
 	wire.Bind(new(domain.InstallationRepository), new(*repository.PostgresInstallationRepository)),
 	repository.NewPostgresCloudflareConnectionRepository,

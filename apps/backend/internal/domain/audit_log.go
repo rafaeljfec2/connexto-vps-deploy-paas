@@ -46,6 +46,15 @@ const (
 	ResourceImage      ResourceType = "image"
 )
 
+type ActorType string
+
+const (
+	ActorUser    ActorType = "user"
+	ActorPAT     ActorType = "pat"
+	ActorSystem  ActorType = "system"
+	ActorWebhook ActorType = "webhook"
+)
+
 type AuditLog struct {
 	ID           string          `json:"id"`
 	EventType    EventType       `json:"eventType"`
@@ -54,6 +63,8 @@ type AuditLog struct {
 	ResourceName *string         `json:"resourceName,omitempty"`
 	UserID       *string         `json:"userId,omitempty"`
 	UserName     *string         `json:"userName,omitempty"`
+	ActorType    ActorType       `json:"actorType"`
+	ActorID      *string         `json:"actorId,omitempty"`
 	Details      json.RawMessage `json:"details,omitempty"`
 	IPAddress    *string         `json:"ipAddress,omitempty"`
 	UserAgent    *string         `json:"userAgent,omitempty"`
@@ -67,6 +78,8 @@ type CreateAuditLogInput struct {
 	ResourceName *string
 	UserID       *string
 	UserName     *string
+	ActorType    ActorType
+	ActorID      *string
 	Details      map[string]interface{}
 	IPAddress    *string
 	UserAgent    *string

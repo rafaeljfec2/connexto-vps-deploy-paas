@@ -6,6 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	_ "github.com/paasdeploy/backend/internal/docs"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/backend/internal/service"
 )
@@ -37,15 +38,15 @@ func (h *AppHandler) Register(app fiber.Router) {
 
 	apps := v1.Group("/apps")
 	apps.Get("/", h.ListApps)
-	apps.Post("/", h.CreateApp)
+	apps.Post("/", middleware.RequireScope(domain.ScopeDeploy), h.CreateApp)
 	apps.Get("/:id", h.GetApp)
-	apps.Delete("/:id", h.DeleteApp)
+	apps.Delete("/:id", middleware.RequireScope(domain.ScopeDestructive), h.DeleteApp)
 	apps.Get("/:id/deployments", h.ListDeployments)
-	apps.Post("/:id/redeploy", h.TriggerRedeploy)
-	apps.Post("/:id/rollback", h.TriggerRollback)
+	apps.Post("/:id/redeploy", middleware.RequireScope(domain.ScopeDeploy), h.TriggerRedeploy)
+	apps.Post("/:id/rollback", middleware.RequireScope(domain.ScopeDeploy), h.TriggerRollback)
 
-	apps.Post("/:id/webhook", h.SetupWebhook)
-	apps.Delete("/:id/webhook", h.RemoveWebhook)
+	apps.Post("/:id/webhook", middleware.RequireScope(domain.ScopeConfigWrite), h.SetupWebhook)
+	apps.Delete("/:id/webhook", middleware.RequireScope(domain.ScopeDestructive), h.RemoveWebhook)
 	apps.Get("/:id/webhook/status", h.GetWebhookStatus)
 	apps.Get("/:id/commits", h.ListCommits)
 }

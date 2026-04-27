@@ -8,6 +8,7 @@ import (
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 )
@@ -42,7 +43,7 @@ func (h *TemplateHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/templates", h.ListTemplates)
 	v1.Get("/templates/:id", h.GetTemplate)
-	v1.Post("/templates/:id/deploy", h.DeployTemplate)
+	v1.Post("/templates/:id/deploy", middleware.RequireScope(domain.ScopeDeploy), h.DeployTemplate)
 }
 
 func (h *TemplateHandler) ListTemplates(c *fiber.Ctx) error {

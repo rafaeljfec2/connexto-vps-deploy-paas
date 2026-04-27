@@ -10,6 +10,7 @@ import (
 	"github.com/paasdeploy/backend/internal/cloudflare"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 )
 
@@ -56,8 +57,8 @@ func (h *DomainHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	apps := v1.Group("/apps")
 	apps.Get("/:id/domains", h.ListDomains)
-	apps.Post("/:id/domains", h.AddDomain)
-	apps.Delete("/:id/domains/:domainId", h.RemoveDomain)
+	apps.Post("/:id/domains", middleware.RequireScope(domain.ScopeConfigWrite), h.AddDomain)
+	apps.Delete("/:id/domains/:domainId", middleware.RequireScope(domain.ScopeDestructive), h.RemoveDomain)
 }
 
 type DomainResponse struct {

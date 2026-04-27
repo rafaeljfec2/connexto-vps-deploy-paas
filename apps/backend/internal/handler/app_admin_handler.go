@@ -15,6 +15,7 @@ import (
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/engine"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/compose"
 )
@@ -63,10 +64,10 @@ func (h *AppAdminHandler) Register(app fiber.Router) {
 	apps := v1.Group("/apps")
 	apps.Get("/:id/url", h.GetAppURL)
 	apps.Get("/:id/config", h.GetAppConfig)
-	apps.Post("/:id/container/restart", h.RestartContainer)
-	apps.Post("/:id/container/stop", h.StopContainer)
-	apps.Post("/:id/container/start", h.StartContainer)
-	apps.Patch("/:id", h.UpdateApp)
+	apps.Post("/:id/container/restart", middleware.RequireScope(domain.ScopeContainersWrite), h.RestartContainer)
+	apps.Post("/:id/container/stop", middleware.RequireScope(domain.ScopeContainersWrite), h.StopContainer)
+	apps.Post("/:id/container/start", middleware.RequireScope(domain.ScopeContainersWrite), h.StartContainer)
+	apps.Patch("/:id", middleware.RequireScope(domain.ScopeConfigWrite), h.UpdateApp)
 }
 
 func (h *AppAdminHandler) requireAppForUser(c *fiber.Ctx) (*domain.App, error) {

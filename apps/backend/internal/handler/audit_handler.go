@@ -6,6 +6,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/repository"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/backend/internal/service"
@@ -27,7 +28,7 @@ func (h *AuditHandler) Register(router fiber.Router) {
 	audit := router.Group("/audit")
 	audit.Get("/logs", h.ListLogs)
 	audit.Get("/webhook-payloads", h.ListWebhookPayloads)
-	audit.Post("/cleanup", h.Cleanup)
+	audit.Post("/cleanup", middleware.RequireScope(domain.ScopeAdmin), h.Cleanup)
 }
 
 type AuditLogResponse struct {
@@ -38,6 +39,8 @@ type AuditLogResponse struct {
 	ResourceName *string     `json:"resourceName,omitempty"`
 	UserID       *string     `json:"userId,omitempty"`
 	UserName     *string     `json:"userName,omitempty"`
+	ActorType    string      `json:"actorType"`
+	ActorID      *string     `json:"actorId,omitempty"`
 	Details      interface{} `json:"details,omitempty"`
 	IPAddress    *string     `json:"ipAddress,omitempty"`
 	CreatedAt    time.Time   `json:"createdAt"`
@@ -185,6 +188,8 @@ func toAuditLogResponses(logs []domain.AuditLog) []AuditLogResponse {
 			ResourceName: log.ResourceName,
 			UserID:       log.UserID,
 			UserName:     log.UserName,
+			ActorType:    string(log.ActorType),
+			ActorID:      log.ActorID,
 			IPAddress:    log.IPAddress,
 			CreatedAt:    log.CreatedAt,
 		}

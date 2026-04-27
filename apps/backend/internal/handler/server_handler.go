@@ -13,6 +13,7 @@ import (
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/provisioner"
 	"github.com/paasdeploy/backend/internal/response"
 )
@@ -121,16 +122,16 @@ func (h *ServerHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	servers := v1.Group("/servers")
 	servers.Get("/", h.List)
-	servers.Post("/", h.Create)
+	servers.Post("/", middleware.RequireScope(domain.ScopeServersWrite), h.Create)
 	servers.Get("/:id/stats", h.GetStats)
 	servers.Get("/:id", h.Get)
-	servers.Put("/:id", h.Update)
-	servers.Delete("/:id", h.Delete)
-	servers.Post("/:id/provision", h.Provision)
-	servers.Post("/:id/update-agent", h.UpdateAgent)
+	servers.Put("/:id", middleware.RequireScope(domain.ScopeServersWrite), h.Update)
+	servers.Delete("/:id", middleware.RequireScope(domain.ScopeDestructive), h.Delete)
+	servers.Post("/:id/provision", middleware.RequireScope(domain.ScopeServersWrite), h.Provision)
+	servers.Post("/:id/update-agent", middleware.RequireScope(domain.ScopeServersWrite), h.UpdateAgent)
 	servers.Get("/:id/health", h.HealthCheck)
 	servers.Get("/:id/apps", h.ListServerApps)
-	servers.Post("/:id/manage", h.ManageServer)
+	servers.Post("/:id/manage", middleware.RequireScope(domain.ScopeServersWrite), h.ManageServer)
 }
 
 type ServerResponse struct {

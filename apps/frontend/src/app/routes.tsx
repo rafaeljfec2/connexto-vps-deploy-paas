@@ -60,6 +60,9 @@ const ImagesPage = lazy(() =>
 const AuditPage = lazy(() =>
   import("@/pages/audit").then((m) => ({ default: m.AuditPage })),
 );
+const TokensPage = lazy(() =>
+  import("@/pages/tokens").then((m) => ({ default: m.TokensPage })),
+);
 
 function PageFallback() {
   return (
@@ -174,6 +177,14 @@ export function AppRoutes() {
             element={
               <ProtectedRoute>
                 <ImagesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings/tokens"
+            element={
+              <ProtectedRoute>
+                <TokensPage />
               </ProtectedRoute>
             }
           />

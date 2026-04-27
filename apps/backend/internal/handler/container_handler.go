@@ -9,6 +9,7 @@ import (
 
 	"github.com/paasdeploy/backend/internal/agentclient"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 )
@@ -76,13 +77,13 @@ func (h *ContainerHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/containers", h.ListContainers)
 	v1.Get("/containers/:id", h.GetContainer)
-	v1.Post("/containers", h.CreateContainer)
-	v1.Post("/containers/:id/start", h.StartContainer)
-	v1.Post("/containers/:id/stop", h.StopContainer)
-	v1.Post("/containers/:id/restart", h.RestartContainer)
-	v1.Delete("/containers/:id", h.RemoveContainer)
+	v1.Post("/containers", middleware.RequireScope(domain.ScopeContainersWrite), h.CreateContainer)
+	v1.Post("/containers/:id/start", middleware.RequireScope(domain.ScopeContainersWrite), h.StartContainer)
+	v1.Post("/containers/:id/stop", middleware.RequireScope(domain.ScopeContainersWrite), h.StopContainer)
+	v1.Post("/containers/:id/restart", middleware.RequireScope(domain.ScopeContainersWrite), h.RestartContainer)
+	v1.Delete("/containers/:id", middleware.RequireScope(domain.ScopeDestructive), h.RemoveContainer)
 	v1.Get("/containers/:id/logs", h.GetContainerLogs)
-	v1.Post("/containers/:id/healthcheck", h.RunContainerHealthcheck)
+	v1.Post("/containers/:id/healthcheck", middleware.RequireScope(domain.ScopeContainersWrite), h.RunContainerHealthcheck)
 }
 
 type ContainerResponse struct {
