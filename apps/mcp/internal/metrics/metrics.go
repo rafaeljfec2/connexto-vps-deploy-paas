@@ -9,7 +9,6 @@ package metrics
 
 import (
 	"net/http"
-	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -18,8 +17,7 @@ import (
 const namespace = "mcp"
 
 var (
-	registerOnce sync.Once
-	registry     *prometheus.Registry
+	registry *prometheus.Registry
 
 	toolCalls        *prometheus.CounterVec
 	toolDuration     *prometheus.HistogramVec
@@ -84,9 +82,7 @@ func init() {
 		Help:      "Number of HTTP requests currently being processed by the MCP transport.",
 	})
 
-	registerOnce.Do(func() {
-		registry.MustRegister(toolCalls, toolDuration, httpRequests, httpDuration, rateLimitDrops, authFailures, classifyFailures, inFlightRequests)
-	})
+	registry.MustRegister(toolCalls, toolDuration, httpRequests, httpDuration, rateLimitDrops, authFailures, classifyFailures, inFlightRequests)
 }
 
 // ObserveToolCall records a tool invocation outcome and its latency.

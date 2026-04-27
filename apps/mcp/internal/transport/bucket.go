@@ -119,13 +119,11 @@ func peekBody(r *http.Request) ([]byte, bool, error) {
 		return nil, false, err
 	}
 	if len(peeked) > maxBucketPeekBytes {
-		head := peeked[:maxBucketPeekBytes]
-		overflowByte := peeked[maxBucketPeekBytes:]
 		r.Body = &multiReadCloser{
-			Reader: io.MultiReader(bytes.NewReader(head), bytes.NewReader(overflowByte), original),
+			Reader: io.MultiReader(bytes.NewReader(peeked), original),
 			Closer: original,
 		}
-		return head, true, nil
+		return peeked[:maxBucketPeekBytes], true, nil
 	}
 	r.Body = io.NopCloser(bytes.NewReader(peeked))
 	return peeked, false, nil

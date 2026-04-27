@@ -35,7 +35,9 @@ type ServerOptions struct {
 	// already registered. The transport reuses the same instance across all
 	// HTTP requests; authentication state is propagated via context.
 	MCPServer *mcp.Server
-	// ReadinessChecks are invoked by /healthz to assess downstream health.
+	// ReadinessChecks are invoked by /readyz to assess downstream health.
+	// Each probe runs under a 3s timeout; any non-nil error degrades /readyz
+	// to HTTP 503 with the failing probe names in the response body.
 	ReadinessChecks []ReadinessCheck
 }
 

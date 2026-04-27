@@ -200,6 +200,7 @@ func (t *writeTracker) Write(p []byte) (int, error) {
 }
 
 func (t *writeTracker) Flush() {
+	t.headerSent = true
 	if f, ok := t.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
