@@ -1,0 +1,283 @@
+---
+description: FlowDeploy backend (apps/backend) — Go 1.24 + Fiber v2 + pgx + golang-migrate + gRPC. Defines layout, layering, handler/service/repository contracts, response envelope, dependency injection (Wire), engine and worker rules, swagger annotations, and tests.
+globs: ["apps/backend/**"]
+---
+
+# FlowDeploy — Backend (Go) Conventions
+
+> **Stack**: Go 1.24, Fiber v2, pgx/v5 via `database/sql`, golang-migrate, google.golang.org/grpc, google/wire, swaggo/swag, log/slog (with `lmittmann/tint` for human formatting).
+>
+> Module: `github.com/paasdeploy/backend`. Subordinate to `flowdeploy-development-protocol.mdc`.
+
+---
+
+## 1. Directory Layout
+
+```
+apps/backend/
+  cmd/api/                Application entrypoint (main.go)
+  internal/
+    config/               Env-driven Config struct (single source of truth)
+    database/             Migration runner (golang-migrate)
+    di/                   google/wire providers + wire_gen.go
+    domain/               Pure domain types + repository interfaces (NO infra deps)
+    repository/           Postgres implementations of domain.*Repository
+    service/              Business logic that orchestrates repos and external clients
+    handler/              Fiber HTTP handlers (thin)
+    middleware/           Auth, trace
+    response/             Response envelope helpers (response.OK/Created/BadRequest/...)
+    requestctx/           Helpers to set/get user, traceId on fiber.Ctx
+    engine/               Deploy engine: queue, dispatcher, worker, monitors, notifier
+    grpcserver/           Backend-side gRPC server (agent registration, command bus)
+    agentclient/          gRPC client to remote agents (with retry, pool, health)
+    pki/                  Internal CA + per-agent cert generation (mTLS)
+    crypto/               Token hashing, env var encryption helpers
+    webhook/              GitHub webhook ingestion + signature verification
+    ghclient/             GitHub REST/App client
+    github/               GitHub OAuth flow
+    cloudflare/           Cloudflare DNS API client
+    notification/         Email / Slack / Discord senders
+    provisioner/          SSH-based agent installation on a remote host
+    sysinfo/              Local host metrics for the control plane
+    server/               Fiber app construction, route registration helpers
+    docs/                 Swagger DTOs (separate from domain to keep public API stable)
+  gen/go/flowdeploy/v1/   Generated protobuf — DO NOT EDIT
+  migrations/             SQL migrations (NNNNNN_*.up.sql / .down.sql)
+  scripts/lint-go.sh      Lint runner (local + Docker)
+  Dockerfile              Production multi-stage build
+```
+
+---
+
+## 2. Layering
+
+| Layer        | Responsibility                                                                 | May import                                    |
+| ------------ | ------------------------------------------------------------------------------ | --------------------------------------------- |
+| `domain`     | Pure types, status enums (`AppStatus`, `DeployStatus`), repository interfaces  | std lib only                                  |
+| `repository` | SQL queries via `*sql.DB`; map rows → domain types                             | `domain`, `database/sql`, `pgx` driver        |
+| `service`    | Business orchestration; calls repos, agent client, ghclient, webhook manager   | `domain`, `repository` (as interface), other services in same module, external clients |
+| `handler`    | Fiber routing + auth guard + body parsing + response envelope                  | `service`, `response`, `requestctx`, `domain` (types only) |
+| `engine`     | Long-lived workers: queue dispatcher, deploy worker, monitors                  | `domain`, `repository`, `service`, `agentclient`, `shared/pkg/*` |
+| `grpcserver` | Agent registration, heartbeat, push commands                                   | generated `pb`, `service`, `domain`, `pki`    |
+| `middleware` | Cross-cutting concerns (auth, trace)                                           | `domain`, `crypto`, `requestctx`, `response`  |
+
+Hard rules:
+
+- `handler` MUST NOT import `repository`. Always go through `service`.
+- `repository` MUST NOT import `service` or `handler`.
+- `domain` MUST NOT import any other internal package — it is the bottom of the stack.
+- Generated `gen/go/...` is consumed by `engine`, `grpcserver`, `agentclient` — never by `handler` directly.
+
+---
+
+## 3. Configuration
+
+`internal/config/config.go` is the single source of truth. Add a new env var by:
+
+1. Extending the appropriate sub-struct (`ServerConfig`, `DeployConfig`, `GRPCConfig`, ...).
+2. Reading it in `Load()` with a `getEnv*` helper and a sensible default.
+3. Documenting it in `.env.example` (root) — do NOT touch `.env`.
+4. If user-facing, mention it in `README.md`.
+
+Defaults live as `const Default*` next to the struct. Never read `os.Getenv` outside `config/`.
+
+---
+
+## 4. HTTP Handlers (thin)
+
+Rules:
+
+- A handler method has at most ~20 lines — parse → guard → call service → respond.
+- Authentication: pull `*domain.User` from context via `GetUserFromContext(c)` (in handler helpers) or `requestctx.User(c)`. Return `response.Unauthorized` if absent (`MsgNotAuthenticated`).
+- Authorization: use `RequireAdminForLocal(c, serverID)` and similar role guards already defined in `handler/`. Do not implement ad-hoc role checks.
+- Body parsing: `c.BodyParser(&input)` then `response.BadRequest(c, MsgInvalidRequestBody)` on error.
+- Always go through `response.*` helpers. Never `c.Status(...).JSON(...)` by hand — the envelope (`{ success, data, error, meta }`) must be uniform.
+- HTTP status correctness:
+  - `200` for read, full update, idempotent action
+  - `201` for create
+  - `202` for accepted-async (e.g. enqueued deploy)
+  - `204` for delete with no body
+  - `400/401/403/404/409/429/500` via the matching `response.*` helper
+
+Example (existing pattern in `app_handler.go`):
+
+```go
+func (h *AppHandler) ListApps(c *fiber.Ctx) error {
+    user, err := h.requireAuth(c)
+    if err != nil {
+        return err
+    }
+    apps, err := h.appService.ListAppsWithDeployments(user.ID)
+    if err != nil {
+        return h.handleError(c, err)
+    }
+    return response.OK(c, apps)
+}
+```
+
+Swagger:
+
+- Annotate every public route with `@Summary`, `@Description`, `@Tags`, `@Produce`/`@Accept`, `@Success`, `@Failure`, `@Router`.
+- Reference DTOs from `internal/docs/` (not `domain/`). Keep the `internal/docs/` schema stable; treat it as the published OpenAPI contract.
+- Regenerate with `swag init` if you change annotations (the DI Wire generator is independent).
+
+---
+
+## 5. Services
+
+- One file per aggregate (`app_service.go`, `audit_service.go`, `notification_service.go`).
+- Constructors take dependencies as interfaces (typically `domain.*Repository`) plus loggers and external clients. Wire them via `internal/di/providers*.go`.
+- Methods take `context.Context` for anything that touches IO.
+- Return wrapped errors: `fmt.Errorf("create app: %w", err)`. Use `errors.Is` / `errors.As` upstream.
+- Never expose internal SQL errors directly — translate to `domain.ErrNotFound`, `domain.ErrConflict`, etc. The handler maps domain errors to the right HTTP envelope (see `handler.handleError`).
+
+---
+
+## 6. Repositories
+
+- One repository per aggregate, named `Postgres{Aggregate}Repository`, implementing the matching `domain.{Aggregate}Repository` interface.
+- Reuse the column constants pattern (`appSelectColumns`) and the `appScanFields`/`scanDest()`/`toApp()` triplet to keep scanning DRY (see `repository/app_repository.go`).
+- Always use parameterized queries. Never concatenate user input. Use `sql_helpers.go` for shared helpers (e.g. for `IN ($1, $2, ...)` builders).
+- Map `sql.ErrNoRows` to `domain.ErrNotFound`.
+- Never expose `*sql.DB` to upper layers — pass repo interfaces.
+
+---
+
+## 7. Engine (Deploy Workers)
+
+`internal/engine/` is the long-lived worker subsystem. Files of note:
+
+- `engine.go` — top-level `Engine` struct holds workers, monitors, dispatcher, notifier.
+- `queue.go` — Postgres-backed FIFO using `SELECT ... FOR UPDATE SKIP LOCKED`.
+- `dispatcher.go` — pulls tasks from queue and hands them to workers.
+- `worker.go` — single deploy executor unit; fan-out controlled by `DEPLOY_WORKERS`.
+- `health_monitor.go`, `stats_monitor.go`, `system_stats_monitor.go`, `server_stats_monitor.go` — periodic background loops.
+- `notifier.go` — broadcasts events to SSE consumers (handled by the SSE handler).
+
+Rules:
+
+- All loops respect `ctx.Done()`. `cancel()` is called from `main.go`'s shutdown sequence.
+- Workers MUST be safe to crash mid-deploy. Use the lock package (`shared/pkg/lock`) and idempotent steps; never assume a previous step completed without re-checking state.
+- Notification publishing is fire-and-forget on a buffered channel (size 1000). Don't block deploy progress on notifier back-pressure.
+- Deploys to remote servers go through `agentclient` (gRPC). Local deploys use `shared/pkg/docker` and `shared/pkg/compose` directly.
+
+---
+
+## 8. Agent Client
+
+`internal/agentclient/` wraps the gRPC client with:
+
+- A connection pool (`conn_pool.go`) keyed by server ID.
+- Health checking (`health_checker.go`).
+- Retry policy (`retry.go`) — exponential backoff with jitter; only retry idempotent calls.
+- Per-domain files split by responsibility (`agent_client_deploy.go`, `agent_client_containers.go`, `agent_client_images.go`, `agent_client_ssl.go`, `agent_client_system.go`, `agent_client_update.go`).
+
+Rules:
+
+- mTLS is mandatory. The client loads the agent's cert (provisioned by `pki/`) and the CA. `GRPCConfig.AgentTLSInsecureSkipVerify` exists for emergency recovery only and must NEVER default to true.
+- Treat every remote call as fallible. Always set a deadline via `context.WithTimeout`.
+- Never expose `*grpc.ClientConn` outside the package.
+
+---
+
+## 9. PKI
+
+`internal/pki/ca.go` is the internal certificate authority that issues per-agent certs.
+
+- Backed by data persisted via `domain.CertificateAuthorityRepository` (migration `000014_pki_ca`).
+- `NewCA()` generates a fresh CA in tests; `LoadCA(certPEM, keyPEM)` rehydrates from storage.
+- `GenerateAgentCert(serverID, host)` issues short-lived certs with the server ID embedded in CN/SAN — used by both backend (issuance) and agent (validation).
+- DO NOT change the issuance algorithm or validity period without an ADR.
+
+---
+
+## 10. Authentication
+
+- HTTP cookies: opaque session tokens stored in cookie `flowdeploy_session` (configurable via `SESSION_COOKIE_NAME`). Hashed via `crypto.HashSessionToken` and stored in `sessions` table.
+- `middleware.AuthMiddleware.Require()` enforces auth. `Optional()` populates context if a valid session exists but does not block.
+- GitHub OAuth lives in `internal/github/`; GitHub App (for repo access) in `internal/ghclient/`.
+- Roles: `admin` and `user` (migration `000024`). `RequireAdminForLocal` blocks regular users from operating on the local host.
+
+---
+
+## 11. Migrations
+
+- Tool: `golang-migrate`. Files at `apps/backend/migrations/` named `NNNNNN_description.{up,down}.sql`.
+- Numbering is strictly sequential. NEVER renumber existing migrations or rewrite a published migration in place. Add a new one.
+- Every `up` MUST have a corresponding `down`. The `down` should be a real best-effort rollback, not a stub.
+- Migrations run automatically on backend boot via `runMigrationsFirst()` in `cmd/api/main.go`. Keep them idempotent-friendly (`IF NOT EXISTS` where it makes sense, but NEVER replace `CREATE TABLE` with `IF NOT EXISTS` to mask drift).
+
+---
+
+## 12. Logging and Errors
+
+- Logger: `log/slog` configured with `lmittmann/tint` for human-readable output.
+- Use structured fields: `logger.Info("agent registered", "server_id", id, "version", v)`. Never `Sprintf` into the message.
+- Never log secrets, tokens, full env values, or webhook payloads with sensitive data.
+- Wrap errors with context (`fmt.Errorf("operation X: %w", err)`). Don't log AND return the same error from the same layer — pick one site to log.
+
+---
+
+## 13. Dependency Injection (Wire)
+
+- All wiring lives in `internal/di/`. `wire.go` declares the injector; `wire_gen.go` is generated — do not edit.
+- Providers are split by concern: `providers.go`, `providers_db.go`, `providers_handlers.go`, `providers_engine.go`, `providers_auth.go`.
+- After adding a new provider or constructor signature, run `go generate ./internal/di/...` (or `wire ./internal/di/...`) to regenerate `wire_gen.go`.
+- Constructors must return `(*T, error)` if they can fail at startup. Wire will surface errors as a startup `panic` — the user sees them immediately.
+
+---
+
+## 14. gRPC Server (Backend Side)
+
+`internal/grpcserver/` exposes a minimal control-plane gRPC service used by agents to:
+
+1. `Register` — first contact, sends system info; backend issues mTLS cert.
+2. `Heartbeat` — periodic; carries Docker info and basic metrics.
+3. Receive commands pushed via the bidirectional command stream (`hub.go`, `commands.go`).
+
+Rules:
+
+- Register/Heartbeat may be called over TLS without client cert during the bootstrap window (provisioning). After registration, all calls must use mTLS.
+- The hub is the single fan-out point for control plane → agent push. Use it; do not spawn ad-hoc streams.
+
+---
+
+## 15. Tests
+
+Existing tested packages (use them as reference):
+
+- `internal/pki/ca_test.go` — pure-function style.
+- `internal/handler/template_handler_test.go` — handler-level test.
+- `internal/provisioner/provisioner_test.go`.
+- `internal/ghclient/{webhook,signature}_test.go`.
+- `internal/webhook/github_manager_test.go`.
+
+Conventions:
+
+- Standard library testing only (no testify). Failures via `t.Fatalf`/`t.Errorf` with descriptive messages.
+- Test names: `TestSubject_Behavior_Condition` (e.g. `TestRegister_RejectsExpiredCert`). All test descriptions in English.
+- Table-driven tests for parsers/validators (see `ghclient/signature_test.go` style).
+- Integration tests that need a DB live next to the package and skip with `t.Skip` if `DATABASE_URL` is not set.
+- New code in critical packages (`pki`, `engine`, `webhook`, `provisioner`, `crypto`) requires tests in the same change.
+
+---
+
+## 16. Style and Lint
+
+- `golangci-lint` with the project config; expect to satisfy: `errcheck`, `govet`, `staticcheck`, `gosimple`, `unused`, `ineffassign`, `gosec` (where on), `revive`.
+- `gofmt`/`goimports` on save.
+- Group imports: stdlib / external / internal — separated by blank lines.
+- Avoid named returns unless they materially help readability or are required by `defer`.
+- Prefer early return over deep nesting.
+
+---
+
+## 17. Build
+
+- Local: `pnpm run backend:build` (embeds `AGENT_VERSION` via `-ldflags`) or `make build`.
+- Production: `apps/backend/Dockerfile` (multi-stage, alpine final).
+- Never commit binaries (`apps/backend/bin/` is gitignored).
+
+---
+
+**End of FlowDeploy Backend (Go) Conventions.**

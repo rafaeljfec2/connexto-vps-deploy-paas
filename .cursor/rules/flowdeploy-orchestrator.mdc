@@ -1,0 +1,339 @@
+---
+description: FlowDeploy orchestrator — mandatory Architect → Approval Gate → Developer (Backend/Frontend) → Senior Reviewer pipeline for every request that implies a code or file change in this repository. Provides explicit visual feedback for each phase.
+alwaysApply: true
+---
+
+# FlowDeploy — Orchestrator (Architect → Developer → Senior Reviewer)
+
+> **Purpose**: every user request that modifies files in this repository MUST
+> flow through three phases with explicit visual banners and a mandatory
+> human approval gate between Architect and Developer. This rule orchestrates
+> the existing `flowdeploy-*.mdc` rules — it does **not** replace them.
+>
+> Subordinate to [`flowdeploy-development-protocol.mdc`](./flowdeploy-development-protocol.mdc).
+> Reuses [`flowdeploy-backend-go.mdc`](./flowdeploy-backend-go.mdc),
+> [`flowdeploy-agent-go.mdc`](./flowdeploy-agent-go.mdc),
+> [`flowdeploy-frontend-react.mdc`](./flowdeploy-frontend-react.mdc),
+> [`flowdeploy-proto-grpc.mdc`](./flowdeploy-proto-grpc.mdc),
+> [`flowdeploy-shared-go.mdc`](./flowdeploy-shared-go.mdc),
+> [`flowdeploy-security.mdc`](./flowdeploy-security.mdc),
+> [`flowdeploy-ops.mdc`](./flowdeploy-ops.mdc).
+
+---
+
+## 1. When this rule fires
+
+**MUST run**: every request that implies creating, editing, renaming, moving
+or deleting any file tracked by this repository — including source code,
+migrations, protos, scripts, workspace rules, docs, configuration, CI
+workflows, `.env.example`, `Makefile`, `package.json`, `go.mod`, etc.
+
+**MUST NOT run** (answer directly, no pipeline):
+
+- Pure Q&A about the codebase ("where is X defined?", "what does Y do?").
+- Exploration, search and read-only tool usage.
+- Clarifying questions sent back to the user.
+- Tasks the user has scoped as `--quick`, `--hotfix` or `--skip-pipeline`
+  in the same message (still must log a one-line note explaining why).
+
+When in doubt, assume it fires.
+
+---
+
+## 2. Visual feedback contract
+
+The assistant MUST print a **banner block** at the start of each phase. The
+banner is a fenced code block (triple backticks, no language tag) so the
+chat renders it in a monospaced font with visible contrast. Missing or
+silently skipping a banner is a protocol violation.
+
+### 2.1 Banner block shape
+
+Every banner block has 5 lines, in this exact order:
+
+1. Phase header — `<emoji> [PHASE NAME] — <short subtitle>`
+2. `rule    · <comma-separated list of governing .mdc files>`
+3. `skill   · <skill name or n/a>`
+4. `agent   · <subagent_type or n/a>`
+5. `context · <one-sentence statement of what this phase will do in THIS request>`
+
+Formatting rules:
+
+- Columns are aligned with 4 spaces between the label and the `·`. Keep
+  the separator (middle-dot) consistent.
+- `rule` MUST list every `.mdc` file that governs the phase. The
+  orchestrator itself (`flowdeploy-orchestrator.mdc`) is implicit and
+  omitted from every phase except Architect.
+- `skill` lists one or more skill slugs (`senior-code-reviewer`,
+  `application-security-expert`, etc.). Use `n/a` when no skill applies.
+- `agent` lists the subagent_type from the Task tool (`explore`,
+  `generalPurpose`, `shell`, `browser-use`, etc.) OR `n/a` if the
+  assistant does the work itself without delegating to a subagent.
+- `context` is a single sentence (≤ 140 chars) tailored to the current
+  request — never a generic placeholder.
+- One banner per phase entry. If the Developer touches multiple areas,
+  emit one full banner block per area (Backend, Frontend, Proto, ...).
+
+### 2.2 Worked example (Architect)
+
+```
+🏛️ [ARCHITECT] — analysis & architecture
+rule    · flowdeploy-orchestrator.mdc, flowdeploy-development-protocol.mdc
+skill   · software-architecture-expert
+agent   · explore (readonly)
+context · Analyzing impacted files and drafting design + risks before any edit.
+```
+
+### 2.3 Phase metadata reference
+
+Use this matrix to decide `rule` / `skill` / `agent` for each phase. It is
+the canonical default; the Architect may override `skill` or `agent` with
+justification stated inline.
+
+| Phase                        | Rules (.mdc)                                                                                | Default skills                                                                                  | Default agent       |
+| ---------------------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------- |
+| 🏛️ ARCHITECT                 | `flowdeploy-orchestrator`, `flowdeploy-development-protocol`                                | `software-architecture-expert`, `create-technical-design-doc` (for non-trivial changes)         | `explore` (readonly) |
+| ✅ APPROVAL GATE             | `flowdeploy-orchestrator`                                                                   | n/a                                                                                             | n/a                 |
+| 🔨 DEVELOPER / BACKEND       | `flowdeploy-backend-go`, `flowdeploy-shared-go`, `flowdeploy-security`                      | `backend-engineering-expert`, `cognitive-complexity-guard`, `qa-automation-expert`              | n/a                 |
+| 🔧 DEVELOPER / AGENT         | `flowdeploy-agent-go`, `flowdeploy-shared-go`, `flowdeploy-security`                        | `backend-engineering-expert`, `cognitive-complexity-guard`                                      | n/a                 |
+| 🎨 DEVELOPER / FRONTEND      | `flowdeploy-frontend-react`, `flowdeploy-security`                                          | `cognitive-complexity-guard`, `qa-automation-expert`                                            | n/a                 |
+| 🧩 DEVELOPER / PROTO         | `flowdeploy-proto-grpc`, `flowdeploy-backend-go`, `flowdeploy-agent-go`                     | n/a                                                                                             | `shell` (for `make proto`) |
+| 📦 DEVELOPER / SHARED        | `flowdeploy-shared-go`                                                                      | `backend-engineering-expert`, `cognitive-complexity-guard`                                      | n/a                 |
+| 🧱 DEVELOPER / INFRA         | `flowdeploy-ops`, `flowdeploy-security`                                                     | n/a                                                                                             | `shell`             |
+| 📚 DEVELOPER / DOCS          | `flowdeploy-development-protocol`                                                           | `create-technical-design-doc`, `create-adr`, `mermaid-studio`                                   | n/a                 |
+| 🔍 SENIOR REVIEW             | all rules touched by the Developer phase + `flowdeploy-security` + `flowdeploy-development-protocol` | `senior-code-reviewer`, `principal-engineering-workflow`, `application-security-expert`, `qa-automation-expert` | n/a                 |
+
+### 2.4 Emoji policy
+
+Banners are the only place where emoji are mandated in this repository.
+They override the user's global "no emoji" preference by explicit user
+decision tied to this orchestrator. Never add decorative emoji outside
+banner blocks.
+
+---
+
+## 3. Phase 1 — Architect (🏛️)
+
+Goal: produce a short, high-signal architectural plan and a risk review
+**before** any file is edited.
+
+Mandatory outputs (in this order, under the banner):
+
+1. **Understanding** — 1–3 sentences summarizing what the user asked.
+2. **Impacted surface** — bullet list of files/packages/layers that will be
+   touched. Include generated code and migrations.
+3. **Proposed design** — concrete approach. For backend: which service,
+   repository, SQL, gRPC RPC. For frontend: which feature folder, hook,
+   component, route. For proto: which message/RPC. For infra: which
+   container/compose entry.
+4. **Trade-offs & alternatives** — at least one alternative considered,
+   with a one-line reason for rejection.
+5. **Risk & security check** — map to `flowdeploy-security.mdc`: auth,
+   mTLS, secrets, webhook signature, SQL injection, `sh -c`. State
+   "no impact" explicitly when that is the case.
+6. **Tests plan** — what tests will be written or updated, in which
+   packages. Follow the Non-Negotiable #6 from the development protocol.
+7. **Out of scope** — what the assistant will explicitly NOT do in this
+   change, even if tempting.
+
+Hard limits:
+
+- No file edits during Architect.
+- May use read-only tools (`Read`, `Grep`, `Glob`, `Shell` with non-mutating
+  commands) to confirm assumptions.
+- Keep the whole Architect block under ~60 lines. If you need more, you
+  are probably planning two changes — split them.
+
+---
+
+## 4. Phase 2 — Approval gate (✅)
+
+After the Architect block, the assistant MUST call the `AskQuestion` tool
+with exactly this shape:
+
+- One question, id = `architect_approval`.
+- Prompt = "Aprova o plano do Architect acima para prosseguir para Developer?".
+- Options (single-select):
+  - `approve` — "Aprovado — prossiga para Developer"
+  - `adjust` — "Ajustar o plano — envio os ajustes no pr\u00f3ximo turno"
+  - `cancel` — "Cancelar — n\u00e3o fa\u00e7a nada"
+
+Gate behavior:
+
+| Answer    | Next step                                                                 |
+| --------- | ------------------------------------------------------------------------- |
+| `approve` | Proceed to Developer                                                      |
+| `adjust`  | Stop, wait for the user's next message with the adjustments               |
+| `cancel`  | Print the `🛑 [PIPELINE CANCELLED]` banner block and STOP. Do not edit any file. |
+
+Hard rules:
+
+- NO file modification before `approve`.
+- If the user skips the question and just sends a follow-up message, treat
+  it as `adjust` and re-run Architect on the new input.
+- If the change is trivially small (single-line typo fix, single-file
+  rename with no public API change), the assistant MAY inline the Architect
+  block and still use the approval gate — the gate is never skipped.
+
+---
+
+## 5. Phase 3 — Developer (🔨 / 🎨 / 🧩 / 🔧 / 📦 / 🧱 / 📚)
+
+Only enters after `approve`. The Developer phase segments work by area and
+delegates each area to the matching rule:
+
+| Area       | Banner                          | Rule of record                                |
+| ---------- | ------------------------------- | --------------------------------------------- |
+| Backend    | `🔨 [DEVELOPER / BACKEND]`      | `flowdeploy-backend-go.mdc`                   |
+| Agent      | `🔧 [DEVELOPER / AGENT]`        | `flowdeploy-agent-go.mdc`                     |
+| Frontend   | `🎨 [DEVELOPER / FRONTEND]`     | `flowdeploy-frontend-react.mdc`               |
+| Proto      | `🧩 [DEVELOPER / PROTO]`        | `flowdeploy-proto-grpc.mdc`                   |
+| Shared Go  | `📦 [DEVELOPER / SHARED]`       | `flowdeploy-shared-go.mdc`                    |
+| Infra / CI | `🧱 [DEVELOPER / INFRA]`        | `flowdeploy-ops.mdc`                          |
+| Docs       | `📚 [DEVELOPER / DOCS]`         | `flowdeploy-development-protocol.mdc` §12     |
+
+Ordering rules:
+
+1. **Proto first**: if the change touches `apps/proto/**`, do Proto before
+   Backend and Agent. Regenerate via `make proto` as part of this sub-phase.
+2. **Backend before Frontend**: API contract (handlers + response envelope)
+   is finalized before the frontend is wired.
+3. **Tests in the same sub-phase**: do not defer tests to a separate phase.
+   The test edit MUST appear under the same banner as the code it exercises.
+4. **Migrations co-located with Backend**: SQL migrations and the matching
+   repository code land under the Backend banner.
+
+Every sub-phase MUST:
+
+- Print its banner once, before the first edit in that area.
+- End with a 2–4 line "delta" summary: files touched + intent.
+- Honour every "Forbidden Practices" item of the development protocol.
+
+Hard stop conditions (the Developer MUST halt and raise to the user):
+
+- Plan drift: the work no longer matches what the Architect approved.
+- A previously unseen security-sensitive surface appears (auth, mTLS,
+  secrets, webhook signature, SQL composition).
+- A migration needs to be irreversible or destructive (`DROP COLUMN`,
+  `TRUNCATE`, data migration that cannot be rolled back).
+
+---
+
+## 6. Phase 4 — Senior Review (🔍)
+
+After the last Developer sub-phase, print the Senior banner and run the
+7-point mandatory checklist below. Each item is PASS / FAIL / N/A with a
+one-line justification.
+
+1. **Rules compliance** — re-read the rule that governs each touched area
+   (backend, agent, frontend, proto, shared, security, ops) and confirm
+   the change respects the "Forbidden" and "Conventions" sections.
+2. **Security** — re-run the section 1–15 checklist of
+   `flowdeploy-security.mdc` for every secret/auth/mTLS/webhook/shell/SQL
+   surface the change touches.
+3. **Self code review** — identify at least one concrete improvement
+   (naming, error wrapping, cognitive complexity, duplication) or state
+   "none found, pass".
+4. **Tests** — list which tests were added/updated and the command to run
+   them locally (`go test ./internal/engine/...`,
+   `pnpm --filter @paasdeploy/frontend run test`, etc.).
+5. **Lints & typecheck** — list the exact commands the user should run:
+   `pnpm run lint:go-quick`, `pnpm --filter @paasdeploy/frontend run lint`,
+   `pnpm --filter @paasdeploy/frontend run typecheck`.
+6. **Build** — list the build commands affected:
+   `cd apps/backend && pnpm run build`, `pnpm --filter @paasdeploy/frontend run build`,
+   `cd apps/agent && go build ./cmd/agent`.
+7. **Cross-references** — verify consistency between touched code and
+   `README.md`, `CHANGELOG.md`, `AGENTS.md`, `docs/**`. If any is stale,
+   list the follow-up as an open item.
+
+If any check is FAIL, the Senior Reviewer MUST state it plainly, propose
+a concrete fix, apply it, and re-run the affected checks. Do not close
+the pipeline with a FAIL.
+
+Pipeline closure banner (MUST appear at the very end, same 5-line shape):
+
+```
+✅ [PIPELINE COMPLETE] — all checks PASS
+rule    · <union of all rules touched during Developer + Senior Review>
+skill   · senior-code-reviewer, principal-engineering-workflow
+agent   · n/a
+context · Architect plan "<one-liner>" delivered across <areas> with all 7 checks PASS.
+```
+
+followed by:
+
+```
+• Architect approved: <one-liner>
+• Developer areas: <list>
+• Senior Review: all 7 checks PASS (or list of PASS with N/A)
+• Suggested next steps: <0–3 bullets>
+```
+
+If the Senior raises unresolved items, use the same banner shape but with
+the warning header and list the open items:
+
+```
+⚠️ [PIPELINE COMPLETE WITH OPEN ITEMS]
+rule    · <union of all rules touched>
+skill   · senior-code-reviewer, principal-engineering-workflow
+agent   · n/a
+context · <N> open items require follow-up; ranked in the list below.
+```
+
+---
+
+## 7. Escape hatches
+
+- `--quick` in the user message → skip Architect narrative; still print
+  the banners, still use the approval gate with a condensed 3-bullet
+  Architect block, still run Senior Review.
+- `--hotfix` → allowed for production-critical 1-file fixes; Architect
+  block may be 3 lines; approval gate still required; Senior Review
+  still mandatory and security check is non-negotiable.
+- `--skip-pipeline` → only honoured when the user clearly states a
+  non-code task (docs tweak, renaming an untracked file). The assistant
+  MUST print a `⏭️ [PIPELINE SKIPPED]` banner block (same 5-line shape:
+  rule, skill, agent, context) explaining why the pipeline is bypassed.
+
+Banner shapes for escape / abort states (same 5-line shape):
+
+```
+🛑 [PIPELINE CANCELLED]
+rule    · flowdeploy-orchestrator.mdc
+skill   · n/a
+agent   · n/a
+context · User chose `cancel` at the approval gate. No files were modified.
+```
+
+```
+⏭️ [PIPELINE SKIPPED]
+rule    · flowdeploy-orchestrator.mdc
+skill   · n/a
+agent   · n/a
+context · <reason stated by the user or inferred from the request>.
+```
+
+Abuse of escape hatches defeats the orchestrator. If the request feels
+like an escape-hatch attempt but clearly touches backend/agent/proto/pki
+code, the assistant MUST refuse and run the full pipeline.
+
+---
+
+## 8. Interaction with the existing protocol
+
+This rule sits on top of `flowdeploy-development-protocol.mdc`:
+
+- The protocol defines WHAT is allowed/forbidden (Sections 2, 4, 5, 6, 7).
+- This orchestrator defines HOW every change is shaped (phases, banners,
+  gate, reviewer).
+- In any conflict, the protocol wins; the orchestrator adjusts its phase
+  output to respect it.
+
+No other rule may override the orchestrator's banners or the approval
+gate. Rules may, however, add mandatory sub-checks inside a phase (for
+example `flowdeploy-security.mdc` tightens the Senior Review).
+
+---
+
+**End of FlowDeploy Orchestrator.**

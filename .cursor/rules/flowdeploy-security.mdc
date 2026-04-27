@@ -1,0 +1,174 @@
+---
+description: FlowDeploy security rules — mTLS between backend and agents, GitHub OAuth + GitHub App, session cookies, env var encryption, CORS, secrets handling, input validation, GitHub webhook signature verification, OWASP-aligned defaults.
+alwaysApply: true
+---
+
+# FlowDeploy — Security Conventions
+
+> **Threat surface**: a self-hosted PaaS that controls Docker on remote VPS hosts, ingests GitHub webhooks, exposes a public dashboard, and stores user-supplied secrets (env vars). Compromise = remote code execution on every connected server. Treat every change with this in mind.
+>
+> Subordinate to `flowdeploy-development-protocol.mdc`.
+
+---
+
+## 1. Backend ↔ Agent: mTLS
+
+- Every gRPC connection between the backend and any agent is **mutual TLS**. The backend's internal CA (`apps/backend/internal/pki/ca.go`, persisted via `domain.CertificateAuthorityRepository`, migration `000014_pki_ca`) is the only trust anchor.
+- Per-agent certificates are issued at provisioning time. CN/SAN encode the `server_id` so a compromised cert cannot impersonate another server.
+- `GRPCConfig.AgentTLSInsecureSkipVerify` exists ONLY for emergency recovery (e.g. CA loss + manual re-provisioning). It MUST default to `false`. If you are tempted to set it `true` in code or config, stop and ask.
+- Cert rotation: re-issue via the PKI service; the agent picks up the new cert on next boot. Old certs are invalidated by the CA's revocation list (planned). Never short-circuit verification.
+- The agent's gRPC server (`apps/agent/internal/grpcserver/server.go`) requires the backend's certificate signed by the same CA (`tls.RequireAndVerifyClientCert`). Don't relax this.
+
+---
+
+## 2. User Authentication
+
+Two paths, both terminating in a session cookie:
+
+1. **GitHub OAuth** (`apps/backend/internal/github/`) — the primary flow. The backend exchanges the OAuth code for an access token, fetches the user's GitHub profile, upserts a `domain.User`, and issues a session.
+2. **Email + password** (migration `000017`) — secondary, with bcrypt hashes (see `internal/password/`).
+
+Session rules:
+
+- Cookie name: `flowdeploy_session` (configurable). HttpOnly, SameSite=Lax (Strict for the dashboard origin in production), `Secure` in production (set by `AuthConfig.SecureCookie`).
+- Token format: opaque random 32-byte token. The cookie carries the raw token; the DB stores ONLY `crypto.HashSessionToken(rawToken)` (`internal/crypto/token.go`). Never store raw tokens.
+- TTL: configurable via `SessionMaxAge` (default 7 days). Sessions are invalidated by deleting the row.
+- Logout: hard-delete the session row, clear the cookie.
+- DO NOT add JWTs. The current opaque-token + DB pattern is intentional — it allows immediate revocation.
+
+---
+
+## 3. Authorization
+
+- Roles: `admin` and `user` (migration `000024_add_user_role`).
+- App ownership: every `domain.App` carries a `user_id`. Repositories already enforce ownership in `FindAllByUserID`, `FindByIDAndUserID`. Use those — do not bypass with `FindByID` in user-facing handlers.
+- Admin-only operations on the local host: `RequireAdminForLocal(c, serverID)` in `internal/handler/`. Use it for any mutation that can affect the control-plane host itself (templates on local server, container ops on local server, system-wide cleanup).
+- Notifications, servers, and secrets are scoped to the owning user (migrations `000021`, `000022`).
+
+---
+
+## 4. GitHub Integration
+
+- **OAuth secrets** (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`): env-only. Never log them. Never echo back in API responses.
+- **GitHub App private key** (`GITHUB_APP_PRIVATE_KEY_PATH` or inline PEM): loaded once at startup into `GitHubConfig.AppPrivateKey []byte`. Never log the byte slice.
+- **Webhook secret** (`GITHUB_WEBHOOK_SECRET`): used to verify HMAC signatures on incoming webhooks (`internal/ghclient/signature.go` + tests). The webhook handler MUST reject unsigned or mismatched payloads with 401 BEFORE reading the body for routing decisions. See `internal/webhook/github_manager.go`.
+- **Token encryption**: GitHub access tokens persisted per user are encrypted at rest with `AuthConfig.TokenEncryptionKey` (32 bytes). The key MUST be set in production. Never commit it.
+
+---
+
+## 5. Environment Variables (App Secrets)
+
+- Apps may store env vars (`domain.EnvVar`, migration `000004`). They are encrypted at rest using the same encryption key.
+- The frontend NEVER receives raw env values back — only metadata (key, isSecret, lastUpdatedAt). Reads return the value only for an authenticated owner via the explicit "reveal" endpoint (audited).
+- Env values are pushed to the agent through gRPC (encrypted in transit by mTLS). The agent writes them to a dedicated env file inside `DEPLOY_DATA_DIR/<app>/.env` with `0600` perms and the file is mounted into the container by docker-compose.
+- DO NOT log env var values. DO NOT include them in audit log payloads.
+
+---
+
+## 6. CORS
+
+- `internal/server/...` configures Fiber's CORS using `ServerConfig.CorsOrigins` (a comma-separated list).
+- **No wildcard fallback.** If `CORS_ORIGINS` is unset and the env is production, the server should refuse to start (or restrict to no origin). In dev, an explicit `http://localhost:3000` is fine.
+- `Access-Control-Allow-Credentials: true` is required (cookies). With credentials, wildcards are forbidden by the browser anyway.
+
+---
+
+## 7. Webhook Ingestion
+
+- Endpoint receives a raw body. Verify the HMAC (`signature.go`) BEFORE doing anything with the payload — even logging it.
+- After verification, persist the raw payload (`webhook_payloads`, migration `000016`) for audit and replay. Persist hashed/redacted, not raw, when the payload contains secrets.
+- The deploy is enqueued via `engine.Queue.Enqueue` — never executed inline in the webhook handler. This bounds latency and isolates failure.
+
+---
+
+## 8. SSH Provisioning
+
+`internal/provisioner/` provisions a new agent on a remote host over SSH:
+
+- Connection uses host-key verification (`server.SSHHostKey`, migration `000023`). Reject unknown hosts.
+- Privilege: the install script runs with the necessary sudo only — no full-root shell, no persistent backdoor (`internal/provisioner/privilege.go`).
+- The agent's TLS keypair is generated **on the backend** and pushed to the remote — never generated remotely. This keeps the CA's signature authority centralized.
+- Keys arrive at the agent over SCP/SFTP and are written with `0600` perms.
+- The provisioning password (if any) is stored encrypted (migration `000015_add_server_password`) and used once.
+
+---
+
+## 9. Input Validation
+
+- Backend handlers validate user input BEFORE passing to services. Use Go's standard library (regex, type checks) and explicit guards. Common patterns live in `internal/handler/helpers.go`.
+- App names: must be a valid DNS label (lowercase, digits, hyphens, ≤ 63 chars). They become container/network names. Use the existing helper.
+- Repository URLs: must be HTTPS (or a known SSH form for GitHub App use). Reject other schemes.
+- Branch names: reject anything containing `..`, leading `/`, control characters.
+- File paths from API: pass through `shared/pkg/safepath.IsSafeFileName` for any user-supplied component.
+- Query params: use `c.QueryInt`/`c.Query` and guard ranges.
+
+---
+
+## 10. Shell Command Safety
+
+The backend and agent both shell out (Docker CLI, git, openssh tools). Rules already in `flowdeploy-{backend,agent}-go.mdc` and `flowdeploy-shared-go.mdc`:
+
+- All commands go through `shared/pkg/executor` with explicit `name, args...`. NEVER `sh -c "..."`. NEVER string interpolation into a single argument.
+- For `docker exec` commands, NEVER let the user-controlled command be a single string — accept `[]string` and pass it verbatim.
+- For git, use the library functions in `shared/pkg/git`, which already handle credential injection safely.
+
+---
+
+## 11. Logging Hygiene
+
+- Never log: passwords, raw session tokens, env var values, GitHub tokens, webhook secrets, the CA private key, the agent's TLS key, encryption keys.
+- When logging an error that may carry such a value (e.g. `errors from json.Unmarshal of a request body`), redact the value before logging.
+- Trace IDs are safe and should be logged (helps support).
+
+---
+
+## 12. Database
+
+- Parameterized queries only. Existing repository pattern uses `?` / `$1` placeholders. Never `fmt.Sprintf` user input into a query.
+- Soft deletes (`status = 'deleted'`) for user-visible aggregates. `HardDelete` exists on `AppRepository` for cleanup paths only — gate behind admin checks.
+- Migrations that add a column carrying secrets MUST be paired with encryption-at-rest in the repository layer. Never store plaintext.
+
+---
+
+## 13. Containers and Docker Sock
+
+- The backend container mounts `/var/run/docker.sock` (read-write for local deploys). This is effectively root on the host. Treat the backend as a privileged service:
+  - Run with `restart: unless-stopped` (already configured) but never auto-restart on a security failure (deploy aborts should not retry forever).
+  - Apply image-level hardening: alpine base, non-root user where possible (the deploy engine itself needs Docker socket access; everything else can drop privileges).
+- Docker images built for tenant apps run as defined by their own Dockerfile. We do not enforce non-root for tenant images, but we DO isolate them via dedicated networks per app.
+
+---
+
+## 14. Dependencies
+
+- Frontend: `pnpm audit` clean expected. Dependabot / Renovate updates reviewed for breaking transitive changes.
+- Backend: `govulncheck ./...` against the agent and backend modules before any release. The lint script (`scripts/lint-go.sh`) does not run it today — running it manually is a release-gate task.
+- DO NOT pull in unaudited Go dependencies. Standard library is the default; well-known modules (`pgx`, `fiber`, `grpc`, `jwt`) are acceptable.
+
+---
+
+## 15. Forbidden Practices
+
+- Disabling TLS verification anywhere except the documented `AgentTLSInsecureSkipVerify` emergency switch.
+- Storing secrets in plain text at rest.
+- Echoing secrets back in API responses (env values, tokens, private keys).
+- Using `||` for fallback assignments — this can mask a `false`/`0`/`""` and bypass a guard. Use `??` (TS) or explicit zero-checks (Go).
+- Swallowing errors from cryptographic operations or signature verification.
+- Building SQL with `fmt.Sprintf` against user input.
+- Using `os/exec.Command(name, "sh", "-c", ...)` style invocations.
+
+---
+
+## 16. When You're Not Sure
+
+For anything touching auth, mTLS, PKI, secrets, signature verification, or network exposure:
+
+1. STOP.
+2. Reread this file.
+3. Ask the user before proceeding.
+
+The cost of getting security right is a question. The cost of getting it wrong is the entire fleet.
+
+---
+
+**End of FlowDeploy Security Conventions.**

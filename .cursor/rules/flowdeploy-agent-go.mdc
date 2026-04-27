@@ -1,0 +1,209 @@
+---
+description: FlowDeploy agent (apps/agent) — Go 1.24 gRPC server installed on remote VPS hosts. Defines flag-driven bootstrap, gRPC handlers split by domain, Docker subprocess execution, deploy executor, cleanup scheduler, self-update, and version embedding.
+globs: ["apps/agent/**"]
+---
+
+# FlowDeploy — Agent (Go) Conventions
+
+> **Stack**: Go 1.24, google.golang.org/grpc, mTLS via `crypto/tls` + `crypto/x509`, `creack/pty` for terminal exec, `log/slog`.
+>
+> Module: `github.com/paasdeploy/agent`. Replaces `paasdeploy/backend` (for generated proto) and `paasdeploy/shared`. Subordinate to `flowdeploy-development-protocol.mdc`.
+>
+> **Mental model**: the agent is a "tiny remote arm" of the backend. It owns no state of its own — only Docker on the host and a TLS keypair issued by the backend's PKI.
+
+---
+
+## 1. Directory Layout
+
+```
+apps/agent/
+  cmd/agent/main.go              Flag parsing, bootstrap, signal handling, shutdown
+  internal/
+    agent/agent.go               Registration + heartbeat loop with the control plane
+    grpcserver/
+      server.go                  Server, AgentService struct, TLS/mTLS setup, keepalive
+      handlers_containers.go     Container lifecycle (list, start, stop, restart, remove, logs, stats)
+      handlers_deploy.go         ExecuteDeploy + StreamDeployLogs
+      handlers_exec.go           ExecContainer (PTY + WebSocket-equivalent gRPC bidi)
+      handlers_images.go         List, remove, prune images
+      handlers_resources.go      Networks, volumes, system info, system metrics, docker info
+      handlers_ssl.go            Container SSL configuration helpers
+      handlers_update.go         Self-update via push-binary stream
+    deploy/
+      executor.go                Clones, builds, runs, health-checks the app
+      version.go / version_test.go  Version detection helpers
+    cleanup/                     Scheduled docker prune
+    grpcclient/                  Client used by control-plane initiated calls back (rare)
+    sysinfo/                     Host metrics collection
+  Dockerfile                     For local testing in container
+```
+
+---
+
+## 2. Bootstrap (cmd/agent/main.go)
+
+The agent is configured via flags (NEVER env vars except for what shells already inject):
+
+| Flag           | Required | Purpose                                                         |
+| -------------- | -------- | --------------------------------------------------------------- |
+| `--server-addr`| yes      | gRPC address of the backend control plane (e.g. host:50051)     |
+| `--server-id`  | yes      | Unique server UUID issued at provisioning time                  |
+| `--ca-cert`    | yes      | Path to PEM CA bundle (verifies the control plane)              |
+| `--cert`       | yes      | Path to this agent's PEM TLS certificate (issued by backend PKI)|
+| `--key`        | yes      | Path to this agent's PEM TLS private key                        |
+| `--agent-port` | no (50052)| TCP port for the agent's own gRPC server                       |
+
+Bootstrap order:
+
+1. Build `agent.Config` and call `agent.New` (does NOT start anything yet).
+2. Build `grpcserver.New` with TLS material.
+3. Construct `cleanup.NewScheduler(grpcSrv.Docker(), logger)`.
+4. Spawn three goroutines: `grpcSrv.Start()`, `agent.Run(ctx)`, `cleanupScheduler.Start(ctx)`.
+5. Block on `waitForShutdown` (handles `SIGINT`/`SIGTERM`).
+6. Stop in reverse order: cleanup → grpc → agent.
+
+Do not add new flags without an explicit reason — the smaller the surface, the safer the rollout across many hosts.
+
+---
+
+## 3. mTLS
+
+- The agent presents `--cert/--key` to the backend AND validates the backend with `--ca-cert`.
+- Inversely, the agent's own gRPC server requires the **backend's** certificate signed by the same CA — both peers verify each other.
+- TLS config lives in `internal/grpcserver/server.go`. Do not duplicate. Do not weaken (`InsecureSkipVerify=true` is forbidden in agent code paths).
+- Keepalive defaults are tuned (`maxConnectionIdle = 5m`, `keepaliveTime = 10s`, `keepaliveTimeout = 5s`, `keepaliveMinTime = 5s`). Adjust only with measurable justification (high-loss links, large agent fleet).
+
+---
+
+## 4. gRPC Service Surface
+
+`AgentService` implements the proto `flowdeploy.v1.AgentService`. It is one struct, but handler methods are grouped into files by domain (`handlers_*.go`). Rules:
+
+- **One handler per RPC method**. Method names mirror proto exactly.
+- **Stream handlers** must close their channels and respect `stream.Context().Done()`.
+- **Long-running streams** (`StreamDeployLogs`, `GetContainerLogs`, `GetContainerStats`, `ExecContainer`) MUST flush periodically and MUST stop within a few seconds of context cancellation.
+- The `AgentService` struct uses `sync.Map` for ephemeral indexes (`logStreams`, `deployLocks`). Do not introduce a third without justification.
+- Handlers return `status.Errorf(codes.X, ...)` for protocol-level errors (`InvalidArgument`, `NotFound`, `FailedPrecondition`). Use plain `error` for stream errors that should be surfaced as gRPC `Unknown`.
+
+---
+
+## 5. Docker Interaction
+
+The agent does NOT use the Docker daemon HTTP API. It shells out via `apps/shared/pkg/docker.Client` which wraps `docker` CLI calls through `apps/shared/pkg/executor`. Rules:
+
+- All commands go through `executor.New(workDir, executorTimeout, logger)`. NEVER `os/exec` directly.
+- All commands pass arguments individually: `executor.Run(ctx, "docker", "ps", "--format", ...)`. NEVER build a `sh -c` string.
+- Commands that produce streaming output (`docker logs -f`, `docker stats --no-stream=false`) use the streaming API of `executor` (line scanner + buffered channel).
+- Build operations may use the BuildKit cache mount at `/var/cache/paasdeploy/buildkit` if available (the path is mounted by the backend Compose file when running locally).
+
+---
+
+## 6. Deploy Executor
+
+`internal/deploy/executor.go` is the single function that performs an actual deploy on the host. Lifecycle:
+
+1. Receive `DeployRequest` (proto) — includes repo URL, branch/commit, env vars, healthcheck, port, workdir.
+2. Resolve target dir under `DEPLOY_DATA_DIR/<app-name>/...`.
+3. Clone or fetch (delegated to `shared/pkg/git`).
+4. Detect runtime version (delegated to `internal/deploy/version.go` + `shared/pkg/version`).
+5. Materialize compose file (`shared/pkg/compose`).
+6. Build (`docker compose build`) and bring up (`docker compose up -d`).
+7. Health check (`shared/pkg/health.Checker`) — retries with backoff.
+8. Stream every step as `DeployLogEntry` to the bidi stream.
+9. On failure: rollback to previous container if a previous version exists.
+
+Rules:
+
+- Idempotent: if called twice with the same commit SHA on the same app, the second call is a fast no-op.
+- Per-app filesystem locks via `shared/pkg/lock` — never let two deploys for the same app touch the same workdir.
+- Never delete the previous version's image until the new one is healthy.
+- Logs MUST be ANSI-stripped before being sent to the backend (the dashboard renders them as plain text with `xterm.js` for terminals only).
+
+---
+
+## 7. Cleanup
+
+`internal/cleanup/` runs periodic Docker pruning:
+
+- One immediate run on startup (`RunOnce`) to deal with leftovers from previous crashes.
+- Then on a schedule (typically once per hour — see `cleanup.Scheduler`).
+- Records each cleanup as a `CleanupLog` (sent to backend via gRPC) so the dashboard can show history.
+
+Never prune **named** volumes or images currently in use by an app under `DEPLOY_DATA_DIR`.
+
+---
+
+## 8. Self-Update
+
+`PushUpdate` (proto in `agent.proto`) accepts a stream of `UpdateBinaryChunk` messages, writes them to a temp path, atomically renames over the running binary, and re-execs.
+
+Rules:
+
+- Verify the binary is executable AND has the expected `version` (chunk metadata) before swap.
+- Never delete the old binary before the new one starts. Keep `agent.old` for one boot to allow manual rollback.
+- The backend embeds `AGENT_VERSION` at build time and uses it to decide whether an update is needed (see `internal/handler.LatestAgentVersion`).
+- After a successful self-update, the agent re-registers (via `Register`) and reports its new version on the next heartbeat.
+
+---
+
+## 9. Logging
+
+- `slog.New(slog.NewTextHandler(os.Stdout, ...))` — text format for journald compatibility.
+- One logger flows top-down (`main` → `agent.New(cfg, logger)` → `grpcserver.New(cfg, logger)`).
+- Add fields per-call: `logger.Info("deploy completed", "app", name, "duration_ms", ms)`.
+- DO NOT log raw env vars, secrets, or the contents of `--key`. The agent's logs end up in journald and possibly forwarded.
+
+---
+
+## 10. Concurrency
+
+- Every long-running goroutine spawned in `main` MUST cancel `ctx` on fatal error so siblings shut down too.
+- The deploy executor uses per-app locks (`sync.Map` + `lock.Locker`).
+- Streams (logs, stats, exec) close their producer goroutine when the consumer goes away.
+- Never `time.Sleep` in a loop without `select { case <-ctx.Done(): return }`.
+
+---
+
+## 11. Tests
+
+Currently small surface (`deploy/version_test.go`). Add tests for:
+
+- Pure helpers (version detection, path resolution, ANSI stripping).
+- Anything that decides whether a deploy proceeds (idempotency check, health threshold).
+- Self-update validation (new binary metadata).
+
+Use the standard `testing` package; mock `executor.Executor` by introducing a small interface where needed (do not mock `docker` CLI directly — too brittle).
+
+---
+
+## 12. Build
+
+```bash
+cd apps/agent
+go build \
+  -ldflags="-X github.com/paasdeploy/agent/internal/agent.Version=$(cat ../../AGENT_VERSION | tr -d '\n')" \
+  -o bin/agent ./cmd/agent
+```
+
+Or `make build-agent` from repo root.
+
+The version is embedded into `agent.Version`. Bump via `make bump-agent-version v=X.Y.Z` when:
+
+- The proto contract changes (deploy, container, exec, ssl).
+- The deploy executor lifecycle changes.
+- A bugfix changes observable behavior on the host.
+
+---
+
+## 13. Forbidden in the Agent
+
+- Reading from stdin (the agent runs as a daemon).
+- Writing to any path outside `DEPLOY_DATA_DIR`, `/var/cache/paasdeploy/`, the cert directory, and the binary's own directory (during self-update).
+- Calling backend HTTP endpoints. The agent only speaks gRPC.
+- Caching control-plane state (server list, app list). The agent is stateless beyond Docker and certs.
+- `sh -c` in any executor invocation.
+- Running as root inside the gRPC handlers when avoidable. Privilege should already be configured at install time.
+
+---
+
+**End of FlowDeploy Agent (Go) Conventions.**

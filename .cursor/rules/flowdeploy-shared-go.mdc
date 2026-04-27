@@ -1,0 +1,153 @@
+---
+description: FlowDeploy shared Go packages (apps/shared) — reusable primitives consumed by both backend and agent. Defines what belongs here vs what doesn't, package boundaries (docker, executor, git, health, lock, paths, safepath, traefik, version, compose, cleaner), zero-dependency rule, and testing.
+globs: ["apps/shared/**"]
+---
+
+# FlowDeploy — Shared Go Conventions
+
+> **Module**: `github.com/paasdeploy/shared`. Imported by both backend (via `replace ... => ../shared`) and agent (same).
+>
+> **Stack**: Go 1.24, standard library only (zero external dependencies — verify in `go.mod`).
+>
+> Subordinate to `flowdeploy-development-protocol.mdc`.
+
+---
+
+## 1. What Belongs in `shared`
+
+Primitives that are **identically useful** to backend and agent:
+
+- `pkg/docker` — Docker CLI wrapper (build, compose, ps, network, volume, prune, exec).
+- `pkg/compose` — `docker-compose.yml` materialization for an app.
+- `pkg/executor` — Subprocess executor with timeout, captured stdout/stderr, line streaming.
+- `pkg/git` — Clone, fetch, checkout helpers (HTTPS + token auth).
+- `pkg/health` — Health-check loop: HTTP probe with retries / interval / timeout.
+- `pkg/lock` — Per-app filesystem-aware lock (in-memory mutex + lock file).
+- `pkg/paths` — Resolves `DEPLOY_DATA_DIR/<app>/...` into safe absolute paths.
+- `pkg/safepath` — `IsSafeFileName` and similar guards against traversal.
+- `pkg/traefik` — Traefik dynamic config helpers (label generation, dashboard API client).
+- `pkg/cleaner` — Pruning policy primitives (decide what's safe to remove).
+- `pkg/version` — Detect runtime version from a project (Node `package.json`, Go `go.mod`, Python `requirements.txt`, etc.).
+
+---
+
+## 2. What Does NOT Belong
+
+- **Business logic** — anything specific to "FlowDeploy app", "user role", "audit trail", deploy queue scheduling. Those belong in `apps/backend/internal/{service,engine,repository}` or `apps/agent/internal/{deploy,grpcserver}`.
+- **HTTP framework code** — no `fiber`, no router. Pure functions that return data; let the caller wrap them.
+- **gRPC server / client** — that's `apps/backend/internal/grpcserver` and `apps/agent/internal/grpcserver`.
+- **Database access** — there are no `*sql.DB` consumers here. If a primitive needs persistence, accept an interface from the caller.
+- **Configuration loading** — config is the backend's concern (`apps/backend/internal/config`). Shared accepts values via constructor parameters.
+- **Anything with external dependencies** — `go.mod` MUST stay dependency-free. If you really need one, raise it explicitly (it changes both consumers' transitive trees).
+
+---
+
+## 3. Package Layout Conventions
+
+Each package is a single concern with a small public surface:
+
+```
+pkg/<name>/
+  <name>.go          Main implementation (e.g. executor.go, locker.go, checker.go)
+  <name>_test.go     Tests (when present)
+  helpers.go         Small private helpers if needed
+  constants.go       Public constants if any (e.g. docker/constants.go)
+```
+
+Naming:
+
+- Package name = directory name = single lowercase word.
+- Constructor: `New(...)` or `NewClient(...)`. NOT `NewExecutorClient` inside `executor` package — that stutters.
+- Receiver names: 1–2 letter mnemonic (`e *Executor`, `l *Locker`, `c *Client`). Be consistent within a package.
+
+---
+
+## 4. Function Signatures
+
+- First parameter: `ctx context.Context` for anything that does IO or might block.
+- Return error as the LAST value. Wrap with context: `fmt.Errorf("docker compose up: %w", err)`.
+- Avoid named returns unless required by `defer` mutation.
+- For long-running operations (`pkg/executor.Run`, `pkg/health.Check`, `pkg/git.Clone`), accept a `time.Duration` timeout via the constructor or call options — never read from env.
+
+---
+
+## 5. Logging
+
+- Each package that does meaningful work accepts a `*slog.Logger` in its constructor.
+- DO NOT log at the `INFO` level for routine operations — `DEBUG` is the default for "I did the thing". Reserve `INFO` for state transitions the operator cares about. `WARN`/`ERROR` for actually wrong things.
+- Add structured fields, never format strings: `logger.Debug("docker exec", "container", id, "args", args)`.
+
+---
+
+## 6. Errors
+
+- Define sentinel errors when callers need to discriminate: `var ErrLockHeld = errors.New("lock already held")`.
+- Wrap with `fmt.Errorf("%w", ...)` so `errors.Is`/`errors.As` work upstream.
+- Don't `panic` from library code. Return an error, even from `New(...)` if construction can fail.
+
+---
+
+## 7. Testing
+
+Existing tests:
+
+- `pkg/compose/generator_test.go`
+- `pkg/version/detect_test.go`
+
+Conventions:
+
+- Standard library `testing` only. Failures via `t.Fatalf`/`t.Errorf` with descriptive messages.
+- Test names in English: `TestGenerate_AppliesPortBinding`, `TestDetect_ReturnsNodeVersionFromPackageJSON`.
+- Table-driven where the input set is meaningful.
+- For packages that shell out (`docker`, `git`, `executor`), introduce a small interface and let the caller inject a fake. Don't try to mock subprocesses with environment trickery.
+- New packages: ship a `*_test.go` covering the happy path + the obvious error.
+
+---
+
+## 8. Concurrency
+
+- Locks live in `pkg/lock` (file + memory). Don't reinvent mutex strategies elsewhere — compose with this package.
+- Channels: bounded if used as queues. Pattern in `pkg/executor` for streaming output.
+- Goroutines spawned inside a function MUST exit before the function returns or be tied to the caller's `ctx`.
+
+---
+
+## 9. Filesystem Safety
+
+- Paths derived from user input ALWAYS go through `pkg/safepath` and `pkg/paths`. Never trust an app name as a directory component.
+- Always use `filepath.Join`, never string concatenation.
+- Permissions: directories `0755`, files `0644`, secrets `0600`. The CA private key in PKI uses `0600`.
+
+---
+
+## 10. Interfaces
+
+- Define interfaces on the **consumer** side (backend / agent), not in `shared`. The exception is when the package itself needs to expose a small abstraction for testability — then keep the interface tight (1–3 methods).
+- Don't write generic "Manager"/"Helper"/"Util" interfaces. Concrete structs are fine.
+
+---
+
+## 11. Go Module Hygiene
+
+```
+module github.com/paasdeploy/shared
+go 1.24.0
+toolchain go1.24.13
+```
+
+- `go.mod` must remain dependency-free. If you must add one, justify in the PR.
+- Both backend and agent reach this module via local `replace` — there is no published module. Do NOT remove the `replace` directives in `apps/backend/go.mod` and `apps/agent/go.mod`.
+
+---
+
+## 12. Forbidden in `shared`
+
+- Importing `apps/backend/...` or `apps/agent/...` (would create a cycle and is also semantically wrong).
+- External Go modules (no zerolog, no logrus, no third-party fs/exec libraries).
+- HTTP servers, gRPC servers, DB drivers.
+- Reading `os.Getenv` directly. Take values via constructor parameters.
+- Spawning daemons or background loops without a `context.Context` to cancel them.
+
+---
+
+**End of FlowDeploy Shared (Go) Conventions.**

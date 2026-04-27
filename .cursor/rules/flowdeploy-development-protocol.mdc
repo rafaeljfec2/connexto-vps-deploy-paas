@@ -1,0 +1,197 @@
+---
+description: FlowDeploy development protocol — root rule that governs the whole monorepo (Go backend + Go agent + React frontend + Protocol Buffers + Go shared packages). Defines workflow, quality gates, language, formatting and how the other flowdeploy-* rules compose.
+alwaysApply: true
+---
+
+# FlowDeploy — Development Protocol
+
+> **Project**: FlowDeploy (`connexto-vps-deploy-paas`) — a lightweight, self-hosted PaaS for automatic deployments from GitHub repositories with multi-server management via remote agents.
+>
+> **Scope**: This protocol governs ALL changes to this monorepo. Every other `flowdeploy-*.mdc` rule is subordinate to this one. In any conflict, this protocol wins.
+
+> **Mandatory orchestration**: every request that implies a file change is routed through [`flowdeploy-orchestrator.mdc`](./flowdeploy-orchestrator.mdc) — Architect → Approval Gate → Developer (Backend/Frontend/Proto/Agent/Shared/Infra/Docs) → Senior Reviewer. The orchestrator prints explicit visual banners and requires human approval between Architect and Developer. Do not bypass it.
+
+---
+
+## 1. Workspace Topology
+
+```
+connexto-vps-deploy-paas/                    # pnpm + Turborepo workspace, version 0.2.5
+  apps/
+    backend/      Go 1.24 — Fiber HTTP API + deploy engine + gRPC server (control plane)
+    agent/        Go 1.24 — gRPC server installed on remote VPS hosts
+    frontend/     React 18 + Vite + TypeScript + shadcn/ui + Tailwind + TanStack Query
+    proto/        Protocol Buffers (buf) — generated into apps/backend/gen/go
+    shared/       Reusable Go packages (docker, executor, git, health, lock, paths, traefik, ...)
+  deploy/         docker-compose.yml + Traefik static config + start/stop scripts
+  docs/           Architecture, roadmaps, integration guides (do not modify without explicit ask)
+  migrations/     Located inside apps/backend/migrations (golang-migrate, sequence-numbered)
+  AGENT_VERSION   Single line file with the current agent version (e.g. 0.21.1)
+```
+
+Module names (Go):
+
+- `github.com/paasdeploy/backend`
+- `github.com/paasdeploy/agent`
+- `github.com/paasdeploy/shared`
+
+The agent and backend both `replace` the shared module via local `replace` directives, and the agent additionally `replace`s the backend module to import generated protobuf code (`apps/backend/gen/go/...`).
+
+---
+
+## 2. Non-Negotiable Priorities
+
+These rules sit ABOVE speed, convenience and any agent heuristic:
+
+1. **No silent stack drift** — never introduce a new framework, ORM, runtime or major dependency without an explicit, in-conversation approval. The current stack is fixed: Fiber, pgx/database/sql, golang-migrate, gRPC, buf, React 18 + Vite, shadcn/ui, Tailwind, TanStack Query, Docker CLI subprocess, Traefik 3.x.
+2. **No business logic in handlers / controllers** — HTTP handlers in the backend stay thin (parse → guard → service call → response envelope).
+3. **No business logic in `apps/shared`** — shared is for primitives reusable across backend and agent (Docker CLI wrapper, executor, locks, health check, path resolution, version detection).
+4. **gRPC contract is the source of truth** — every cross-process call (backend ↔ agent) goes through proto messages defined in `apps/proto/flowdeploy/v1/*.proto`. Do not bypass with HTTP or shell.
+5. **Idempotent, observable deploys** — every deploy goes through the queue (`SELECT ... FOR UPDATE SKIP LOCKED` in `internal/engine/queue.go`). Workers must be safe to restart at any point.
+6. **Tests precede non-trivial fixes** — for any reproduced bug, write a failing test first when the affected package already has tests. New features in critical packages (`pki`, `engine`, `webhook`, `provisioner`, `compose`, `executor`, deploy version detection) require tests in the same change.
+
+If any instruction conflicts with the above, STOP and ask.
+
+---
+
+## 3. Mandatory Workflow (every change)
+
+For every task, follow this loop:
+
+1. **Read context** — at minimum: the file you are editing, its consumers (`Grep` for the symbol), and the relevant rule (`flowdeploy-{layer}.mdc`).
+2. **Plan briefly** — for anything bigger than a one-liner, state the diff plan (files + intent) before editing.
+3. **Implement** — keep the change minimal and on-topic. Do not opportunistically refactor unrelated code.
+4. **Lint locally** — see Section 6.
+5. **Run tests** — at minimum the package(s) you touched (`go test ./internal/engine/...` or `pnpm --filter @paasdeploy/frontend run typecheck`).
+6. **Self-review** — re-read the diff with the eye of a reviewer; verify naming, error wrapping, missing tests, unused imports.
+7. **Summarize the change** — short technical summary (1–2 paragraphs) plus a list of follow-ups if any.
+
+---
+
+## 4. Coding Language and Naming
+
+- All source code, identifiers, comments and commit messages: **English (US)**.
+- Conversation with the user, planning notes and PR descriptions: **PT-BR**.
+- Go identifiers: idiomatic Go (`PascalCase` exported, `camelCase` unexported, package = lower-snake-or-single-word).
+- TypeScript identifiers: `camelCase` for variables/functions, `PascalCase` for types/components, `SCREAMING_SNAKE_CASE` for module-level constants.
+- File names:
+  - Go: `snake_case.go` (e.g. `app_handler.go`, `agent_client_deploy.go`).
+  - TypeScript: `kebab-case.ts` / `kebab-case.tsx` (e.g. `app-card.tsx`, `use-apps.ts`).
+  - Protobuf: `snake_case.proto` (e.g. `agent.proto`, `deploy.proto`).
+- SQL migrations: `NNNNNN_description.{up,down}.sql`, sequential, never re-numbered.
+
+---
+
+## 5. File-Length and Cognitive Limits
+
+- Hard limit per file: **1000 lines**. Soft limit: 800. When approaching, split by responsibility (handlers per resource, services per use case, agent gRPC handlers per domain — see how `apps/agent/internal/grpcserver/handlers_*.go` is split).
+- Functions: prefer ≤ 60 lines. Cognitive complexity: keep Sonar `S3776` happy — early returns over nested ifs, extract helpers when nesting > 3.
+- Reuse before creating. Before adding a helper, search for one (`Grep` for the verb).
+
+---
+
+## 6. Local Quality Gates (before commit)
+
+The repo wires Husky + lint-staged + typecheck. Run the equivalent manually for any non-trivial change:
+
+```bash
+# Frontend
+pnpm --filter @paasdeploy/frontend run lint
+pnpm --filter @paasdeploy/frontend run typecheck
+
+# Backend (quick — fast linters only)
+pnpm run lint:go-quick
+
+# Backend (full — same as CI; requires Go 1.24-built golangci-lint)
+pnpm run lint:go
+
+# Tests
+pnpm --filter @paasdeploy/frontend run test  # if/when present
+cd apps/backend && go test ./...
+cd apps/shared && go test ./...
+cd apps/agent && go test ./...
+```
+
+The pre-commit hook runs:
+
+1. `pnpm -w lint-staged` (frontend lint + format)
+2. `pnpm run lint:go-quick` (only if `golangci-lint` is built with Go ≥ 1.24)
+3. `pnpm run typecheck:frontend`
+4. On `main`, `scripts/bump-versions.sh` may auto-bump patch versions
+
+Never bypass hooks (`--no-verify`) without explicit user approval.
+
+---
+
+## 7. Forbidden Practices
+
+The following are PROHIBITED across the whole repo:
+
+- **`||` for fallback assignments** — use `??` in TS (`linkedinPersonUrn ?? ''`). In Go use explicit `if x == "" { x = default }`.
+- **`any` in TypeScript** — use `unknown` and narrow, or define a precise type. Test files included.
+- **Type-naming "I" prefix** in TS. Use the noun directly (`User`, not `IUser`).
+- **`sh -c` in agent or backend executor calls** — use the wrapper in `shared/pkg/executor` with explicit `name, args...` to keep arguments un-shell-interpreted.
+- **Editing generated code** under `apps/backend/gen/go/**` — change `apps/proto/flowdeploy/v1/*.proto` and regenerate via `make proto`.
+- **Editing `.env`** without explicit user approval. Always edit `.env.example` instead and ask.
+- **Hardcoded secrets** anywhere in source. Use config in `apps/backend/internal/config/config.go` or env vars.
+- **Comments that narrate the code** ("// returns the user", "// loop over apps"). Comment intent, trade-offs, gotchas — not mechanics.
+- **Wildcards in CORS origins** in production paths. Use explicit list from `CORS_ORIGINS`.
+- **Adding a new top-level dependency** without verifying it is not already provided by the current stack and without user approval.
+
+---
+
+## 8. Async Composition (Frontend)
+
+- `Promise.all` for **independent** async operations (e.g. parallel React Query fetches in a hook).
+- `Promise.allSettled` when partial success must be tolerated (telemetry, fan-out reads).
+- `Promise.race` only for first-result-wins (typically with a timeout signal).
+- Never use `Promise.all` for dependent calls.
+
+---
+
+## 9. Concurrency (Backend / Agent)
+
+- Use `context.Context` everywhere I/O happens — first parameter, named `ctx`.
+- Always honour `ctx.Done()` in long-running goroutines (the engine workers, SSE hubs, log streams).
+- Use `errgroup` or explicit `sync.WaitGroup` + error channel — never raw spawn-and-forget for foreground work.
+- Locks used today: `apps/shared/pkg/lock` for filesystem-scoped per-app locks, `sync.Map` for ephemeral indexes (e.g. agent log streams, deploy locks). Do not introduce a new lock primitive without justifying.
+- Database: `pgx/v5` via `database/sql` driver. Always `defer rows.Close()`. Always check `rows.Err()` after the loop.
+
+---
+
+## 10. SSE / Real-Time
+
+- Backend exposes a single SSE endpoint (`/events/deploys`) registered in `internal/handler/sse_handler.go` and fed by `internal/engine/notifier.go`.
+- Event names are a closed set (see `apps/frontend/src/services/sse.ts` `SSE_EVENT_NAMES`): `deploy`, `log`, `health`, `stats`, `system_stats`, `server_stats`, `invalidate`, `provision`, `agent_update`. Adding an event requires updating BOTH the producer (notifier) and the consumer set.
+- Reconnection policy on the client uses exponential backoff capped at 30 s. Don't change without justification.
+
+---
+
+## 11. Versioning
+
+- Root `package.json` and `apps/frontend/package.json` track the platform version (currently `0.2.5`). The pre-commit hook bumps patch versions on `main` via `scripts/bump-versions.sh`.
+- `AGENT_VERSION` (single line at repo root) tracks the **agent binary** version separately. Bump it with `make bump-agent-version v=X.Y.Z` whenever the agent's gRPC contract or deploy executor behavior changes.
+- Backend embeds `LatestAgentVersion` at build time via `-ldflags`. Frontend reads this through the `/api/system` endpoint to decide whether to offer agent updates.
+
+---
+
+## 12. Documentation Discipline
+
+- Markdown files in `docs/` are **specification artifacts** — do not modify without explicit user request.
+- `README.md` reflects the user-facing project state — keep it in sync only when the change is user-visible (new env var, new command, removed feature).
+- `CHANGELOG.md` is the canonical history. Append a new entry under "Unreleased" for any user-visible change.
+- Adding a new top-level concept (new app, new domain, new infra component) → consider an ADR via the `create-adr` skill.
+
+---
+
+## 13. When the Task is Ambiguous
+
+Default to asking. Prefer 2–4 well-targeted questions over guessing. The bias is "small wrong change is more expensive than a 30-second clarification". This is especially true for:
+
+- Anything touching `apps/proto/**`, migrations, or `pki/`.
+- Anything touching the deploy lifecycle (engine, queue, dispatcher, worker).
+- Anything affecting authentication (cookie name, GitHub OAuth flow, mTLS).
+
+---
+
+**End of FlowDeploy Development Protocol.**

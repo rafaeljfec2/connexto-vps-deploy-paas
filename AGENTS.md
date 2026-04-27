@@ -46,6 +46,7 @@ connexto-vps-deploy-paas/
 
 Detailed conventions live under `.cursor/rules/`:
 
+- `flowdeploy-orchestrator.mdc` — **always applies**; Architect → Approval Gate → Developer (Backend/Frontend/Proto/Agent/Shared/Infra/Docs) → Senior Reviewer, with mandatory visual banners
 - `flowdeploy-development-protocol.mdc` — root, always applies
 - `flowdeploy-backend-go.mdc` — `apps/backend/**`
 - `flowdeploy-agent-go.mdc` — `apps/agent/**`

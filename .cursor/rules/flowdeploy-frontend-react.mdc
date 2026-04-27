@@ -1,0 +1,223 @@
+---
+description: FlowDeploy frontend (apps/frontend) — React 18 + Vite 6 + TypeScript strict + shadcn/ui + Tailwind 3 + TanStack Query 5 + React Router 6. Defines folder layout, feature-sliced architecture, API envelope contract, SSE consumption, design tokens, mobile-first rules, and lint/format gates.
+globs: ["apps/frontend/**"]
+---
+
+# FlowDeploy — Frontend (React) Conventions
+
+> **Stack**: React 18 (StrictMode), Vite 6, TypeScript 5.6 strict, React Router 6, TanStack Query 5, shadcn/ui (Radix UI primitives), Tailwind 3.4, lucide-react, date-fns, xterm.js for terminals, Prettier + ESLint flat config.
+>
+> Package: `@paasdeploy/frontend`. Subordinate to `flowdeploy-development-protocol.mdc`.
+
+---
+
+## 1. Directory Layout
+
+```
+apps/frontend/src/
+  app/                  Bootstrap shell — App.tsx, providers.tsx, layout.tsx, routes.tsx
+  pages/                Route-level components (one file per top-level route)
+  features/             Feature-sliced modules (apps, audit, containers, dashboard, deploys,
+                        images, migration, resources, servers, settings, templates)
+                          components/   # feature-scoped components
+                          hooks/        # feature-scoped hooks (useApps, useAppActions, ...)
+                          types.ts      # local domain types if non-shared
+                          utils/        # pure helpers
+  components/           Cross-feature UI (page-header, header, status-badge, ...) + ui/ (shadcn primitives)
+  contexts/             React contexts (auth-context.tsx)
+  hooks/                Cross-cutting hooks (use-sse, use-theme, use-toast, use-copy-to-clipboard)
+  services/             api/ (per-resource clients + client.ts envelope wrapper),
+                        api.ts (re-export), sse.ts (SSE singleton), query-client.ts
+  types/                Shared domain types (app.ts, deployment.ts, docker.ts, server.ts, api.ts)
+  lib/                  Pure utilities (format, status, query-helpers, log-utils, utils.tsx)
+  constants/            query-config (stale times), routes (defaults), enums
+  index.css             Tailwind layer + CSS variables (design tokens)
+  main.tsx              StrictMode root
+```
+
+Path alias: `@/*` → `src/*` (configured in `tsconfig.json` and `vite.config.ts`).
+
+---
+
+## 2. Feature-Sliced Architecture
+
+Each feature lives under `src/features/<name>/`. Rules:
+
+- A feature exposes its UI via components in `components/` and behavior via hooks in `hooks/`.
+- A feature MAY import from `@/components` (cross-feature UI), `@/components/ui` (shadcn), `@/services`, `@/types`, `@/lib`, `@/constants`, `@/hooks` (cross-cutting).
+- A feature MUST NOT import from another feature directly. If two features need to share, promote the shared piece to `@/components`, `@/hooks` or `@/lib`.
+- A page in `src/pages/` is a thin composition of feature components + the page-header component. Never put data fetching in pages — use feature hooks.
+
+---
+
+## 3. TypeScript Discipline
+
+- `strict: true`, `noUncheckedIndexedAccess: true`, `noUnusedLocals: true`, `noUnusedParameters: true` are ON. Don't disable per-file.
+- **`any` is FORBIDDEN** anywhere — including tests. Use `unknown` and narrow.
+- All interface/type fields are `readonly` by default (existing pattern in `types/api.ts`).
+- Component props: declare with `Readonly<{ ... }>` or an `interface ComponentProps` with all `readonly` fields. SonarQube `S6759` must pass.
+- Use the operator `??` (not `||`) for fallback assignments. `||` is for boolean logic only.
+- Prefer `type` aliases for unions and shape composition; prefer `interface` only when extension/merging is needed.
+- No `enum` — use `as const` objects + `typeof X[keyof typeof X]` derived types.
+
+---
+
+## 4. API Layer
+
+`src/services/api/client.ts` is the single fetch wrapper. Every API call goes through `fetchApi` / `fetchApiList` / `fetchApiDelete`.
+
+The backend always returns this envelope:
+
+```ts
+type ApiEnvelope<T> = {
+  readonly success: boolean;
+  readonly data: T | null;
+  readonly error: ApiErrorInfo | null;
+  readonly meta: ApiMeta;
+};
+```
+
+Rules:
+
+- Never call `fetch` directly inside features or pages — always import a function from `services/api/`.
+- `API_BASE` is `${VITE_API_URL}/paas-deploy/v1`. Do not hardcode this prefix elsewhere.
+- All requests use `credentials: "include"` (HttpOnly session cookie).
+- Errors throw `ApiError` (with `code`, `status`, `traceId`, optional `details`) — features handle them with React Query's `error` slice or `onError` callbacks.
+- New resources go in their own file under `src/services/api/{resource}.ts` and are re-exported via `services/api/index.ts`.
+
+---
+
+## 5. Server State (TanStack Query)
+
+- One query client (`src/services/query-client.ts`) provided at the root via `QueryClientProvider` in `app/providers.tsx`.
+- Query keys are arrays starting with the resource name: `["apps"]`, `["app", id]`, `["containerLogs", appId, tail]`. Never bare strings.
+- Stale times come from `@/constants/query-config` (`STALE_TIMES`). Don't sprinkle magic numbers in `useQuery` calls.
+- Mutations invalidate the relevant queries in `onSuccess` (see `useApps.ts` for the pattern).
+- Use `enabled: !!id` for queries that depend on a parameter (avoid auto-fetch with empty IDs).
+- For continuously updated data (logs, stats, system metrics) prefer SSE invalidation over polling. The notifier on the backend emits an `invalidate` event consumed by `use-sse.ts` to call `queryClient.invalidateQueries`.
+
+---
+
+## 6. SSE (Real-Time)
+
+`src/services/sse.ts` exports a singleton `sseClient`. Rules:
+
+- One SSE connection per session, opened by the auth-aware layer (after login). Reused across pages.
+- Event names are a closed set: `deploy`, `log`, `health`, `stats`, `system_stats`, `server_stats`, `invalidate`, `provision`, `agent_update`. Adding a new event requires updating BOTH `SSE_EVENT_NAMES` and the backend notifier in lockstep.
+- Reconnection uses exponential backoff capped at 30 s. Don't bypass.
+- Subscribers receive `SSEEvent` and dispatch via `useEffect` in `use-sse.ts` consumers.
+
+---
+
+## 7. Routing
+
+- `react-router-dom` v6, declarative in `app/routes.tsx`. ALL pages are `lazy()`-loaded (code-split per route). New pages MUST be lazy-imported the same way.
+- Protected routes wrap with `<ProtectedRoute>` (`src/components/protected-route.tsx`).
+- Route paths come from `@/constants/routes`. Never hardcode `"/apps/123"` strings — use the path helpers.
+
+---
+
+## 8. Design System
+
+- Tailwind 3.4 in JIT mode with `darkMode: ["class"]`. Theme toggle is in `components/theme-toggle.tsx` driven by `hooks/use-theme.ts`.
+- Color tokens are CSS variables in `src/index.css` and exposed to Tailwind in `tailwind.config.ts` via `hsl(var(--token))`. The base palette: `background`, `foreground`, `card`, `popover`, `primary`, `secondary`, `muted`, `accent`, `destructive`, `border`, `input`, `ring`, plus the deploy-specific `status.success / running / failed / pending`.
+- shadcn/ui primitives live in `src/components/ui/`. **Generate only the primitives you actually use.** Don't import from npm `@shadcn/ui` (it doesn't exist that way) — re-use the existing files or add a new one with the official shadcn CLI, then conform it to the project's patterns.
+- Icons: `lucide-react`. Match the existing 16/20 px sizing convention used in feature components.
+- Animations: use the keyframes already defined in `tailwind.config.ts` (`animate-fade-in-up`, `animate-scale-in`, etc.). Don't author one-off animations inside components.
+
+---
+
+## 9. Mobile-First (Mandatory)
+
+The user rule says: **frontend is mobile-first**.
+
+- Default Tailwind classes target the mobile viewport. Larger breakpoints (`sm:`, `md:`, `lg:`, `xl:`, `2xl:`) progressively enhance.
+- Custom breakpoint `xs: 475px` exists; use it for small phone landscape adjustments.
+- Tap targets: minimum 44 × 44 px. Use `min-h-11 min-w-11` or the existing button sizes.
+- Use the `safe-top`, `safe-bottom`, `safe-left`, `safe-right` spacing tokens for iOS safe areas where layout touches the viewport edges.
+- `min-h-dvh` / `h-dvh` (dynamic viewport) for full-screen pages — already wired in `tailwind.config.ts`.
+
+---
+
+## 10. Component Conventions
+
+- Function components only — no class components.
+- Props on the FIRST argument as a single object: `function AppCard({ app, onSelect }: Readonly<AppCardProps>) { ... }`. SonarQube `S6759` (readonly props) must pass.
+- One component per file. File name `kebab-case.tsx`, exported as `PascalCase`.
+- A page may have a default export OR a named export — be consistent within `src/pages/` (current convention: named export, lazy-imported via `.then((m) => ({ default: m.PageName }))`).
+- **No comments narrating the code**. Comment intent only.
+- Avoid prop drilling more than two levels — promote to a feature hook or context.
+- Custom hooks: name `useThing`, place in the closest scope (feature `hooks/` if feature-specific, top-level `src/hooks/` if cross-cutting).
+
+---
+
+## 11. Async Composition
+
+- `Promise.all` for **independent** fetches (typical inside a hook that aggregates multiple API calls). Existing pattern: parallelize via multiple `useQuery` hooks rather than a single `Promise.all` whenever possible (Query handles caching better that way).
+- `Promise.allSettled` for fan-out where a single failure shouldn't cancel siblings (rare).
+- Never `Promise.all` for dependent calls. Sequence with `await` and bail on the first error.
+
+---
+
+## 12. Error and Loading UX
+
+- Loading: prefer skeletons (`src/components/loading-grid.tsx`, `src/components/ui/skeleton.tsx`) over spinners for content. A spinner (`Loader2` from lucide) is acceptable for short async actions inside buttons.
+- Errors: show via `error-message.tsx` for inline feedback, or `useToast()` for transient notifications. Always include the trace ID when available (it comes from `ApiError.traceId`).
+- Empty states: use `empty-state.tsx` with a helpful CTA, never a bare "No data".
+
+---
+
+## 13. Forms
+
+- shadcn `<form-field />` (`components/form-field.tsx`) is the canonical wrapper. Compose with `<Label>`, `<Input>`, `<Select>`, etc.
+- For validation, prefer single-source helpers in `lib/` (e.g. `validateRepoURL`, `validateBranchName`). Avoid pulling a heavy form library — the current scale doesn't need it.
+
+---
+
+## 14. Logs and Terminals
+
+- Container logs: `components/container-logs-viewer.tsx` is the single viewer. It accepts a stream of strings and handles ANSI stripping and virtual scrolling.
+- Interactive terminal: `components/terminal/` wraps `xterm.js` + `@xterm/addon-fit`. Don't load xterm anywhere else — bundle once.
+
+---
+
+## 15. Lint and Format
+
+- ESLint flat config in `eslint.config.js`. Rules of note:
+  - `no-console`: warn (allowed: `console.warn`, `console.error`).
+  - `react-hooks/*` recommended.
+  - `jsx-a11y/*` recommended.
+  - `unused-imports/no-unused-imports`: error.
+  - Prettier integrated via `eslint-plugin-prettier`.
+- Prettier with `@trivago/prettier-plugin-sort-imports` — import order is enforced; let the plugin sort.
+- Run `pnpm lint:fix` before committing if your editor doesn't auto-fix.
+- `pnpm typecheck` (no emit) must pass.
+
+---
+
+## 16. State Management
+
+- **Server state**: TanStack Query.
+- **UI state**: local `useState` / `useReducer`.
+- **Auth state**: `contexts/auth-context.tsx`.
+- **Theme**: `hooks/use-theme.ts` + CSS class on `<html>`.
+- DO NOT add Redux, Zustand or Recoil. The current scale doesn't justify it.
+
+---
+
+## 17. Anti-Patterns (PROHIBITED)
+
+- `any` types, even in tests.
+- `||` for fallback assignment (use `??`).
+- Hardcoded API URLs outside `services/api/client.ts`.
+- Hardcoded route paths outside `@/constants/routes`.
+- Direct `fetch` calls in features or pages.
+- Direct DOM manipulation outside `xterm`-controlled containers.
+- Importing across features (`@/features/foo` from `@/features/bar`).
+- Inline magic numbers — promote to `@/constants` (`STALE_TIMES`, `DEFAULTS`, etc.).
+- `console.log` in production code (eslint warns; `console.warn`/`console.error` are allowed for genuine errors only).
+- Shipping a primitive copied from shadcn without aligning to the project's CSS variables.
+
+---
+
+**End of FlowDeploy Frontend (React) Conventions.**

@@ -1,0 +1,195 @@
+---
+description: FlowDeploy operations — Docker Compose stack (Traefik + Postgres + backend + frontend), Traefik routing rules, golang-migrate workflow, AGENT_VERSION lifecycle, version-bump pre-commit, GitHub Actions deploy pipeline, environment configuration, and local startup scripts.
+globs: ["deploy/**", ".github/workflows/**", "scripts/**", "Dockerfile*", "AGENT_VERSION", "Makefile"]
+---
+
+# FlowDeploy — Operations & Infrastructure Conventions
+
+> Subordinate to `flowdeploy-development-protocol.mdc`.
+>
+> Scope: how the platform is built, packaged, deployed, versioned, and run — both locally and in production.
+
+---
+
+## 1. Local Development Stack
+
+The `deploy/docker-compose.yml` brings up:
+
+| Service    | Image                        | Purpose                                                                |
+| ---------- | ---------------------------- | ---------------------------------------------------------------------- |
+| `traefik`  | `traefik:v3.2`               | Reverse proxy + TLS terminator + gRPC TCP passthrough on `:50051`      |
+| `postgres` | `postgres:16-alpine`         | Single Postgres for all backend data (apps, deployments, sessions, …)  |
+| `backend`  | built from `apps/backend`    | API + deploy engine + control-plane gRPC (port 8080 HTTP, 50051 gRPC)  |
+| `frontend` | built from `apps/frontend`   | Static SPA served behind Traefik on port 80                            |
+
+Network: `paasdeploy` (external — must be created beforehand by `deploy/start.sh`).
+
+Volumes:
+
+- `postgres-data` — Postgres datadir
+- `deploy-data` — `/data/apps` mount (cloned repos and per-app filesystem state)
+- `traefik-logs`, `traefik-certs`
+- `buildkit-cache` — BuildKit cache mounted into the backend at `/var/cache/paasdeploy/buildkit`
+
+Useful commands (root `package.json`):
+
+```bash
+pnpm docker:up      # start the stack
+pnpm docker:down    # stop the stack
+pnpm docker:logs    # follow logs
+pnpm docker:build   # rebuild images
+```
+
+Start helper: `bash deploy/start.sh` (creates the Docker network, opens ufw port 50051 if applicable, then `docker compose up -d --build`). Stop helper: `bash deploy/stop.sh`.
+
+---
+
+## 2. Traefik
+
+Static config: `deploy/traefik/traefik.yml`. Dynamic config comes from container labels.
+
+Routing in `docker-compose.yml`:
+
+- Backend HTTP: `Host(localhost) && (PathPrefix(/api) || PathPrefix(/events) || PathPrefix(/health))`
+- Backend gRPC: TCP entrypoint `grpc` (port 50051) with `tls.passthrough=true` (mTLS terminates at the backend, NOT at Traefik).
+- Frontend: `Host(localhost)` (priority 1 so it loses to the backend rule on overlap).
+
+Rules:
+
+- gRPC for the agent ingress MUST stay on TCP passthrough. Don't switch to Traefik HTTP/2 termination — it would break mTLS.
+- Don't change the `paasdeploy` network name without updating `start.sh`, the deploy workflow, and any per-app deploy paths.
+
+---
+
+## 3. Database & Migrations
+
+- One Postgres instance per environment.
+- Migrations in `apps/backend/migrations/` (golang-migrate, sequence-numbered `NNNNNN_*.{up,down}.sql`).
+- Migrations run automatically on backend boot (`runMigrationsFirst()` in `cmd/api/main.go`). DO NOT add a separate "migrate" command — boot is the contract.
+- Workflow for a schema change:
+  1. Create the next sequential pair (`NNNNNN_description.up.sql`, `.down.sql`).
+  2. Update affected `domain.*` types and `repository/*_repository.go`.
+  3. Add a Wire provider entry if a new repo is introduced.
+  4. Add a corresponding handler/service path if needed.
+  5. Run `cd apps/backend && go test ./...` and `pnpm typecheck:frontend` if the API contract changed.
+- NEVER modify a migration that has been merged. NEVER renumber.
+
+---
+
+## 4. AGENT_VERSION Lifecycle
+
+`AGENT_VERSION` (single line at repo root) is the canonical version of the agent binary distributed to remote VPS hosts.
+
+- Bump when:
+  - A `.proto` change requires the new agent for full functionality.
+  - The deploy executor lifecycle, cleanup policy, or any behavior on the host changes.
+  - A bugfix changes observable behavior the operator should care about.
+- Command: `make bump-agent-version v=X.Y.Z`.
+- The backend embeds this value into `internal/handler.LatestAgentVersion` via `-ldflags` (`pnpm backend:build`, `make build`, and the GitHub Actions workflow). The agent reports its own version via heartbeat; the dashboard compares and offers upgrades.
+- The `agent` binary embeds its OWN running version into `internal/agent.Version` via `-ldflags`. Both numbers must agree at the version that was current when the binary was built.
+
+---
+
+## 5. Versioning the Platform
+
+- Root `package.json` → platform version (currently `0.2.5`).
+- `apps/frontend/package.json` → frontend version (in lockstep with root).
+- `apps/backend/package.json` → backend version.
+- `AGENT_VERSION` → agent version (independent).
+- The pre-commit hook on `main` runs `scripts/bump-versions.sh`, which auto-bumps the patch number for whichever of `frontend`, `backend`, `agent`, or root was touched in the staged diff. Don't fight the script — let it bump.
+
+---
+
+## 6. Lint Pipeline
+
+- Frontend: ESLint flat config + Prettier (configured in `apps/frontend/eslint.config.js`).
+- Backend & shared & agent: `golangci-lint` (must be built with Go 1.24+).
+  - Local quick: `pnpm run lint:go-quick` (fast linters only, ~5–15 s).
+  - Local full: `pnpm run lint:go` (same as CI; falls back to a Docker image `paasdeploy-golangci-lint:1.61.0` if local Go version mismatches).
+  - The Docker fallback is built from `apps/backend/scripts/Dockerfile.lint`.
+- Pre-commit (`.husky/pre-commit`):
+  1. `pnpm -w lint-staged` (frontend ESLint + Prettier on changed files).
+  2. `pnpm run lint:go-quick` (only if `golangci-lint` is built with Go ≥ 1.24).
+  3. `pnpm run typecheck:frontend`.
+  4. On `main`, `scripts/bump-versions.sh`.
+
+Don't bypass the pre-commit hook (`--no-verify`) without explicit user approval.
+
+---
+
+## 7. CI / GitHub Actions
+
+`.github/workflows/deploy-backend.yml` triggers on `push` to `main` for paths under `apps/backend/**`, `apps/agent/**`, `apps/proto/**`, the workflow file itself, scripts, or `AGENT_VERSION`. Stages:
+
+1. **validate-environment** — checks required GitHub Variables/Secrets are present in the `Prod` environment.
+2. Build & push images to `ghcr.io/<owner>/<repo>-backend`.
+3. Deploy to the production host (`api-deploy.connexto.com.br`), behind the `paasdeploy` and `traefik-public` networks.
+
+Rules:
+
+- DO NOT run untrusted code in the workflow. The agent binary is built from this repo only.
+- Production env vars come from GitHub Environment `Prod` — never inline them in the workflow file.
+- Do not push to `main` if you need to ship a backend change with a corresponding agent change unless `AGENT_VERSION` is bumped in the same commit (the workflow distributes the new agent during deploy).
+
+---
+
+## 8. Environment Variables
+
+Source of truth: `.env.example` at repo root. Document EVERY required variable here. The backend reads them via `internal/config/config.go` with sensible defaults.
+
+Production-only variables NOT in `.env.example` (must come from GitHub Secrets / a managed secret store):
+
+- `GITHUB_CLIENT_SECRET`
+- `GITHUB_APP_PRIVATE_KEY` (or path)
+- `TOKEN_ENCRYPTION_KEY` (32 bytes)
+- `POSTGRES_PASSWORD`
+
+Rules:
+
+- NEVER edit `.env` (the user's local file). If you need a new variable, add it to `.env.example` and mention it in the PR.
+- Don't read env vars outside `internal/config/`.
+
+---
+
+## 9. Container Build
+
+- Backend `Dockerfile`: multi-stage. Builder stage compiles with `-ldflags` injecting `AGENT_VERSION`. Final stage is alpine-based with the binary + minimal runtime deps (Docker CLI is mounted from the host via the socket — not bundled in the image).
+- Frontend `Dockerfile`: multi-stage. Builder runs `pnpm install --frozen-lockfile` + `vite build`. Final stage is nginx-alpine serving `dist/`.
+- Agent `Dockerfile`: present for local testing; production agents are installed as systemd services on bare VPS hosts (NOT containers). The provisioner places the binary under `/usr/local/bin/flowdeploy-agent` (or similar) and the service unit calls it with the right flags.
+
+---
+
+## 10. Local-vs-Remote Deploys
+
+The platform has two deploy targets:
+
+1. **Local (control-plane host)** — backend executes `docker compose up -d` directly via `shared/pkg/docker` against the host's Docker socket. Restricted to admins (`RequireAdminForLocal`).
+2. **Remote (registered server)** — backend calls the agent's `ExecuteDeploy` over gRPC. The agent does the same docker-compose dance locally on the remote host.
+
+Code paths share the same `engine.Worker` skeleton; the dispatcher decides which target by inspecting the app's `server_id`.
+
+---
+
+## 11. Backups (operational note)
+
+- Postgres: daily logical dump (`pg_dump`) is the platform's baseline. Wire it via the host scheduler — not the backend.
+- `DEPLOY_DATA_DIR`: rebuildable from Git + image cache; backups are nice-to-have, not critical.
+- TLS material:
+  - The CA private key (in DB) IS critical. Its loss invalidates every agent cert and forces a full re-provisioning. Snapshot it offline as part of release procedure.
+  - Per-agent certs can be re-issued, so backing them up is unnecessary.
+
+---
+
+## 12. Forbidden in Ops
+
+- Editing migrations after they ship.
+- Running `docker compose down -v` against a production stack (deletes Postgres volume).
+- Adding a new top-level service to `docker-compose.yml` without an ADR — the current 4-service shape is the contract.
+- Merging a backend change that requires a new agent without bumping `AGENT_VERSION` in the same commit.
+- Introducing a new secret type without (a) adding it to `.env.example`, (b) wiring it through `internal/config`, (c) documenting it here.
+- Using `--no-verify` to skip Husky.
+- Force-pushing to `main`.
+
+---
+
+**End of FlowDeploy Operations Conventions.**

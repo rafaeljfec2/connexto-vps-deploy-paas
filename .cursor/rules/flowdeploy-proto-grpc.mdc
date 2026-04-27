@@ -1,0 +1,172 @@
+---
+description: FlowDeploy Protocol Buffers (apps/proto) — versioned gRPC contracts between backend and agent. Defines buf workflow, package naming, generated output paths, breaking-change policy, message conventions, and how to keep agent/backend in lockstep.
+globs: ["apps/proto/**", "apps/backend/gen/go/**"]
+---
+
+# FlowDeploy — Proto / gRPC Conventions
+
+> **Stack**: Protocol Buffers (proto3), [buf](https://buf.build/) for lint + generate, `google.golang.org/grpc` v1.79+, `google.golang.org/protobuf` v1.36+.
+>
+> The proto package is the **single source of truth** for everything the backend and agent exchange. The generated Go code is checked in (`apps/backend/gen/go/...`) and consumed by both `paasdeploy/backend` and `paasdeploy/agent` (the agent imports it via the `replace` directive on `paasdeploy/backend`).
+
+---
+
+## 1. Layout
+
+```
+apps/proto/
+  buf.yaml            v1 config — DEFAULT lint, FILE breaking
+  buf.gen.yaml        v2 generation — emits Go + gRPC Go stubs into apps/backend/gen/go
+  flowdeploy/v1/
+    agent.proto       AgentService — the RPCs the backend calls on each remote agent
+    server.proto      Messages about servers, containers, system, docker, networks, volumes
+    deploy.proto      Deploy request/response, log entries, status enums
+    common.proto      Shared messages (timestamps wrappers, error info, pagination if needed)
+```
+
+Output (DO NOT EDIT):
+
+```
+apps/backend/gen/go/flowdeploy/v1/
+  agent.pb.go
+  agent_grpc.pb.go
+  server.pb.go
+  deploy.pb.go
+  common.pb.go
+```
+
+---
+
+## 2. Generation Workflow
+
+```bash
+# from repo root
+make proto             # runs proto-lint then proto-go
+# or step-by-step
+make proto-lint        # buf lint apps/proto
+make proto-go          # cd apps/proto && buf generate
+```
+
+Rules:
+
+- ALWAYS run `make proto` after editing any `.proto` file. The generated files MUST be committed in the same change as the `.proto` change.
+- NEVER hand-edit anything under `apps/backend/gen/go/`. Regenerate.
+- If your change requires a different plugin version, edit `apps/proto/buf.gen.yaml` and call it out explicitly in the PR.
+
+---
+
+## 3. Package & Naming
+
+- Proto package: `flowdeploy.v1` — every file declares `package flowdeploy.v1;`.
+- Go option in every file: `option go_package = "github.com/paasdeploy/backend/gen/go/flowdeploy/v1;flowdeployv1";`.
+- File names: `snake_case.proto` (no dashes).
+- Service names: `PascalCase` ending in `Service` (e.g. `AgentService`).
+- RPC names: `PascalCase` verbs (`Register`, `Heartbeat`, `ExecuteDeploy`, `StreamDeployLogs`).
+- Message names: `PascalCase`, with `Request`/`Response` suffix for RPC pairs.
+- Enum names: `PascalCase`. Enum values: `SCREAMING_SNAKE_CASE`, with the zero value being `<ENUM_NAME>_UNSPECIFIED` per `buf` defaults.
+- Field names: `snake_case` in proto. The Go generator turns them into `PascalCase`.
+
+---
+
+## 4. Versioning and Breaking Changes
+
+- The current major version is **v1**. Everything lives under `flowdeploy/v1/`.
+- `buf` is configured with `breaking: { use: [FILE] }` — a breaking change inside a file fails the lint.
+- **Backward-compatible changes** (allowed without bumping):
+  - Adding new RPC methods.
+  - Adding new messages.
+  - Adding new fields to messages (preserving field numbers).
+  - Adding new enum values that consumers must default-handle.
+- **Breaking changes** (forbidden in v1):
+  - Removing or renaming RPCs / messages / fields.
+  - Renumbering fields.
+  - Changing a field type.
+  - Removing enum values.
+- For an unavoidable breaking change, create `flowdeploy/v2/` next to v1 and migrate consumers behind a feature flag. This is a major architectural decision — do not ship without an ADR.
+
+---
+
+## 5. Lockstep Updates (Backend + Agent)
+
+Every proto change has THREE consumers that must be updated together:
+
+1. The `.proto` file.
+2. The generated Go files (`apps/backend/gen/go/flowdeploy/v1/*.pb.go`).
+3. The implementations:
+   - Backend: `apps/backend/internal/agentclient/*` (client side) and `apps/backend/internal/grpcserver/*` (server side, for backend-hosted RPCs).
+   - Agent: `apps/agent/internal/grpcserver/handlers_*.go` for AgentService methods.
+
+If you add a new RPC to `AgentService`:
+
+1. Add the `rpc Foo(FooRequest) returns (FooResponse);` line in `agent.proto`.
+2. Define `FooRequest`/`FooResponse` (in `agent.proto`, `server.proto`, or `deploy.proto` depending on domain).
+3. Run `make proto`.
+4. Implement the method in `apps/agent/internal/grpcserver/handlers_<domain>.go` (the embedded `pb.UnimplementedAgentServiceServer` keeps the type compiling but returns `Unimplemented`).
+5. Add a wrapper in `apps/backend/internal/agentclient/agent_client_<domain>.go` with retry/timeout policy.
+6. Bump `AGENT_VERSION` (the agent has new behavior).
+
+If you only add a new field to an existing message, no agent rebuild is required — the agent will keep working with the older binary because proto fields are forward-compatible. Still bump `AGENT_VERSION` if the **backend now expects** the new field, or update the backend to gracefully handle the absence.
+
+---
+
+## 6. Message Conventions
+
+- Use `google.protobuf.Timestamp` for time, NOT `int64 unix_seconds`.
+- Use `google.protobuf.Empty` for RPCs that take no input or return no value (already imported in `agent.proto`).
+- Streaming:
+  - `stream Foo` for server-side streams (logs, stats).
+  - `stream Foo` on both sides for bidirectional (e.g. `ExecContainer(stream ExecInput) returns (stream ExecOutput)`).
+- For optional fields, use `optional` keyword (proto3 explicit presence) instead of sentinel values when the field is genuinely "unset vs zero".
+- For lists, use `repeated`. Empty list and "unset" are equivalent in proto3.
+- For maps (e.g. `env vars`), use `map<string, string>` rather than a list of key/value messages.
+- Don't use `Any` unless absolutely necessary — it kills static type safety on consumers.
+
+---
+
+## 7. Streaming Discipline
+
+- Server-side streaming RPCs (`StreamDeployLogs`, `GetContainerLogs`, `GetContainerStats`) MUST honor `stream.Context().Done()` and return promptly when canceled.
+- Bidirectional streams (`ExecContainer`, `PushUpdate`) must define a clear "end of stream" signal — either by closing the send side or by an explicit terminating message (`UpdateBinaryResponse`, terminal exit code).
+- Backpressure: if the consumer is slow, the producer must buffer with a hard cap and drop with a warning rather than block indefinitely. Pattern in the agent: `logStreams sync.Map` with a buffered channel of `logStreamBuffer = 512`.
+
+---
+
+## 8. Deps and `buf.yaml`
+
+- `buf.yaml` deps: `buf.build/googleapis/googleapis` (for `google.protobuf.Empty`, `Timestamp`, etc.). Do NOT add new deps without an ADR.
+- Lint preset is `DEFAULT`. The lint failure on `make proto` is a hard stop — fix it, don't disable rules.
+
+---
+
+## 9. Service Catalog (current)
+
+- `AgentService`:
+  - Lifecycle: `Register`, `Heartbeat`
+  - Deploy: `ExecuteDeploy`, `StreamDeployLogs`
+  - Containers: `ListContainers`, `GetContainerLogs`, `GetContainerStats`, `RestartContainer`, `StopContainer`, `StartContainer`, `RemoveContainer`, `ExecContainer`
+  - System: `GetSystemInfo`, `GetSystemMetrics`, `GetDockerInfo`
+  - Images: `ListImages`, `RemoveImage`, `PruneImages`
+  - Networks: `ListNetworks`, `CreateNetwork`, `RemoveNetwork`
+  - Volumes: `ListVolumes`, `CreateVolume`, `RemoveVolume`, `PruneVolumes`
+  - Containers/templates: `CreateContainerFromTemplate`
+  - Domains: `UpdateDomains`
+  - SSL: `ConfigureContainerSSL`, `GetContainerSSLStatus`
+  - TLS Certs: `GetCertificates`
+  - Maintenance: `PruneContainers`
+  - Self-update: `PushUpdate`
+
+The control-plane side has its own gRPC service in `apps/backend/internal/grpcserver/` for agent-initiated calls (registration, heartbeat, command receive). Treat these the same way: changes to the proto require lockstep updates and an `AGENT_VERSION` bump if behavior changes.
+
+---
+
+## 10. Forbidden in Proto
+
+- Editing `apps/backend/gen/go/**` by hand.
+- Reusing field numbers from removed fields (reserve them with `reserved` instead).
+- Adding required fields (proto3 has none — use validation in handlers).
+- Hardcoding enums as `int32` in client code instead of using the generated typed enum.
+- Generating into a path other than `apps/backend/gen/go/`.
+
+---
+
+**End of FlowDeploy Proto / gRPC Conventions.**

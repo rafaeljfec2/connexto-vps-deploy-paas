@@ -68,8 +68,5 @@ temp/
 # Data directories
 /data/
 
-# Plan files (Cursor)
-.cursor/
-
 # Ngrok binary
 ngrok
