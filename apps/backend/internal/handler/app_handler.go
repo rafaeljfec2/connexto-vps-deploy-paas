@@ -40,13 +40,21 @@ func (h *AppHandler) Register(app fiber.Router) {
 	apps.Get("/", h.ListApps)
 	apps.Post("/", middleware.RequireScope(domain.ScopeDeploy), h.CreateApp)
 	apps.Get("/:id", h.GetApp)
-	apps.Delete("/:id", middleware.RequireScope(domain.ScopeDestructive), h.DeleteApp)
+	apps.Delete("/:id",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventAppDeleted, domain.ResourceApp, "id"),
+		h.DeleteApp,
+	)
 	apps.Get("/:id/deployments", h.ListDeployments)
 	apps.Post("/:id/redeploy", middleware.RequireScope(domain.ScopeDeploy), h.TriggerRedeploy)
 	apps.Post("/:id/rollback", middleware.RequireScope(domain.ScopeDeploy), h.TriggerRollback)
 
 	apps.Post("/:id/webhook", middleware.RequireScope(domain.ScopeConfigWrite), h.SetupWebhook)
-	apps.Delete("/:id/webhook", middleware.RequireScope(domain.ScopeDestructive), h.RemoveWebhook)
+	apps.Delete("/:id/webhook",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventWebhookRemoved, domain.ResourceWebhook, "id"),
+		h.RemoveWebhook,
+	)
 	apps.Get("/:id/webhook/status", h.GetWebhookStatus)
 	apps.Get("/:id/commits", h.ListCommits)
 }
@@ -178,6 +186,10 @@ func (h *AppHandler) DeleteApp(c *fiber.Ctx) error {
 		return h.handleError(c, err)
 	}
 
+	if abort, errEnforce := middleware.EnforceDestructive(c, buildAppDeleteDryRun(app, purge)); abort || errEnforce != nil {
+		return errEnforce
+	}
+
 	if purge {
 		err = h.appService.PurgeApp(c.Context(), id)
 	} else {
@@ -195,9 +207,48 @@ func (h *AppHandler) DeleteApp(c *fiber.Ctx) error {
 		} else {
 			h.auditService.LogAppDeleted(c.Context(), auditCtx, app.ID, app.Name)
 		}
+		middleware.MarkAuditDone(c)
 	}
 
 	return response.NoContent(c)
+}
+
+func buildAppDeleteDryRun(app *domain.App, purge bool) response.DryRunReport {
+	if purge {
+		return response.DryRunReport{
+			Action:      "apps.purge",
+			Resource:    "app",
+			ResourceID:  app.ID,
+			Description: "Hard delete: would remove containers, images, files and database entries for app " + app.Name,
+			Effects: []string{
+				"all containers belonging to the app are stopped and removed",
+				"associated images are removed from the host",
+				"app metadata is deleted from the database",
+				"environment variables, domains and webhooks are deleted",
+			},
+			Reversible: false,
+			Metadata: map[string]any{
+				"name":  app.Name,
+				"purge": true,
+			},
+		}
+	}
+	return response.DryRunReport{
+		Action:      "apps.delete",
+		Resource:    "app",
+		ResourceID:  app.ID,
+		Description: "Soft delete: marks app " + app.Name + " as deleted; running containers are not removed",
+		Effects: []string{
+			"app is hidden from the dashboard and APIs",
+			"associated containers and images are kept on the host",
+			"history can be recovered by an administrator",
+		},
+		Reversible: true,
+		Metadata: map[string]any{
+			"name":  app.Name,
+			"purge": false,
+		},
+	}
 }
 
 // ListDeployments godoc
@@ -358,8 +409,25 @@ func (h *AppHandler) RemoveWebhook(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 
-	if _, err := h.appService.GetAppForUser(id, user.ID); err != nil {
+	app, err := h.appService.GetAppForUser(id, user.ID)
+	if err != nil {
 		return h.handleError(c, err)
+	}
+
+	report := response.DryRunReport{
+		Action:      "apps.webhook.remove",
+		Resource:    "webhook",
+		ResourceID:  app.ID,
+		Description: "Would delete the GitHub webhook configured for app " + app.Name,
+		Effects: []string{
+			"the webhook is removed from the GitHub repository",
+			"automatic redeploys triggered by GitHub push events stop",
+		},
+		Reversible: true,
+		Metadata:   map[string]any{"appName": app.Name},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
 	}
 
 	if err := h.appService.RemoveWebhook(c.Context(), id); err != nil {

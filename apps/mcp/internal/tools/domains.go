@@ -34,7 +34,7 @@ func RegisterDomains(srv *mcp.Server, deps toolkit.Deps) {
 	toolkit.RegisterWrite(srv, deps,
 		&mcp.Tool{
 			Name:        "domains_add",
-			Description: "Attach a custom domain to an app. Requires scope 'config:write'.",
+			Description: "Attach a custom domain to an app. Creates a Cloudflare DNS A record pointing to the server hosting the app (CNAME is not supported by the platform today). Requires scope 'config:write'.",
 		},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in domainAddInput) (any, error) {
 			if in.AppID == "" {

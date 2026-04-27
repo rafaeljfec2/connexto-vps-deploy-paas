@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/response"
 	"github.com/paasdeploy/shared/pkg/docker"
 )
@@ -183,6 +184,25 @@ func (h *ContainerHandler) RemoveContainer(c *fiber.Ctx) error {
 
 	if err := RequireAdminForLocal(c, serverID); err != nil {
 		return err
+	}
+
+	report := response.DryRunReport{
+		Action:      "containers.remove",
+		Resource:    "container",
+		ResourceID:  id,
+		Description: "Would remove the Docker container",
+		Effects: []string{
+			"the container is stopped (if running) and removed from the host",
+			"associated logs/state are lost",
+		},
+		Reversible: false,
+		Metadata: map[string]any{
+			"force":    force,
+			"serverId": serverID,
+		},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
 	}
 
 	if serverID != "" {

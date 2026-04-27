@@ -69,13 +69,21 @@ func (h *ResourceHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/networks", h.ListNetworks)
 	v1.Post("/networks", middleware.RequireScope(domain.ScopeResourcesWrite), h.CreateNetwork)
-	v1.Delete("/networks/:name", middleware.RequireScope(domain.ScopeDestructive), h.RemoveNetwork)
+	v1.Delete("/networks/:name",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventNetworkRemoved, domain.ResourceNetwork, "name"),
+		h.RemoveNetwork,
+	)
 	v1.Post("/containers/:id/networks", middleware.RequireScope(domain.ScopeResourcesWrite), h.ConnectContainerNetwork)
 	v1.Delete("/containers/:id/networks/:name", middleware.RequireScope(domain.ScopeResourcesWrite), h.DisconnectContainerNetwork)
 
 	v1.Get("/volumes", h.ListVolumes)
 	v1.Post("/volumes", middleware.RequireScope(domain.ScopeResourcesWrite), h.CreateVolume)
-	v1.Delete("/volumes/:name", middleware.RequireScope(domain.ScopeDestructive), h.RemoveVolume)
+	v1.Delete("/volumes/:name",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventVolumeRemoved, domain.ResourceVolume, "name"),
+		h.RemoveVolume,
+	)
 }
 
 func (h *ResourceHandler) ListNetworks(c *fiber.Ctx) error {
@@ -169,6 +177,23 @@ func (h *ResourceHandler) RemoveNetwork(c *fiber.Ctx) error {
 	name, err := url.PathUnescape(c.Params("name"))
 	if err != nil || name == "" {
 		return response.BadRequest(c, "invalid network name")
+	}
+
+	report := response.DryRunReport{
+		Action:      "networks.remove",
+		Resource:    "network",
+		ResourceID:  name,
+		Description: "Would remove the Docker network",
+		Effects: []string{
+			"the network is removed from the host",
+			"containers attached to it lose connectivity",
+			"if the network is in use, the operation will fail",
+		},
+		Reversible: false,
+		Metadata:   map[string]any{"serverId": serverID},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
 	}
 
 	if serverID != "" {
@@ -353,6 +378,23 @@ func (h *ResourceHandler) RemoveVolume(c *fiber.Ctx) error {
 	name, err := url.PathUnescape(c.Params("name"))
 	if err != nil || name == "" {
 		return response.BadRequest(c, "invalid volume name")
+	}
+
+	report := response.DryRunReport{
+		Action:      "volumes.remove",
+		Resource:    "volume",
+		ResourceID:  name,
+		Description: "Would remove the Docker volume",
+		Effects: []string{
+			"the volume is removed from the host",
+			"all data inside the volume is permanently deleted",
+			"if the volume is in use, the operation will fail",
+		},
+		Reversible: false,
+		Metadata:   map[string]any{"serverId": serverID},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
 	}
 
 	if serverID != "" {

@@ -31,6 +31,15 @@ const (
 	EventWebhookRemoved   EventType = "webhook.removed"
 	EventImageRemoved     EventType = "image.removed"
 	EventImagesPruned     EventType = "images.pruned"
+
+	EventNetworkRemoved             EventType = "network.removed"
+	EventVolumeRemoved              EventType = "volume.removed"
+	EventServerDeleted              EventType = "server.deleted"
+	EventCleanupContainersExecuted  EventType = "cleanup.containers"
+	EventCleanupVolumesExecuted     EventType = "cleanup.volumes"
+	EventCloudflareDisconnected     EventType = "cloudflare.disconnected"
+	EventNotificationChannelDeleted EventType = "notification.channel.deleted"
+	EventNotificationRuleDeleted    EventType = "notification.rule.deleted"
 )
 
 type ResourceType string
@@ -44,6 +53,14 @@ const (
 	ResourceUser       ResourceType = "user"
 	ResourceWebhook    ResourceType = "webhook"
 	ResourceImage      ResourceType = "image"
+
+	ResourceNetwork             ResourceType = "network"
+	ResourceVolume              ResourceType = "volume"
+	ResourceServer              ResourceType = "server"
+	ResourceCleanup             ResourceType = "cleanup"
+	ResourceCloudflare          ResourceType = "cloudflare"
+	ResourceNotificationChannel ResourceType = "notification_channel"
+	ResourceNotificationRule    ResourceType = "notification_rule"
 )
 
 type ActorType string

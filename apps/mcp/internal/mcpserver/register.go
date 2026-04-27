@@ -27,3 +27,7 @@ func RegisterAllWrites(srv *mcp.Server, deps toolkit.Deps) {
 	tools.RegisterDomains(srv, deps)
 	tools.RegisterSSL(srv, deps)
 }
+
+func RegisterAllDestructive(srv *mcp.Server, deps toolkit.Deps) {
+	tools.RegisterDestructive(srv, deps)
+}

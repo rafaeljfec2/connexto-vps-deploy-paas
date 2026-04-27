@@ -126,7 +126,11 @@ func (h *ServerHandler) Register(app fiber.Router) {
 	servers.Get("/:id/stats", h.GetStats)
 	servers.Get("/:id", h.Get)
 	servers.Put("/:id", middleware.RequireScope(domain.ScopeServersWrite), h.Update)
-	servers.Delete("/:id", middleware.RequireScope(domain.ScopeDestructive), h.Delete)
+	servers.Delete("/:id",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventServerDeleted, domain.ResourceServer, "id"),
+		h.Delete,
+	)
 	servers.Post("/:id/provision", middleware.RequireScope(domain.ScopeServersWrite), h.Provision)
 	servers.Post("/:id/update-agent", middleware.RequireScope(domain.ScopeServersWrite), h.UpdateAgent)
 	servers.Get("/:id/health", h.HealthCheck)
@@ -407,6 +411,26 @@ func (h *ServerHandler) Delete(c *fiber.Ctx) error {
 	}
 
 	id := server.ID
+
+	report := response.DryRunReport{
+		Action:      "servers.delete",
+		Resource:    "server",
+		ResourceID:  id,
+		Description: "Would deprovision and delete the server " + server.Name,
+		Effects: []string{
+			"agent and reverse proxy are deprovisioned (best-effort)",
+			"server record is removed from the database",
+			"all apps assigned to this server become orphaned",
+		},
+		Reversible: false,
+		Metadata: map[string]any{
+			"name": server.Name,
+			"host": server.Host,
+		},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
+	}
 
 	if h.provisioner != nil {
 		sshKey, sshPassword, decErr := h.decryptProvisionCredentials(server)

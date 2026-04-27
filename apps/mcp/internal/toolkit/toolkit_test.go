@@ -51,3 +51,47 @@ func TestMarshalRawHandlesNil(t *testing.T) {
 		t.Errorf("expected null, got %s", raw)
 	}
 }
+
+func TestBuildQueryPointersSendZeroValuesExplicitly(t *testing.T) {
+	q := BuildQuery(map[string]any{
+		"force":  PtrBool(false),
+		"keep":   PtrBool(true),
+		"tail":   PtrInt(0),
+		"offset": PtrInt64(0),
+		"name":   PtrString(""),
+	})
+	encoded := q.Encode()
+	if !strings.Contains(encoded, "force=false") {
+		t.Errorf("expected force=false, got %s", encoded)
+	}
+	if !strings.Contains(encoded, "keep=true") {
+		t.Errorf("expected keep=true, got %s", encoded)
+	}
+	if !strings.Contains(encoded, "tail=0") {
+		t.Errorf("expected tail=0, got %s", encoded)
+	}
+	if !strings.Contains(encoded, "offset=0") {
+		t.Errorf("expected offset=0, got %s", encoded)
+	}
+	if !strings.Contains(encoded, "name=") {
+		t.Errorf("expected explicit empty name, got %s", encoded)
+	}
+}
+
+func TestBuildQueryPointersOmitNil(t *testing.T) {
+	var (
+		nilBool   *bool
+		nilInt    *int
+		nilInt64  *int64
+		nilString *string
+	)
+	q := BuildQuery(map[string]any{
+		"force": nilBool,
+		"tail":  nilInt,
+		"size":  nilInt64,
+		"name":  nilString,
+	})
+	if got := q.Encode(); got != "" {
+		t.Errorf("expected empty query for nil pointers, got %q", got)
+	}
+}

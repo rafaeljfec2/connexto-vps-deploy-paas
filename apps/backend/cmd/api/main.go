@@ -15,6 +15,7 @@ import (
 	"github.com/paasdeploy/backend/internal/di"
 	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/handler"
+	"github.com/paasdeploy/backend/internal/middleware"
 	"github.com/paasdeploy/backend/internal/server"
 )
 
@@ -179,6 +180,9 @@ func registerProtectedRoutes(app *di.Application) {
 
 	authRequired := app.Server.App().Group("")
 	authRequired.Use(app.AuthMiddleware.Require())
+	if app.AuditService != nil {
+		authRequired.Use(middleware.WithAuditService(app.AuditService))
+	}
 	app.AuthHandler.RegisterProtected(authRequired)
 
 	registerOptionalProtectedHandler(app.GitHubHandler, authRequired)

@@ -46,8 +46,16 @@ func (h *CleanupHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 
 	cleanup := v1.Group("/servers/:serverId/cleanup")
-	cleanup.Post("/containers", middleware.RequireScope(domain.ScopeDestructive), h.PruneContainers)
-	cleanup.Post("/volumes", middleware.RequireScope(domain.ScopeDestructive), h.PruneVolumes)
+	cleanup.Post("/containers",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventCleanupContainersExecuted, domain.ResourceCleanup, "serverId"),
+		h.PruneContainers,
+	)
+	cleanup.Post("/volumes",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventCleanupVolumesExecuted, domain.ResourceCleanup, "serverId"),
+		h.PruneVolumes,
+	)
 	cleanup.Get("/logs", h.ListCleanupLogs)
 }
 
@@ -67,6 +75,23 @@ func (h *CleanupHandler) PruneContainers(c *fiber.Ctx) error {
 	server, err := h.serverRepo.FindByIDForUser(serverID, user.ID)
 	if err != nil {
 		return HandleNotFoundOrInternal(c, err, errCleanupServerNotFound)
+	}
+
+	report := response.DryRunReport{
+		Action:      "cleanup.containers",
+		Resource:    "containers",
+		ResourceID:  serverID,
+		Description: "Would prune all stopped containers on the server",
+		Effects: []string{
+			"all stopped containers are removed from the host",
+			"associated logs and ephemeral state are lost",
+			"running containers are not affected",
+		},
+		Reversible: false,
+		Metadata:   map[string]any{"serverId": serverID},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
 	}
 
 	resp, err := h.agentClient.PruneContainers(c.Context(), server.Host, h.agentPort)
@@ -95,6 +120,23 @@ func (h *CleanupHandler) PruneVolumes(c *fiber.Ctx) error {
 	server, err := h.serverRepo.FindByIDForUser(serverID, user.ID)
 	if err != nil {
 		return HandleNotFoundOrInternal(c, err, errCleanupServerNotFound)
+	}
+
+	report := response.DryRunReport{
+		Action:      "cleanup.volumes",
+		Resource:    "volumes",
+		ResourceID:  serverID,
+		Description: "Would prune all dangling Docker volumes on the server",
+		Effects: []string{
+			"unused volumes are removed",
+			"data inside those volumes is permanently deleted",
+			"volumes attached to running containers are not affected",
+		},
+		Reversible: false,
+		Metadata:   map[string]any{"serverId": serverID},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
 	}
 
 	resp, err := h.agentClient.PruneVolumes(c.Context(), server.Host, h.agentPort)

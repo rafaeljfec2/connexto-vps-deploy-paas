@@ -70,6 +70,7 @@ func run(args []string) error {
 	deps := toolkit.Deps{Logger: logger, Backend: bk}
 	mcpserver.RegisterAllReadOnly(srv, deps)
 	mcpserver.RegisterAllWrites(srv, deps)
+	mcpserver.RegisterAllDestructive(srv, deps)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

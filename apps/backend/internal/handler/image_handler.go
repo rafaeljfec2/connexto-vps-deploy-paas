@@ -62,8 +62,16 @@ func (h *ImageHandler) Register(app fiber.Router) {
 	v1 := app.Group(APIPrefix)
 	v1.Get("/images", h.ListImages)
 	v1.Get("/images/dangling", h.ListDanglingImages)
-	v1.Delete("/images/:id", middleware.RequireScope(domain.ScopeDestructive), h.RemoveImage)
-	v1.Post("/images/prune", middleware.RequireScope(domain.ScopeDestructive), h.PruneImages)
+	v1.Delete("/images/:id",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventImageRemoved, domain.ResourceImage, "id"),
+		h.RemoveImage,
+	)
+	v1.Post("/images/prune",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventImagesPruned, domain.ResourceImage, ""),
+		h.PruneImages,
+	)
 }
 
 type ImageResponse struct {
@@ -180,6 +188,25 @@ func (h *ImageHandler) RemoveImage(c *fiber.Ctx) error {
 		target = ref
 	}
 
+	report := response.DryRunReport{
+		Action:      "images.remove",
+		Resource:    "image",
+		ResourceID:  target,
+		Description: "Would remove the Docker image",
+		Effects: []string{
+			"the image is removed from the host",
+			"running containers using this image continue to run",
+		},
+		Reversible: false,
+		Metadata: map[string]any{
+			"force":    force,
+			"serverId": serverID,
+		},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
+	}
+
 	if serverID != "" {
 		host, err := h.resolveServerHost(serverID, GetUserFromContext(c).ID)
 		if err != nil {
@@ -220,6 +247,22 @@ func (h *ImageHandler) PruneImages(c *fiber.Ctx) error {
 
 	if err := RequireAdminForLocal(c, serverID); err != nil {
 		return err
+	}
+
+	report := response.DryRunReport{
+		Action:      "images.prune",
+		Resource:    "images",
+		Description: "Would remove all dangling (unused) Docker images",
+		Effects: []string{
+			"unreferenced images are deleted",
+			"disk space is reclaimed",
+			"image cache is partially invalidated",
+		},
+		Reversible: false,
+		Metadata:   map[string]any{"serverId": serverID},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
 	}
 
 	if serverID != "" {

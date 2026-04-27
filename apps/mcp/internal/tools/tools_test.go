@@ -19,10 +19,11 @@ import (
 )
 
 type capturedRequest struct {
-	method string
-	path   string
-	query  string
-	body   string
+	method  string
+	path    string
+	query   string
+	body    string
+	headers map[string]string
 }
 
 type fakeBackend struct {
@@ -37,11 +38,16 @@ func (f *fakeBackend) handler() http.HandlerFunc {
 		raw, _ := io.ReadAll(r.Body)
 		_ = r.Body.Close()
 		f.mu.Lock()
+		hdr := map[string]string{}
+		for k := range r.Header {
+			hdr[k] = r.Header.Get(k)
+		}
 		f.requests = append(f.requests, capturedRequest{
-			method: r.Method,
-			path:   r.URL.Path,
-			query:  r.URL.RawQuery,
-			body:   string(raw),
+			method:  r.Method,
+			path:    r.URL.Path,
+			query:   r.URL.RawQuery,
+			body:    string(raw),
+			headers: hdr,
 		})
 		f.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")

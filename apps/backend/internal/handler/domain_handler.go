@@ -58,7 +58,11 @@ func (h *DomainHandler) Register(app fiber.Router) {
 	apps := v1.Group("/apps")
 	apps.Get("/:id/domains", h.ListDomains)
 	apps.Post("/:id/domains", middleware.RequireScope(domain.ScopeConfigWrite), h.AddDomain)
-	apps.Delete("/:id/domains/:domainId", middleware.RequireScope(domain.ScopeDestructive), h.RemoveDomain)
+	apps.Delete("/:id/domains/:domainId",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventDomainRemoved, domain.ResourceDomain, "domainId"),
+		h.RemoveDomain,
+	)
 }
 
 type DomainResponse struct {
@@ -288,6 +292,26 @@ func (h *DomainHandler) RemoveDomain(c *fiber.Ctx) error {
 
 	if customDomain.AppID != appID {
 		return response.NotFound(c, "Domain not found")
+	}
+
+	report := response.DryRunReport{
+		Action:      "domains.remove",
+		Resource:    "domain",
+		ResourceID:  customDomain.ID,
+		Description: "Would detach custom domain " + customDomain.Domain + " from app " + app.Name,
+		Effects: []string{
+			"the Cloudflare DNS record is deleted (best-effort)",
+			"the domain mapping is removed from the database",
+			"the running container is reconfigured to drop the domain rule",
+		},
+		Reversible: true,
+		Metadata: map[string]any{
+			"appId":  app.ID,
+			"domain": customDomain.Domain,
+		},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
 	}
 
 	conn, err := h.connectionRepo.FindByUserID(c.Context(), user.ID)

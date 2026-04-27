@@ -3,9 +3,16 @@ package service
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/requestctx"
+)
+
+const (
+	auditHeaderActionReason = "X-Action-Reason"
+	auditQueryReason        = "reason"
 )
 
 type AuditService struct {
@@ -27,20 +34,19 @@ type AuditContext struct {
 	ActorID   *string
 	IPAddress *string
 	UserAgent *string
+	Reason    *string
 }
 
 func (s *AuditService) ExtractContext(c *fiber.Ctx) AuditContext {
 	ctx := AuditContext{ActorType: domain.ActorUser}
 
-	if userID := c.Locals("user_id"); userID != nil {
-		if id, ok := userID.(string); ok {
-			ctx.UserID = &id
-		}
-	}
-
-	if userName := c.Locals("user_name"); userName != nil {
-		if name, ok := userName.(string); ok {
+	if user := requestctx.GetUserFromContext(c); user != nil {
+		id := user.ID
+		ctx.UserID = &id
+		if name := strings.TrimSpace(user.Name); name != "" {
 			ctx.UserName = &name
+		} else if email := strings.TrimSpace(user.Email); email != "" {
+			ctx.UserName = &email
 		}
 	}
 
@@ -58,6 +64,14 @@ func (s *AuditService) ExtractContext(c *fiber.Ctx) AuditContext {
 		ctx.UserAgent = &ua
 	}
 
+	reason := strings.TrimSpace(c.Get(auditHeaderActionReason))
+	if reason == "" {
+		reason = strings.TrimSpace(c.Query(auditQueryReason))
+	}
+	if reason != "" {
+		ctx.Reason = &reason
+	}
+
 	return ctx
 }
 
@@ -65,6 +79,15 @@ func (s *AuditService) Log(ctx context.Context, auditCtx AuditContext, eventType
 	actorType := auditCtx.ActorType
 	if actorType == "" {
 		actorType = domain.ActorUser
+	}
+
+	if auditCtx.Reason != nil && *auditCtx.Reason != "" {
+		merged := make(map[string]interface{}, len(details)+1)
+		for k, v := range details {
+			merged[k] = v
+		}
+		merged["reason"] = *auditCtx.Reason
+		details = merged
 	}
 
 	input := domain.CreateAuditLogInput{

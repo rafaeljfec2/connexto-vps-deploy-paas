@@ -32,7 +32,11 @@ func (h *EnvVarHandler) Register(app fiber.Router) {
 	apps.Post("/:id/env", middleware.RequireScope(domain.ScopeConfigWrite), h.CreateEnvVar)
 	apps.Put("/:id/env/bulk", middleware.RequireScope(domain.ScopeConfigWrite), h.BulkUpsertEnvVars)
 	apps.Put("/:id/env/:varId", middleware.RequireScope(domain.ScopeConfigWrite), h.UpdateEnvVar)
-	apps.Delete("/:id/env/:varId", middleware.RequireScope(domain.ScopeDestructive), h.DeleteEnvVar)
+	apps.Delete("/:id/env/:varId",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventEnvDeleted, domain.ResourceEnvVar, "varId"),
+		h.DeleteEnvVar,
+	)
 }
 
 func (h *EnvVarHandler) ListEnvVars(c *fiber.Ctx) error {
@@ -148,6 +152,22 @@ func (h *EnvVarHandler) DeleteEnvVar(c *fiber.Ctx) error {
 	}
 
 	varID := c.Params("varId")
+
+	report := response.DryRunReport{
+		Action:      "env.delete",
+		Resource:    "env_var",
+		ResourceID:  varID,
+		Description: "Would delete the environment variable from the app",
+		Effects: []string{
+			"the variable is removed from the app configuration",
+			"a redeploy is required for the running container to drop it",
+		},
+		Reversible: false,
+		Metadata:   map[string]any{"appId": appID},
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
+	}
 
 	if err := h.envVarRepo.Delete(varID); err != nil {
 		return HandleNotFoundOrInternal(c, err, MsgEnvVarNotFound)

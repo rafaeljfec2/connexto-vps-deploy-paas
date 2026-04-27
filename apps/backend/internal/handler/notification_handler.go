@@ -39,7 +39,11 @@ func (h *NotificationHandler) Register(app fiber.Router) {
 	channels.Post("/", middleware.RequireScope(domain.ScopeConfigWrite), h.CreateChannel)
 	channels.Get("/:id", h.GetChannel)
 	channels.Put("/:id", middleware.RequireScope(domain.ScopeConfigWrite), h.UpdateChannel)
-	channels.Delete("/:id", middleware.RequireScope(domain.ScopeDestructive), h.DeleteChannel)
+	channels.Delete("/:id",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventNotificationChannelDeleted, domain.ResourceNotificationChannel, "id"),
+		h.DeleteChannel,
+	)
 	channels.Get("/:id/rules", h.ListRulesByChannel)
 
 	rules := v1.Group("/notifications/rules")
@@ -47,7 +51,11 @@ func (h *NotificationHandler) Register(app fiber.Router) {
 	rules.Post("/", middleware.RequireScope(domain.ScopeConfigWrite), h.CreateRule)
 	rules.Get("/:id", h.GetRule)
 	rules.Put("/:id", middleware.RequireScope(domain.ScopeConfigWrite), h.UpdateRule)
-	rules.Delete("/:id", middleware.RequireScope(domain.ScopeDestructive), h.DeleteRule)
+	rules.Delete("/:id",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventNotificationRuleDeleted, domain.ResourceNotificationRule, "id"),
+		h.DeleteRule,
+	)
 }
 
 type ChannelResponse struct {
@@ -265,6 +273,21 @@ func (h *NotificationHandler) DeleteChannel(c *fiber.Ctx) error {
 
 	id := c.Params("id")
 
+	report := response.DryRunReport{
+		Action:      "notifications.channel.delete",
+		Resource:    "notification_channel",
+		ResourceID:  id,
+		Description: "Would delete the notification channel and any rule that depends on it",
+		Effects: []string{
+			"the channel is removed from the database",
+			"associated notification rules cannot dispatch alerts",
+		},
+		Reversible: false,
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
+	}
+
 	if err := h.channelRepo.Delete(id); err != nil {
 		return response.NotFound(c, MsgChannelNotFound)
 	}
@@ -419,6 +442,20 @@ func (h *NotificationHandler) DeleteRule(c *fiber.Ctx) error {
 	}
 
 	id := c.Params("id")
+
+	report := response.DryRunReport{
+		Action:      "notifications.rule.delete",
+		Resource:    "notification_rule",
+		ResourceID:  id,
+		Description: "Would delete the notification rule",
+		Effects: []string{
+			"the rule is removed and stops dispatching alerts",
+		},
+		Reversible: false,
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
+	}
 
 	if err := h.ruleRepo.Delete(id); err != nil {
 		return response.NotFound(c, MsgRuleNotFound)

@@ -58,7 +58,11 @@ func (h *CloudflareAuthHandler) Register(app fiber.Router) {
 	cf.Get("", h.InitiateOAuth)
 	cf.Get("/callback", h.HandleCallback)
 	cf.Post("/connect", middleware.RequireScope(domain.ScopeConfigWrite), h.ConnectWithToken)
-	cf.Post("/disconnect", middleware.RequireScope(domain.ScopeDestructive), h.Disconnect)
+	cf.Post("/disconnect",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventCloudflareDisconnected, domain.ResourceCloudflare, ""),
+		h.Disconnect,
+	)
 	cf.Get("/status", h.GetStatus)
 }
 
@@ -181,6 +185,21 @@ func (h *CloudflareAuthHandler) Disconnect(c *fiber.Ctx) error {
 	user := GetUserFromContext(c)
 	if user == nil {
 		return response.Unauthorized(c, MsgNotAuthenticated)
+	}
+
+	report := response.DryRunReport{
+		Action:      "cloudflare.disconnect",
+		Resource:    "cloudflare_connection",
+		ResourceID:  user.ID,
+		Description: "Would disconnect the Cloudflare account from this user",
+		Effects: []string{
+			"the encrypted Cloudflare token is deleted from the database",
+			"DNS records configured by FlowDeploy stay on Cloudflare but cannot be modified anymore",
+		},
+		Reversible: true,
+	}
+	if abort, errEnforce := middleware.EnforceDestructive(c, report); abort || errEnforce != nil {
+		return errEnforce
 	}
 
 	if err := h.connectionRepo.DeleteByUserID(c.Context(), user.ID); err != nil {

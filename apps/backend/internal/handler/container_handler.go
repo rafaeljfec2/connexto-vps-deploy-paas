@@ -81,7 +81,11 @@ func (h *ContainerHandler) Register(app fiber.Router) {
 	v1.Post("/containers/:id/start", middleware.RequireScope(domain.ScopeContainersWrite), h.StartContainer)
 	v1.Post("/containers/:id/stop", middleware.RequireScope(domain.ScopeContainersWrite), h.StopContainer)
 	v1.Post("/containers/:id/restart", middleware.RequireScope(domain.ScopeContainersWrite), h.RestartContainer)
-	v1.Delete("/containers/:id", middleware.RequireScope(domain.ScopeDestructive), h.RemoveContainer)
+	v1.Delete("/containers/:id",
+		middleware.RequireScope(domain.ScopeDestructive),
+		middleware.AuditDestructive(domain.EventContainerRemoved, domain.ResourceContainer, "id"),
+		h.RemoveContainer,
+	)
 	v1.Get("/containers/:id/logs", h.GetContainerLogs)
 	v1.Post("/containers/:id/healthcheck", middleware.RequireScope(domain.ScopeContainersWrite), h.RunContainerHealthcheck)
 }
