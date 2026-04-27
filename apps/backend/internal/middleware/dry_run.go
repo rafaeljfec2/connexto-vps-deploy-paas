@@ -26,16 +26,10 @@ const (
 // buggy clients that mistype the flag and expect a preview.
 func IsDryRun(c *fiber.Ctx) bool {
 	if v := c.Get(HeaderDryRun); v != "" {
-		if isFalsy(v) {
-			return false
-		}
-		return true
+		return !isFalsy(v)
 	}
 	if v := c.Query(QueryDryRun); v != "" {
-		if isFalsy(v) {
-			return false
-		}
-		return true
+		return !isFalsy(v)
 	}
 	return false
 }
@@ -97,15 +91,6 @@ func EnforceDestructive(c *fiber.Ctx, report response.DryRunReport) (bool, error
 		return false, err
 	}
 	return false, nil
-}
-
-func isTruthy(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
-	}
 }
 
 func isFalsy(value string) bool {
