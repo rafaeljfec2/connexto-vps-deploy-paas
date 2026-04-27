@@ -4,17 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HealthIndicator } from "@/components/health-indicator";
-import { PageHeader } from "@/components/page-header";
-import { StatusBadge } from "@/components/status-badge";
 import {
-  AppDescription,
   ContainerHealthSection,
   EnvVarsSection,
-  HeaderActions,
   MobileActionBar,
   ResourceUsageSection,
 } from "@/features/apps/components/app-details";
+import { AppHero } from "@/features/apps/components/app-details/app-hero";
 import { AppSettingsSection } from "@/features/apps/components/app-settings-section";
 import { ContainerLogsSection } from "@/features/apps/components/container-logs-section";
 import { DeploymentsSection } from "@/features/apps/components/deployments-section";
@@ -113,56 +109,50 @@ export function AppDetailsPage() {
     : undefined;
 
   return (
-    <div className="space-y-0 pb-16 md:pb-0">
-      <div className="mb-3">
-        <PageHeader
-          backTo="/"
-          title={app.name}
-          titleSuffix={
-            <div className="flex items-center gap-2">
-              <HealthIndicator health={health} />
-              {latestDeploy && <StatusBadge status={latestDeploy.status} />}
-            </div>
-          }
-          description={<AppDescription app={app} />}
-          actions={
-            <HeaderActions
-              allExpanded={allExpanded}
-              toggleAllSections={toggleAllSections}
-              openAppUrl={openAppUrl}
-              app={app}
-              actions={actions}
-              hasSuccessfulDeploy={hasSuccessfulDeploy}
-            />
-          }
-        />
-      </div>
+    <div className="space-y-6 pb-16 md:pb-0">
+      <AppHero
+        app={app}
+        health={health}
+        deployments={deployments}
+        containerStats={containerStats}
+        openAppUrl={openAppUrl}
+        actions={actions}
+        allExpanded={allExpanded}
+        toggleAllSections={toggleAllSections}
+        hasSuccessfulDeploy={hasSuccessfulDeploy}
+      />
 
       <Card className="border border-border rounded-lg divide-y divide-border">
-        <DeploymentsSection
-          app={app}
-          deployments={deployments}
-          expanded={expandedSections.deployments ?? false}
-          onToggle={() => toggleSection("deployments")}
-          actions={actions}
-          selectedDeploy={selectedDeploy}
-          onSelectDeploy={setSelectedDeployId}
-        />
+        <div id="deployments-section" className="scroll-mt-24">
+          <DeploymentsSection
+            app={app}
+            deployments={deployments}
+            expanded={expandedSections.deployments ?? false}
+            onToggle={() => toggleSection("deployments")}
+            actions={actions}
+            selectedDeploy={selectedDeploy}
+            onSelectDeploy={setSelectedDeployId}
+          />
+        </div>
 
-        <ContainerLogsSection
-          appId={app.id}
-          appName={app.name}
-          health={health}
-          expanded={expandedSections.containerLogs ?? false}
-          onToggle={() => toggleSection("containerLogs")}
-        />
+        <div id="container-logs-section" className="scroll-mt-24">
+          <ContainerLogsSection
+            appId={app.id}
+            appName={app.name}
+            health={health}
+            expanded={expandedSections.containerLogs ?? false}
+            onToggle={() => toggleSection("containerLogs")}
+          />
+        </div>
 
-        <ResourceUsageSection
-          appId={app.id}
-          containerStats={containerStats}
-          expanded={expandedSections.metrics ?? false}
-          onToggle={() => toggleSection("metrics")}
-        />
+        <div id="resource-metrics-section" className="scroll-mt-24">
+          <ResourceUsageSection
+            appId={app.id}
+            containerStats={containerStats}
+            expanded={expandedSections.metrics ?? false}
+            onToggle={() => toggleSection("metrics")}
+          />
+        </div>
 
         <EnvVarsSection
           appId={app.id}
@@ -171,13 +161,15 @@ export function AppDetailsPage() {
           onToggle={() => toggleSection("envVars")}
         />
 
-        <ContainerHealthSection
-          appId={app.id}
-          health={health}
-          actions={actions}
-          expanded={expandedSections.health ?? false}
-          onToggle={() => toggleSection("health")}
-        />
+        <div id="container-health-section" className="scroll-mt-24">
+          <ContainerHealthSection
+            appId={app.id}
+            health={health}
+            actions={actions}
+            expanded={expandedSections.health ?? false}
+            onToggle={() => toggleSection("health")}
+          />
+        </div>
 
         <AppSettingsSection
           appConfig={appConfig}
