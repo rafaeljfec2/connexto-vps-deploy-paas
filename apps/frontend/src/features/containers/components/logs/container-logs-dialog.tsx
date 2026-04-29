@@ -5,8 +5,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  dialogHeaderToolbarClearanceClassName,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/empty-state";
+import { cn } from "@/lib/utils";
 import { useContainerLogs } from "../../hooks/use-containers";
 import { useLogFilters } from "./hooks/use-log-filters";
 import { useLogParser } from "./hooks/use-log-parser";
@@ -142,8 +144,13 @@ export function ContainerLogsDialog({
         className="max-w-[95vw] w-[95vw] max-h-[85vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800"
         aria-describedby={undefined}
       >
-        <DialogHeader className="px-4 py-3 pr-12 border-b border-slate-800 flex-row items-center justify-between space-y-0 shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-base">
+        <DialogHeader
+          className={cn(
+            "shrink-0 space-y-0 border-b border-slate-800 px-4 py-3 text-left",
+            dialogHeaderToolbarClearanceClassName,
+          )}
+        >
+          <DialogTitle className="flex min-w-0 items-center gap-2 text-base">
             <Terminal className="h-4 w-4 shrink-0" />
             Container Logs - {containerName}
             <span className="text-xs text-muted-foreground font-normal">

@@ -59,42 +59,41 @@ export function LogToolbar({
 }: LogToolbarProps) {
   if (inDialog) {
     return (
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         <Button
           variant="ghost"
           size="icon"
           className={cn(
-            "h-7 w-7",
-            "hover:bg-slate-800",
+            "h-9 w-9 rounded-md hover:bg-slate-800",
             showSearch && "text-yellow-400",
           )}
           onClick={onShowSearchToggle}
           title="Search logs"
         >
-          <Search className="h-3.5 w-3.5" />
+          <Search className="h-4 w-4" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 hover:bg-slate-800"
+          className="h-9 w-9 rounded-md hover:bg-slate-800"
           onClick={onCopy}
           title="Copy logs"
         >
           {copied ? (
-            <Check className="h-3.5 w-3.5 text-green-400" />
+            <Check className="h-4 w-4 text-green-400" />
           ) : (
-            <Copy className="h-3.5 w-3.5" />
+            <Copy className="h-4 w-4" />
           )}
         </Button>
         {onMinimize && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 hover:bg-slate-800"
+            className="h-9 w-9 rounded-md hover:bg-slate-800"
             onClick={onMinimize}
             title="Minimize"
           >
-            <Minimize2 className="h-3.5 w-3.5" />
+            <Minimize2 className="h-4 w-4" />
           </Button>
         )}
       </div>

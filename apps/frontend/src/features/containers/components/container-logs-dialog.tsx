@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  dialogHeaderWithActionsClassName,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -209,8 +210,13 @@ export function ContainerLogsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-[95vw] md:max-w-6xl h-[85vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800">
-        <DialogHeader className="px-4 py-2.5 pr-12 border-b border-slate-800 flex-row items-center justify-between space-y-0 shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-sm font-medium">
+        <DialogHeader
+          className={cn(
+            "shrink-0 border-b border-slate-800 px-4 py-2.5",
+            dialogHeaderWithActionsClassName,
+          )}
+        >
+          <DialogTitle className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium">
             <Terminal className="h-4 w-4 text-muted-foreground" />
             <span className="truncate max-w-[200px] sm:max-w-none">
               {containerName}
@@ -228,7 +234,7 @@ export function ContainerLogsDialog({
               </span>
             )}
           </DialogTitle>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1.5">
             {!isStreaming && (
               <>
                 <DropdownMenu>
@@ -236,7 +242,7 @@ export function ContainerLogsDialog({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-xs hover:bg-slate-800"
+                      className="h-9 rounded-md text-xs hover:bg-slate-800"
                     >
                       {tail} lines
                     </Button>
@@ -255,11 +261,11 @@ export function ContainerLogsDialog({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 hover:bg-slate-800"
+                  className="h-9 w-9 rounded-md hover:bg-slate-800"
                   onClick={() => refetch()}
                   title="Refresh logs"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" />
+                  <RefreshCw className="h-4 w-4" />
                 </Button>
               </>
             )}
@@ -267,16 +273,16 @@ export function ContainerLogsDialog({
               variant="ghost"
               size="icon"
               className={cn(
-                "h-7 w-7 hover:bg-slate-800",
+                "h-9 w-9 rounded-md hover:bg-slate-800",
                 isStreaming && "text-green-400",
               )}
               onClick={isStreaming ? stopStreaming : startStreaming}
               title={isStreaming ? "Stop streaming" : "Start streaming"}
             >
               {isStreaming ? (
-                <Pause className="h-3.5 w-3.5" />
+                <Pause className="h-4 w-4" />
               ) : (
-                <Play className="h-3.5 w-3.5" />
+                <Play className="h-4 w-4" />
               )}
             </Button>
             {isStreaming && (
@@ -284,30 +290,30 @@ export function ContainerLogsDialog({
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "h-7 w-7 hover:bg-slate-800",
+                  "h-9 w-9 rounded-md hover:bg-slate-800",
                   !autoScroll && "text-yellow-400",
                 )}
                 onClick={() => setAutoScroll(!autoScroll)}
                 title={autoScroll ? "Pause auto-scroll" : "Resume auto-scroll"}
               >
                 {autoScroll ? (
-                  <Pause className="h-3.5 w-3.5" />
+                  <Pause className="h-4 w-4" />
                 ) : (
-                  <Play className="h-3.5 w-3.5" />
+                  <Play className="h-4 w-4" />
                 )}
               </Button>
             )}
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-slate-800"
+              className="h-9 w-9 rounded-md hover:bg-slate-800"
               onClick={handleCopy}
               title="Copy logs"
             >
               {copied ? (
-                <Check className="h-3.5 w-3.5 text-green-400" />
+                <Check className="h-4 w-4 text-green-400" />
               ) : (
-                <Copy className="h-3.5 w-3.5" />
+                <Copy className="h-4 w-4" />
               )}
             </Button>
           </div>

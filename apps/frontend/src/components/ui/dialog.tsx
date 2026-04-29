@@ -64,6 +64,16 @@ const DialogHeader = ({
 );
 DialogHeader.displayName = "DialogHeader";
 
+/**
+ * Use on `DialogHeader` when the row includes right-side actions (toolbar, icon buttons).
+ * Reserves space for `DialogContent`'s built-in absolute close control (`right-4 top-4`).
+ */
+export const dialogHeaderWithActionsClassName =
+  "flex-row items-center justify-between gap-3 space-y-0 text-left min-w-0 pr-14 sm:pr-16";
+
+/** Same horizontal clearance for a stacked row inside `DialogHeader` (e.g. title row + search). */
+export const dialogHeaderToolbarClearanceClassName = "pr-14 sm:pr-16";
+
 const DialogFooter = ({
   className,
   ...props

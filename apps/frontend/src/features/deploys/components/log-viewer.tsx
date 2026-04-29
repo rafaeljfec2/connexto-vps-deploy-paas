@@ -5,6 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  dialogHeaderToolbarClearanceClassName,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/empty-state";
 import { useCopyToClipboard } from "@/hooks/use-copy-to-clipboard";
@@ -252,16 +253,21 @@ export function LogViewer({
 
       <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
         <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800">
-          <DialogHeader className="px-4 py-3 border-b border-slate-800 space-y-2">
-            <div className="flex items-center justify-between">
-              <DialogTitle className="flex items-center gap-2 text-base">
-                <Terminal className="h-4 w-4" />
-                {title}
-                <span className="text-xs text-muted-foreground font-normal">
+          <DialogHeader className="border-b border-slate-800 space-y-2 px-4 py-3 shrink-0">
+            <div
+              className={cn(
+                "flex min-w-0 items-center justify-between gap-3",
+                dialogHeaderToolbarClearanceClassName,
+              )}
+            >
+              <DialogTitle className="flex min-w-0 flex-1 items-center gap-2 text-base">
+                <Terminal className="h-4 w-4 shrink-0" />
+                <span className="truncate">{title}</span>
+                <span className="shrink-0 text-xs font-normal text-muted-foreground">
                   ({visibleCount} lines)
                 </span>
               </DialogTitle>
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 items-center">
                 <LogToolbar
                   showSearch={showSearch}
                   onShowSearchToggle={() => setShowSearch(!showSearch)}
