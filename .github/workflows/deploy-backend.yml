@@ -131,18 +131,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install expect
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y expect
+      - name: Configure SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
 
       - name: Setup Traefik
         run: |
-          chmod +x .github/scripts/setup-traefik.exp
-          .github/scripts/setup-traefik.exp
+          chmod +x .github/scripts/setup-traefik.sh
+          .github/scripts/setup-traefik.sh
         env:
           SERVER_USER: ${{ vars.SERVER_USER }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SERVER_SUDO_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
           SERVER_HOST: ${{ vars.SERVER_HOST }}
           SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
@@ -151,11 +151,11 @@ jobs:
 
       - name: Deploy container
         run: |
-          chmod +x .github/scripts/deploy.exp
-          .github/scripts/deploy.exp
+          chmod +x .github/scripts/deploy.sh
+          .github/scripts/deploy.sh
         env:
           SERVER_USER: ${{ vars.SERVER_USER }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
+          SERVER_SUDO_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
           SERVER_HOST: ${{ vars.SERVER_HOST }}
           SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
           REGISTRY: ${{ env.REGISTRY }}
@@ -164,7 +164,6 @@ jobs:
           GHCR_USER: ${{ vars.GHCR_USER || github.repository_owner }}
           GHCR_PAT: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           APP_ENV: ${{ vars.APP_ENV || 'production' }}
-          PORT: ${{ vars.PORT || '8080' }}
           LOG_LEVEL: ${{ vars.LOG_LEVEL || 'info' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DEPLOY_DATA_DIR: ${{ vars.DEPLOY_DATA_DIR || '/data/apps' }}
