@@ -456,4 +456,4 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and recent changes.
 
 ## License
 
-Proprietary - see LICENSE file for details.
+Proprietary - see LICENSE file for details. oi
