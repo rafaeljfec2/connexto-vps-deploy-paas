@@ -14,88 +14,63 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   packages: write
-  id-token: write
+
+concurrency:
+  group: deploy-backend-prod
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}-backend
   CONTAINER_NAME: flowdeploy-backend
   API_DOMAIN: api-deploy.connexto.com.br
-  GRPC_SERVER_ADDR: deploy.connexto.com.br:50051
   TRAEFIK_NETWORK: paasdeploy
-  TRAEFIK_NETWORK_SECONDARY: traefik-public
 
 jobs:
   validate-environment:
     runs-on: ubuntu-latest
     environment: Prod
     steps:
-      - name: Validate required variables
+      - name: Validate required GitHub Vars/Secrets
         run: |
-          echo "🔍 Validating environment variables..."
-
-          missing_vars=()
-
-          [ -z "$SERVER_USER" ] && missing_vars+=("SERVER_USER")
-          [ -z "$SERVER_HOST" ] && missing_vars+=("SERVER_HOST")
-          [ -z "$APP_ENV" ] && missing_vars+=("APP_ENV")
-          [ -z "$DATABASE_URL" ] && missing_vars+=("DATABASE_URL")
-          [ -z "$GIT_HUB_WEBHOOK_SECRET" ] && missing_vars+=("GIT_HUB_WEBHOOK_SECRET")
-          [ -z "$GIT_HUB_CLIENT_ID" ] && missing_vars+=("GIT_HUB_CLIENT_ID")
-          [ -z "$GIT_HUB_CLIENT_SECRET" ] && missing_vars+=("GIT_HUB_CLIENT_SECRET")
-          [ -z "$GIT_HUB_APP_ID" ] && missing_vars+=("GIT_HUB_APP_ID")
-          [ -z "$GIT_HUB_APP_PRIVATE_KEY_BASE64" ] && missing_vars+=("GIT_HUB_APP_PRIVATE_KEY_BASE64")
-          [ -z "$TOKEN_ENCRYPTION_KEY" ] && missing_vars+=("TOKEN_ENCRYPTION_KEY")
-          [ -z "$FRONTEND_URL" ] && missing_vars+=("FRONTEND_URL")
-
-          if [ ${#missing_vars[@]} -gt 0 ]; then
-            echo "❌ Missing required variables:"
-            printf '  - %s\n' "${missing_vars[@]}"
+          echo "Validating required GitHub-side configuration..."
+          missing=()
+          [ -z "$GHCR_USER" ]      && missing+=("vars.GHCR_USER (or repo owner fallback)")
+          [ -z "$GHCR_TOKEN" ]     && missing+=("secrets.GHCR_PAT or GITHUB_TOKEN")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing:"
+            printf '  - %s\n' "${missing[@]}"
             exit 1
           fi
-
-          echo "✅ All required variables are set"
+          echo "OK"
         env:
-          SERVER_USER: ${{ vars.SERVER_USER }}
-          SERVER_HOST: ${{ vars.SERVER_HOST }}
-          APP_ENV: ${{ vars.APP_ENV }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GIT_HUB_WEBHOOK_SECRET: ${{ secrets.GIT_HUB_WEBHOOK_SECRET }}
-          GIT_HUB_CLIENT_ID: ${{ secrets.GIT_HUB_CLIENT_ID }}
-          GIT_HUB_CLIENT_SECRET: ${{ secrets.GIT_HUB_CLIENT_SECRET }}
-          GIT_HUB_APP_ID: ${{ secrets.GIT_HUB_APP_ID }}
-          GIT_HUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.GIT_HUB_APP_PRIVATE_KEY_BASE64 }}
-          TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
-          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+          GHCR_USER: ${{ vars.GHCR_USER || github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
 
   build-and-push:
     needs: validate-environment
     runs-on: ubuntu-latest
     environment: Prod
     permissions:
-      contents: write
+      contents: read
       packages: write
-      id-token: write
+    outputs:
+      image_tag: ${{ steps.get-version.outputs.version }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Configure Git
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
 
       - name: Get version
         id: get-version
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "📦 Version: ${SHORT_SHA}"
+          # Match the tag emitted by docker/metadata-action (default prefix 'sha-').
+          IMAGE_TAG="sha-${SHORT_SHA}"
+          echo "version=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "Image tag: ${IMAGE_TAG}"
 
       - name: Log in to Container Registry
         uses: docker/login-action@v3
@@ -125,78 +100,30 @@ jobs:
 
   deploy:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, flowdeploy-control-plane]
     environment: Prod
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure SSH key
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
-
-      - name: Setup Traefik
-        run: |
-          chmod +x .github/scripts/setup-traefik.sh
-          .github/scripts/setup-traefik.sh
-        env:
-          SERVER_USER: ${{ vars.SERVER_USER }}
-          SERVER_SUDO_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-          SERVER_HOST: ${{ vars.SERVER_HOST }}
-          SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
-          TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
-          TRAEFIK_NETWORK_SECONDARY: ${{ env.TRAEFIK_NETWORK_SECONDARY }}
-          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'contato@connexto.com.br' }}
-
-      - name: Deploy container
+      - name: Run deploy script
         run: |
           chmod +x .github/scripts/deploy.sh
           .github/scripts/deploy.sh
         env:
-          SERVER_USER: ${{ vars.SERVER_USER }}
-          SERVER_SUDO_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-          SERVER_HOST: ${{ vars.SERVER_HOST }}
-          SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
           GHCR_USER: ${{ vars.GHCR_USER || github.repository_owner }}
           GHCR_PAT: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
-          APP_ENV: ${{ vars.APP_ENV || 'production' }}
-          LOG_LEVEL: ${{ vars.LOG_LEVEL || 'info' }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DEPLOY_DATA_DIR: ${{ vars.DEPLOY_DATA_DIR || '/data/apps' }}
-          DEPLOY_WORKERS: ${{ vars.DEPLOY_WORKERS || '2' }}
-          DEPLOY_TIMEOUT: ${{ vars.DEPLOY_TIMEOUT || '600' }}
-          HEALTH_CHECK_TIMEOUT: ${{ vars.HEALTH_CHECK_TIMEOUT || '60' }}
-          HEALTH_CHECK_RETRIES: ${{ vars.HEALTH_CHECK_RETRIES || '3' }}
-          GITHUB_PAT: ${{ secrets.GIT_HUB_PAT }}
-          GITHUB_WEBHOOK_SECRET: ${{ secrets.GIT_HUB_WEBHOOK_SECRET }}
-          GITHUB_WEBHOOK_URL: ${{ vars.GIT_HUB_WEBHOOK_URL || format('https://{0}/paas-deploy/v1/webhooks/github', env.API_DOMAIN) }}
-          GITHUB_CLIENT_ID: ${{ secrets.GIT_HUB_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.GIT_HUB_CLIENT_SECRET }}
-          GITHUB_OAUTH_CALLBACK_URL: ${{ vars.GIT_HUB_OAUTH_CALLBACK_URL || format('https://{0}/auth/github/callback', env.API_DOMAIN) }}
-          GITHUB_APP_ID: ${{ secrets.GIT_HUB_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY_BASE64: ${{ secrets.GIT_HUB_APP_PRIVATE_KEY_BASE64 }}
-          GITHUB_APP_INSTALL_URL: ${{ vars.GIT_HUB_APP_INSTALL_URL || 'https://github.com/apps/flowdeployapp/installations/new' }}
-          TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
-          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
-          COOKIE_DOMAIN: ${{ vars.COOKIE_DOMAIN || '' }}
-          SESSION_SECURE: ${{ vars.SESSION_SECURE || 'true' }}
-          CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
-          CLOUDFLARE_SERVER_IP: ${{ vars.CLOUDFLARE_SERVER_IP || '' }}
-          API_DOMAIN: ${{ env.API_DOMAIN }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
-          TRAEFIK_API_URL: ${{ vars.TRAEFIK_API_URL || 'http://traefik:8081' }}
-          GRPC_SERVER_ADDR: ${{ vars.GRPC_SERVER_ADDR || env.GRPC_SERVER_ADDR }}
-          AGENT_TLS_INSECURE_SKIP_VERIFY: ${{ vars.AGENT_TLS_INSECURE_SKIP_VERIFY || 'false' }}
-          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL || 'contato@connexto.com.br' }}
+          API_DOMAIN: ${{ env.API_DOMAIN }}
 
       - name: Verify deployment
         run: |
-          echo "🔍 Deployment completed!"
-          echo "📋 Container: ${{ env.CONTAINER_NAME }}"
-          echo "📦 Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "🌐 API URL: https://${{ env.API_DOMAIN }}"
-          echo "🔌 Direct: http://${{ vars.SERVER_HOST }}:9005"
+          echo "Container: ${{ env.CONTAINER_NAME }}"
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }} (also tagged :latest)"
+          echo "API URL: https://${{ env.API_DOMAIN }}"

@@ -10,6 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **CI/CD: backend deploy moved to a self-hosted GitHub Actions runner on
+  the control-plane VPS.** The `deploy` job now runs locally on the VPS
+  (label `flowdeploy-control-plane`), eliminating inbound SSH from
+  GitHub-hosted runners (was timing out due to upstream network filtering
+  at the provider). The `build-and-push` job continues on
+  `ubuntu-latest`. Image tag is now pinned to the build's short SHA
+  (instead of `:latest`) for build→deploy traceability. Container health
+  is now actively waited for (`HEALTHCHECK` or HTTP `/health`) before the
+  deploy is considered successful.
+- The host port `9005` is now bound to `127.0.0.1` only (was bound to all
+  interfaces). External traffic to the backend goes exclusively through
+  Traefik (HTTPS + Let's Encrypt + middlewares).
+
+### Removed
+
+- Deleted `.github/scripts/setup-traefik.sh` and the SSH-based deploy
+  (`webfactory/ssh-agent`, `expect` scripts). Traefik is provisioned
+  out-of-band on the VPS; reprovisioning is a runbook task, not a CI step.
+
 ### Documentation
 
 - Rewrote the entire `docs/` folder to reflect the current architecture:
