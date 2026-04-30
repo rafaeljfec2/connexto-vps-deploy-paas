@@ -92,7 +92,7 @@ services:
     build:
       context: ..
       dockerfile: apps/mcp/Dockerfile
-    container_name: paasdeploy-mcp
+    container_name: flowdeploy-mcp
     restart: unless-stopped
     environment:
       FLOWDEPLOY_BACKEND_URL: ${FLOWDEPLOY_BACKEND_URL:-http://backend:8080}

@@ -8,13 +8,16 @@ on:
       - "apps/mcp/**"
       - "deploy/docker-compose.yml"
       - ".github/workflows/deploy-mcp.yml"
-      - ".github/scripts/deploy-mcp.exp"
+      - ".github/scripts/deploy-mcp.sh"
   workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
-  id-token: write
+
+concurrency:
+  group: deploy-mcp-prod
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -27,40 +30,37 @@ jobs:
     runs-on: ubuntu-latest
     environment: Prod
     steps:
-      - name: Validate required variables
+      - name: Validate required GitHub Vars/Secrets
         run: |
-          echo "🔍 Validating MCP environment variables..."
-
-          missing_vars=()
-
-          [ -z "$SERVER_USER" ] && missing_vars+=("SERVER_USER")
-          [ -z "$SERVER_HOST" ] && missing_vars+=("SERVER_HOST")
-          [ -z "$MCP_HOST" ] && missing_vars+=("MCP_HOST")
-          [ -z "$FLOWDEPLOY_BACKEND_URL" ] && missing_vars+=("FLOWDEPLOY_BACKEND_URL")
-          [ -z "$FLOWDEPLOY_MCP_ALLOWED_CLIENTS" ] && missing_vars+=("FLOWDEPLOY_MCP_ALLOWED_CLIENTS")
-
-          if [ ${#missing_vars[@]} -gt 0 ]; then
-            echo "❌ Missing required variables:"
-            printf '  - %s\n' "${missing_vars[@]}"
+          echo "Validating required GitHub-side configuration..."
+          missing=()
+          [ -z "$GHCR_USER" ]                       && missing+=("vars.GHCR_USER (or repo owner fallback)")
+          [ -z "$GHCR_TOKEN" ]                      && missing+=("secrets.GHCR_PAT or GITHUB_TOKEN")
+          [ -z "$MCP_HOST" ]                        && missing+=("vars.MCP_HOST")
+          [ -z "$FLOWDEPLOY_BACKEND_URL" ]          && missing+=("vars.FLOWDEPLOY_BACKEND_URL")
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing:"
+            printf '  - %s\n' "${missing[@]}"
             echo ""
-            echo "Add the missing items in: GitHub → Settings → Environments → Prod → Variables"
+            echo "Add the missing items in: GitHub -> Settings -> Environments -> Prod -> Variables/Secrets"
             exit 1
           fi
-
-          echo "✅ All required MCP variables are set"
-          echo "  MCP_HOST=$MCP_HOST"
-          echo "  FLOWDEPLOY_BACKEND_URL=$FLOWDEPLOY_BACKEND_URL"
-          echo "  FLOWDEPLOY_MCP_ALLOWED_CLIENTS=$FLOWDEPLOY_MCP_ALLOWED_CLIENTS"
+          echo "OK"
+          echo "  MCP_HOST=${MCP_HOST}"
+          echo "  FLOWDEPLOY_BACKEND_URL=${FLOWDEPLOY_BACKEND_URL}"
+          echo "  FLOWDEPLOY_MCP_ALLOWED_CLIENTS=${FLOWDEPLOY_MCP_ALLOWED_CLIENTS:-(default in script)}"
           echo "  FLOWDEPLOY_MCP_READ_RPM=${FLOWDEPLOY_MCP_READ_RPM:-120 (default)}"
           echo "  FLOWDEPLOY_MCP_MUTATE_RPM=${FLOWDEPLOY_MCP_MUTATE_RPM:-20 (default)}"
+          echo "  FLOWDEPLOY_MCP_SESSION_MAX_AGE=${FLOWDEPLOY_MCP_SESSION_MAX_AGE:-30m (default)}"
         env:
-          SERVER_USER: ${{ vars.SERVER_USER }}
-          SERVER_HOST: ${{ vars.SERVER_HOST }}
+          GHCR_USER: ${{ vars.GHCR_USER || github.repository_owner }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
           MCP_HOST: ${{ vars.MCP_HOST }}
           FLOWDEPLOY_BACKEND_URL: ${{ vars.FLOWDEPLOY_BACKEND_URL }}
           FLOWDEPLOY_MCP_ALLOWED_CLIENTS: ${{ vars.FLOWDEPLOY_MCP_ALLOWED_CLIENTS }}
           FLOWDEPLOY_MCP_READ_RPM: ${{ vars.FLOWDEPLOY_MCP_READ_RPM }}
           FLOWDEPLOY_MCP_MUTATE_RPM: ${{ vars.FLOWDEPLOY_MCP_MUTATE_RPM }}
+          FLOWDEPLOY_MCP_SESSION_MAX_AGE: ${{ vars.FLOWDEPLOY_MCP_SESSION_MAX_AGE }}
 
   build-and-push:
     needs: validate-environment
@@ -69,7 +69,8 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
+    outputs:
+      image_tag: ${{ steps.get-version.outputs.version }}
 
     steps:
       - name: Checkout code
@@ -79,8 +80,10 @@ jobs:
         id: get-version
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "version=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "📦 Version: ${SHORT_SHA}"
+          # Match the tag emitted by docker/metadata-action (default prefix 'sha-').
+          IMAGE_TAG="sha-${SHORT_SHA}"
+          echo "version=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+          echo "Image tag: ${IMAGE_TAG}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -115,36 +118,30 @@ jobs:
 
   deploy:
     needs: build-and-push
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, flowdeploy-control-plane]
     environment: Prod
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install expect
+      - name: Run deploy script
         run: |
-          sudo apt-get update
-          sudo apt-get install -y expect
-
-      - name: Deploy MCP container
-        run: |
-          chmod +x .github/scripts/deploy-mcp.exp
-          .github/scripts/deploy-mcp.exp
+          chmod +x .github/scripts/deploy-mcp.sh
+          .github/scripts/deploy-mcp.sh
         env:
-          SERVER_USER: ${{ vars.SERVER_USER }}
-          SERVER_PASSWORD: ${{ secrets.SERVER_PASSWORD }}
-          SERVER_HOST: ${{ vars.SERVER_HOST }}
-          SERVER_PORT: ${{ vars.SERVER_PORT || '22' }}
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
           GHCR_USER: ${{ vars.GHCR_USER || github.repository_owner }}
           GHCR_PAT: ${{ secrets.GHCR_PAT || secrets.GITHUB_TOKEN }}
-          LOG_LEVEL: ${{ vars.FLOWDEPLOY_MCP_LOG_LEVEL || 'info' }}
           TRAEFIK_NETWORK: ${{ env.TRAEFIK_NETWORK }}
           MCP_HOST: ${{ vars.MCP_HOST }}
           FLOWDEPLOY_BACKEND_URL: ${{ vars.FLOWDEPLOY_BACKEND_URL }}
-          FLOWDEPLOY_MCP_ALLOWED_CLIENTS: ${{ vars.FLOWDEPLOY_MCP_ALLOWED_CLIENTS }}
+          FLOWDEPLOY_MCP_LOG_LEVEL: ${{ vars.FLOWDEPLOY_MCP_LOG_LEVEL || 'info' }}
+          FLOWDEPLOY_MCP_ALLOWED_CLIENTS: ${{ vars.FLOWDEPLOY_MCP_ALLOWED_CLIENTS || 'cursor,claude-desktop,custom:*,ci:*' }}
           FLOWDEPLOY_MCP_READ_RPM: ${{ vars.FLOWDEPLOY_MCP_READ_RPM || '120' }}
           FLOWDEPLOY_MCP_MUTATE_RPM: ${{ vars.FLOWDEPLOY_MCP_MUTATE_RPM || '20' }}
           FLOWDEPLOY_MCP_SESSION_MAX_AGE: ${{ vars.FLOWDEPLOY_MCP_SESSION_MAX_AGE || '30m' }}
@@ -158,27 +155,27 @@ jobs:
         run: |
           set -euo pipefail
           MCP_URL="https://${{ vars.MCP_HOST }}/mcp"
-          echo "🧪 Probing $MCP_URL"
+          echo "Probing ${MCP_URL}"
+          status="000"
           for attempt in $(seq 1 12); do
-            status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 -X POST "$MCP_URL" || echo "000")
-            if [ "$status" = "401" ]; then
-              echo "✅ /mcp is reachable and correctly rejecting unauth requests (HTTP 401)"
+            status=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 -X POST "${MCP_URL}" || echo "000")
+            if [ "${status}" = "401" ]; then
+              echo "OK: /mcp is reachable and correctly rejecting unauth requests (HTTP 401)"
               exit 0
             fi
-            echo "  attempt $attempt: got HTTP $status, retrying in 5s..."
+            echo "  attempt ${attempt}: got HTTP ${status}, retrying in 5s..."
             sleep 5
           done
-          echo "❌ /mcp did not reach a healthy state within 60s (last status: $status)"
+          echo "ERROR: /mcp did not reach a healthy state within 60s (last status: ${status})"
           exit 1
 
-      - name: Print next steps
+      - name: Verify deployment
         if: success()
         run: |
-          echo "🎉 MCP deployment completed!"
-          echo "📋 Container: ${{ env.CONTAINER_NAME }}"
-          echo "📦 Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "🌐 Public URL: https://${{ vars.MCP_HOST }}/mcp"
+          echo "Container : ${{ env.CONTAINER_NAME }}"
+          echo "Image     : ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }} (also tagged :latest)"
+          echo "Public URL: https://${{ vars.MCP_HOST }}/mcp"
           echo ""
-          echo "📚 Next steps:"
+          echo "Next steps:"
           echo "  1. Generate a PAT in the dashboard"
           echo "  2. Configure ~/.cursor/mcp.json (see docs/MCP_CLIENT_SETUP.md)"

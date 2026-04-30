@@ -10,6 +10,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Personal Access Tokens (PAT)**: users can mint, list and revoke
+  long-lived API tokens (`pdp_live_…`) from the dashboard. Tokens are
+  hashed at rest, scoped per user and rejected from token-management
+  endpoints by the `DenyPAT` middleware. Backend service, repository,
+  HTTP handler and frontend feature (`features/tokens/**`) included.
+- **Dry-run middleware for destructive operations**: write-mode endpoints
+  honour an `X-FlowDeploy-Dry-Run: true` header to short-circuit the
+  effect and return a structured preview envelope. Wired across app,
+  container, image, env, server, template and webhook handlers.
+- **MCP server (`apps/mcp`)**: new self-contained Go service exposing the
+  FlowDeploy public API as Model Context Protocol tools. Ships both
+  `stdio` (single-PAT, single-process) and `serve` (HTTP, multi-tenant)
+  transports, with per-PAT rate limits, allowed-clients allowlist and a
+  Traefik route at `https://${MCP_HOST}/mcp`. `/metrics`, `/healthz` and
+  `/readyz` stay internal to the `paasdeploy` network.
+- `audit_logs.actor_type` + `actor_logs.actor_id` columns (already in
+  migrations `000029`/`000030` on `main`) are now consumed end-to-end:
+  every audit entry records whether the action came from a `user`, `pat`,
+  `system` or `webhook` actor.
+
 ### Changed
 
 - **CI/CD: backend deploy moved to a self-hosted GitHub Actions runner on
@@ -21,15 +43,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (instead of `:latest`) for build→deploy traceability. Container health
   is now actively waited for (`HEALTHCHECK` or HTTP `/health`) before the
   deploy is considered successful.
+- **CI/CD: MCP deploy aligned with the same self-hosted-runner pattern.**
+  `.github/workflows/deploy-mcp.yml` no longer SSHes into the VPS via
+  `expect`. The `deploy` job now runs on `[self-hosted,
+  flowdeploy-control-plane]` and invokes `.github/scripts/deploy-mcp.sh`
+  locally, with SHA-pinned image tag, active healthcheck on `/healthz`
+  and automatic rollback to the previous image on failure. The public
+  smoke test against `https://${MCP_HOST}/mcp` (asserting HTTP 401 for
+  unauth requests) is preserved.
 - The host port `9005` is now bound to `127.0.0.1` only (was bound to all
   interfaces). External traffic to the backend goes exclusively through
   Traefik (HTTPS + Let's Encrypt + middlewares).
+- `deploy/docker-compose.yml`: standardized the MCP container name from
+  `paasdeploy-mcp` to `flowdeploy-mcp` to match the production deploy
+  pipeline.
 
 ### Removed
 
 - Deleted `.github/scripts/setup-traefik.sh` and the SSH-based deploy
   (`webfactory/ssh-agent`, `expect` scripts). Traefik is provisioned
   out-of-band on the VPS; reprovisioning is a runbook task, not a CI step.
+- Deleted `.github/scripts/deploy-mcp.exp` and the `SERVER_PASSWORD`
+  dependency from the MCP pipeline (replaced by the local
+  `deploy-mcp.sh` running on the self-hosted runner).
 
 ### Documentation
 

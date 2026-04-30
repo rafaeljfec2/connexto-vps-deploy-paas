@@ -241,7 +241,7 @@ A successful response is a JSON-RPC envelope containing `serverInfo.name = "flow
 
 ## Deploying via GitHub Actions
 
-The repository ships [`/.github/workflows/deploy-mcp.yml`](../.github/workflows/deploy-mcp.yml) which builds the MCP image, pushes to GHCR and deploys it to the production VPS over SSH. It mirrors `deploy-backend.yml` but only manages the `flowdeploy-mcp` container.
+The repository ships [`/.github/workflows/deploy-mcp.yml`](../.github/workflows/deploy-mcp.yml) which builds the MCP image, pushes to GHCR and deploys it on the production VPS via the self-hosted GitHub Actions runner (label `flowdeploy-control-plane`). It mirrors `deploy-backend.yml` but only manages the `flowdeploy-mcp` container.
 
 ### One-time setup (per environment)
 
@@ -255,7 +255,7 @@ The repository ships [`/.github/workflows/deploy-mcp.yml`](../.github/workflows/
    - `FLOWDEPLOY_MCP_LOG_LEVEL=info` *(optional)*
    - `FLOWDEPLOY_MCP_SESSION_MAX_AGE=30m` *(optional)*
 
-   The reused vars (`SERVER_USER`, `SERVER_HOST`, `SERVER_PORT`, `GHCR_USER`) and secrets (`SERVER_PASSWORD`, `GHCR_PAT`) come from the backend deploy and do not need to be duplicated.
+   The shared `GHCR_USER` (var) and `GHCR_PAT` (secret) come from the backend deploy and do not need to be duplicated. No `SERVER_*`/`SERVER_PASSWORD` is required: the MCP deploy runs on the same self-hosted runner as the backend, talking to the local Docker daemon directly.
 
 ### Trigger
 
@@ -264,7 +264,7 @@ The workflow runs automatically on `push` to `main` whenever any of the followin
 - `apps/mcp/**`
 - `deploy/docker-compose.yml`
 - `.github/workflows/deploy-mcp.yml`
-- `.github/scripts/deploy-mcp.exp`
+- `.github/scripts/deploy-mcp.sh`
 
 It can also be dispatched manually from the GitHub Actions UI.
 
