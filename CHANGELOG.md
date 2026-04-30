@@ -23,6 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `{scopes, expires_at}` details on creation. Failures (validation /
   repository errors) do NOT emit audit, matching the behavior of every
   other write path in the backend.
+- **Dry-run middleware for destructive operations**: write-mode endpoints
+  honour an `X-FlowDeploy-Dry-Run: true` header to short-circuit the
+  effect and return a structured preview envelope. Wired across app,
+  container, image, env, server, template and webhook handlers.
+- **MCP server (`apps/mcp`)**: new self-contained Go service exposing the
+  FlowDeploy public API as Model Context Protocol tools. Ships both
+  `stdio` (single-PAT, single-process) and `serve` (HTTP, multi-tenant)
+  transports, with per-PAT rate limits, allowed-clients allowlist and a
+  Traefik route at `https://${MCP_HOST}/mcp`. `/metrics`, `/healthz` and
+  `/readyz` stay internal to the `paasdeploy` network.
+- `audit_logs.actor_type` + `actor_logs.actor_id` columns (already in
+  migrations `000029`/`000030` on `main`) are now consumed end-to-end:
+  every audit entry records whether the action came from a `user`, `pat`,
+  `system` or `webhook` actor.
 
 ### Fixed
 
@@ -49,23 +63,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `go-sqlmock` (test-only dependency, v1.5.2) covering the JSONB INSERT
   round-trip that regressed in production, plus `FindByTokenHash`,
   `ListByUserID`, `Revoke` and `TouchLastUsed`.
-- **Dry-run middleware for destructive operations**: write-mode endpoints
-  honour an `X-FlowDeploy-Dry-Run: true` header to short-circuit the
-  effect and return a structured preview envelope. Wired across app,
-  container, image, env, server, template and webhook handlers.
-- **MCP server (`apps/mcp`)**: new self-contained Go service exposing the
-  FlowDeploy public API as Model Context Protocol tools. Ships both
-  `stdio` (single-PAT, single-process) and `serve` (HTTP, multi-tenant)
-  transports, with per-PAT rate limits, allowed-clients allowlist and a
-  Traefik route at `https://${MCP_HOST}/mcp`. `/metrics`, `/healthz` and
-  `/readyz` stay internal to the `paasdeploy` network.
-- `audit_logs.actor_type` + `actor_logs.actor_id` columns (already in
-  migrations `000029`/`000030` on `main`) are now consumed end-to-end:
-  every audit entry records whether the action came from a `user`, `pat`,
-  `system` or `webhook` actor.
-
-### Changed
-
 - **CI/CD: backend deploy moved to a self-hosted GitHub Actions runner on
   the control-plane VPS.** The `deploy` job now runs locally on the VPS
   (label `flowdeploy-control-plane`), eliminating inbound SSH from

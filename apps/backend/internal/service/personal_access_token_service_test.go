@@ -51,7 +51,10 @@ func (f *fakePATRepo) FindByTokenHash(_ context.Context, _ string) (*domain.Pers
 }
 
 func (f *fakePATRepo) FindByID(_ context.Context, _ string) (*domain.PersonalAccessToken, error) {
-	return nil, domain.ErrNotFound
+	if f.findByHashErr != nil {
+		return nil, f.findByHashErr
+	}
+	return f.findByHashToken, nil
 }
 
 func (f *fakePATRepo) ListByUserID(_ context.Context, _ string) ([]domain.PersonalAccessToken, error) {
@@ -302,5 +305,51 @@ func TestTouchLastUsedDelegatesToRepo(t *testing.T) {
 
 	if repo.touchCalls != 1 {
 		t.Fatalf("expected 1 touch call, got %d", repo.touchCalls)
+	}
+}
+
+func TestGetReturnsTokenWhenOwnerMatches(t *testing.T) {
+	repo := &fakePATRepo{findByHashToken: &domain.PersonalAccessToken{
+		ID:     "tok_1",
+		UserID: "user-1",
+		Name:   "ci-bot",
+		Scopes: []string{domain.ScopeRead},
+	}}
+	svc := NewPersonalAccessTokenService(repo)
+
+	token, err := svc.Get(context.Background(), "tok_1", "user-1")
+	if err != nil {
+		t.Fatalf("expected token, got error %v", err)
+	}
+	if token == nil || token.ID != "tok_1" {
+		t.Fatalf("expected token tok_1, got %#v", token)
+	}
+}
+
+func TestGetReturnsNotFoundWhenOwnerMismatches(t *testing.T) {
+	repo := &fakePATRepo{findByHashToken: &domain.PersonalAccessToken{
+		ID:     "tok_1",
+		UserID: "user-1",
+		Name:   "ci-bot",
+		Scopes: []string{domain.ScopeRead},
+	}}
+	svc := NewPersonalAccessTokenService(repo)
+
+	token, err := svc.Get(context.Background(), "tok_1", "user-2")
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for cross-tenant access, got %v", err)
+	}
+	if token != nil {
+		t.Fatalf("expected nil token on cross-tenant access, got %#v", token)
+	}
+}
+
+func TestGetPropagatesRepoNotFound(t *testing.T) {
+	repo := &fakePATRepo{findByHashErr: domain.ErrNotFound}
+	svc := NewPersonalAccessTokenService(repo)
+
+	_, err := svc.Get(context.Background(), "missing", "user-1")
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
