@@ -27,6 +27,31 @@ HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-180}"
 
 IMAGE_REF="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
+# retry runs the given command up to ${1} times, with a fixed backoff between
+# attempts. Used only for steps whose failure mode is transient network noise
+# against ghcr.io (docker login, docker pull). Deterministic failures (bad
+# image, bad env, container unhealthy) MUST NOT be wrapped — masking them
+# would hide real bugs.
+retry() {
+  local max="$1"; shift
+  local backoffs=(5 15 30)
+  local attempt=1
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    if [ "${attempt}" -ge "${max}" ]; then
+      echo "  -> attempt ${attempt}/${max} failed; giving up" >&2
+      return 1
+    fi
+    local idx=$((attempt - 1))
+    local sleep_for="${backoffs[${idx}]:-30}"
+    echo "  -> attempt ${attempt}/${max} failed; retrying in ${sleep_for}s..." >&2
+    sleep "${sleep_for}"
+    attempt=$((attempt + 1))
+  done
+}
+
 echo "===== Deploying ${IMAGE_REF} ====="
 
 if [ ! -r "${ENV_FILE}" ]; then
@@ -51,10 +76,13 @@ case "${KEY_PERM}" in
 esac
 
 echo "===== Login to ${REGISTRY} ====="
-echo "${GHCR_PAT}" | docker login "${REGISTRY}" -u "${GHCR_USER}" --password-stdin >/dev/null
+docker_login() {
+  echo "${GHCR_PAT}" | docker login "${REGISTRY}" -u "${GHCR_USER}" --password-stdin >/dev/null
+}
+retry 3 docker_login
 
 echo "===== Pull image ====="
-docker pull "${IMAGE_REF}"
+retry 3 docker pull "${IMAGE_REF}"
 
 echo "===== Ensure network ====="
 docker network create "${TRAEFIK_NETWORK}" 2>/dev/null || true

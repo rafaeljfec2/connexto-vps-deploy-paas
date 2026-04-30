@@ -29,78 +29,75 @@ func InitializeApplication() (*Application, func(), error) {
 	postgresAppRepository := repository.NewPostgresAppRepository(db)
 	postgresEnvVarRepository := repository.NewPostgresEnvVarRepository(db)
 	postgresCustomDomainRepository := repository.NewPostgresCustomDomainRepository(db)
-	appClient := ProvideGitHubAppClient(config, logger)
-	postgresInstallationRepository := repository.NewPostgresInstallationRepository(db)
-	gitTokenProvider := ProvideGitTokenProvider(appClient, postgresInstallationRepository, logger)
-	auditService := ProvideAuditService(db, logger)
-	serverConfig := ProvideServerConfig(config)
-	serverServer := server.New(serverConfig, logger)
+	postgresServerRepository := repository.NewPostgresServerRepository(db)
 	postgresCertificateAuthorityRepository := repository.NewPostgresCertificateAuthorityRepository(db)
 	certificateAuthority, err := ProvidePKI(logger, postgresCertificateAuthorityRepository)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	postgresServerRepository := repository.NewPostgresServerRepository(db)
-	agentClientForEngine, err := ProvideAgentClient(certificateAuthority, config)
+	agentClient, err := ProvideAgentClient(certificateAuthority, config)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	engineEngine := engine.New(engine.Params{
+	appClient := ProvideGitHubAppClient(config, logger)
+	postgresInstallationRepository := repository.NewPostgresInstallationRepository(db)
+	gitTokenProvider := ProvideGitTokenProvider(appClient, postgresInstallationRepository, logger)
+	auditService := ProvideAuditService(db, logger)
+	params := engine.Params{
 		Cfg:              config,
 		DB:               db,
 		AppRepo:          postgresAppRepository,
 		EnvVarRepo:       postgresEnvVarRepository,
 		CustomDomainRepo: postgresCustomDomainRepository,
 		ServerRepo:       postgresServerRepository,
-		AgentClient:      agentClientForEngine,
+		AgentClient:      agentClient,
 		GitTokenProvider: gitTokenProvider,
 		AuditService:     auditService,
 		Logger:           logger,
-	})
-	sseHandler := handler.NewSSEHandler()
+	}
+	engineEngine := engine.New(params)
+	serverConfig := ProvideServerConfig(config)
+	serverServer := server.New(serverConfig, logger)
 	tokenStore := agentdownload.NewTokenStore()
+	sseHandler := handler.NewSSEHandler()
 	grpcserverServer := ProvideGrpcServer(config, certificateAuthority, postgresServerRepository, tokenStore, sseHandler, logger)
 	healthHandler := ProvideHealthHandler()
 	postgresDeploymentRepository := repository.NewPostgresDeploymentRepository(db)
 	manager := ProvideWebhookManager(config, logger)
-	appCleaner := ProvideAppCleaner(config, logger)
-	appService := ProvideAppService(postgresAppRepository, postgresDeploymentRepository, postgresEnvVarRepository, manager, appCleaner, logger)
+	cleaner := ProvideAppCleaner(config, logger)
+	appService := ProvideAppService(postgresAppRepository, postgresDeploymentRepository, postgresEnvVarRepository, manager, cleaner, logger)
 	appHandler := handler.NewAppHandler(appService, auditService, logger)
 	swaggerHandler := handler.NewSwaggerHandler()
 	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository, logger)
-	containerHealthHandler := handler.NewContainerHealthHandler(postgresAppRepository, postgresServerRepository, engineEngine, agentClientForEngine, config.GRPC.AgentPort, logger)
-	appAdminHandler := ProvideAppAdminHandler(AppAdminHandlerDeps{
+	containerHealthHandler := ProvideContainerHealthHandler(postgresAppRepository, postgresServerRepository, engineEngine, agentClient, config, logger)
+	appAdminHandlerDeps := AppAdminHandlerDeps{
 		AppRepo:          postgresAppRepository,
 		ServerRepo:       postgresServerRepository,
 		CustomDomainRepo: postgresCustomDomainRepository,
 		EnvVarRepo:       postgresEnvVarRepository,
 		Engine:           engineEngine,
-		AgentClient:      agentClientForEngine,
+		AgentClient:      agentClient,
 		Config:           config,
 		Logger:           logger,
-	})
+	}
+	appAdminHandler := ProvideAppAdminHandler(appAdminHandlerDeps)
 	postgresWebhookPayloadRepository := repository.NewPostgresWebhookPayloadRepository(db)
 	webhookHandler := ProvideGitHubWebhookHandler(config, postgresAppRepository, postgresDeploymentRepository, postgresWebhookPayloadRepository, auditService, logger)
 	oAuthClient := ProvideOAuthClient(config, logger)
 	postgresUserRepository := repository.NewPostgresUserRepository(db)
 	postgresSessionRepository := repository.NewPostgresSessionRepository(db)
-	postgresPersonalAccessTokenRepository := repository.NewPostgresPersonalAccessTokenRepository(db)
-	personalAccessTokenService := ProvidePATService(postgresPersonalAccessTokenRepository)
-	// MANUAL EDIT: kept after expanding ProvidePATHandler signature to
-	// (svc, auditSvc, logger). The local `wire` generator cannot regenerate
-	// this file today because of pre-existing missing providers
-	// (engine.Params, int for ContainerHealthHandler). Once those are
-	// addressed, run `wire ./internal/di/...` and remove this comment.
-	patHandler := ProvidePATHandler(personalAccessTokenService, auditService, logger)
 	tokenEncryptor := ProvideTokenEncryptor(config, logger)
 	authHandler := ProvideAuthHandler(config, oAuthClient, postgresUserRepository, postgresSessionRepository, tokenEncryptor, auditService, logger)
 	gitHubHandler := ProvideGitHubHandler(config, appClient, postgresInstallationRepository, postgresUserRepository, logger)
+	postgresPersonalAccessTokenRepository := repository.NewPostgresPersonalAccessTokenRepository(db)
+	personalAccessTokenService := ProvidePATService(postgresPersonalAccessTokenRepository)
+	patHandler := ProvidePATHandler(personalAccessTokenService, auditService, logger)
 	authMiddleware := ProvideAuthMiddleware(config, postgresSessionRepository, postgresUserRepository, personalAccessTokenService, logger)
 	postgresCloudflareConnectionRepository := repository.NewPostgresCloudflareConnectionRepository(db)
 	cloudflareAuthHandler := ProvideCloudflareAuthHandler(config, postgresCloudflareConnectionRepository, tokenEncryptor, logger)
-	domainHandler := ProvideDomainHandler(DomainHandlerDeps{
+	domainHandlerDeps := DomainHandlerDeps{
 		Config:         config,
 		AppRepo:        postgresAppRepository,
 		DomainRepo:     postgresCustomDomainRepository,
@@ -109,28 +106,29 @@ func InitializeApplication() (*Application, func(), error) {
 		TokenEncryptor: tokenEncryptor,
 		Engine:         engineEngine,
 		Logger:         logger,
-	})
+	}
+	domainHandler := ProvideDomainHandler(domainHandlerDeps)
 	migrationHandler := ProvideMigrationHandler(logger)
-	containerHandler := ProvideContainerHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger, sseHandler)
-	containerExecHandler := ProvideContainerExecHandler(postgresServerRepository, agentClientForEngine, config, logger)
-	templateHandler := ProvideTemplateHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
-	imageHandler := ProvideImageHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger, sseHandler)
-	certificateHandler := ProvideCertificateHandler(config, postgresServerRepository, agentClientForEngine, logger)
+	containerHandler := ProvideContainerHandler(engineEngine, postgresServerRepository, agentClient, config, logger, sseHandler)
+	containerExecHandler := ProvideContainerExecHandler(postgresServerRepository, agentClient, config, logger)
+	templateHandler := ProvideTemplateHandler(engineEngine, postgresServerRepository, agentClient, config, logger)
+	imageHandler := ProvideImageHandler(engineEngine, postgresServerRepository, agentClient, config, logger, sseHandler)
+	certificateHandler := ProvideCertificateHandler(config, postgresServerRepository, agentClient, logger)
 	auditHandler := ProvideAuditHandler(auditService, postgresWebhookPayloadRepository)
-	resourceHandler := ProvideResourceHandler(engineEngine, postgresServerRepository, agentClientForEngine, config, logger)
+	resourceHandler := ProvideResourceHandler(engineEngine, postgresServerRepository, agentClient, config, logger)
 	postgresNotificationChannelRepository := repository.NewPostgresNotificationChannelRepository(db)
 	postgresNotificationRuleRepository := repository.NewPostgresNotificationRuleRepository(db)
 	notificationService := ProvideNotificationService(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
 	notificationHandler := ProvideNotificationHandler(postgresNotificationChannelRepository, postgresNotificationRuleRepository, postgresAppRepository, logger)
 	sshProvisioner := ProvideSSHProvisioner(certificateAuthority, config, logger, postgresServerRepository)
-	healthChecker := ProvideAgentHealthChecker(agentClientForEngine, config)
-	serverHandlerAgentDeps := ProvideServerHandlerAgentDeps(healthChecker, agentClientForEngine, config, grpcserverServer)
+	healthChecker := ProvideAgentHealthChecker(agentClient, config)
+	serverHandlerAgentDeps := ProvideServerHandlerAgentDeps(healthChecker, agentClient, config, grpcserverServer)
 	serverHandler := ProvideServerHandler(postgresServerRepository, tokenEncryptor, sshProvisioner, sseHandler, serverHandlerAgentDeps, appService, logger)
 	systemHandler := handler.NewSystemHandler()
 	agentdownloadHandler := ProvideAgentDownloadHandler(tokenStore, config, logger)
 	postgresCleanupLogRepository := repository.NewPostgresCleanupLogRepository(db)
-	cleanupHandler := ProvideCleanupHandler(postgresServerRepository, postgresCleanupLogRepository, agentClientForEngine, config, logger)
-	containerSSLHandler := ProvideContainerSSLHandler(postgresServerRepository, agentClientForEngine, config, logger)
+	cleanupHandler := ProvideCleanupHandler(postgresServerRepository, postgresCleanupLogRepository, agentClient, config, logger)
+	containerSSLHandler := ProvideContainerSSLHandler(postgresServerRepository, agentClient, config, logger)
 	application := &Application{
 		Config:                 config,
 		Logger:                 logger,
@@ -169,7 +167,7 @@ func InitializeApplication() (*Application, func(), error) {
 		CleanupHandler:         cleanupHandler,
 		ContainerSSLHandler:    containerSSLHandler,
 		ServerRepo:             postgresServerRepository,
-		AgentClient:            agentClientForEngine,
+		AgentClient:            agentClient,
 	}
 	return application, func() {
 		cleanup()

@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -50,11 +51,12 @@ func RegisterMCPPrompts(srv *mcp.Server, _ toolkit.Deps) {
 			if limit == "" {
 				limit = "200"
 			}
+			startDate := time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339)
 			text := "You are a FlowDeploy auditor. Summarize recent activity using the audit log:\n\n" +
-				"1. Call audit_logs with limit=" + limit + " and from=24h-ago.\n" +
-				"2. Group entries by actor (user vs pat vs system) and by action.\n" +
+				"1. Call audit_logs with limit=" + limit + " and start_date=" + startDate + " (RFC3339; 24h ago).\n" +
+				"2. Group the returned entries by actorType (user, pat, system, webhook) and by eventType.\n" +
 				"3. Highlight any destructive action (delete, prune, remove) and the reason recorded.\n" +
-				"4. Output a markdown table: actor | action | resource | timestamp | reason."
+				"4. Output a markdown table: actor | event | resource | timestamp | reason."
 			return &mcp.GetPromptResult{
 				Description: "Audit recent changes",
 				Messages: []*mcp.PromptMessage{

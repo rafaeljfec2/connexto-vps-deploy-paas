@@ -40,6 +40,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **MCP `audit_logs` filters were silently ignored**: the tool declared
+  `actor_type`, `actor_id`, `action`, `from`, `to` in its input schema and
+  forwarded them to the backend as `actorType`, `actorId`, `action`, `from`,
+  `to` — but `apps/backend/internal/handler/audit_handler.go` only honours
+  `eventType`, `resourceType`, `resourceId`, `startDate`, `endDate`. Result:
+  every filter except `limit` was a no-op (the tool returned the unfiltered
+  page regardless of arguments). Inputs renamed to `event_type`,
+  `resource_type`, `resource_id`, `start_date`, `end_date` (snake_case stays
+  the MCP convention) and the downstream map now uses the camelCase keys the
+  backend actually reads. Added `offset` for pagination. `user_id` was
+  intentionally NOT exposed because the backend always overrides
+  `filter.UserID` to the authenticated caller (audit_handler.go:62-63),
+  so accepting it client-side would just silently no-op like the legacy
+  fields did. Existing test (`TestAuditLogsForwardsFilters`) was
+  green-but-wrong (only validated MCP→HTTP forwarding for parameters the
+  backend ignored); replaced by
+  `TestAuditLogsForwardsFiltersToBackendCamelCase`,
+  `TestAuditLogsOmitsEmptyFiltersFromQuery`,
+  `TestAuditLogsRejectsUnknownFilters` (asserts the schema rejects the
+  removed `user_id`) and
+  `TestAuditWebhookPayloadsForwardsLimitAndOffset`.
+- **MCP `audit_recent_changes` prompt referenced removed `from` field**:
+  the prompt template (`apps/mcp/internal/mcpserver/prompts.go`)
+  instructed the model to call `audit_logs(limit=N, from=24h-ago)` —
+  but `from` was never read by the backend and is no longer part of the
+  tool schema (which now uses `additionalProperties:false`). Fix: the
+  prompt now computes the actual RFC3339 timestamp 24 hours ago and
+  passes `start_date=<timestamp>`, and groups by `actorType` /
+  `eventType` (the field names actually returned in the response).
+- **`deploy.sh` and `deploy-mcp.sh` had no retry against `ghcr.io`**: 3
+  consecutive backend deploys (commits `a17888c`, `5af7abd`, `1e4e83e`)
+  failed with `dial tcp 4.228.31.152:443: i/o timeout` on `docker login` /
+  `docker pull`, leaving production stuck on `sha-203514d` (without the
+  PAT audit-trail and Guardian fixes). Both deploy scripts (backend and
+  MCP) gained a `retry()` bash helper with fixed backoff (5s before
+  attempt 2, 15s before attempt 3) and now wrap the two network-bound
+  steps (`docker login`, `docker pull`) in 3 attempts. The
+  `backoffs=(5 15 30)` array carries a 30s slot for any future bump of
+  `max`. Deterministic steps (`docker run`, healthcheck, rollback) are
+  NOT retried because masking their failures would hide real bugs (bad
+  image, bad env, container unhealthy). The helper is duplicated rather
+  than extracted to a shared `lib/`; if it grows, refactor to a
+  source-able file.
 - **PAT creation returning 500 in production**: the `scopes` column of
   `personal_access_tokens` existed in the production database as
   `text[]` (the table was created out-of-band before the `000029`
@@ -63,6 +106,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `go-sqlmock` (test-only dependency, v1.5.2) covering the JSONB INSERT
   round-trip that regressed in production, plus `FindByTokenHash`,
   `ListByUserID`, `Revoke` and `TouchLastUsed`.
+- **Wire DI cleanup**: `apps/backend/internal/di/wire_gen.go` is now fully
+  regenerable from source. `EngineSet` gained
+  `wire.Struct(new(engine.Params), "*")` so wire builds the `engine.New`
+  parameter struct from existing providers, and
+  `handler.NewContainerHealthHandler` is wrapped by a thin
+  `ProvideContainerHealthHandler` (in `providers_handlers.go`) that
+  extracts `cfg.GRPC.AgentPort` — the same pattern used by every other
+  handler with an agent port. The manual edit in `wire_gen.go` (added
+  during the PAT audit-trail turn because the generator could not resolve
+  `engine.Params` and the bare `int` for `agentPort`) is removed; running
+  `wire ./internal/di/...` now produces clean output.
+- The `containers_logs.since` end-to-end fix is tracked separately at
+  `docs/followups/CONTAINERS_LOGS_SINCE.md`. Proto already declares
+  `since` (`server.proto:181`) and the MCP tool already forwards the
+  field (`apps/mcp/internal/tools/containers.go:23,64`,
+  `logs_follow.go:35`). Four layers — agent gRPC handler, shared docker
+  wrapper, backend agent client and backend HTTP handlers — need to
+  start forwarding it (today they drop it on the floor); the MCP layer
+  only needs RFC3339/duration validation hardened. Once the chain is
+  honoured, the MCP `logs_follow` polling loop will consume only new
+  lines per tick instead of re-pulling the full tail window.
 - **CI/CD: backend deploy moved to a self-hosted GitHub Actions runner on
   the control-plane VPS.** The `deploy` job now runs locally on the VPS
   (label `flowdeploy-control-plane`), eliminating inbound SSH from

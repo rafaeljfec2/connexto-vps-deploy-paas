@@ -37,7 +37,7 @@ var HandlerSet = wire.NewSet(
 	handler.NewSSEHandler,
 	handler.NewSwaggerHandler,
 	handler.NewEnvVarHandler,
-	handler.NewContainerHealthHandler,
+	ProvideContainerHealthHandler,
 	wire.Struct(new(AppAdminHandlerDeps), "*"),
 	ProvideAppAdminHandler,
 	ProvideCloudflareAuthHandler,
@@ -147,6 +147,17 @@ func ProvideDomainHandler(deps DomainHandlerDeps) *handler.DomainHandler {
 
 func ProvideMigrationHandler(logger *slog.Logger) *handler.MigrationHandler {
 	return handler.NewMigrationHandler(logger)
+}
+
+func ProvideContainerHealthHandler(
+	appRepo domain.AppRepository,
+	serverRepo domain.ServerRepository,
+	eng *engine.Engine,
+	agentClient *agentclient.AgentClient,
+	cfg *config.Config,
+	logger *slog.Logger,
+) *handler.ContainerHealthHandler {
+	return handler.NewContainerHealthHandler(appRepo, serverRepo, eng, agentClient, cfg.GRPC.AgentPort, logger)
 }
 
 func ProvideContainerHandler(

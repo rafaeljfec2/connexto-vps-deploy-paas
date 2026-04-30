@@ -23,6 +23,7 @@ import (
 
 var EngineSet = wire.NewSet(
 	ProvideGitTokenProvider,
+	wire.Struct(new(engine.Params), "*"),
 	engine.New,
 )
 
@@ -56,9 +57,9 @@ func ProvideGitTokenProvider(
 }
 
 const (
-	httpReadTimeout  = 15 * time.Second
-	httpWriteTimeout = 10 * time.Minute
-	httpIdleTimeout  = 60 * time.Second
+	httpReadTimeout     = 15 * time.Second
+	httpWriteTimeout    = 10 * time.Minute
+	httpIdleTimeout     = 60 * time.Second
 	defaultAgentTimeout = 10 * time.Second
 )
 

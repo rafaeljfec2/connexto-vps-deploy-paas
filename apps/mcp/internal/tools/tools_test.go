@@ -205,18 +205,81 @@ func TestSystemStatsCallsExpectedPath(t *testing.T) {
 	}
 }
 
-func TestAuditLogsForwardsFilters(t *testing.T) {
+func TestAuditLogsForwardsFiltersToBackendCamelCase(t *testing.T) {
 	fake := &fakeBackend{}
 	cs := setupServer(t, fake, RegisterAudit)
 	res := callTool(t, cs, "audit_logs", map[string]any{
-		"actor_type": "pat",
-		"limit":      25,
+		"event_type":    "token.created",
+		"resource_type": "token",
+		"resource_id":   "11111111-2222-3333-4444-555555555555",
+		"start_date":    "2026-04-01T00:00:00Z",
+		"end_date":      "2026-04-30T23:59:59Z",
+		"limit":         25,
+		"offset":        50,
 	})
 	if res.IsError {
 		t.Fatalf("expected success, got %s", extractText(t, res))
 	}
-	if got := fake.requests[0].query; !strings.Contains(got, "actorType=pat") || !strings.Contains(got, "limit=25") {
-		t.Errorf("missing filters in query: %s", got)
+	got := fake.requests[0].query
+	for _, want := range []string{
+		"eventType=token.created",
+		"resourceType=token",
+		"resourceId=11111111-2222-3333-4444-555555555555",
+		"startDate=2026-04-01T00%3A00%3A00Z",
+		"endDate=2026-04-30T23%3A59%3A59Z",
+		"limit=25",
+		"offset=50",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in query: %s", want, got)
+		}
+	}
+	// user_id is intentionally not exposed: backend always overrides UserID
+	// to the authenticated user (audit_handler.go:62-63), so accepting it as
+	// an MCP filter would silently no-op. actor_type / actor_id / action /
+	// from / to are legacy fields that never reached the backend.
+	for _, removed := range []string{"userId=", "actorType=", "actorId=", "action=", "from=", "to="} {
+		if strings.Contains(got, removed) {
+			t.Errorf("unsupported param %q must not be sent: %s", removed, got)
+		}
+	}
+}
+
+func TestAuditLogsRejectsUnknownFilters(t *testing.T) {
+	fake := &fakeBackend{}
+	cs := setupServer(t, fake, RegisterAudit)
+	res := callTool(t, cs, "audit_logs", map[string]any{
+		"user_id": "99999999-aaaa-bbbb-cccc-dddddddddddd",
+	})
+	if !res.IsError {
+		t.Fatalf("expected schema error for removed user_id field; got success: %s", extractText(t, res))
+	}
+}
+
+func TestAuditLogsOmitsEmptyFiltersFromQuery(t *testing.T) {
+	fake := &fakeBackend{}
+	cs := setupServer(t, fake, RegisterAudit)
+	res := callTool(t, cs, "audit_logs", map[string]any{})
+	if res.IsError {
+		t.Fatalf("expected success, got %s", extractText(t, res))
+	}
+	if got := fake.requests[0].query; got != "" {
+		t.Errorf("expected empty query when no filters, got %q", got)
+	}
+}
+
+func TestAuditWebhookPayloadsForwardsLimitAndOffset(t *testing.T) {
+	fake := &fakeBackend{}
+	cs := setupServer(t, fake, RegisterAudit)
+	res := callTool(t, cs, "audit_webhook_payloads", map[string]any{"limit": 10, "offset": 20})
+	if res.IsError {
+		t.Fatalf("expected success, got %s", extractText(t, res))
+	}
+	if got := fake.requests[0].path; got != "/paas-deploy/v1/audit/webhook-payloads" {
+		t.Errorf("unexpected path: %s", got)
+	}
+	if got := fake.requests[0].query; !strings.Contains(got, "limit=10") || !strings.Contains(got, "offset=20") {
+		t.Errorf("missing limit/offset in query: %s", got)
 	}
 }
 
