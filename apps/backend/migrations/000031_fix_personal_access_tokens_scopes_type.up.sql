@@ -8,6 +8,11 @@
 --
 -- This migration is idempotent: it only converts when the current type is
 -- ARRAY, so fresh installs (where 000029 already created JSONB) are no-ops.
+--
+-- The DROP DEFAULT step is required because Postgres cannot auto-cast a
+-- `'{}'::text[]` default expression to jsonb during `ALTER COLUMN ... TYPE`
+-- (SQLSTATE 42804). We drop the default first, retype the column, then
+-- restore the default with the new type.
 DO $$
 DECLARE
     current_type text;
@@ -20,6 +25,8 @@ BEGIN
        AND column_name  = 'scopes';
 
     IF current_type = 'ARRAY' THEN
+        ALTER TABLE personal_access_tokens
+            ALTER COLUMN scopes DROP DEFAULT;
         ALTER TABLE personal_access_tokens
             ALTER COLUMN scopes TYPE JSONB USING to_jsonb(scopes);
         ALTER TABLE personal_access_tokens
