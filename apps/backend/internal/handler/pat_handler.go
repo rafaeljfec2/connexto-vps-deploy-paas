@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -62,6 +63,7 @@ func (h *PATHandler) List(c *fiber.Ctx) error {
 
 	tokens, err := h.service.List(c.Context(), user.ID)
 	if err != nil {
+		slog.Default().Error("pat list failed", "user_id", user.ID, "error", err)
 		return response.InternalError(c)
 	}
 
@@ -115,6 +117,7 @@ func (h *PATHandler) Revoke(c *fiber.Ctx) error {
 		if errors.Is(err, domain.ErrNotFound) {
 			return response.NotFound(c, "token not found")
 		}
+		slog.Default().Error("pat revoke failed", "user_id", user.ID, "token_id", id, "error", err)
 		return response.InternalError(c)
 	}
 
@@ -149,6 +152,7 @@ func mapPATError(c *fiber.Ctx, err error) error {
 	case errors.Is(err, service.ErrExpiryOutOfRange):
 		return response.BadRequest(c, "expiry must be between 1 hour and 365 days in the future")
 	default:
+		slog.Default().Error("pat create failed", "error", err)
 		return response.InternalError(c)
 	}
 }
