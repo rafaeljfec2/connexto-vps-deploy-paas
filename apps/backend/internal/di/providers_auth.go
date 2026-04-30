@@ -116,8 +116,12 @@ func ProvidePATService(repo domain.PersonalAccessTokenRepository) *service.Perso
 	return service.NewPersonalAccessTokenService(repo)
 }
 
-func ProvidePATHandler(svc *service.PersonalAccessTokenService) *handler.PATHandler {
-	return handler.NewPATHandler(svc)
+func ProvidePATHandler(
+	svc *service.PersonalAccessTokenService,
+	auditSvc *service.AuditService,
+	logger *slog.Logger,
+) *handler.PATHandler {
+	return handler.NewPATHandler(svc, auditSvc, logger)
 }
 
 func ProvideAuthHandler(

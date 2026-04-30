@@ -40,6 +40,8 @@ const (
 	EventCloudflareDisconnected     EventType = "cloudflare.disconnected"
 	EventNotificationChannelDeleted EventType = "notification.channel.deleted"
 	EventNotificationRuleDeleted    EventType = "notification.rule.deleted"
+	EventTokenCreated               EventType = "token.created"
+	EventTokenRevoked               EventType = "token.revoked"
 )
 
 type ResourceType string
@@ -61,6 +63,7 @@ const (
 	ResourceCloudflare          ResourceType = "cloudflare"
 	ResourceNotificationChannel ResourceType = "notification_channel"
 	ResourceNotificationRule    ResourceType = "notification_rule"
+	ResourceToken               ResourceType = "token"
 )
 
 type ActorType string

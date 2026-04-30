@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/domain"
@@ -216,6 +217,20 @@ func (s *AuditService) LogImagesPruned(ctx context.Context, auditCtx AuditContex
 		"images_deleted":  count,
 		"space_reclaimed": spaceReclaimed,
 	})
+}
+
+func (s *AuditService) LogTokenCreated(ctx context.Context, auditCtx AuditContext, tokenID, tokenName string, scopes []string, expiresAt *time.Time) {
+	details := map[string]interface{}{
+		"scopes": scopes,
+	}
+	if expiresAt != nil {
+		details["expires_at"] = expiresAt.UTC().Format(time.RFC3339)
+	}
+	s.Log(ctx, auditCtx, domain.EventTokenCreated, domain.ResourceToken, &tokenID, &tokenName, details)
+}
+
+func (s *AuditService) LogTokenRevoked(ctx context.Context, auditCtx AuditContext, tokenID string) {
+	s.Log(ctx, auditCtx, domain.EventTokenRevoked, domain.ResourceToken, &tokenID, nil, nil)
 }
 
 func (s *AuditService) Query(filter domain.AuditLogFilter) ([]domain.AuditLog, int, error) {

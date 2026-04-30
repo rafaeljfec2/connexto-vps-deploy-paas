@@ -15,11 +15,24 @@ import (
 const denyPATOnTokensReason = "personal access tokens cannot manage other tokens; use a session login"
 
 type PATHandler struct {
-	service *service.PersonalAccessTokenService
+	service      *service.PersonalAccessTokenService
+	auditService *service.AuditService
+	logger       *slog.Logger
 }
 
-func NewPATHandler(svc *service.PersonalAccessTokenService) *PATHandler {
-	return &PATHandler{service: svc}
+func NewPATHandler(
+	svc *service.PersonalAccessTokenService,
+	auditSvc *service.AuditService,
+	logger *slog.Logger,
+) *PATHandler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &PATHandler{
+		service:      svc,
+		auditService: auditSvc,
+		logger:       logger.With("handler", "pat"),
+	}
 }
 
 func (h *PATHandler) Register(router fiber.Router) {
@@ -63,7 +76,7 @@ func (h *PATHandler) List(c *fiber.Ctx) error {
 
 	tokens, err := h.service.List(c.Context(), user.ID)
 	if err != nil {
-		slog.Default().Error("pat list failed", "user_id", user.ID, "error", err)
+		h.logger.Error("pat list failed", "user_id", user.ID, "error", err)
 		return response.InternalError(c)
 	}
 
@@ -93,7 +106,12 @@ func (h *PATHandler) Create(c *fiber.Ctx) error {
 		ExpiresAt: req.ExpiresAt,
 	})
 	if err != nil {
-		return mapPATError(c, err)
+		return h.mapPATError(c, err)
+	}
+
+	if h.auditService != nil {
+		auditCtx := h.auditService.ExtractContext(c)
+		h.auditService.LogTokenCreated(c.Context(), auditCtx, result.Token.ID, result.Token.Name, result.Token.Scopes, result.Token.ExpiresAt)
 	}
 
 	return response.Created(c, CreateTokenResponse{
@@ -117,8 +135,13 @@ func (h *PATHandler) Revoke(c *fiber.Ctx) error {
 		if errors.Is(err, domain.ErrNotFound) {
 			return response.NotFound(c, "token not found")
 		}
-		slog.Default().Error("pat revoke failed", "user_id", user.ID, "token_id", id, "error", err)
+		h.logger.Error("pat revoke failed", "user_id", user.ID, "token_id", id, "error", err)
 		return response.InternalError(c)
+	}
+
+	if h.auditService != nil {
+		auditCtx := h.auditService.ExtractContext(c)
+		h.auditService.LogTokenRevoked(c.Context(), auditCtx, id)
 	}
 
 	return response.NoContent(c)
@@ -137,7 +160,7 @@ func toTokenResponse(t *domain.PersonalAccessToken) TokenResponse {
 	}
 }
 
-func mapPATError(c *fiber.Ctx, err error) error {
+func (h *PATHandler) mapPATError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, service.ErrInvalidTokenName):
 		return response.BadRequest(c, "token name must be between 3 and 120 characters")
@@ -152,7 +175,7 @@ func mapPATError(c *fiber.Ctx, err error) error {
 	case errors.Is(err, service.ErrExpiryOutOfRange):
 		return response.BadRequest(c, "expiry must be between 1 hour and 365 days in the future")
 	default:
-		slog.Default().Error("pat create failed", "error", err)
+		h.logger.Error("pat create failed", "error", err)
 		return response.InternalError(c)
 	}
 }

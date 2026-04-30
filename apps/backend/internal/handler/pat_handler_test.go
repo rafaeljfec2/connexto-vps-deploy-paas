@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,16 +67,54 @@ func (f *fakePATHandlerRepo) Revoke(_ context.Context, id, _ string) error {
 
 func (f *fakePATHandlerRepo) TouchLastUsed(_ context.Context, _ string) error { return nil }
 
-func newPATTestApp(t *testing.T, repo domain.PersonalAccessTokenRepository) *fiber.App {
+type fakeAuditRepo struct {
+	entries []domain.CreateAuditLogInput
+}
+
+func (f *fakeAuditRepo) Create(input domain.CreateAuditLogInput) (*domain.AuditLog, error) {
+	f.entries = append(f.entries, input)
+	return &domain.AuditLog{
+		ID:        "audit-new",
+		EventType: input.EventType,
+	}, nil
+}
+
+func (f *fakeAuditRepo) FindByID(_ string) (*domain.AuditLog, error) {
+	return nil, domain.ErrNotFound
+}
+
+func (f *fakeAuditRepo) FindAll(_ domain.AuditLogFilter) ([]domain.AuditLog, int, error) {
+	return nil, 0, nil
+}
+
+func (f *fakeAuditRepo) DeleteOlderThan(_ int) (int64, error) { return 0, nil }
+
+type patTestDeps struct {
+	app       *fiber.App
+	repo      *fakePATHandlerRepo
+	auditRepo *fakeAuditRepo
+}
+
+func newPATTestApp(t *testing.T, repo domain.PersonalAccessTokenRepository) patTestDeps {
 	t.Helper()
+	auditRepo := &fakeAuditRepo{}
+	auditSvc := service.NewAuditService(auditRepo, slog.Default())
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	app.Use(func(c *fiber.Ctx) error {
 		requestctx.SetUserInContext(c, &domain.User{ID: "user-1", Role: domain.RoleAdmin})
 		return c.Next()
 	})
-	h := NewPATHandler(service.NewPersonalAccessTokenService(repo))
+	h := NewPATHandler(service.NewPersonalAccessTokenService(repo), auditSvc, slog.Default())
 	h.Register(app.Group(APIPrefix))
-	return app
+
+	concrete, _ := repo.(*fakePATHandlerRepo)
+	return patTestDeps{app: app, repo: concrete, auditRepo: auditRepo}
+}
+
+func newHandlerForMapErrorTest(t *testing.T) *PATHandler {
+	t.Helper()
+	repo := &fakePATHandlerRepo{}
+	return NewPATHandler(service.NewPersonalAccessTokenService(repo), nil, slog.Default())
 }
 
 func doJSON(t *testing.T, app *fiber.App, method, path string, body any) *http.Response {
@@ -104,9 +143,10 @@ func patTestRequest(path string) *http.Request {
 }
 
 func TestMapPATErrorMapsInvalidName(t *testing.T) {
+	h := newHandlerForMapErrorTest(t)
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	app.Get("/x", func(c *fiber.Ctx) error {
-		return mapPATError(c, service.ErrInvalidTokenName)
+		return h.mapPATError(c, service.ErrInvalidTokenName)
 	})
 
 	resp, err := app.Test(patTestRequest("/x"))
@@ -119,9 +159,10 @@ func TestMapPATErrorMapsInvalidName(t *testing.T) {
 }
 
 func TestMapPATErrorMapsNoScopes(t *testing.T) {
+	h := newHandlerForMapErrorTest(t)
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	app.Get("/x", func(c *fiber.Ctx) error {
-		return mapPATError(c, service.ErrNoScopesProvided)
+		return h.mapPATError(c, service.ErrNoScopesProvided)
 	})
 
 	resp, err := app.Test(patTestRequest("/x"))
@@ -134,9 +175,10 @@ func TestMapPATErrorMapsNoScopes(t *testing.T) {
 }
 
 func TestMapPATErrorMapsInvalidScope(t *testing.T) {
+	h := newHandlerForMapErrorTest(t)
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	app.Get("/x", func(c *fiber.Ctx) error {
-		return mapPATError(c, service.ErrInvalidScope)
+		return h.mapPATError(c, service.ErrInvalidScope)
 	})
 
 	resp, err := app.Test(patTestRequest("/x"))
@@ -149,9 +191,10 @@ func TestMapPATErrorMapsInvalidScope(t *testing.T) {
 }
 
 func TestMapPATErrorMapsExpiryRange(t *testing.T) {
+	h := newHandlerForMapErrorTest(t)
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	app.Get("/x", func(c *fiber.Ctx) error {
-		return mapPATError(c, service.ErrExpiryOutOfRange)
+		return h.mapPATError(c, service.ErrExpiryOutOfRange)
 	})
 
 	resp, err := app.Test(patTestRequest("/x"))
@@ -164,9 +207,10 @@ func TestMapPATErrorMapsExpiryRange(t *testing.T) {
 }
 
 func TestMapPATErrorMapsUnknownErrorAsInternal(t *testing.T) {
+	h := newHandlerForMapErrorTest(t)
 	app := fiber.New(fiber.Config{DisableStartupMessage: true})
 	app.Get("/x", func(c *fiber.Ctx) error {
-		return mapPATError(c, errors.New("boom"))
+		return h.mapPATError(c, errors.New("boom"))
 	})
 
 	resp, err := app.Test(patTestRequest("/x"))
@@ -179,10 +223,9 @@ func TestMapPATErrorMapsUnknownErrorAsInternal(t *testing.T) {
 }
 
 func TestPATHandlerCreateReturnsCreatedWithPlaintext(t *testing.T) {
-	repo := &fakePATHandlerRepo{}
-	app := newPATTestApp(t, repo)
+	deps := newPATTestApp(t, &fakePATHandlerRepo{})
 
-	resp := doJSON(t, app, http.MethodPost, APIPrefix+"/tokens", map[string]any{
+	resp := doJSON(t, deps.app, http.MethodPost, APIPrefix+"/tokens", map[string]any{
 		"name":   "ci-bot",
 		"scopes": []string{domain.ScopeRead, domain.ScopeDeploy},
 	})
@@ -215,15 +258,70 @@ func TestPATHandlerCreateReturnsCreatedWithPlaintext(t *testing.T) {
 	if len(body.Data.PlaintextToken) < len(service.TokenPrefix)+10 {
 		t.Fatalf("plaintextToken seems truncated: %q", body.Data.PlaintextToken)
 	}
-	if len(repo.tokens) != 1 {
-		t.Fatalf("expected 1 token persisted, got %d", len(repo.tokens))
+	if len(deps.repo.tokens) != 1 {
+		t.Fatalf("expected 1 token persisted, got %d", len(deps.repo.tokens))
+	}
+}
+
+func TestPATHandlerCreateEmitsAuditOnSuccess(t *testing.T) {
+	deps := newPATTestApp(t, &fakePATHandlerRepo{})
+
+	resp := doJSON(t, deps.app, http.MethodPost, APIPrefix+"/tokens", map[string]any{
+		"name":   "ci-bot",
+		"scopes": []string{domain.ScopeRead, domain.ScopeDeploy},
+	})
+	if resp.StatusCode != fiber.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+
+	if len(deps.auditRepo.entries) != 1 {
+		t.Fatalf("expected 1 audit entry, got %d", len(deps.auditRepo.entries))
+	}
+	entry := deps.auditRepo.entries[0]
+	if entry.EventType != domain.EventTokenCreated {
+		t.Fatalf("expected event token.created, got %q", entry.EventType)
+	}
+	if entry.ResourceType != domain.ResourceToken {
+		t.Fatalf("expected resource token, got %q", entry.ResourceType)
+	}
+	if entry.ResourceID == nil || *entry.ResourceID != "tok-new" {
+		t.Fatalf("expected resource id tok-new, got %v", entry.ResourceID)
+	}
+	if entry.ResourceName == nil || *entry.ResourceName != "ci-bot" {
+		t.Fatalf("expected resource name ci-bot, got %v", entry.ResourceName)
+	}
+	if entry.ActorType != domain.ActorUser {
+		t.Fatalf("expected actor user, got %q", entry.ActorType)
+	}
+	if entry.UserID == nil || *entry.UserID != "user-1" {
+		t.Fatalf("expected user_id user-1, got %v", entry.UserID)
+	}
+	scopes, ok := entry.Details["scopes"].([]string)
+	if !ok || len(scopes) != 2 {
+		t.Fatalf("expected scopes details to have 2 entries, got %#v", entry.Details["scopes"])
+	}
+}
+
+func TestPATHandlerCreateDoesNotEmitAuditOnFailure(t *testing.T) {
+	deps := newPATTestApp(t, &fakePATHandlerRepo{createErr: errors.New("db down")})
+
+	resp := doJSON(t, deps.app, http.MethodPost, APIPrefix+"/tokens", map[string]any{
+		"name":   "ci-bot",
+		"scopes": []string{domain.ScopeRead},
+	})
+	if resp.StatusCode != fiber.StatusInternalServerError {
+		t.Fatalf("expected 500, got %d", resp.StatusCode)
+	}
+
+	if len(deps.auditRepo.entries) != 0 {
+		t.Fatalf("expected 0 audit entries on failure, got %d", len(deps.auditRepo.entries))
 	}
 }
 
 func TestPATHandlerCreateRejectsInvalidScope(t *testing.T) {
-	app := newPATTestApp(t, &fakePATHandlerRepo{})
+	deps := newPATTestApp(t, &fakePATHandlerRepo{})
 
-	resp := doJSON(t, app, http.MethodPost, APIPrefix+"/tokens", map[string]any{
+	resp := doJSON(t, deps.app, http.MethodPost, APIPrefix+"/tokens", map[string]any{
 		"name":   "broken",
 		"scopes": []string{"not-a-real-scope"},
 	})
@@ -241,9 +339,9 @@ func TestPATHandlerListReturnsPersistedTokens(t *testing.T) {
 			{ID: "tok-2", Name: "second", TokenPrefix: "pdp_live_", Scopes: []string{domain.ScopeDeploy}, CreatedAt: now},
 		},
 	}
-	app := newPATTestApp(t, repo)
+	deps := newPATTestApp(t, repo)
 
-	resp := doJSON(t, app, http.MethodGet, APIPrefix+"/tokens", nil)
+	resp := doJSON(t, deps.app, http.MethodGet, APIPrefix+"/tokens", nil)
 
 	if resp.StatusCode != fiber.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -265,26 +363,34 @@ func TestPATHandlerListReturnsPersistedTokens(t *testing.T) {
 }
 
 func TestPATHandlerRevokeReturnsNoContentAndCallsRepo(t *testing.T) {
-	repo := &fakePATHandlerRepo{}
-	app := newPATTestApp(t, repo)
+	deps := newPATTestApp(t, &fakePATHandlerRepo{})
 
-	resp := doJSON(t, app, http.MethodDelete, APIPrefix+"/tokens/tok-42", nil)
+	resp := doJSON(t, deps.app, http.MethodDelete, APIPrefix+"/tokens/tok-42", nil)
 
 	if resp.StatusCode != fiber.StatusNoContent {
 		t.Fatalf("expected 204, got %d", resp.StatusCode)
 	}
-	if len(repo.revokedIDs) != 1 || repo.revokedIDs[0] != "tok-42" {
-		t.Fatalf("expected revoke called with tok-42, got %v", repo.revokedIDs)
+	if len(deps.repo.revokedIDs) != 1 || deps.repo.revokedIDs[0] != "tok-42" {
+		t.Fatalf("expected revoke called with tok-42, got %v", deps.repo.revokedIDs)
+	}
+	if len(deps.auditRepo.entries) != 1 {
+		t.Fatalf("expected 1 audit entry for revoke, got %d", len(deps.auditRepo.entries))
+	}
+	if deps.auditRepo.entries[0].EventType != domain.EventTokenRevoked {
+		t.Fatalf("expected event token.revoked, got %q", deps.auditRepo.entries[0].EventType)
 	}
 }
 
 func TestPATHandlerRevokeReturnsNotFoundWhenRepoSaysSo(t *testing.T) {
-	app := newPATTestApp(t, &fakePATHandlerRepo{revokeErr: domain.ErrNotFound})
+	deps := newPATTestApp(t, &fakePATHandlerRepo{revokeErr: domain.ErrNotFound})
 
-	resp := doJSON(t, app, http.MethodDelete, APIPrefix+"/tokens/missing", nil)
+	resp := doJSON(t, deps.app, http.MethodDelete, APIPrefix+"/tokens/missing", nil)
 
 	if resp.StatusCode != fiber.StatusNotFound {
 		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+	if len(deps.auditRepo.entries) != 0 {
+		t.Fatalf("expected 0 audit entries on revoke not-found, got %d", len(deps.auditRepo.entries))
 	}
 }
 

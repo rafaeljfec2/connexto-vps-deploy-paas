@@ -88,7 +88,7 @@ func InitializeApplication() (*Application, func(), error) {
 	postgresSessionRepository := repository.NewPostgresSessionRepository(db)
 	postgresPersonalAccessTokenRepository := repository.NewPostgresPersonalAccessTokenRepository(db)
 	personalAccessTokenService := ProvidePATService(postgresPersonalAccessTokenRepository)
-	patHandler := ProvidePATHandler(personalAccessTokenService)
+	patHandler := ProvidePATHandler(personalAccessTokenService, auditService, logger)
 	tokenEncryptor := ProvideTokenEncryptor(config, logger)
 	authHandler := ProvideAuthHandler(config, oAuthClient, postgresUserRepository, postgresSessionRepository, tokenEncryptor, auditService, logger)
 	gitHubHandler := ProvideGitHubHandler(config, appClient, postgresInstallationRepository, postgresUserRepository, logger)
