@@ -229,8 +229,12 @@ func (s *AuditService) LogTokenCreated(ctx context.Context, auditCtx AuditContex
 	s.Log(ctx, auditCtx, domain.EventTokenCreated, domain.ResourceToken, &tokenID, &tokenName, details)
 }
 
-func (s *AuditService) LogTokenRevoked(ctx context.Context, auditCtx AuditContext, tokenID string) {
-	s.Log(ctx, auditCtx, domain.EventTokenRevoked, domain.ResourceToken, &tokenID, nil, nil)
+func (s *AuditService) LogTokenRevoked(ctx context.Context, auditCtx AuditContext, tokenID, tokenName string) {
+	var resourceName *string
+	if tokenName != "" {
+		resourceName = &tokenName
+	}
+	s.Log(ctx, auditCtx, domain.EventTokenRevoked, domain.ResourceToken, &tokenID, resourceName, nil)
 }
 
 func (s *AuditService) Query(filter domain.AuditLogFilter) ([]domain.AuditLog, int, error) {

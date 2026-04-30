@@ -17,6 +17,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hashed at rest, scoped per user and rejected from token-management
   endpoints by the `DenyPAT` middleware. Backend service, repository,
   HTTP handler and frontend feature (`features/tokens/**`) included.
+- **PAT audit trail**: `PATHandler.Create` and `PATHandler.Revoke` now
+  emit `token.created` / `token.revoked` audit log entries with
+  `resource_type=token`, `actor_type=user`, the token id and name, and
+  `{scopes, expires_at}` details on creation. Failures (validation /
+  repository errors) do NOT emit audit, matching the behavior of every
+  other write path in the backend.
+
+### Fixed
+
+- **PAT creation returning 500 in production**: the `scopes` column of
+  `personal_access_tokens` existed in the production database as
+  `text[]` (the table was created out-of-band before the `000029`
+  migration file landed), while the Go repository marshals scopes as
+  JSON before the INSERT. Migration `000031_fix_personal_access_tokens_scopes_type`
+  converts the column to JSONB in place (idempotent: no-op on fresh
+  installs where 000029 already provisioned it as JSONB), dropping the
+  default first because Postgres cannot auto-cast a `'{}'::text[]`
+  default to jsonb (SQLSTATE 42804). `PATHandler.{List,Create,Revoke}`
+  now log the underlying error before returning `response.InternalError`,
+  closing a previously silent observability gap that turned PG errors
+  into opaque 500s.
+
+### Changed
+
+- `PATHandler` now receives `*slog.Logger` and `*service.AuditService`
+  via the wire-managed constructor (was using `slog.Default()` with no
+  audit emission). Logs flow through the same JSON handler used by the
+  rest of the backend.
+- `PostgresPersonalAccessTokenRepository` now has unit tests via
+  `go-sqlmock` (test-only dependency, v1.5.2) covering the JSONB INSERT
+  round-trip that regressed in production, plus `FindByTokenHash`,
+  `ListByUserID`, `Revoke` and `TouchLastUsed`.
 - **Dry-run middleware for destructive operations**: write-mode endpoints
   honour an `X-FlowDeploy-Dry-Run: true` header to short-circuit the
   effect and return a structured preview envelope. Wired across app,

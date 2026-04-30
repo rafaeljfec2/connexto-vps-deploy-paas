@@ -88,6 +88,11 @@ func InitializeApplication() (*Application, func(), error) {
 	postgresSessionRepository := repository.NewPostgresSessionRepository(db)
 	postgresPersonalAccessTokenRepository := repository.NewPostgresPersonalAccessTokenRepository(db)
 	personalAccessTokenService := ProvidePATService(postgresPersonalAccessTokenRepository)
+	// MANUAL EDIT: kept after expanding ProvidePATHandler signature to
+	// (svc, auditSvc, logger). The local `wire` generator cannot regenerate
+	// this file today because of pre-existing missing providers
+	// (engine.Params, int for ContainerHealthHandler). Once those are
+	// addressed, run `wire ./internal/di/...` and remove this comment.
 	patHandler := ProvidePATHandler(personalAccessTokenService, auditService, logger)
 	tokenEncryptor := ProvideTokenEncryptor(config, logger)
 	authHandler := ProvideAuthHandler(config, oAuthClient, postgresUserRepository, postgresSessionRepository, tokenEncryptor, auditService, logger)

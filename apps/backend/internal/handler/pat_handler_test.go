@@ -49,7 +49,13 @@ func (f *fakePATHandlerRepo) FindByTokenHash(_ context.Context, _ string) (*doma
 	return nil, domain.ErrNotFound
 }
 
-func (f *fakePATHandlerRepo) FindByID(_ context.Context, _ string) (*domain.PersonalAccessToken, error) {
+func (f *fakePATHandlerRepo) FindByID(_ context.Context, id string) (*domain.PersonalAccessToken, error) {
+	for i := range f.tokens {
+		if f.tokens[i].ID == id {
+			t := f.tokens[i]
+			return &t, nil
+		}
+	}
 	return nil, domain.ErrNotFound
 }
 
@@ -363,7 +369,12 @@ func TestPATHandlerListReturnsPersistedTokens(t *testing.T) {
 }
 
 func TestPATHandlerRevokeReturnsNoContentAndCallsRepo(t *testing.T) {
-	deps := newPATTestApp(t, &fakePATHandlerRepo{})
+	repo := &fakePATHandlerRepo{
+		tokens: []domain.PersonalAccessToken{
+			{ID: "tok-42", UserID: "user-1", Name: "ci-bot", TokenPrefix: "pdp_live_", Scopes: []string{domain.ScopeRead}},
+		},
+	}
+	deps := newPATTestApp(t, repo)
 
 	resp := doJSON(t, deps.app, http.MethodDelete, APIPrefix+"/tokens/tok-42", nil)
 
@@ -376,8 +387,21 @@ func TestPATHandlerRevokeReturnsNoContentAndCallsRepo(t *testing.T) {
 	if len(deps.auditRepo.entries) != 1 {
 		t.Fatalf("expected 1 audit entry for revoke, got %d", len(deps.auditRepo.entries))
 	}
-	if deps.auditRepo.entries[0].EventType != domain.EventTokenRevoked {
-		t.Fatalf("expected event token.revoked, got %q", deps.auditRepo.entries[0].EventType)
+	entry := deps.auditRepo.entries[0]
+	if entry.EventType != domain.EventTokenRevoked {
+		t.Fatalf("expected event token.revoked, got %q", entry.EventType)
+	}
+	if entry.ResourceID == nil || *entry.ResourceID != "tok-42" {
+		t.Fatalf("expected resource id tok-42, got %v", entry.ResourceID)
+	}
+	if entry.ResourceName == nil || *entry.ResourceName != "ci-bot" {
+		t.Fatalf("expected resource name ci-bot, got %v", entry.ResourceName)
+	}
+	if entry.ActorType != domain.ActorUser {
+		t.Fatalf("expected actor user, got %q", entry.ActorType)
+	}
+	if entry.UserID == nil || *entry.UserID != "user-1" {
+		t.Fatalf("expected user_id user-1, got %v", entry.UserID)
 	}
 }
 

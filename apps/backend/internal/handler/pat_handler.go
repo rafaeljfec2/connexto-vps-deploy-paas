@@ -131,6 +131,11 @@ func (h *PATHandler) Revoke(c *fiber.Ctx) error {
 		return response.BadRequest(c, "token id is required")
 	}
 
+	tokenName := ""
+	if existing, lookupErr := h.service.Get(c.Context(), id, user.ID); lookupErr == nil && existing != nil {
+		tokenName = existing.Name
+	}
+
 	if err := h.service.Revoke(c.Context(), id, user.ID); err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
 			return response.NotFound(c, "token not found")
@@ -141,7 +146,7 @@ func (h *PATHandler) Revoke(c *fiber.Ctx) error {
 
 	if h.auditService != nil {
 		auditCtx := h.auditService.ExtractContext(c)
-		h.auditService.LogTokenRevoked(c.Context(), auditCtx, id)
+		h.auditService.LogTokenRevoked(c.Context(), auditCtx, id, tokenName)
 	}
 
 	return response.NoContent(c)

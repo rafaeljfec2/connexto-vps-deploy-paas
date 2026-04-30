@@ -5,6 +5,7 @@ go 1.24.0
 toolchain go1.24.13
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/creack/pty v1.1.24
 	github.com/gofiber/contrib/websocket v1.3.4
 	github.com/gofiber/fiber/v2 v2.52.12
@@ -26,7 +27,6 @@ require (
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/clipperhouse/stringish v0.1.1 // indirect

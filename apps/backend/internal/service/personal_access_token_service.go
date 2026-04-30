@@ -107,6 +107,20 @@ func (s *PersonalAccessTokenService) List(ctx context.Context, userID string) ([
 	return s.repo.ListByUserID(ctx, userID)
 }
 
+// Get returns a token if it belongs to the given user. Returns domain.ErrNotFound
+// when the token does not exist or belongs to a different user. Used by callers
+// that need token metadata before performing an operation (e.g. audit logging).
+func (s *PersonalAccessTokenService) Get(ctx context.Context, tokenID, userID string) (*domain.PersonalAccessToken, error) {
+	token, err := s.repo.FindByID(ctx, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	if token.UserID != userID {
+		return nil, domain.ErrNotFound
+	}
+	return token, nil
+}
+
 func (s *PersonalAccessTokenService) Revoke(ctx context.Context, tokenID, userID string) error {
 	return s.repo.Revoke(ctx, tokenID, userID)
 }
