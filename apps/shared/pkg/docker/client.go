@@ -312,13 +312,10 @@ func (d *Client) StartContainer(ctx context.Context, containerName string) error
 	return nil
 }
 
-func (d *Client) ContainerLogs(ctx context.Context, containerName string, tail int) (string, error) {
-	tailArg := "100"
-	if tail > 0 {
-		tailArg = fmt.Sprintf("%d", tail)
-	}
+func (d *Client) ContainerLogs(ctx context.Context, containerName string, tail int, since *time.Time) (string, error) {
+	args := buildLogsArgs(containerName, tail, since, false)
 
-	result, err := d.executor.RunQuietWithTimeout(ctx, 30*time.Second, "docker", "logs", "--tail", tailArg, "--timestamps", containerName)
+	result, err := d.executor.RunQuietWithTimeout(ctx, 30*time.Second, "docker", args...)
 	if err != nil {
 		stderrLower := strings.ToLower(result.Stderr)
 		if strings.Contains(stderrLower, errNoSuchContainer) {
@@ -335,8 +332,31 @@ func (d *Client) ContainerLogs(ctx context.Context, containerName string, tail i
 	return output, nil
 }
 
-func (d *Client) StreamContainerLogs(ctx context.Context, containerName string, output chan<- string) error {
-	return d.executor.RunWithStreamingTimeout(ctx, 10*time.Minute, output, "docker", "logs", "-f", "--tail", "100", "--timestamps", containerName)
+func (d *Client) StreamContainerLogs(ctx context.Context, containerName string, since *time.Time, output chan<- string) error {
+	args := buildLogsArgs(containerName, 100, since, true)
+	return d.executor.RunWithStreamingTimeout(ctx, 10*time.Minute, output, "docker", args...)
+}
+
+// buildLogsArgs assembles the argv for `docker logs`. The CLI parses flags
+// positionally; we keep the container name last as the operand. When `since`
+// is provided we forward it as RFC3339 (Docker accepts both RFC3339 and
+// duration strings, but normalising to RFC3339 keeps the contract stable
+// across callers — the MCP layer is the only one allowed to take durations).
+func buildLogsArgs(containerName string, tail int, since *time.Time, follow bool) []string {
+	tailArg := "100"
+	if tail > 0 {
+		tailArg = fmt.Sprintf("%d", tail)
+	}
+	args := []string{"logs"}
+	if follow {
+		args = append(args, "-f")
+	}
+	args = append(args, "--tail", tailArg, "--timestamps")
+	if since != nil {
+		args = append(args, "--since", since.UTC().Format(time.RFC3339))
+	}
+	args = append(args, containerName)
+	return args
 }
 
 type ContainerStats struct {

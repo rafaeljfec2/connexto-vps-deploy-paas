@@ -10,8 +10,8 @@ run_local() {
   elif [ -x "./bin/golangci-lint" ]; then
     lint_cmd="./bin/golangci-lint"
   else
-    echo "golangci-lint not found. Install with: GOBIN=$ROOT/bin go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.61.0"
-    echo "Or run in CI (lint runs there with Go 1.24)."
+    echo "golangci-lint not found."
+    echo "Install with the project's Go toolchain: make install-lint"
     exit 1
   fi
   local err
@@ -19,8 +19,9 @@ run_local() {
   if ! $lint_cmd run --timeout=5m --concurrency=4 ./... 2>"$err"; then
     if grep -q "lower than the targeted Go version" "$err" 2>/dev/null; then
       echo ""
-      echo "Seu golangci-lint foi compilado com Go 1.23; o projeto usa Go 1.24."
-      echo "O lint roda no CI com Go 1.24. Para rodar local com Docker: pnpm run lint:go -- --docker"
+      echo "Seu golangci-lint foi compilado com Go < 1.24; o projeto usa Go 1.24."
+      echo "Rebuild local: make install-lint"
+      echo "Ou rode com Docker: pnpm run lint:go -- --docker"
     fi
     rm -f "$err"
     exit 3

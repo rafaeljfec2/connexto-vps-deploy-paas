@@ -78,14 +78,28 @@ func (s *AgentService) GetContainerLogs(req *pb.ContainerLogsRequest, stream pb.
 		tail = defaultLogTail
 	}
 
+	since := extractSinceFromRequest(req)
+
 	if !req.Follow {
-		return s.sendStaticLogs(ctx, req.ContainerId, tail, stream)
+		return s.sendStaticLogs(ctx, req.ContainerId, tail, since, stream)
 	}
-	return s.streamFollowLogs(ctx, req.ContainerId, stream)
+	return s.streamFollowLogs(ctx, req.ContainerId, since, stream)
 }
 
-func (s *AgentService) sendStaticLogs(ctx context.Context, containerID string, tail int, stream pb.AgentService_GetContainerLogsServer) error {
-	logs, err := s.docker.ContainerLogs(ctx, containerID, tail)
+// extractSinceFromRequest converts the optional Since timestamp from a proto
+// request into a Go *time.Time, returning nil when the field is unset. Kept
+// as a free function so it stays unit-testable without spinning up an
+// AgentService (which holds a concrete *docker.Client).
+func extractSinceFromRequest(req *pb.ContainerLogsRequest) *time.Time {
+	if req == nil || req.Since == nil {
+		return nil
+	}
+	t := req.Since.AsTime()
+	return &t
+}
+
+func (s *AgentService) sendStaticLogs(ctx context.Context, containerID string, tail int, since *time.Time, stream pb.AgentService_GetContainerLogsServer) error {
+	logs, err := s.docker.ContainerLogs(ctx, containerID, tail, since)
 	if err != nil {
 		return fmt.Errorf("failed to get container logs: %w", err)
 	}
@@ -97,12 +111,12 @@ func (s *AgentService) sendStaticLogs(ctx context.Context, containerID string, t
 	return nil
 }
 
-func (s *AgentService) streamFollowLogs(ctx context.Context, containerID string, stream pb.AgentService_GetContainerLogsServer) error {
+func (s *AgentService) streamFollowLogs(ctx context.Context, containerID string, since *time.Time, stream pb.AgentService_GetContainerLogsServer) error {
 	output := make(chan string, streamLogBuffer)
 	errCh := make(chan error, 1)
 
 	go func() {
-		errCh <- s.docker.StreamContainerLogs(ctx, containerID, output)
+		errCh <- s.docker.StreamContainerLogs(ctx, containerID, since, output)
 	}()
 
 	for line := range output {

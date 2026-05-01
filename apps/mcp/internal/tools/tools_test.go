@@ -157,13 +157,13 @@ func TestAppsGetRequiresID(t *testing.T) {
 	}
 }
 
-func TestContainersLogsForwardsTailAndSince(t *testing.T) {
+func TestContainersLogsForwardsTailAndNormalisesSince(t *testing.T) {
 	fake := &fakeBackend{body: `{"success":true,"data":"log","error":null,"meta":{}}`}
 	cs := setupServer(t, fake, RegisterContainers)
 	res := callTool(t, cs, "containers_logs", map[string]any{
 		"id":    "abc",
 		"tail":  100,
-		"since": "1h",
+		"since": "2026-04-30T19:00:00Z",
 	})
 	if res.IsError {
 		t.Fatalf("expected success, got %s", extractText(t, res))
@@ -176,8 +176,51 @@ func TestContainersLogsForwardsTailAndSince(t *testing.T) {
 	if !strings.Contains(fake.requests[0].query, "tail=100") {
 		t.Errorf("missing tail in query: %s", fake.requests[0].query)
 	}
-	if !strings.Contains(fake.requests[0].query, "since=1h") {
-		t.Errorf("missing since in query: %s", fake.requests[0].query)
+	if !strings.Contains(fake.requests[0].query, "since=2026-04-30T19%3A00%3A00Z") {
+		t.Errorf("expected RFC3339 since (URL-escaped) in query: %s", fake.requests[0].query)
+	}
+}
+
+func TestContainersLogsAcceptsDurationShorthand(t *testing.T) {
+	fake := &fakeBackend{body: `{"success":true,"data":"log","error":null,"meta":{}}`}
+	cs := setupServer(t, fake, RegisterContainers)
+	res := callTool(t, cs, "containers_logs", map[string]any{
+		"id":    "abc",
+		"since": "1h",
+	})
+	if res.IsError {
+		t.Fatalf("expected success, got %s", extractText(t, res))
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	q := fake.requests[0].query
+	if !strings.Contains(q, "since=") {
+		t.Errorf("expected since in query, got %s", q)
+	}
+	if strings.Contains(q, "since=1h") {
+		t.Errorf("expected duration to be normalised to RFC3339, got raw 1h: %s", q)
+	}
+}
+
+func TestContainersLogsRejectsInvalidSince(t *testing.T) {
+	cases := []string{"yesterday", "2026-04-30", "not-a-time", "-1h", "0s"}
+	for _, raw := range cases {
+		t.Run(raw, func(t *testing.T) {
+			fake := &fakeBackend{body: `{"success":true}`}
+			cs := setupServer(t, fake, RegisterContainers)
+			res := callTool(t, cs, "containers_logs", map[string]any{
+				"id":    "abc",
+				"since": raw,
+			})
+			if !res.IsError {
+				t.Fatalf("expected error for since=%q, got success", raw)
+			}
+			fake.mu.Lock()
+			defer fake.mu.Unlock()
+			if len(fake.requests) > 0 {
+				t.Errorf("expected zero backend requests on validation failure, got %d", len(fake.requests))
+			}
+		})
 	}
 }
 

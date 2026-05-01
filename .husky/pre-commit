@@ -15,6 +15,7 @@ if echo "$ver" | grep -E -q 'go1\.(2[4-9]|[3-9][0-9])'; then
   }
 else
   echo "Warning: golangci-lint built with older Go version or not found. Skipping quick Go lint."
+  echo "         Fix locally with: make install-lint"
 fi
 
 # Optional: run frontend typecheck (fast)

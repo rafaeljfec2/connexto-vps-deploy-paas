@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type ContainerLogHandler func(entry *pb.ContainerLogEntry)
@@ -35,14 +36,28 @@ func (c *AgentClient) ListContainers(ctx context.Context, host string, port int,
 	return resp.Containers, nil
 }
 
-func (c *AgentClient) GetContainerLogs(ctx context.Context, host string, port int, containerID string, tail int, follow bool, onLog ContainerLogHandler) error {
+// buildContainerLogsRequest wires the optional Since pointer into the proto
+// request, normalising to UTC. Pure function so it stays unit-testable
+// without a real gRPC server.
+func buildContainerLogsRequest(containerID string, tail int, follow bool, since *time.Time) *pb.ContainerLogsRequest {
+	req := &pb.ContainerLogsRequest{
+		ContainerId: containerID,
+		Tail:        int32(tail),
+		Follow:      follow,
+		Timestamps:  true,
+	}
+	if since != nil {
+		req.Since = timestamppb.New(since.UTC())
+	}
+	return req
+}
+
+func (c *AgentClient) GetContainerLogs(ctx context.Context, host string, port int, containerID string, tail int, follow bool, since *time.Time, onLog ContainerLogHandler) error {
 	cl, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
-	stream, err := cl.GetContainerLogs(ctx, &pb.ContainerLogsRequest{
-		ContainerId: containerID, Tail: int32(tail), Follow: follow, Timestamps: true,
-	})
+	stream, err := cl.GetContainerLogs(ctx, buildContainerLogsRequest(containerID, tail, follow, since))
 	if err != nil {
 		return fmt.Errorf("get container logs: %w", err)
 	}

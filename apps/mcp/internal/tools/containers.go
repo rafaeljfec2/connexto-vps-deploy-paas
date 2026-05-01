@@ -2,11 +2,34 @@ package tools
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/paasdeploy/mcp/internal/toolkit"
 )
+
+// normaliseSince accepts either an RFC3339 absolute timestamp or a Go duration
+// shorthand (e.g. "1h", "30m", "15m30s") and returns the canonical RFC3339
+// string the backend expects. Empty input yields empty output (no filter).
+// "now-relative" shorthand is computed against the provided clock to keep
+// tests deterministic.
+func normaliseSince(raw string, now func() time.Time) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return t.UTC().Format(time.RFC3339), nil
+	}
+	if d, err := time.ParseDuration(raw); err == nil {
+		if d <= 0 {
+			return "", fmt.Errorf("since duration must be positive, got %q", raw)
+		}
+		return now().Add(-d).UTC().Format(time.RFC3339), nil
+	}
+	return "", fmt.Errorf("since must be RFC3339 (e.g. 2026-04-30T19:00:00Z) or a duration shorthand (e.g. 1h, 30m), got %q", raw)
+}
 
 type containerListInput struct {
 	ServerID string `json:"server_id,omitempty" jsonschema:"optional remote server ID; defaults to host"`
@@ -58,6 +81,11 @@ func RegisterContainers(srv *mcp.Server, deps toolkit.Deps) {
 			if in.ID == "" {
 				return nil, errInvalidArg("id is required")
 			}
+			normalisedSince, err := normaliseSince(in.Since, time.Now)
+			if err != nil {
+				return nil, errInvalidArg(err.Error())
+			}
+			in.Since = normalisedSince
 			if !in.Follow {
 				return getJSON(ctx, deps.Backend, "/containers/"+pathSeg(in.ID)+"/logs", map[string]any{
 					"tail":     in.Tail,

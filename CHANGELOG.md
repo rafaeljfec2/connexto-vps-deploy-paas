@@ -12,6 +12,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Container logs `since` parameter is honoured end-to-end.** Previously the
+  proto field `flowdeploy.v1.ContainerLogsRequest.since` (declared at
+  `apps/proto/flowdeploy/v1/server.proto:181`) was wired only at the proto
+  layer: the agent gRPC handler, shared docker wrapper, backend agent client
+  and both backend HTTP handlers (`container_logs_handler.go`,
+  `container_health_handler.go`) silently dropped the value. The MCP tool
+  declared `since` in its input schema and forwarded it to the backend, but
+  the backend's query parser did not read `?since=`. Net effect: the MCP
+  `containers_logs` tool with `since=...` returned the full tail window
+  every time, and `logs_follow.go`'s polling loop re-pulled the same lines
+  on every tick. Now: `apps/shared/pkg/docker/client.go.{ContainerLogs,
+  StreamContainerLogs}` accept `since *time.Time` and emit
+  `--since=<RFC3339-UTC>` on the `docker logs` CLI; the agent
+  `GetContainerLogs` handler reads `req.Since.AsTime()`; the backend agent
+  client builds the proto request with `timestamppb.New(since.UTC())`; both
+  HTTP handlers parse `?since=` as RFC3339 and reject malformed input with
+  `400 Bad Request` (`ParseSinceQuery` helper); the MCP tool accepts both
+  RFC3339 absolute (`2026-04-30T19:00:00Z`) and Go duration shorthand (`1h`,
+  `30m`, `1h30m`), normalises to RFC3339-UTC before forwarding, rejects
+  `0`/negative durations and unparseable strings with `errInvalidArg`, and
+  returns 0 backend calls on validation failure.   Backwards-compatible:
+  callers passing `nil` (or omitting the query param) get the old behavior
+  unchanged. One incidental normalisation in
+  `ContainerHealthHandler.getRemoteContainerLogs`: the response payload
+  now joins log entries with `\n` (matching the sibling
+  `ContainerHandler.getRemoteContainerLogs`) instead of appending
+  `entry.Message + "\n"` per line; the previous trailing newline is gone.
+  No client in this repo depends on it; UI rendering is unaffected.
+  Existing tests across the chain remain green; new tests cover every
+  layer (`buildLogsArgs`, `extractSinceFromRequest`,
+  `buildContainerLogsRequest`, `ParseSinceQuery`, `normaliseSince`).
+  **AGENT_VERSION bumped 0.22.2 → 0.22.3** because remote agents must
+  upgrade to honour `req.Since`; older agents continue to serve the full
+  tail (graceful degradation, no error).
+- **`make install-lint` target.** Builds `apps/backend/bin/golangci-lint`
+  with `GOTOOLCHAIN=go1.24.13`, the version the project targets. A
+  `golangci-lint` binary built with Go < 1.24 silently exits non-zero on
+  the first lint run and the pre-commit hook quietly skips Go lint —
+  removing developer protection. The `lint-go.sh` "not found" error
+  message and the pre-commit hook's "older Go version" warning now both
+  point to `make install-lint`. Variables `GOLANGCI_LINT_VERSION` (default
+  `v1.64.8` — earlier v1.61.x silently fails to load Go 1.24 export-data
+  even when rebuilt with the right toolchain, because the bundled
+  `golang.org/x/tools` is too old) and `GO_TOOLCHAIN` (default
+  `go1.24.13`) can be overridden from the command line. Goes a touch
+  beyond the original 🟢 tech-debt scope ("rebuild bin/golangci-lint on
+  the CI runner") because the same root cause hits every developer's
+  machine — fixing it once at the Makefile level is cheaper than telling
+  each contributor to remember the install incantation. CI is unaffected
+  by this binary either way: the existing GitHub Actions workflows
+  (`.github/workflows/deploy-{backend,mcp}.yml`) **do not run a Go lint
+  job today** — that's a separate gap tracked as future tech-debt; this
+  PR only restores the local pre-commit safety net.
 - **Personal Access Tokens (PAT)**: users can mint, list and revoke
   long-lived API tokens (`pdp_live_…`) from the dashboard. Tokens are
   hashed at rest, scoped per user and rejected from token-management
@@ -117,16 +170,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   during the PAT audit-trail turn because the generator could not resolve
   `engine.Params` and the bare `int` for `agentPort`) is removed; running
   `wire ./internal/di/...` now produces clean output.
-- The `containers_logs.since` end-to-end fix is tracked separately at
-  `docs/followups/CONTAINERS_LOGS_SINCE.md`. Proto already declares
-  `since` (`server.proto:181`) and the MCP tool already forwards the
-  field (`apps/mcp/internal/tools/containers.go:23,64`,
-  `logs_follow.go:35`). Four layers — agent gRPC handler, shared docker
-  wrapper, backend agent client and backend HTTP handlers — need to
-  start forwarding it (today they drop it on the floor); the MCP layer
-  only needs RFC3339/duration validation hardened. Once the chain is
-  honoured, the MCP `logs_follow` polling loop will consume only new
-  lines per tick instead of re-pulling the full tail window.
 - **CI/CD: backend deploy moved to a self-hosted GitHub Actions runner on
   the control-plane VPS.** The `deploy` job now runs locally on the VPS
   (label `flowdeploy-control-plane`), eliminating inbound SSH from

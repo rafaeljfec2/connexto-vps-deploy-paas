@@ -2,11 +2,30 @@ package handler
 
 import (
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/paasdeploy/backend/internal/domain"
 	"github.com/paasdeploy/backend/internal/response"
 )
+
+// ParseSinceQuery reads the optional ?since= query parameter and returns it
+// as a *time.Time. The expected format is RFC3339 (e.g. "2026-04-30T19:00:00Z");
+// duration shorthand is the MCP layer's responsibility to canonicalise before
+// hitting the backend. Returns (nil, nil) when the param is absent — callers
+// then forward nil downstream meaning "no time filter".
+func ParseSinceQuery(c *fiber.Ctx) (*time.Time, error) {
+	raw := c.Query("since", "")
+	if raw == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid since: must be RFC3339 (e.g. 2026-04-30T19:00:00Z)")
+	}
+	return &t, nil
+}
 
 func isKnownDomainError(err error) bool {
 	return errors.Is(err, domain.ErrNotFound) ||

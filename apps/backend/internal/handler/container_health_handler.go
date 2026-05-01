@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -162,13 +163,18 @@ func (h *ContainerHealthHandler) GetContainerLogs(c *fiber.Ctx) error {
 	tailStr := c.Query("tail", "100")
 	follow := c.Query("follow", "false") == "true"
 
+	if err := EnsureAppOwnership(c, h.appRepo, id); err != nil {
+		return err
+	}
+
 	tail, err := strconv.Atoi(tailStr)
 	if err != nil {
 		tail = 100
 	}
 
-	if err := EnsureAppOwnership(c, h.appRepo, id); err != nil {
-		return err
+	since, err := ParseSinceQuery(c)
+	if err != nil {
+		return response.BadRequest(c, err.Error())
 	}
 
 	app, err := h.appRepo.FindByID(id)
@@ -177,14 +183,14 @@ func (h *ContainerHealthHandler) GetContainerLogs(c *fiber.Ctx) error {
 	}
 
 	if h.isRemoteApp(app) {
-		return h.getRemoteContainerLogs(c, app, tail, follow)
+		return h.getRemoteContainerLogs(c, app, tail, follow, since)
 	}
 
 	if follow {
-		return h.streamContainerLogs(c, c.Context(), app.Name)
+		return h.streamContainerLogs(c, c.Context(), app.Name, since)
 	}
 
-	logs, err := h.engine.ContainerLogs(c.Context(), app.Name, tail)
+	logs, err := h.engine.ContainerLogs(c.Context(), app.Name, tail, since)
 	if err != nil {
 		return response.OK(c, ContainerLogsResponse{Logs: ""})
 	}
@@ -192,28 +198,28 @@ func (h *ContainerHealthHandler) GetContainerLogs(c *fiber.Ctx) error {
 	return response.OK(c, ContainerLogsResponse{Logs: logs})
 }
 
-func (h *ContainerHealthHandler) getRemoteContainerLogs(c *fiber.Ctx, app *domain.App, tail int, follow bool) error {
+func (h *ContainerHealthHandler) getRemoteContainerLogs(c *fiber.Ctx, app *domain.App, tail int, follow bool, since *time.Time) error {
 	host, err := h.resolveServerHost(app)
 	if err != nil {
 		return response.OK(c, ContainerLogsResponse{Logs: ""})
 	}
 
 	if follow {
-		return h.streamRemoteContainerLogs(c, app, host)
+		return h.streamRemoteContainerLogs(c, app, host, since)
 	}
 
-	var logs string
-	err = h.agentClient.GetContainerLogs(c.Context(), host, h.agentPort, app.Name, tail, false, func(entry *pb.ContainerLogEntry) {
-		logs += entry.Message + "\n"
+	var lines []string
+	err = h.agentClient.GetContainerLogs(c.Context(), host, h.agentPort, app.Name, tail, false, since, func(entry *pb.ContainerLogEntry) {
+		lines = append(lines, entry.GetMessage())
 	})
 	if err != nil {
 		h.logger.Error("failed to get remote logs", "app_id", app.ID, "error", err)
 		return response.OK(c, ContainerLogsResponse{Logs: ""})
 	}
-	return response.OK(c, ContainerLogsResponse{Logs: logs})
+	return response.OK(c, ContainerLogsResponse{Logs: strings.Join(lines, "\n")})
 }
 
-func (h *ContainerHealthHandler) streamRemoteContainerLogs(c *fiber.Ctx, app *domain.App, host string) error {
+func (h *ContainerHealthHandler) streamRemoteContainerLogs(c *fiber.Ctx, app *domain.App, host string, since *time.Time) error {
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
@@ -225,9 +231,9 @@ func (h *ContainerHealthHandler) streamRemoteContainerLogs(c *fiber.Ctx, app *do
 
 		go func() {
 			defer close(output)
-			_ = h.agentClient.GetContainerLogs(ctx, host, h.agentPort, app.Name, 100, true, func(entry *pb.ContainerLogEntry) {
+			_ = h.agentClient.GetContainerLogs(ctx, host, h.agentPort, app.Name, 100, true, since, func(entry *pb.ContainerLogEntry) {
 				select {
-				case output <- entry.Message:
+				case output <- entry.GetMessage():
 				default:
 				}
 			})
@@ -258,7 +264,7 @@ func (h *ContainerHealthHandler) streamRemoteContainerLogs(c *fiber.Ctx, app *do
 	return nil
 }
 
-func (h *ContainerHealthHandler) streamContainerLogs(c *fiber.Ctx, ctx context.Context, containerName string) error {
+func (h *ContainerHealthHandler) streamContainerLogs(c *fiber.Ctx, ctx context.Context, containerName string, since *time.Time) error {
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
@@ -270,7 +276,7 @@ func (h *ContainerHealthHandler) streamContainerLogs(c *fiber.Ctx, ctx context.C
 
 		go func() {
 			defer close(done)
-			_ = h.engine.StreamContainerLogs(ctx, containerName, output)
+			_ = h.engine.StreamContainerLogs(ctx, containerName, since, output)
 		}()
 
 		ticker := time.NewTicker(30 * time.Second)
