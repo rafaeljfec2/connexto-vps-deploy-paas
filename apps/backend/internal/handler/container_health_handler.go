@@ -223,7 +223,7 @@ func (h *ContainerHealthHandler) streamRemoteContainerLogs(c *fiber.Ctx, app *do
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
-	c.Set("Transfer-Encoding", "chunked")
+	c.Set("X-Accel-Buffering", "no")
 
 	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 		ctx := c.Context()
@@ -268,7 +268,7 @@ func (h *ContainerHealthHandler) streamContainerLogs(c *fiber.Ctx, ctx context.C
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
-	c.Set("Transfer-Encoding", "chunked")
+	c.Set("X-Accel-Buffering", "no")
 
 	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 		output := make(chan string, 100)

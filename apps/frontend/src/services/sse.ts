@@ -1,6 +1,7 @@
 import type { SSEEvent } from "@/types";
 
 type SSECallback = (event: SSEEvent) => void;
+type ConnectionListener = (connected: boolean) => void;
 type EventSourceFactory = (url: string) => EventSource;
 
 const API_URL = import.meta.env.VITE_API_URL ?? "";
@@ -24,9 +25,11 @@ function defaultEventSourceFactory(url: string): EventSource {
 class SSEClient {
   private eventSource: EventSource | null = null;
   private readonly callbacks: Set<SSECallback> = new Set();
+  private readonly connectionListeners: Set<ConnectionListener> = new Set();
   private readonly createEventSource: EventSourceFactory;
   private reconnectAttempts = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private connectedSnapshot = false;
 
   constructor(
     createEventSource: EventSourceFactory = defaultEventSourceFactory,
@@ -49,6 +52,7 @@ class SSEClient {
 
     this.eventSource.onopen = () => {
       this.reconnectAttempts = 0;
+      this.setConnected(true);
     };
 
     this.eventSource.onerror = () => {
@@ -66,9 +70,16 @@ class SSEClient {
   }
 
   private handleError(): void {
-    this.disconnect();
-
+    const wasConnected = this.eventSource?.readyState === EventSource.OPEN;
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+
+    console.warn("[sse] connection error, scheduling reconnect", {
+      wasConnected,
+      attempts: this.reconnectAttempts,
+      retryInMs: delay,
+    });
+
+    this.disconnect();
     this.reconnectAttempts++;
 
     this.reconnectTimeout = setTimeout(() => {
@@ -81,6 +92,17 @@ class SSEClient {
     return () => this.callbacks.delete(callback);
   }
 
+  /**
+   * Subscribe to SSE connection-state changes (open/closed). Listener is
+   * invoked synchronously with the current state on subscribe and then on
+   * every transition. Returns an unsubscribe function.
+   */
+  subscribeConnectionState(listener: ConnectionListener): () => void {
+    this.connectionListeners.add(listener);
+    listener(this.connectedSnapshot);
+    return () => this.connectionListeners.delete(listener);
+  }
+
   disconnect(): void {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
@@ -91,10 +113,17 @@ class SSEClient {
       this.eventSource.close();
       this.eventSource = null;
     }
+    this.setConnected(false);
+  }
+
+  private setConnected(connected: boolean): void {
+    if (this.connectedSnapshot === connected) return;
+    this.connectedSnapshot = connected;
+    this.connectionListeners.forEach((listener) => listener(connected));
   }
 
   get isConnected(): boolean {
-    return this.eventSource?.readyState === EventSource.OPEN;
+    return this.connectedSnapshot;
   }
 }
 

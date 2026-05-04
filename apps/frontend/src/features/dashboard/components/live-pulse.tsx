@@ -1,26 +1,49 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRelativeTick } from "@/hooks/use-relative-tick";
 import { formatRelativeTime } from "@/lib/format";
 
 interface LivePulseProps {
   readonly isLoading: boolean;
+  /**
+   * Real SSE connection state. When provided, the indicator honestly reflects
+   * whether the server-sent events stream is open (green "Live"), reconnecting
+   * (amber "Reconnecting…"), or still loading initial data (muted "Syncing…").
+   * When omitted, the component falls back to the legacy "always connected
+   * once loaded" behavior to preserve backward compatibility.
+   */
+  readonly isSSEConnected?: boolean;
 }
 
-export function LivePulse({ isLoading }: LivePulseProps) {
-  const lastUpdateRef = useRef<Date | null>(null);
+export function LivePulse({ isLoading, isSSEConnected }: LivePulseProps) {
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   useRelativeTick();
 
   useEffect(() => {
     if (!isLoading) {
-      lastUpdateRef.current = new Date();
+      setLastUpdate(new Date());
     }
   }, [isLoading]);
 
-  if (isLoading || !lastUpdateRef.current) {
+  if (isLoading || !lastUpdate) {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <span
+        className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground"
+        aria-live="polite"
+      >
         <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />
         Syncing…
+      </span>
+    );
+  }
+
+  if (isSSEConnected === false) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-[11px] text-yellow-600 dark:text-yellow-500"
+        aria-live="polite"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+        Reconnecting…
       </span>
     );
   }
@@ -34,7 +57,7 @@ export function LivePulse({ isLoading }: LivePulseProps) {
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/70" />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
       </span>
-      <span>Live · updated {formatRelativeTime(lastUpdateRef.current)}</span>
+      <span>Live · updated {formatRelativeTime(lastUpdate)}</span>
     </span>
   );
 }

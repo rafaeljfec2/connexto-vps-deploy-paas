@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HeroBackground } from "@/components/hero-background";
 import { useCommandPalette } from "@/hooks/use-command-palette";
+import { useSSEConnectionStatus } from "@/hooks/use-sse";
 import { cn } from "@/lib/utils";
 import { useDashboardStats } from "../hooks/use-dashboard-stats";
 import {
@@ -62,6 +63,7 @@ export function HeroDashboard() {
   const { user } = useAuth();
   const { toggle: toggleCommandPalette } = useCommandPalette();
   const stats = useDashboardStats();
+  const isSSEConnected = useSSEConnectionStatus();
 
   const {
     totalApps,
@@ -248,6 +250,7 @@ export function HeroDashboard() {
           <LiveActivityPanel
             recentDeploys={recentDeploys}
             isLoading={isLoading}
+            isSSEConnected={isSSEConnected}
           />
         </aside>
       </div>

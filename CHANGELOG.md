@@ -10,6 +10,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **SSE stream from `/events/deploys` no longer drops silently behind the proxy.**
+  The dashboard at `https://deploy.connexto.com.br/apps/<id>` was only updating
+  on full-page reloads: deploys triggered from the UI or from a fresh GitHub
+  push never streamed in real time. Root causes were three, all in the
+  control-plane SSE path: (1) `apps/backend/internal/handler/sse_handler.go`
+  set `Transfer-Encoding: chunked` — illegal under HTTP/2 per RFC 7540
+  §8.1.2.2 — and `fasthttp` already chunks the body itself, so Traefik
+  forcefully closed the upstream stream on the very first event;
+  (2) the same handler had no application-level keep-alive, so even when
+  the connection survived the protocol mismatch any 60-second idle window
+  triggered Traefik's idle timeout and the client silently reconnected
+  without the user ever seeing a status change; (3) when a slow client's
+  buffered channel was full, `Emit` dropped the event into the void with
+  no log signal — making the bug undebuggable from the backend logs alone.
+  Now the handler sends `X-Accel-Buffering: no` (compatible with HTTP/1.1
+  and HTTP/2, instructs proxies not to buffer), emits a `: keepalive\n\n`
+  comment every 15 seconds via a dedicated `time.Ticker`, and logs a
+  structured `slog.Warn` whenever an event is dropped — capturing
+  `clientID`, `event.Type`, `deployID`, `appID`, `serverID` for triage but
+  **never `event.Message`** to keep secrets out of logs (per
+  `flowdeploy-security.mdc §11`; a regression test in
+  `sse_handler_test.go` locks the invariant). The same proxy-incompatible
+  `Transfer-Encoding: chunked` header was independently present in the
+  four container-log SSE handlers used on the same affected app page —
+  `container_health_handler.go.{streamRemoteContainerLogs,
+  streamContainerLogs}` and `container_logs_handler.go.{streamRemoteContainerLogs,
+  streamContainerLogs}` — and was replaced with `X-Accel-Buffering: no`
+  in lockstep so container log tailing on the app details page benefits
+  from the same fix. On the frontend, `apps/frontend/src/services/sse.ts`
+  now exposes a reactive `subscribeConnectionState` listener and updates
+  a `connectedSnapshot` flag on every `connect`/`disconnect`/error;
+  `apps/frontend/src/hooks/use-sse.ts` adds a new `useSSEConnectionStatus`
+  hook backed by `useSyncExternalStore` so any component can subscribe to
+  the real connection state without re-rendering on every server event;
+  `apps/frontend/src/features/dashboard/components/live-pulse.tsx` was
+  refactored to honour an optional `isSSEConnected` prop with three
+  honest visual states — muted "Syncing…" during initial load, amber
+  "Reconnecting…" when SSE is dropped, green "Live · updated …" when
+  the stream is open — and switched from `useRef` to `useState` for
+  `lastUpdate` so React actually re-renders when the timestamp changes
+  (the previous ref-based implementation only updated visually on the
+  next 30-second tick of `useRelativeTick`, masking the disconnection
+  signal). The dashboard hero (`hero-dashboard.tsx`) now reads
+  `useSSEConnectionStatus()` and forwards it through
+  `LiveActivityPanel` → `LivePulse`, so an idle backend or a Traefik
+  hiccup is now visible in less than 5 seconds. Backwards-compatible:
+  `LivePulse` callers that omit `isSSEConnected` keep the legacy "Live
+  once loaded" behavior. Tests added: 7 unit tests for the new SSE
+  handler covering default config, drop-warn observability, helper
+  functions, end-to-end emit→deliver and replay; 5 unit tests for the
+  new `LivePulse` states; existing `hero-dashboard.test.tsx` mocks
+  `useSSEConnectionStatus` to keep the suite green. No proto, migration
+  or `AGENT_VERSION` change.
+
 ### Added
 
 - **Container logs `since` parameter is honoured end-to-end.** Previously the

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -13,8 +14,9 @@ import (
 )
 
 const (
-	sseEventBufferSize  = 100
-	sseClientBufferSize = 100
+	sseEventBufferSize       = 100
+	sseClientBufferSize      = 100
+	defaultKeepAliveInterval = 15 * time.Second
 )
 
 type SSEHealthStatus struct {
@@ -55,18 +57,25 @@ type SSEEvent struct {
 }
 
 type SSEHandler struct {
-	clients  map[string]chan SSEEvent
-	mu       sync.RWMutex
-	eventBuf []SSEEvent
-	bufSize  int
-	bufMu    sync.RWMutex
+	clients           map[string]chan SSEEvent
+	mu                sync.RWMutex
+	eventBuf          []SSEEvent
+	bufSize           int
+	bufMu             sync.RWMutex
+	logger            *slog.Logger
+	keepAliveInterval time.Duration
 }
 
-func NewSSEHandler() *SSEHandler {
+func NewSSEHandler(logger *slog.Logger) *SSEHandler {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &SSEHandler{
-		clients:  make(map[string]chan SSEEvent),
-		eventBuf: make([]SSEEvent, 0, sseEventBufferSize),
-		bufSize:  sseEventBufferSize,
+		clients:           make(map[string]chan SSEEvent),
+		eventBuf:          make([]SSEEvent, 0, sseEventBufferSize),
+		bufSize:           sseEventBufferSize,
+		logger:            logger,
+		keepAliveInterval: defaultKeepAliveInterval,
 	}
 }
 
@@ -78,32 +87,62 @@ func (h *SSEHandler) Stream(c *fiber.Ctx) error {
 	c.Set("Content-Type", "text/event-stream")
 	c.Set("Cache-Control", "no-cache")
 	c.Set("Connection", "keep-alive")
-	c.Set("Transfer-Encoding", "chunked")
+	// Disable proxy buffering (nginx-compatible). HTTP/2 forbids
+	// Transfer-Encoding: chunked (RFC 7540 §8.1.2.2), and fasthttp handles
+	// chunking transparently for HTTP/1.1, so we no longer set that header.
+	c.Set("X-Accel-Buffering", "no")
 
 	clientID := uuid.New().String()
 	eventChan := h.subscribe(clientID)
+	keepAlive := h.keepAliveInterval
 
 	c.Context().SetBodyStreamWriter(fasthttp.StreamWriter(func(w *bufio.Writer) {
 		defer h.unsubscribe(clientID)
 
 		h.sendRecentEvents(w)
 
-		for event := range eventChan {
-			data, err := json.Marshal(event)
-			if err != nil {
-				continue
-			}
+		ticker := time.NewTicker(keepAlive)
+		defer ticker.Stop()
 
-			fmt.Fprintf(w, "event: %s\n", sseEventName(event.Type))
-			fmt.Fprintf(w, "data: %s\n\n", data)
-
-			if err := w.Flush(); err != nil {
-				return
+		for {
+			select {
+			case event, ok := <-eventChan:
+				if !ok {
+					return
+				}
+				if !writeSSEEvent(w, event) {
+					return
+				}
+			case <-ticker.C:
+				if !writeKeepAlive(w) {
+					return
+				}
 			}
 		}
 	}))
 
 	return nil
+}
+
+func writeSSEEvent(w *bufio.Writer, event SSEEvent) bool {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return true
+	}
+	if _, err := fmt.Fprintf(w, "event: %s\n", sseEventName(event.Type)); err != nil {
+		return false
+	}
+	if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+		return false
+	}
+	return w.Flush() == nil
+}
+
+func writeKeepAlive(w *bufio.Writer) bool {
+	if _, err := w.WriteString(": keepalive\n\n"); err != nil {
+		return false
+	}
+	return w.Flush() == nil
 }
 
 func (h *SSEHandler) subscribe(clientID string) <-chan SSEEvent {
@@ -138,10 +177,20 @@ func (h *SSEHandler) Emit(event SSEEvent) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for _, ch := range h.clients {
+	for clientID, ch := range h.clients {
 		select {
 		case ch <- event:
 		default:
+			// Backpressure: client buffer is full. We deliberately do NOT log
+			// event.Message because deploy LOG events may carry sensitive
+			// values (env vars, tokens). See flowdeploy-security.mdc §11.
+			h.logger.Warn("sse client buffer full, dropping event",
+				"clientID", clientID,
+				"type", event.Type,
+				"deployID", event.DeployID,
+				"appID", event.AppID,
+				"serverID", event.ServerID,
+			)
 		}
 	}
 }

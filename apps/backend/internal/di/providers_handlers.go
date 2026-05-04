@@ -34,7 +34,7 @@ var ServiceSet = wire.NewSet(
 var HandlerSet = wire.NewSet(
 	ProvideHealthHandler,
 	handler.NewAppHandler,
-	handler.NewSSEHandler,
+	ProvideSSEHandler,
 	handler.NewSwaggerHandler,
 	handler.NewEnvVarHandler,
 	ProvideContainerHealthHandler,
@@ -64,6 +64,10 @@ var HandlerSet = wire.NewSet(
 
 func ProvideHealthHandler() *handler.HealthHandler {
 	return handler.NewHealthHandler(Version)
+}
+
+func ProvideSSEHandler(logger *slog.Logger) *handler.SSEHandler {
+	return handler.NewSSEHandler(logger)
 }
 
 func ProvideWebhookManager(cfg *config.Config, logger *slog.Logger) webhook.Manager {

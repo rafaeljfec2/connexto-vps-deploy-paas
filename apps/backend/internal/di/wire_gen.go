@@ -61,7 +61,7 @@ func InitializeApplication() (*Application, func(), error) {
 	serverConfig := ProvideServerConfig(config)
 	serverServer := server.New(serverConfig, logger)
 	tokenStore := agentdownload.NewTokenStore()
-	sseHandler := handler.NewSSEHandler()
+	sseHandler := ProvideSSEHandler(logger)
 	grpcserverServer := ProvideGrpcServer(config, certificateAuthority, postgresServerRepository, tokenStore, sseHandler, logger)
 	healthHandler := ProvideHealthHandler()
 	postgresDeploymentRepository := repository.NewPostgresDeploymentRepository(db)

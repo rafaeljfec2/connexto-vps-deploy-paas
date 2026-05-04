@@ -16,6 +16,10 @@ vi.mock("@/contexts/auth-context", () => ({
   }),
 }));
 
+vi.mock("@/hooks/use-sse", () => ({
+  useSSEConnectionStatus: () => true,
+}));
+
 const statsMock = vi.hoisted(() => ({
   value: {
     totalApps: 0,

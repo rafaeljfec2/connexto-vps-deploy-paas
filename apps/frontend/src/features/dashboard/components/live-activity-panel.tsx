@@ -24,6 +24,7 @@ interface DeployActivityLike {
 interface LiveActivityPanelProps {
   readonly recentDeploys: readonly DeployActivityLike[];
   readonly isLoading: boolean;
+  readonly isSSEConnected?: boolean;
 }
 
 const MAX_ITEMS = 3;
@@ -42,6 +43,7 @@ const statusIcon: Record<
 export function LiveActivityPanel({
   recentDeploys,
   isLoading,
+  isSSEConnected,
 }: LiveActivityPanelProps) {
   useRelativeTick();
 
@@ -53,7 +55,7 @@ export function LiveActivityPanel({
         <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Live activity
         </h2>
-        <LivePulse isLoading={isLoading} />
+        <LivePulse isLoading={isLoading} isSSEConnected={isSSEConnected} />
       </div>
 
       {isLoading ? (

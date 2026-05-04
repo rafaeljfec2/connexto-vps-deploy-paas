@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { STALE_TIMES } from "@/constants/query-config";
@@ -201,7 +201,28 @@ export function useSSE() {
     };
   }, [handleEvent]);
 
-  return { isConnected: sseClient.isConnected };
+  return { isConnected: useSSEConnectionStatus() };
+}
+
+/**
+ * Subscribe to the SSE connection status without registering as an event
+ * consumer. Use this in UI components (e.g. status indicators) to render
+ * reactively whenever the underlying EventSource opens or fails.
+ */
+export function useSSEConnectionStatus(): boolean {
+  return useSyncExternalStore(
+    subscribeSSEConnection,
+    getSSEConnectionSnapshot,
+    getSSEConnectionSnapshot,
+  );
+}
+
+function subscribeSSEConnection(callback: () => void): () => void {
+  return sseClient.subscribeConnectionState(callback);
+}
+
+function getSSEConnectionSnapshot(): boolean {
+  return sseClient.isConnected;
 }
 
 export function useAppHealth(appId: string | undefined) {
