@@ -1,14 +1,28 @@
-# yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
-run:
-  timeout: 5m
-  skip-dirs:
-    - internal/di
-
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - govet
+    - ineffassign
     - staticcheck
     - unused
-    - gosimple
-    - ineffassign
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - internal/di
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - internal/di
+      - third_party$
+      - builtin$
+      - examples$

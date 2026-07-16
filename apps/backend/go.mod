@@ -2,7 +2,7 @@ module github.com/paasdeploy/backend
 
 go 1.24.0
 
-toolchain go1.24.13
+toolchain go1.25.5
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2

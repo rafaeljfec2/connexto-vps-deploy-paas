@@ -1,4 +1,4 @@
-FROM golang:1.24.13-alpine AS agent-builder
+FROM golang:1.25.5-alpine AS agent-builder
 WORKDIR /build
 RUN apk add --no-cache git ca-certificates
 COPY AGENT_VERSION .
@@ -14,7 +14,7 @@ RUN AGENT_VER=$(cat /build/AGENT_VERSION | tr -d '\n') && \
     -o /build/agent-binary \
     ./cmd/agent
 
-FROM golang:1.24.13-alpine AS backend-builder
+FROM golang:1.25.5-alpine AS backend-builder
 WORKDIR /build
 RUN apk add --no-cache git ca-certificates
 COPY AGENT_VERSION .

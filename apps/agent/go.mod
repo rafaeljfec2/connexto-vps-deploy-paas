@@ -2,7 +2,7 @@ module github.com/paasdeploy/agent
 
 go 1.24.0
 
-toolchain go1.24.13
+toolchain go1.25.5
 
 require (
 	github.com/creack/pty v1.1.24

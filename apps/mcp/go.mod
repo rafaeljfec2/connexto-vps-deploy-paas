@@ -2,6 +2,8 @@ module github.com/paasdeploy/mcp
 
 go 1.25.0
 
+toolchain go1.25.5
+
 require (
 	github.com/modelcontextprotocol/go-sdk v1.5.0
 	github.com/prometheus/client_golang v1.23.2
