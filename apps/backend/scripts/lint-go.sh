@@ -19,9 +19,9 @@ run_local() {
   if ! $lint_cmd run --timeout=5m --concurrency=4 ./... 2>"$err"; then
     if grep -q "lower than the targeted Go version" "$err" 2>/dev/null; then
       echo ""
-      echo "Seu golangci-lint foi compilado com Go < 1.24; o projeto usa Go 1.24."
-      echo "Rebuild local: make install-lint"
-      echo "Ou rode com Docker: pnpm run lint:go -- --docker"
+      echo "Your golangci-lint was built with Go < 1.25; the project targets Go 1.25.5."
+      echo "Rebuild locally: make install-lint"
+      echo "Or run via Docker: pnpm run lint:go -- --docker"
     fi
     rm -f "$err"
     exit 3
@@ -29,7 +29,7 @@ run_local() {
   rm -f "$err"
 }
 
-LINT_IMAGE="paasdeploy-golangci-lint:1.61.0"
+LINT_IMAGE="paasdeploy-golangci-lint:2.12.2"
 
 run_docker() {
   if ! docker image inspect "$LINT_IMAGE" >/dev/null 2>&1; then
