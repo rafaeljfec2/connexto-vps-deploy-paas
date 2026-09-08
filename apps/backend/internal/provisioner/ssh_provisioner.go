@@ -82,6 +82,10 @@ func (p *SSHProvisioner) Provision(server *domain.Server, sshKeyPlain string, ss
 		return err
 	}
 
+	if err := p.provisionUserLinger(client, server.SSHUser, uid, sshPasswordPlain, step, logLine); err != nil {
+		return err
+	}
+
 	if err := p.provisionDocker(client, uid, sshPasswordPlain, step, logLine); err != nil {
 		return err
 	}
@@ -169,6 +173,27 @@ func (p *SSHProvisioner) provisionRemoteEnv(
 	logLine(fmt.Sprintf("Home: %s, UID: %s", homeDir, uid))
 	step("remote_env", "ok", "Ambiente verificado")
 	return homeDir, uid, nil
+}
+
+// provisionUserLinger enables systemd linger for the SSH user so that the
+// user manager (and therefore the paasdeploy-agent user unit) survives
+// reboots and interactive session logouts. Without linger, the agent stops
+// when the last interactive session ends and never comes back after reboot.
+// Idempotent: running enable-linger twice is safe.
+func (p *SSHProvisioner) provisionUserLinger(
+	client *ssh.Client,
+	sshUser, uid, password string,
+	step func(string, string, string),
+	logLine func(string),
+) error {
+	step("user_linger", "running", "Habilitando linger do usuário...")
+	logLine(fmt.Sprintf("loginctl enable-linger %s", sshUser))
+	cmd := fmt.Sprintf("loginctl enable-linger %s", sshUser)
+	if err := runPrivilegedCommand(client, uid, password, cmd); err != nil {
+		return fmt.Errorf("enable user linger: %w", err)
+	}
+	step("user_linger", "ok", "Linger habilitado")
+	return nil
 }
 
 func (p *SSHProvisioner) provisionSFTP(client *ssh.Client, step func(string, string, string)) (*sftp.Client, error) {
@@ -453,6 +478,27 @@ type systemdUnitOpts struct {
 }
 
 func installSystemdUnit(opts systemdUnitOpts) error {
+	if err := opts.sftpClient.MkdirAll(opts.unitDir); err != nil {
+		return fmt.Errorf("create systemd dir: %w", err)
+	}
+
+	unitPath := path.Join(opts.unitDir, agentSystemdUnit)
+	if err := writeRemoteFile(opts.sftpClient, unitPath, []byte(buildAgentUnit(opts)), 0o644); err != nil {
+		return err
+	}
+
+	reloadCmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user daemon-reload", opts.runtimeDir)
+	return runCommand(opts.sshClient, reloadCmd)
+}
+
+// buildAgentUnit renders the paasdeploy-agent user systemd unit file.
+//
+// WantedBy MUST be default.target for user-scoped systemd units: enabling a
+// user unit against multi-user.target puts the symlink in a target the user
+// manager does not track, so the agent never auto-starts on boot even with
+// linger enabled. KillMode=process prevents logind from terminating the agent
+// when the last interactive session of the user closes.
+func buildAgentUnit(opts systemdUnitOpts) string {
 	serverAddr := opts.serverAddr
 	if serverAddr == "" {
 		serverAddr = "localhost:50051"
@@ -461,12 +507,7 @@ func installSystemdUnit(opts systemdUnitOpts) error {
 	if agentPort == 0 {
 		agentPort = 50052
 	}
-
-	if err := opts.sftpClient.MkdirAll(opts.unitDir); err != nil {
-		return fmt.Errorf("create systemd dir: %w", err)
-	}
-
-	unitContent := fmt.Sprintf(`[Unit]
+	return fmt.Sprintf(`[Unit]
 Description=PaasDeploy Agent
 After=network.target
 
@@ -476,18 +517,11 @@ Environment=TRAEFIK_API_URL=http://127.0.0.1:8081
 ExecStart=%s/agent -server-addr=%s -server-id=%s -ca-cert=%s/ca.pem -cert=%s/cert.pem -key=%s/key.pem -agent-port=%d
 Restart=always
 RestartSec=5
+KillMode=process
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 `, opts.installDir, serverAddr, opts.serverID, opts.installDir, opts.installDir, opts.installDir, agentPort)
-
-	unitPath := path.Join(opts.unitDir, agentSystemdUnit)
-	if err := writeRemoteFile(opts.sftpClient, unitPath, []byte(unitContent), 0o644); err != nil {
-		return err
-	}
-
-	reloadCmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user daemon-reload", opts.runtimeDir)
-	return runCommand(opts.sshClient, reloadCmd)
 }
 
 func startAgent(client *ssh.Client, runtimeDir string) error {
