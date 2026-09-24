@@ -504,6 +504,85 @@ func TestPrivilegedCommandOutput(t *testing.T) {
 	})
 }
 
+func TestBuildAgentUnit(t *testing.T) {
+	unit := buildAgentUnit(systemdUnitOpts{
+		installDir: "/home/deploy/paasdeploy-agent",
+		serverID:   "srv-abc",
+		serverAddr: "backend.example.com:50051",
+		agentPort:  50052,
+	})
+
+	t.Run("UsesDefaultTargetNotMultiUser", func(t *testing.T) {
+		assertContains(t, unit, "WantedBy=default.target")
+		if strings.Contains(unit, "multi-user.target") {
+			t.Errorf("unit must not target multi-user.target (system scope); got:\n%s", unit)
+		}
+	})
+
+	t.Run("HasKillModeProcess", func(t *testing.T) {
+		assertContains(t, unit, "KillMode=process")
+	})
+
+	t.Run("PreservesRestartPolicy", func(t *testing.T) {
+		assertContains(t, unit, "Restart=always")
+		assertContains(t, unit, "RestartSec=5")
+	})
+
+	t.Run("EmbedsAgentInvocation", func(t *testing.T) {
+		assertContains(t, unit, "/home/deploy/paasdeploy-agent/agent")
+		assertContains(t, unit, "-server-addr=backend.example.com:50051")
+		assertContains(t, unit, "-server-id=srv-abc")
+		assertContains(t, unit, "-agent-port=50052")
+	})
+
+	t.Run("AppliesDefaultsWhenOptsEmpty", func(t *testing.T) {
+		defaults := buildAgentUnit(systemdUnitOpts{installDir: "/opt/agent", serverID: "srv-1"})
+		assertContains(t, defaults, "-server-addr=localhost:50051")
+		assertContains(t, defaults, "-agent-port=50052")
+	})
+}
+
+func TestProvisionUserLinger(t *testing.T) {
+	t.Run("EnablesLingerAsRoot", func(t *testing.T) {
+		mock := newCommandMock()
+		defer mock.install(t)()
+
+		p := newTestProvisioner()
+		requireNoError(t, p.provisionUserLinger(nil, "deploy", uidRoot, "", noopStep, noopLog))
+
+		if !mock.hasCommand("loginctl enable-linger deploy") {
+			t.Errorf("expected 'loginctl enable-linger deploy' command; got: %v", mock.commands)
+		}
+	})
+
+	t.Run("EnablesLingerWithSudoWhenNonRoot", func(t *testing.T) {
+		mock := newCommandMock()
+		defer mock.install(t)()
+
+		p := newTestProvisioner()
+		requireNoError(t, p.provisionUserLinger(nil, "deploy", uidNonRoot, "s3cret", noopStep, noopLog))
+
+		if !mock.hasCommand("loginctl enable-linger deploy") {
+			t.Errorf("expected 'loginctl enable-linger deploy' command; got: %v", mock.commands)
+		}
+	})
+
+	t.Run("PropagatesFailure", func(t *testing.T) {
+		mock := newCommandMock()
+		mock.setError("loginctl enable-linger", errors.New("permission denied"))
+		defer mock.install(t)()
+
+		p := newTestProvisioner()
+		err := p.provisionUserLinger(nil, "deploy", uidNonRoot, "", noopStep, noopLog)
+		if err == nil {
+			t.Fatal("expected error when loginctl fails")
+		}
+		if !strings.Contains(err.Error(), "enable user linger") {
+			t.Errorf("expected wrapped error; got %q", err.Error())
+		}
+	})
+}
+
 func TestBuildTraefikConfig(t *testing.T) {
 	t.Run("ContainsAcmeEmail", func(t *testing.T) {
 		cfg := requireTraefikConfig(t, testEmailDefault)
