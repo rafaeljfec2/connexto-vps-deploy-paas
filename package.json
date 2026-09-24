@@ -24,7 +24,7 @@
     "clean": "turbo run clean && rm -rf node_modules",
     "typecheck:frontend": "pnpm --filter @paasdeploy/frontend run typecheck",
     "lint:go": "cd apps/backend && bash scripts/lint-go.sh",
-    "lint:go-quick": "cd apps/backend && (golangci-lint run --fast --timeout=2m ./... 2>/dev/null || ./bin/golangci-lint run --fast --timeout=2m ./...)",
+    "lint:go-quick": "cd apps/backend && (golangci-lint run --fast-only --timeout=2m ./... 2>/dev/null || ./bin/golangci-lint run --fast-only --timeout=2m ./...)",
     "precommit:local": "pnpm -w lint-staged && pnpm run lint:go-quick && pnpm run typecheck:frontend"
   },
   "lint-staged": {
