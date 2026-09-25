@@ -22,6 +22,7 @@ func RegisterAllReadOnly(srv *mcp.Server, deps toolkit.Deps) {
 }
 
 func RegisterAllWrites(srv *mcp.Server, deps toolkit.Deps) {
+	tools.RegisterAppsWrite(srv, deps)
 	tools.RegisterDeploys(srv, deps)
 	tools.RegisterEnvVars(srv, deps)
 	tools.RegisterDomains(srv, deps)
