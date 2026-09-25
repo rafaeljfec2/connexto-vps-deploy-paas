@@ -2,7 +2,9 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -14,6 +16,15 @@ type appsListInput struct{}
 
 type appIDInput struct {
 	ID string `json:"id" jsonschema:"the app UUID"`
+}
+
+type appsCreateInput struct {
+	Name          string `json:"name" jsonschema:"app name (2-63 chars, DNS label)"`
+	RepositoryURL string `json:"repository_url" jsonschema:"GitHub repo as owner/repo or a full https/git URL"`
+	Branch        string `json:"branch,omitempty" jsonschema:"git branch (defaults to main)"`
+	Workdir       string `json:"workdir,omitempty" jsonschema:"subdirectory inside the repo (monorepo)"`
+	ServerID      string `json:"server_id,omitempty" jsonschema:"optional remote server UUID; omit for the control-plane host"`
+	Deploy        bool   `json:"deploy,omitempty" jsonschema:"when true, trigger a deploy after the app is created"`
 }
 
 type deployTriggerInput struct {
@@ -87,6 +98,17 @@ func RegisterApps(srv *mcp.Server, deps toolkit.Deps) {
 		})
 }
 
+func RegisterAppsWrite(srv *mcp.Server, deps toolkit.Deps) {
+	toolkit.RegisterWrite(srv, deps,
+		&mcp.Tool{
+			Name:        "apps_create",
+			Description: "Create a FlowDeploy app from a GitHub repository. Accepts owner/repo or a full GitHub URL. Webhook setup runs asynchronously on the backend. Runtime, health path and port come from paasdeploy.json, not this tool. Requires scope 'deploy'.",
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in appsCreateInput) (any, error) {
+			return createApp(ctx, deps, in)
+		})
+}
+
 func RegisterDeploys(srv *mcp.Server, deps toolkit.Deps) {
 	toolkit.RegisterWrite(srv, deps,
 		&mcp.Tool{
@@ -130,6 +152,82 @@ func RegisterDeploys(srv *mcp.Server, deps toolkit.Deps) {
 			}
 			return waitForDeployment(ctx, req, deps, in)
 		})
+}
+
+func createApp(ctx context.Context, deps toolkit.Deps, in appsCreateInput) (any, error) {
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return nil, errInvalidArg("name is required")
+	}
+
+	repoURL := normalizeGitHubRepoURL(in.RepositoryURL)
+	if repoURL == "" {
+		return nil, errInvalidArg("repository_url is required")
+	}
+
+	branch := strings.TrimSpace(in.Branch)
+	if branch == "" {
+		branch = "main"
+	}
+
+	body := map[string]any{
+		"name":          name,
+		"repositoryUrl": repoURL,
+		"branch":        branch,
+	}
+	if workdir := strings.TrimSpace(in.Workdir); workdir != "" {
+		body["workdir"] = workdir
+	}
+	if serverID := strings.TrimSpace(in.ServerID); serverID != "" {
+		body["serverId"] = serverID
+	}
+
+	created, err := postJSON(ctx, deps.Backend, "/apps", body, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !in.Deploy {
+		return created, nil
+	}
+
+	id, err := appIDFromCreateResult(created)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := postJSON(ctx, deps.Backend, "/apps/"+pathSeg(id)+"/redeploy", map[string]any{}, nil); err != nil {
+		return nil, fmt.Errorf("app %s created but deploy failed: %w", id, err)
+	}
+	return created, nil
+}
+
+func normalizeGitHubRepoURL(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return s
+	}
+	if strings.HasPrefix(s, "https://github.com/") || strings.HasPrefix(s, "git@github.com:") {
+		return s
+	}
+	if !strings.Contains(s, "://") && !strings.Contains(s, "@") && strings.Count(s, "/") == 1 {
+		return "https://github.com/" + strings.TrimSuffix(s, ".git")
+	}
+	return s
+}
+
+func appIDFromCreateResult(out any) (string, error) {
+	root, ok := out.(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("create app: unexpected response type %T", out)
+	}
+	data, ok := root["data"].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("create app: missing data object")
+	}
+	id, _ := data["id"].(string)
+	if strings.TrimSpace(id) == "" {
+		return "", fmt.Errorf("create app: missing id")
+	}
+	return id, nil
 }
 
 func getJSON(ctx context.Context, c *backend.Client, path string, query map[string]any) (any, error) {

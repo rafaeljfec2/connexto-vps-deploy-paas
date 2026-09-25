@@ -6,6 +6,135 @@ import (
 	"testing"
 )
 
+func TestNormalizeGitHubRepoURL(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "owner_repo", in: "rafaeljfec2/connexto-digital-signer", want: "https://github.com/rafaeljfec2/connexto-digital-signer"},
+		{name: "owner_repo_git_suffix", in: "owner/repo.git", want: "https://github.com/owner/repo"},
+		{name: "https_unchanged", in: "https://github.com/owner/repo", want: "https://github.com/owner/repo"},
+		{name: "ssh_unchanged", in: "git@github.com:owner/repo.git", want: "git@github.com:owner/repo.git"},
+		{name: "trimmed", in: "  owner/repo  ", want: "https://github.com/owner/repo"},
+		{name: "empty", in: "   ", want: ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := normalizeGitHubRepoURL(tc.in); got != tc.want {
+				t.Errorf("normalizeGitHubRepoURL(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestAppsCreateSendsBackendShape(t *testing.T) {
+	fake := &fakeBackend{body: `{"success":true,"data":{"id":"app-9","name":"demo"},"error":null,"meta":{}}`}
+	cs := setupServer(t, fake, RegisterAppsWrite)
+	res := callTool(t, cs, "apps_create", map[string]any{
+		"name":           "demo",
+		"repository_url": "https://github.com/acme/demo",
+		"branch":         "develop",
+		"workdir":        "apps/api",
+		"server_id":      "srv-1",
+	})
+	if res.IsError {
+		t.Fatalf("expected success, got %s", extractText(t, res))
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.requests) != 1 {
+		t.Fatalf("expected 1 request, got %d", len(fake.requests))
+	}
+	req := fake.requests[0]
+	if req.method != http.MethodPost {
+		t.Errorf("expected POST, got %s", req.method)
+	}
+	if req.path != "/paas-deploy/v1/apps" {
+		t.Errorf("unexpected path: %s", req.path)
+	}
+	if !strings.Contains(req.body, `"name":"demo"`) ||
+		!strings.Contains(req.body, `"repositoryUrl":"https://github.com/acme/demo"`) ||
+		!strings.Contains(req.body, `"branch":"develop"`) ||
+		!strings.Contains(req.body, `"workdir":"apps/api"`) ||
+		!strings.Contains(req.body, `"serverId":"srv-1"`) {
+		t.Errorf("body missing expected fields: %s", req.body)
+	}
+}
+
+func TestAppsCreateNormalizesOwnerRepoAndDefaultsBranch(t *testing.T) {
+	fake := &fakeBackend{body: `{"success":true,"data":{"id":"app-1"},"error":null,"meta":{}}`}
+	cs := setupServer(t, fake, RegisterAppsWrite)
+	res := callTool(t, cs, "apps_create", map[string]any{
+		"name":           "connexto-digital-signer-api",
+		"repository_url": "rafaeljfec2/connexto-digital-signer",
+	})
+	if res.IsError {
+		t.Fatalf("expected success, got %s", extractText(t, res))
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	body := fake.requests[0].body
+	if !strings.Contains(body, `"repositoryUrl":"https://github.com/rafaeljfec2/connexto-digital-signer"`) {
+		t.Errorf("repository_url not normalized: %s", body)
+	}
+	if !strings.Contains(body, `"branch":"main"`) {
+		t.Errorf("branch default missing: %s", body)
+	}
+}
+
+func TestAppsCreateRequiresNameAndRepository(t *testing.T) {
+	fake := &fakeBackend{}
+	cs := setupServer(t, fake, RegisterAppsWrite)
+
+	missingName := callTool(t, cs, "apps_create", map[string]any{
+		"repository_url": "owner/repo",
+	})
+	if !missingName.IsError {
+		t.Fatal("expected error for missing name")
+	}
+
+	missingRepo := callTool(t, cs, "apps_create", map[string]any{
+		"name": "demo",
+	})
+	if !missingRepo.IsError {
+		t.Fatal("expected error for missing repository_url")
+	}
+
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.requests) != 0 {
+		t.Errorf("invalid create must not reach the backend, got %d requests", len(fake.requests))
+	}
+}
+
+func TestAppsCreateDeployTrueTriggersRedeploy(t *testing.T) {
+	fake := &fakeBackend{body: `{"success":true,"data":{"id":"app-42","name":"demo"},"error":null,"meta":{}}`}
+	cs := setupServer(t, fake, RegisterAppsWrite)
+	res := callTool(t, cs, "apps_create", map[string]any{
+		"name":           "demo",
+		"repository_url": "owner/repo",
+		"deploy":         true,
+	})
+	if res.IsError {
+		t.Fatalf("expected success, got %s", extractText(t, res))
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.requests) != 2 {
+		t.Fatalf("expected create + redeploy, got %d requests", len(fake.requests))
+	}
+	if fake.requests[0].path != "/paas-deploy/v1/apps" {
+		t.Errorf("first path: %s", fake.requests[0].path)
+	}
+	if fake.requests[1].method != http.MethodPost {
+		t.Errorf("redeploy method: %s", fake.requests[1].method)
+	}
+	if fake.requests[1].path != "/paas-deploy/v1/apps/app-42/redeploy" {
+		t.Errorf("redeploy path: %s", fake.requests[1].path)
+	}
+}
+
 func TestDeployTriggerSendsCommitSHA(t *testing.T) {
 	fake := &fakeBackend{body: `{"success":true,"data":{"deploymentId":"d1"},"error":null,"meta":{}}`}
 	cs := setupServer(t, fake, RegisterDeploys)

@@ -125,9 +125,9 @@ Edit `~/.config/zed/settings.json`:
 }
 ```
 
-## Available tools (Phase 1)
+## Available tools
 
-All read-only, all require scope `read`:
+Read-only tools require scope `read`:
 
 - **Apps**: `apps_list`, `apps_get`, `apps_deployments`, `apps_commits`, `apps_health`.
 - **Containers**: `containers_list`, `containers_get`, `containers_logs` (`tail`, `since`, `server_id`).
@@ -138,6 +138,14 @@ All read-only, all require scope `read`:
 - **GitHub**: `github_installations`, `github_repos`, `github_repo`.
 - **Audit**: `audit_logs`, `audit_webhook_payloads`.
 - **System**: `system_stats`.
+
+Write tools require scope `deploy` (or `config:write` for env vars):
+
+- **Apps**: `apps_create` (`name`, `repository_url` as `owner/repo` or a full GitHub URL, optional `branch` defaulting to `main`, `workdir`, `server_id`, `deploy`). When `deploy` is true, the tool POSTs `/apps/{id}/redeploy` after create. Runtime, health path and port come from `paasdeploy.json` in the repo, not from this tool. GitHub webhook setup is asynchronous on the backend.
+- **Deploys**: `deploy_trigger`, `deploy_rollback`, `deploy_status`.
+- **Env**: `env_list`, `env_upsert`, `env_bulk`, `env_delete`.
+- **Domains / TLS**: `domains_add`, `domains_list`, `domains_remove`, `database_tls_configure`.
+- **Templates**: `templates_deploy`.
 
 ## MCP resources
 
