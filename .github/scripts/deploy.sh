@@ -25,6 +25,11 @@ ENV_FILE="${ENV_FILE:-${HOME}/flowdeploy/backend.env}"
 GITHUB_APP_KEY_PATH="${GITHUB_APP_KEY_PATH:-/opt/flowdeploy/github-app-private-key.pem}"
 HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-180}"
 
+# Container DNS. Public resolvers (8.8.8.8 / 1.1.1.1) time out on this VPS;
+# Locatel upstreams are the working defaults. Override via env on other hosts.
+DNS_PRIMARY="${DNS_PRIMARY:-186.202.26.26}"
+DNS_SECONDARY="${DNS_SECONDARY:-186.202.27.27}"
+
 IMAGE_REF="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 # retry runs the given command up to ${1} times, with a fixed backoff between
@@ -129,7 +134,7 @@ docker run -d \
   --restart unless-stopped \
   --group-add "${DOCKER_GID}" \
   -p 127.0.0.1:9005:8080 \
-  --dns 8.8.8.8 --dns 1.1.1.1 \
+  --dns "${DNS_PRIMARY}" --dns "${DNS_SECONDARY}" \
   --env-file "${ENV_FILE}" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /opt/flowdeploy:/opt/flowdeploy:ro \
@@ -157,7 +162,7 @@ rollback() {
       --restart unless-stopped \
       --group-add "${DOCKER_GID}" \
       -p 127.0.0.1:9005:8080 \
-      --dns 8.8.8.8 --dns 1.1.1.1 \
+      --dns "${DNS_PRIMARY}" --dns "${DNS_SECONDARY}" \
       --env-file "${ENV_FILE}" \
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v /opt/flowdeploy:/opt/flowdeploy:ro \

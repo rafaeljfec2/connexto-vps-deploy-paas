@@ -33,6 +33,11 @@ FLOWDEPLOY_MCP_SESSION_MAX_AGE="${FLOWDEPLOY_MCP_SESSION_MAX_AGE:-30m}"
 
 HEALTH_TIMEOUT_SECONDS="${HEALTH_TIMEOUT_SECONDS:-120}"
 
+# Container DNS. Public resolvers (8.8.8.8 / 1.1.1.1) time out on this VPS;
+# Locatel upstreams are the working defaults. Override via env on other hosts.
+DNS_PRIMARY="${DNS_PRIMARY:-186.202.26.26}"
+DNS_SECONDARY="${DNS_SECONDARY:-186.202.27.27}"
+
 IMAGE_REF="${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
 
 # retry runs the given command up to ${1} times, with a fixed backoff between
@@ -116,7 +121,7 @@ run_container() {
     --name "${CONTAINER_NAME}" \
     --network "${TRAEFIK_NETWORK}" \
     --restart unless-stopped \
-    --dns 8.8.8.8 --dns 1.1.1.1 \
+    --dns "${DNS_PRIMARY}" --dns "${DNS_SECONDARY}" \
     -e FLOWDEPLOY_BACKEND_URL="${FLOWDEPLOY_BACKEND_URL}" \
     -e FLOWDEPLOY_LOG_LEVEL="${FLOWDEPLOY_MCP_LOG_LEVEL}" \
     --label-file "${LABELS_FILE}" \
