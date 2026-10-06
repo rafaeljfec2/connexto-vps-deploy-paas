@@ -510,6 +510,24 @@ func TestServersManageAcceptsRestartAgent(t *testing.T) {
 	}
 }
 
+func TestServersManageAcceptsEnsureAgentAutostart(t *testing.T) {
+	fake := &fakeBackend{}
+	cs := setupServer(t, fake, RegisterServers)
+	res := callTool(t, cs, "servers_manage", map[string]any{
+		"id":     "srv-1",
+		"action": "ensure_agent_autostart",
+	})
+	if res.IsError {
+		t.Fatalf("expected success, got %s", extractText(t, res))
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	req := fake.requests[0]
+	if !strings.Contains(req.body, `"action":"ensure_agent_autostart"`) {
+		t.Errorf("missing action in body: %s", req.body)
+	}
+}
+
 func TestTemplatesDeploySendsBackendShape(t *testing.T) {
 	fake := &fakeBackend{}
 	cs := setupServer(t, fake, RegisterTemplates)

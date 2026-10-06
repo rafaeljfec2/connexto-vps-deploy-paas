@@ -667,7 +667,7 @@ func (h *ServerHandler) ManageServer(c *fiber.Ctx) error {
 	}
 
 	if !provisioner.ValidateManageAction(req.Action) {
-		return response.BadRequest(c, "invalid action; allowed: restart_agent, restart_user_manager, agent_logs, fix_docker_permissions")
+		return response.BadRequest(c, "invalid action; allowed: "+provisioner.AllowedManageActionsCSV)
 	}
 
 	if h.provisioner == nil {

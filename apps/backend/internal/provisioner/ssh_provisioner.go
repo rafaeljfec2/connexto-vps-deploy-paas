@@ -179,7 +179,8 @@ func (p *SSHProvisioner) provisionRemoteEnv(
 // user manager (and therefore the paasdeploy-agent user unit) survives
 // reboots and interactive session logouts. Without linger, the agent stops
 // when the last interactive session ends and never comes back after reboot.
-// Idempotent: running enable-linger twice is safe.
+// Idempotent: running enable-linger twice is safe. After enable, Linger=yes
+// is verified — a silent no-op from loginctl must not mark the step ok.
 func (p *SSHProvisioner) provisionUserLinger(
 	client *ssh.Client,
 	sshUser, uid, password string,
@@ -192,7 +193,26 @@ func (p *SSHProvisioner) provisionUserLinger(
 	if err := runPrivilegedCommand(client, uid, password, cmd); err != nil {
 		return fmt.Errorf("enable user linger: %w", err)
 	}
+	if err := verifyUserLinger(client, sshUser); err != nil {
+		return err
+	}
+	logLine(fmt.Sprintf("Linger verificado para %s", sshUser))
 	step("user_linger", "ok", "Linger habilitado")
+	return nil
+}
+
+// verifyUserLinger confirms logind will keep the user manager alive without
+// an interactive session. Output shape: "Linger=yes" (or "Linger=no").
+func verifyUserLinger(client *ssh.Client, sshUser string) error {
+	cmd := fmt.Sprintf("loginctl show-user %s -p Linger", sshUser)
+	out, err := runCommandOutput(client, cmd)
+	if err != nil {
+		return fmt.Errorf("verify user linger: %w", err)
+	}
+	trimmed := strings.TrimSpace(out)
+	if trimmed != "Linger=yes" {
+		return fmt.Errorf("user linger not enabled for %s (got %q)", sshUser, trimmed)
+	}
 	return nil
 }
 

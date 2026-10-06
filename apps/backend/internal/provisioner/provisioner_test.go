@@ -11,27 +11,27 @@ import (
 )
 
 const (
-	cmdDockerVersion       = "docker --version"
+	cmdDockerVersion        = "docker --version"
 	cmdDockerBuildxVersion  = "docker buildx version"
 	cmdDockerComposeVersion = "docker compose version"
 	cmdBuildxPlugin         = "docker-buildx-plugin"
 	cmdComposePlugin        = "docker-compose-plugin"
-	cmdSystemctlIsActive   = "systemctl is-active docker"
-	cmdSystemctlStart      = "systemctl start docker"
-	cmdGetDockerCom        = "get.docker.com"
-	cmdDockerRun           = "docker run"
-	cmdDockerPull          = "docker pull"
-	cmdDockerNetworkInspct = "docker network inspect"
-	mockKeyStateRunning    = "State.Running"
-	mockKeyConfigImage     = "Config.Image"
-	mockDockerVersionOut   = "Docker version 24.0.7"
-	testEmailDefault       = "test@example.com"
-	testEmailAdmin         = "admin@example.com"
-	errNotFound            = "not found"
-	uidRoot                = "0"
-	uidNonRoot             = "1000"
-	errWantOneCmd          = "expected 1 command, got %d"
-	errWantActive          = "expected 'active', got %q"
+	cmdSystemctlIsActive    = "systemctl is-active docker"
+	cmdSystemctlStart       = "systemctl start docker"
+	cmdGetDockerCom         = "get.docker.com"
+	cmdDockerRun            = "docker run"
+	cmdDockerPull           = "docker pull"
+	cmdDockerNetworkInspct  = "docker network inspect"
+	mockKeyStateRunning     = "State.Running"
+	mockKeyConfigImage      = "Config.Image"
+	mockDockerVersionOut    = "Docker version 24.0.7"
+	testEmailDefault        = "test@example.com"
+	testEmailAdmin          = "admin@example.com"
+	errNotFound             = "not found"
+	uidRoot                 = "0"
+	uidNonRoot              = "1000"
+	errWantOneCmd           = "expected 1 command, got %d"
+	errWantActive           = "expected 'active', got %q"
 )
 
 type commandMock struct {
@@ -545,6 +545,7 @@ func TestBuildAgentUnit(t *testing.T) {
 func TestProvisionUserLinger(t *testing.T) {
 	t.Run("EnablesLingerAsRoot", func(t *testing.T) {
 		mock := newCommandMock()
+		mock.setResponse("loginctl show-user deploy -p Linger", "Linger=yes")
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
@@ -553,10 +554,14 @@ func TestProvisionUserLinger(t *testing.T) {
 		if !mock.hasCommand("loginctl enable-linger deploy") {
 			t.Errorf("expected 'loginctl enable-linger deploy' command; got: %v", mock.commands)
 		}
+		if !mock.hasOutputCommand("loginctl show-user deploy -p Linger") {
+			t.Errorf("expected linger verification; got: %v", mock.outputCommands)
+		}
 	})
 
 	t.Run("EnablesLingerWithSudoWhenNonRoot", func(t *testing.T) {
 		mock := newCommandMock()
+		mock.setResponse("loginctl show-user deploy -p Linger", "Linger=yes")
 		defer mock.install(t)()
 
 		p := newTestProvisioner()
@@ -581,6 +586,69 @@ func TestProvisionUserLinger(t *testing.T) {
 			t.Errorf("expected wrapped error; got %q", err.Error())
 		}
 	})
+
+	t.Run("FailsWhenLingerNotYes", func(t *testing.T) {
+		mock := newCommandMock()
+		mock.setResponse("loginctl show-user deploy -p Linger", "Linger=no")
+		defer mock.install(t)()
+
+		p := newTestProvisioner()
+		err := p.provisionUserLinger(nil, "deploy", uidRoot, "", noopStep, noopLog)
+		if err == nil {
+			t.Fatal("expected error when Linger is not yes")
+		}
+		if !strings.Contains(err.Error(), "user linger not enabled") {
+			t.Errorf("expected verify error; got %q", err.Error())
+		}
+	})
+}
+
+func TestEnsureAgentAutostart(t *testing.T) {
+	t.Run("Success", func(t *testing.T) {
+		mock := newCommandMock()
+		mock.setResponse("loginctl show-user deploy -p Linger", "Linger=yes")
+		mock.setResponse("systemctl --user is-active", "active")
+		defer mock.install(t)()
+
+		result, err := ensureAgentAutostart(nil, uidNonRoot, "s3cret", "deploy")
+		requireNoError(t, err)
+		if result == nil || !result.Success {
+			t.Fatalf("expected success result; got %+v", result)
+		}
+		if !mock.hasCommand("loginctl enable-linger deploy") {
+			t.Errorf("expected enable-linger; got %v", mock.commands)
+		}
+		if !mock.hasCommand("systemctl start user@" + uidNonRoot + ".service") {
+			t.Errorf("expected start user manager; got %v", mock.commands)
+		}
+		if !mock.hasCommand("systemctl --user enable --now") {
+			t.Errorf("expected enable --now agent; got %v", mock.commands)
+		}
+	})
+
+	t.Run("FailsWhenLingerVerifyFails", func(t *testing.T) {
+		mock := newCommandMock()
+		mock.setResponse("loginctl show-user deploy -p Linger", "Linger=no")
+		defer mock.install(t)()
+
+		result, err := ensureAgentAutostart(nil, uidNonRoot, "s3cret", "deploy")
+		requireNoError(t, err)
+		if result == nil || result.Success {
+			t.Fatalf("expected unsuccessful result; got %+v", result)
+		}
+		if !strings.Contains(result.Output, "user linger not enabled") {
+			t.Errorf("expected linger failure in output; got %q", result.Output)
+		}
+	})
+}
+
+func TestValidateManageAction(t *testing.T) {
+	if !ValidateManageAction("ensure_agent_autostart") {
+		t.Fatal("ensure_agent_autostart must be allowed")
+	}
+	if ValidateManageAction("reboot") {
+		t.Fatal("reboot must not be allowed")
+	}
 }
 
 func TestBuildTraefikConfig(t *testing.T) {

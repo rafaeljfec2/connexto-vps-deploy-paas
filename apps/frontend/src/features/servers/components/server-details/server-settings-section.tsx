@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
+  Power,
   RefreshCw,
   ScrollText,
   Shield,
@@ -148,7 +149,8 @@ type ManageActionId =
   | "restart_agent"
   | "restart_user_manager"
   | "agent_logs"
-  | "fix_docker_permissions";
+  | "fix_docker_permissions"
+  | "ensure_agent_autostart";
 
 interface ActionConfig {
   readonly id: ManageActionId;
@@ -191,6 +193,16 @@ const MANAGE_ACTIONS: readonly ActionConfig[] = [
     variant: "outline",
     confirm:
       "This will add the SSH user to the docker group and restart the user manager + agent. Continue?",
+  },
+  {
+    id: "ensure_agent_autostart",
+    label: "Ensure Agent Autostart",
+    description:
+      "Enable systemd linger so the agent keeps running after SSH logout/reboot",
+    icon: <Power className="h-4 w-4" />,
+    variant: "outline",
+    confirm:
+      "This will enable loginctl linger for the SSH user and start the agent user service. Continue?",
   },
 ] as const;
 

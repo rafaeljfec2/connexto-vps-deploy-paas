@@ -13,10 +13,11 @@ import (
 type ManageAction string
 
 const (
-	ManageActionRestartAgent      ManageAction = "restart_agent"
-	ManageActionRestartUserMgr    ManageAction = "restart_user_manager"
-	ManageActionAgentLogs         ManageAction = "agent_logs"
-	ManageActionFixDockerPerms    ManageAction = "fix_docker_permissions"
+	ManageActionRestartAgent         ManageAction = "restart_agent"
+	ManageActionRestartUserMgr       ManageAction = "restart_user_manager"
+	ManageActionAgentLogs            ManageAction = "agent_logs"
+	ManageActionFixDockerPerms       ManageAction = "fix_docker_permissions"
+	ManageActionEnsureAgentAutostart ManageAction = "ensure_agent_autostart"
 )
 
 type ManageResult struct {
@@ -27,11 +28,15 @@ type ManageResult struct {
 func ValidateManageAction(action string) bool {
 	switch ManageAction(action) {
 	case ManageActionRestartAgent, ManageActionRestartUserMgr,
-		ManageActionAgentLogs, ManageActionFixDockerPerms:
+		ManageActionAgentLogs, ManageActionFixDockerPerms,
+		ManageActionEnsureAgentAutostart:
 		return true
 	}
 	return false
 }
+
+// AllowedManageActionsCSV is the human-readable allowlist for API/MCP errors.
+const AllowedManageActionsCSV = "restart_agent, restart_user_manager, agent_logs, fix_docker_permissions, ensure_agent_autostart"
 
 func (p *SSHProvisioner) ManageServer(
 	server *domain.Server,
@@ -65,6 +70,8 @@ func (p *SSHProvisioner) ManageServer(
 		return getAgentLogs(client, uid)
 	case ManageActionFixDockerPerms:
 		return fixDockerPermissions(client, uid, sshPassword)
+	case ManageActionEnsureAgentAutostart:
+		return ensureAgentAutostart(client, uid, sshPassword, server.SSHUser)
 	default:
 		return nil, fmt.Errorf("unknown action: %s", action)
 	}
@@ -138,4 +145,63 @@ func fixDockerPermissions(client *ssh.Client, uid string, password string) (*Man
 	steps = append(steps, "Agent will restart automatically with Docker access")
 
 	return &ManageResult{Success: true, Output: strings.Join(steps, "\n")}, nil
+}
+
+// ensureAgentAutostart repairs servers where the agent only runs during an
+// interactive SSH session: enable linger, verify Linger=yes, start the user
+// manager if needed, then enable --now the agent user unit.
+func ensureAgentAutostart(client *ssh.Client, uid, password, sshUser string) (*ManageResult, error) {
+	var steps []string
+
+	enableLinger := fmt.Sprintf("loginctl enable-linger %s", sshUser)
+	if err := runPrivilegedCommand(client, uid, password, enableLinger); err != nil {
+		return &ManageResult{Success: false, Output: fmt.Sprintf("enable linger failed: %s", err)}, nil
+	}
+	steps = append(steps, fmt.Sprintf("Enabled linger for %s", sshUser))
+
+	if err := verifyUserLinger(client, sshUser); err != nil {
+		return &ManageResult{
+			Success: false,
+			Output:  fmt.Sprintf("%s\n%s", strings.Join(steps, "\n"), err),
+		}, nil
+	}
+	steps = append(steps, "Verified Linger=yes")
+
+	startUserMgr := fmt.Sprintf("systemctl start user@%s.service", uid)
+	if err := runPrivilegedCommand(client, uid, password, startUserMgr); err != nil {
+		return &ManageResult{
+			Success: false,
+			Output:  fmt.Sprintf("%s\nFailed to start user manager: %s", strings.Join(steps, "\n"), err),
+		}, nil
+	}
+	steps = append(steps, fmt.Sprintf("Started user@%s.service", uid))
+
+	runtimeDir := fmt.Sprintf("/run/user/%s", uid)
+	enableAgent := fmt.Sprintf(
+		"XDG_RUNTIME_DIR=%s systemctl --user enable --now %s",
+		runtimeDir, agentSystemdUnit,
+	)
+	if err := runCommand(client, enableAgent); err != nil {
+		return &ManageResult{
+			Success: false,
+			Output:  fmt.Sprintf("%s\nFailed to enable/start agent: %s", strings.Join(steps, "\n"), err),
+		}, nil
+	}
+	steps = append(steps, "Enabled and started "+agentSystemdUnit)
+
+	statusCmd := fmt.Sprintf("XDG_RUNTIME_DIR=%s systemctl --user is-active %s", runtimeDir, agentSystemdUnit)
+	status, err := runCommandOutput(client, statusCmd)
+	if err != nil {
+		return &ManageResult{
+			Success: false,
+			Output:  fmt.Sprintf("%s\nAgent status check failed: %s", strings.Join(steps, "\n"), err),
+		}, nil
+	}
+	status = strings.TrimSpace(status)
+	steps = append(steps, "Agent status: "+status)
+
+	return &ManageResult{
+		Success: status == "active",
+		Output:  strings.Join(steps, "\n"),
+	}, nil
 }

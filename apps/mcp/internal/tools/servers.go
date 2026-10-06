@@ -14,7 +14,7 @@ type serverIDInput struct {
 
 type serverManageInput struct {
 	ID     string `json:"id" jsonschema:"the server UUID"`
-	Action string `json:"action" jsonschema:"management action; one of: restart_agent, restart_user_manager, agent_logs, fix_docker_permissions"`
+	Action string `json:"action" jsonschema:"management action; one of: restart_agent, restart_user_manager, agent_logs, fix_docker_permissions, ensure_agent_autostart"`
 }
 
 var allowedServerManageActions = map[string]struct{}{
@@ -22,7 +22,10 @@ var allowedServerManageActions = map[string]struct{}{
 	"restart_user_manager":   {},
 	"agent_logs":             {},
 	"fix_docker_permissions": {},
+	"ensure_agent_autostart": {},
 }
+
+const allowedServerManageActionsCSV = "restart_agent, restart_user_manager, agent_logs, fix_docker_permissions, ensure_agent_autostart"
 
 func RegisterServers(srv *mcp.Server, deps toolkit.Deps) {
 	toolkit.RegisterReadOnly(srv, deps,
@@ -109,7 +112,7 @@ func RegisterServers(srv *mcp.Server, deps toolkit.Deps) {
 	toolkit.RegisterWrite(srv, deps,
 		&mcp.Tool{
 			Name:        "servers_manage",
-			Description: "Run a SSH-based management action on a server. Allowed actions: 'restart_agent', 'restart_user_manager', 'agent_logs', 'fix_docker_permissions'. Requires scope 'servers:write'.",
+			Description: "Run a SSH-based management action on a server. Allowed actions: 'restart_agent', 'restart_user_manager', 'agent_logs', 'fix_docker_permissions', 'ensure_agent_autostart'. Requires scope 'servers:write'.",
 		},
 		func(ctx context.Context, _ *mcp.CallToolRequest, in serverManageInput) (any, error) {
 			if in.ID == "" {
@@ -119,7 +122,7 @@ func RegisterServers(srv *mcp.Server, deps toolkit.Deps) {
 				return nil, errInvalidArg("action is required")
 			}
 			if _, ok := allowedServerManageActions[in.Action]; !ok {
-				return nil, errInvalidArg("invalid action; allowed: restart_agent, restart_user_manager, agent_logs, fix_docker_permissions")
+				return nil, errInvalidArg("invalid action; allowed: " + allowedServerManageActionsCSV)
 			}
 			body := map[string]any{"action": in.Action}
 			return postJSON(ctx, deps.Backend, "/servers/"+pathSeg(in.ID)+"/manage", body, nil)

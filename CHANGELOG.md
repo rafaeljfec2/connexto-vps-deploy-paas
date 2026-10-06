@@ -10,7 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Server manage action `ensure_agent_autostart`.** Repairs remote agents that
+  only stay online while an SSH/PuTTY session is open: enables `loginctl`
+  linger for the SSH user, verifies `Linger=yes`, starts `user@<uid>.service`,
+  and runs `systemctl --user enable --now paasdeploy-agent.service`. Exposed
+  in the HTTP manage API, MCP `servers_manage`, and the server Settings UI
+  (“Ensure Agent Autostart”).
+
 ### Fixed
+
+- **Agent provisioning now fails if systemd user linger is not actually on.**
+  `provisionUserLinger` already ran `loginctl enable-linger`, but a silent
+  no-op left servers where the agent died after SSH logout (dashboard stats
+  only resumed after the next console login). After enable, provision now
+  requires `loginctl show-user <user> -p Linger` to equal `Linger=yes`.
+
 
 - **SSE stream from `/events/deploys` no longer drops silently behind the proxy.**
   The dashboard at `https://deploy.connexto.com.br/apps/<id>` was only updating
