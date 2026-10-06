@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only resumed after the next console login). After enable, provision now
   requires `loginctl show-user <user> -p Linger` to equal `Linger=yes`.
 
+- **Public tables now enable Row-Level Security (migration `000032`).**
+  Supabase Advisors flagged `rls_disabled_in_public` because PostgREST roles
+  (`anon` / `authenticated`) had full grants on FlowDeploy tables. The
+  migration enables RLS on all public tables (idempotent if already on),
+  revokes Data API grants when those roles exist (skipped on local Docker
+  Postgres), and does **not** use `FORCE ROW LEVEL SECURITY` so the
+  privileged `DATABASE_URL` connection keeps working unchanged.
+
 
 - **SSE stream from `/events/deploys` no longer drops silently behind the proxy.**
   The dashboard at `https://deploy.connexto.com.br/apps/<id>` was only updating
