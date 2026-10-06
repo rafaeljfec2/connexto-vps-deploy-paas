@@ -10,6 +10,16 @@ import {
   Terminal,
   XCircle,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -217,13 +227,11 @@ function ServerManagementCard({ serverId }: ServerManagementCardProps) {
   const [result, setResult] = useState<ManageServerResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showLogs, setShowLogs] = useState(false);
+  const [pendingAction, setPendingAction] = useState<ActionConfig | null>(null);
 
   const executeAction = useCallback(
     async (action: ActionConfig) => {
-      if (action.confirm && !globalThis.confirm(action.confirm)) {
-        return;
-      }
-
+      setPendingAction(null);
       setLoadingAction(action.id);
       setResult(null);
       setError(null);
@@ -246,6 +254,17 @@ function ServerManagementCard({ serverId }: ServerManagementCardProps) {
     [serverId],
   );
 
+  const handleActionClick = useCallback(
+    (action: ActionConfig) => {
+      if (action.confirm) {
+        setPendingAction(action);
+        return;
+      }
+      void executeAction(action);
+    },
+    [executeAction],
+  );
+
   return (
     <Card>
       <CardContent className="py-4 space-y-4">
@@ -266,7 +285,7 @@ function ServerManagementCard({ serverId }: ServerManagementCardProps) {
                 size="sm"
                 className="justify-start gap-2 h-auto py-2 px-3"
                 disabled={loadingAction !== null}
-                onClick={() => executeAction(action)}
+                onClick={() => handleActionClick(action)}
               >
                 {isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -291,6 +310,34 @@ function ServerManagementCard({ serverId }: ServerManagementCardProps) {
           onToggleLogs={() => setShowLogs((prev) => !prev)}
         />
       </CardContent>
+
+      <AlertDialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingAction(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{pendingAction?.label}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.confirm}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingAction) {
+                  void executeAction(pendingAction);
+                }
+              }}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
