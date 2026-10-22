@@ -424,12 +424,6 @@ The rationale is _why this option and not the others_ — not just what was chos
 - "I need to record why we chose Kafka over RabbitMQ"
 - "Add an architecture decision record for our authentication approach"
 
-### Portuguese
-
-- "Escreva um ADR sobre a decisão de usar PostgreSQL"
-- "Documente a decisão de adotar GraphQL no projeto"
-- "Crie um ADR explicando por que escolhemos Kafka"
-
 ### Spanish
 
 - "Escribe un ADR sobre la decisión de usar PostgreSQL"

@@ -13,7 +13,7 @@ This skill guides AI agents to create well-structured ADRs in three industry-sta
 The skill automatically:
 
 - Assigns the next sequential ADR number by scanning your `docs/adr/` directory
-- Detects your language and generates the ADR in that language (for example, English, Portuguese, Spanish)
+- Detects your language and generates the ADR in that language (for example, English or Spanish)
 - Guides you with questions if context is missing
 - Enforces naming conventions (`001-kebab-case-title.md`)
 - Links superseded/superseding ADRs correctly
@@ -39,12 +39,6 @@ Just tell the agent you want an ADR:
 
 ```
 Write an ADR for using PostgreSQL as our primary database
-```
-
-**Portuguese:**
-
-```
-Escreva um ADR para documentar a decisão de usar PostgreSQL
 ```
 
 **Spanish:**
@@ -264,7 +258,6 @@ Target 200–500 words. If the decision needs extensive explanation, link to the
 | Language   | Example Trigger                                       |
 | ---------- | ----------------------------------------------------- |
 | English    | "Write an ADR for using PostgreSQL"                   |
-| Portuguese | "Escreva um ADR para documentar o uso do PostgreSQL"  |
 | Spanish    | "Escribe un ADR sobre la decisión de usar PostgreSQL" |
 
 All section headers and content are automatically generated in the detected language.

@@ -1,195 +1,193 @@
-# Tutorial: Cadastrar e Provisionar um Servidor Remoto
+# Tutorial: Register and Provision a Remote Server
 
-Passo a passo para preparar um VPS, cadastra-lo no FlowDeploy e provisionar
-o agente automaticamente. Para a arquitetura por tras do que acontece em cada
-etapa, consulte [`REMOTE_SSH_DEPLOY.md`](./REMOTE_SSH_DEPLOY.md).
+Step-by-step to prepare a VPS, register it in FlowDeploy, and provision the agent automatically. For architecture behind each step, see [`REMOTE_SSH_DEPLOY.md`](./REMOTE_SSH_DEPLOY.md).
 
-## 1. Visao geral
+## 1. Overview
 
-Voce vai:
+You will:
 
-1. Preparar o VPS de destino (sistema operacional, rede, usuario).
-2. Garantir que o backend do FlowDeploy esta pronto para emitir certificados
-   e expor a porta gRPC.
-3. Cadastrar o servidor no painel.
-4. Disparar o **Provision** e acompanhar os logs.
-5. Validar que o agente esta `online` e usar a maquina para deploys.
+1. Prepare the target VPS (operating system, network, user).
+2. Ensure the FlowDeploy backend is ready to issue certificates
+   and expose the gRPC port.
+3. Register the server in the dashboard.
+4. Trigger **Provision** and follow the logs.
+5. Validate that the agent is `online` and use the machine for deploys.
 
-> Tempo estimado: 5 a 10 minutos por servidor.
+> Estimated time: 5 to 10 minutes per server.
 
-## 2. Pre-requisitos no VPS
+## 2. VPS prerequisites
 
-Sistema operacional homologado: **Ubuntu Server 22.04+** (qualquer Linux com
-`systemd` e Docker disponiveis tambem funciona).
+Supported OS: **Ubuntu Server 22.04+** (any Linux with
+`systemd` and Docker available also works).
 
-| Item                                   | Por que                                                        |
+| Item                                   | Why                                                            |
 | -------------------------------------- | -------------------------------------------------------------- |
-| Acesso SSH (chave **ou** senha)        | provisionamento usa SSH                                         |
-| Usuario com `sudo` (ou root)           | instalar Docker e criar a unit `systemd`                        |
-| Conexao a internet                     | baixar Docker, Traefik e o binario do agente                    |
-| Porta TCP 22 aberta                    | SSH durante o provisionamento                                   |
-| Portas TCP 80/443 abertas              | Traefik atender HTTP/HTTPS dos apps                             |
-| Porta TCP 50052 (ou customizada)       | porta gRPC do agente, **so o backend precisa alcancar**         |
-| Hostname publico ou IP fixo            | aparecerá no painel e nos certificados                          |
+| SSH access (key **or** password)       | provisioning uses SSH                                          |
+| User with `sudo` (or root)             | install Docker and create the `systemd` unit                   |
+| Internet connection                    | download Docker, Traefik, and the agent binary                 |
+| TCP port 22 open                       | SSH during provisioning                                        |
+| TCP ports 80/443 open                  | Traefik serves app HTTP/HTTPS                                  |
+| TCP port 50052 (or custom)             | agent gRPC port; **only the backend needs to reach it**        |
+| Public hostname or fixed IP            | shown in the dashboard and on certificates                     |
 
-> O backend nao precisa de IP fixo, mas precisa estar acessivel pelo VPS
-> via HTTPS (para `Register`/`Heartbeat`) e via gRPC (para deploy).
+> The backend does not need a fixed IP, but it must be reachable from the VPS
+> over HTTPS (for `Register`/`Heartbeat`) and gRPC (for deploy).
 
-## 3. Pre-requisitos no backend
+## 3. Backend prerequisites
 
-Antes do primeiro provisionamento, garanta que:
+Before the first provisioning run, ensure:
 
-1. As variaveis abaixo estao no `.env` do backend:
-   - `GRPC_PORT` (default `50051`) — porta interna do gRPC do backend.
-   - `GRPC_AGENT_PORT` (default `50052`) — porta exposta para os agentes.
-   - `BACKEND_PUBLIC_HOST` (ou equivalente) — hostname publico do backend.
-2. Traefik esta com **TCP route SNI** publicando `GRPC_AGENT_PORT` para o
-   mesmo hostname (ver `deploy/traefik/`).
-3. A migracao `000014_pki_ca` ja foi aplicada (gera a CA interna
-   automaticamente no startup).
-4. O binario do agente correspondente ao `AGENT_VERSION` esta buildado e
-   acessivel pelo `agentdownload`.
+1. The variables below are in the backend `.env`:
+   - `GRPC_PORT` (default `50051`) — backend internal gRPC port.
+   - `GRPC_AGENT_PORT` (default `50052`) — port exposed for agents.
+   - `BACKEND_PUBLIC_HOST` (or equivalent) — backend public hostname.
+2. Traefik has a **TCP route SNI** publishing `GRPC_AGENT_PORT` on the
+   same hostname (see `deploy/traefik/`).
+3. Migration `000014_pki_ca` has been applied (generates the internal CA
+   automatically on startup).
+4. The agent binary matching `AGENT_VERSION` is built and
+   available through `agentdownload`.
 
-> Em ambiente de desenvolvimento, voce pode rodar o agente apontando direto
-> para `localhost:50051` sem Traefik, conforme o `README.md`.
+> In development you can run the agent pointing directly
+> at `localhost:50051` without Traefik, as described in `README.md`.
 
-## 4. Cadastrar o servidor no painel
+## 4. Register the server in the dashboard
 
-1. Logue no painel como `admin`.
-2. Acesse **Servers → New Server**.
-3. Preencha:
-   - **Name**: nome amigavel (ex: `prod-eu-1`).
-   - **Host**: IP ou hostname publico do VPS.
+1. Log in to the dashboard as `admin`.
+2. Go to **Servers → New Server**.
+3. Fill in:
+   - **Name**: friendly name (e.g. `prod-eu-1`).
+   - **Host**: public IP or hostname of the VPS.
    - **SSH Port**: `22` (default).
-   - **SSH User**: usuario com `sudo` ou `root`.
-   - **Authentication**: cole a chave privada (recomendado) **ou** informe a
-     senha temporaria.
-   - **ACME Email**: email para o Let's Encrypt nesse VPS (opcional, mas
-     necessario para SSL automatico nos apps).
-   - **Agent Update Mode**: `auto` (recomendado) ou `manual`.
-4. Salve. O servidor aparece com status `pending`.
+   - **SSH User**: user with `sudo` or `root`.
+   - **Authentication**: paste the private key (recommended) **or** provide a
+     temporary password.
+   - **ACME Email**: email for Let's Encrypt on this VPS (optional, but
+     required for automatic SSL on apps).
+   - **Agent Update Mode**: `auto` (recommended) or `manual`.
+4. Save. The server appears with status `pending`.
 
-## 5. Disparar o provisionamento
+## 5. Trigger provisioning
 
-1. Na lista de servidores, clique em **Provision**.
-2. Uma janela com **logs em tempo real** abre. Voce vera as etapas:
+1. In the server list, click **Provision**.
+2. A window with **real-time logs** opens. You will see steps such as:
 
 ```
-[01/10] Conectando via SSH a 203.0.113.10
-[02/10] Detectando privilegios e configurando ambiente remoto
-[03/10] Instalando Docker Engine e Compose v2
-[04/10] Criando rede Docker paasdeploy_net
-[05/10] Instalando Traefik (acme_email configurado)
-[06/10] Gerando certificado mTLS do agente
-[07/10] Enviando binario do agente (paasdeploy-agent vX.Y.Z)
-[08/10] Criando unidade systemd paasdeploy-agent.service
-[09/10] Iniciando servico e aguardando Register
-[10/10] Servidor online
+[01/10] Connecting via SSH to 203.0.113.10
+[02/10] Detecting privileges and configuring remote environment
+[03/10] Installing Docker Engine and Compose v2
+[04/10] Creating Docker network paasdeploy_net
+[05/10] Installing Traefik (acme_email configured)
+[06/10] Generating agent mTLS certificate
+[07/10] Uploading agent binary (paasdeploy-agent vX.Y.Z)
+[08/10] Creating systemd unit paasdeploy-agent.service
+[09/10] Starting service and waiting for Register
+[10/10] Server online
 ```
 
-3. Em caso de erro, a etapa fica vermelha e o painel mostra a saida
-   completa do comando que falhou. Os logs tambem ficam em
-   `apps/backend` (com `slog` correlacionado por `serverId`).
+3. On error, the step turns red and the dashboard shows the full output
+   of the command that failed. Logs are also in
+   `apps/backend` (with `slog` correlated by `serverId`).
 
-> O fluxo e idempotente: rodar **Provision** novamente em um servidor ja
-> provisionado nao reinstala o que ja existe; apenas garante que tudo esta
-> em estado consistente.
+> The flow is idempotent: running **Provision** again on an already
+> provisioned server does not reinstall what exists; it only ensures everything is
+> in a consistent state.
 
-## 6. Validacao pos-provisionamento
+## 6. Post-provisioning validation
 
-Depois do status `online`, valide rapidamente:
+After status is `online`, validate quickly:
 
 ```bash
 ssh <user>@<host>
 sudo systemctl status paasdeploy-agent     # active (running)
-sudo journalctl -u paasdeploy-agent -n 50  # logs recentes
-sudo docker ps                              # paasdeploy-agent + traefik (se ACME)
+sudo journalctl -u paasdeploy-agent -n 50  # recent logs
+sudo docker ps                              # paasdeploy-agent + traefik (if ACME)
 sudo docker network ls | grep paasdeploy_net
 ```
 
-E no painel:
+In the dashboard:
 
-- O cartao do servidor mostra metricas de CPU/RAM/disco recebidas via SSE.
-- A aba **Containers** lista os containers existentes (deve aparecer
-  `paasdeploy-agent` e o `traefik` se foi instalado).
-- A aba **Certificates** lista os certificados do Traefik daquele VPS.
+- The server card shows CPU/RAM/disk metrics received via SSE.
+- The **Containers** tab lists existing containers (you should see
+  `paasdeploy-agent` and `traefik` if it was installed).
+- The **Certificates** tab lists Traefik certificates for that VPS.
 
-## 7. Cadastrar e fazer deploy de um app neste servidor
+## 7. Register and deploy an app on this server
 
 1. **Apps → New App**.
-2. Preencha:
-   - **Repository URL**: `https://github.com/org/repo.git` (ou via GitHub App).
+2. Fill in:
+   - **Repository URL**: `https://github.com/org/repo.git` (or via GitHub App).
    - **Branch**: `main` (default).
-   - **Workdir**: caminho relativo no monorepo, se aplicavel.
-   - **Server**: selecione o VPS recem-provisionado.
-   - **Domain**: dominio que sera atendido pelo Traefik desse VPS.
-3. Confirme. O backend cria webhook no GitHub (via GitHub App, se conectado),
-   enfileira o primeiro deploy e exibe os logs em tempo real.
+   - **Workdir**: relative path in the monorepo, if applicable.
+   - **Server**: select the newly provisioned VPS.
+   - **Domain**: domain served by Traefik on that VPS.
+3. Confirm. The backend creates a GitHub webhook (via GitHub App, if connected),
+   enqueues the first deploy, and shows logs in real time.
 
-## 8. Operacoes do dia a dia
+## 8. Day-to-day operations
 
-### Re-deploy manual
+### Manual redeploy
 
-Botao **Redeploy** (ou `POST /api/apps/:id/redeploy`). Usa o ultimo SHA
-conhecido da branch.
+**Redeploy** button (or `POST /api/apps/:id/redeploy`). Uses the last known SHA
+on the branch.
 
 ### Rollback
 
-Botao **Rollback** (ou `POST /api/apps/:id/rollback`). Volta para a versao
-anterior **e** revalida o health check antes de dar sucesso.
+**Rollback** button (or `POST /api/apps/:id/rollback`). Returns to the previous
+version **and** re-runs the health check before reporting success.
 
-### Terminal web
+### Web terminal
 
-Aba **Terminal** dentro de um container. Usa `ExecContainer` (gRPC
-bidirecional) com PTY de verdade — voce pode rodar `htop`, `vim`, etc.
+**Terminal** tab inside a container. Uses `ExecContainer` (bidirectional gRPC)
+with a real PTY — you can run `htop`, `vim`, etc.
 
-### Atualizar o agente
+### Update the agent
 
-- **Auto** (recomendado): backend faz `PushUpdate` ao detectar versao mais
-  nova via heartbeat.
-- **Manual**: na pagina do servidor, clique em **Push Update** apos buildar
-  uma nova versao do binario.
+- **Auto** (recommended): backend runs `PushUpdate` when it detects a newer
+  version via heartbeat.
+- **Manual**: on the server page, click **Push Update** after building
+  a new agent binary.
 
-### Limpeza programada
+### Scheduled cleanup
 
-A scheduler de limpeza roda dentro do agente (`apps/agent/internal/cleanup`).
-Voce pode disparar uma execucao agora pela UI ou via
+The cleanup scheduler runs inside the agent (`apps/agent/internal/cleanup`).
+You can trigger a run now from the UI or via
 `POST /api/cleanup/run?serverId=...`.
 
-## 9. Solucao de problemas
+## 9. Troubleshooting
 
-| Sintoma                                         | O que checar                                                               |
-| ----------------------------------------------- | -------------------------------------------------------------------------- |
-| Provisionamento para em **Conectando via SSH**  | porta 22 aberta? chave correta? `sudo` exige senha?                         |
-| Erro **Docker install failed**                  | distro suportada? Internet liberada? `apt`/`dnf` disponivel?                |
-| Servidor fica em **registering**                | porta gRPC do backend acessivel pelo VPS? CA presente em `pki_ca`?          |
-| Agente reinicia em loop                         | `journalctl -u paasdeploy-agent` mostra o erro real (ex: porta 50052 ocupada) |
-| Deploy demora a sair de **pending**             | `DEPLOY_WORKERS` zerado? dispatcher logando algo?                           |
-| Healthcheck sempre falha                        | `paasdeploy.json` com `port` e `healthcheck.path` corretos?                 |
-| TLS dos apps nao funciona                       | `acme_email` configurado no servidor? portas 80/443 abertas?                |
+| Symptom                                         | What to check                                                               |
+| ----------------------------------------------- | --------------------------------------------------------------------------- |
+| Provisioning stops at **Connecting via SSH**    | port 22 open? correct key? does `sudo` require a password?                  |
+| **Docker install failed** error                 | supported distro? internet allowed? `apt`/`dnf` available?                  |
+| Server stuck in **registering**                 | backend gRPC port reachable from VPS? CA present in `pki_ca`?               |
+| Agent restarts in a loop                        | `journalctl -u paasdeploy-agent` shows the real error (e.g. port 50052 in use) |
+| Deploy stays **pending** for a long time        | `DEPLOY_WORKERS` zero? anything in dispatcher logs?                         |
+| Healthcheck always fails                        | `paasdeploy.json` with correct `port` and `healthcheck.path`?               |
+| App TLS does not work                           | `acme_email` set on the server? ports 80/443 open?                          |
 
-## 10. Desprovisionar um servidor
+## 10. Deprovision a server
 
-1. **Servers → <servidor> → Delete**. Voce escolhe se quer:
-   - **Apenas remover do painel** (deixa o agente rodando, util para
-     migracao manual).
-   - **Remover completamente** (executa rotina remota: para o servico, remove
-     unit `systemd`, apaga binario, remove certificados).
-2. Apps que estavam atrelados ao servidor ficam orfaos e devem ser
-   reatribuidos antes da exclusao.
+1. **Servers → <server> → Delete**. You choose whether to:
+   - **Remove from dashboard only** (leaves the agent running, useful for
+     manual migration).
+   - **Remove completely** (remote routine: stop service, remove
+     `systemd` unit, delete binary, remove certificates).
+2. Apps tied to the server become orphaned and should be
+   reassigned before deletion.
 
-## 11. Boas praticas
+## 11. Best practices
 
-- Use **um servidor por ambiente logico** (ex: `prod`, `staging`) e nao
-  misture cargas concorrentes em um unico VPS pequeno.
-- Configure `acme_email` em todos os servidores publicos para SSL automatico.
-- Monitore o cartao do servidor regularmente; metricas em vermelho aparecem
-  via SSE em segundos.
-- Mantenha o `AGENT_VERSION` atualizado no repositorio para que o auto-update
-  mantenha a frota homogenea.
-- Faca rotacao periodica dos certificados mTLS (script previsto no roadmap).
+- Use **one server per logical environment** (e.g. `prod`, `staging`) and do not
+  mix competing workloads on a single small VPS.
+- Set `acme_email` on all public servers for automatic SSL.
+- Monitor the server card regularly; red metrics appear
+  via SSE within seconds.
+- Keep `AGENT_VERSION` updated in the repository so auto-update
+  keeps the fleet homogeneous.
+- Rotate mTLS certificates periodically (script planned on the roadmap).
 
-## 12. Comandos uteis no VPS
+## 12. Useful commands on the VPS
 
 ```bash
 sudo systemctl status paasdeploy-agent
@@ -204,5 +202,5 @@ sudo cat /etc/systemd/system/paasdeploy-agent.service
 sudo ls -l ~/paasdeploy-agent/
 ```
 
-> Em caso de problema persistente, anexe a saida de `journalctl -u
-> paasdeploy-agent --no-pager -n 200` ao abrir uma issue.
+> For persistent issues, attach the output of `journalctl -u
+> paasdeploy-agent --no-pager -n 200` when opening an issue.

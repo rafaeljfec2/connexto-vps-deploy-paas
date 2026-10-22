@@ -1,148 +1,141 @@
-# FlowDeploy — Mapa de Features e Roadmap
+# FlowDeploy — Feature Map and Roadmap
 
-Este documento mostra **o que ja existe na plataforma hoje** e **o que esta
-planejado para os proximos ciclos**. Use como fonte unica para responder a
-pergunta "o FlowDeploy ja faz X?".
+This document shows **what already exists on the platform today** and **what is planned for upcoming cycles**. Use it as the single source to answer "does FlowDeploy already do X?".
 
-> Convencoes:
+> Conventions:
 >
-> - ✅ implementado e disponivel na branch principal
-> - 🚧 parcial / experimental (existe codigo mas ainda nao foi promovido)
-> - 📋 planejado (existe um roadmap claro mas nao foi iniciado)
-> - ❌ fora de escopo no momento
+> - ✅ implemented and available on the main branch
+> - 🚧 partial / experimental (code exists but not promoted yet)
+> - 📋 planned (clear roadmap, not started)
+> - ❌ out of scope for now
 
-## 1. Comparativo com plataformas similares
+## 1. Comparison with similar platforms
 
 | Feature                                       | Coolify | FlowDeploy | Status                                    |
 | --------------------------------------------- | ------- | ---------- | ----------------------------------------- |
-| Deploy de aplicacoes Docker                   | ✅      | ✅         | `engine` + `shared/pkg/docker`            |
-| Push to deploy via Git                        | ✅      | ✅         | webhooks GitHub + dedup (`000028`)        |
-| Integracao GitHub (OAuth + App)               | ✅      | ✅         | `internal/github`, `internal/ghclient`    |
-| Multi-servidor remoto                         | ✅      | ✅         | agente gRPC + mTLS (`internal/pki`)       |
-| SSL automatico (Let's Encrypt + Traefik)      | ✅      | ✅         | Traefik 3.x + ACME                        |
-| Variaveis de ambiente criptografadas          | ✅      | ✅         | `internal/crypto`                         |
-| Logs em tempo real                            | ✅      | ✅         | SSE em `/events/deploys`                  |
-| Monitoramento (CPU, RAM, disco, rede)         | ✅      | ✅         | `system_stats_monitor` + `server_stats`   |
-| Health checks com retry e rollback            | ✅      | ✅         | configuravel via `paasdeploy.json`        |
-| Rollback                                      | ✅      | ✅         | rota dedicada `/api/apps/:id/rollback`    |
-| DNS automatico (Cloudflare)                   | ❌      | ✅         | OAuth Cloudflare + `internal/cloudflare`  |
-| Notificacoes (Slack / Discord / Email)        | ✅      | ✅         | `internal/notification`                   |
-| Templates one-click (Postgres, Redis, Nginx…) | ✅      | ✅         | `template_handler` + `template_data`      |
-| Auditoria de eventos                          | ✅      | ✅         | `internal/service/audit_service.go`       |
-| Auto-update do agente                         | parcial | ✅         | `agentdownload` + `handlers_update`       |
-| Provisionamento automatico via SSH            | ✅      | ✅         | `internal/provisioner`                    |
-| Terminal web (docker exec interativo)         | ✅      | ✅         | gRPC bidirecional + `creack/pty`          |
-| Backups automaticos de banco                  | ✅      | 📋         | roadmap (Q3)                              |
-| Runtime K3s (rolling, replicas, ingress)      | parcial | 📋         | ver `docs/K3S_DEPLOY_ROADMAP.md`          |
-| Marketplace de templates                      | parcial | 📋         | catalogo atual e estatico                 |
-| Multi-tenant com cobranca                     | ❌      | ❌         | fora de escopo                            |
+| Docker application deploy                     | ✅      | ✅         | `engine` + `shared/pkg/docker`            |
+| Git push-to-deploy                            | ✅      | ✅         | GitHub webhooks + dedup (`000028`)        |
+| GitHub integration (OAuth + App)              | ✅      | ✅         | `internal/github`, `internal/ghclient`    |
+| Remote multi-server                           | ✅      | ✅         | gRPC agent + mTLS (`internal/pki`)        |
+| Automatic SSL (Let's Encrypt + Traefik)       | ✅      | ✅         | Traefik 3.x + ACME                        |
+| Encrypted environment variables               | ✅      | ✅         | `internal/crypto`                         |
+| Real-time logs                                | ✅      | ✅         | SSE on `/events/deploys`                  |
+| Monitoring (CPU, RAM, disk, network)          | ✅      | ✅         | `system_stats_monitor` + `server_stats`   |
+| Health checks with retry and rollback         | ✅      | ✅         | configurable via `paasdeploy.json`        |
+| Rollback                                      | ✅      | ✅         | dedicated route `/api/apps/:id/rollback`  |
+| Automatic DNS (Cloudflare)                    | ❌      | ✅         | Cloudflare OAuth + `internal/cloudflare`  |
+| Notifications (Slack / Discord / Email)       | ✅      | ✅         | `internal/notification`                   |
+| One-click templates (Postgres, Redis, Nginx…) | ✅      | ✅         | `template_handler` + `template_data`      |
+| Event audit                                   | ✅      | ✅         | `internal/service/audit_service.go`       |
+| Agent auto-update                             | partial | ✅         | `agentdownload` + `handlers_update`       |
+| Automatic provisioning via SSH                | ✅      | ✅         | `internal/provisioner`                    |
+| Web terminal (interactive docker exec)        | ✅      | ✅         | bidirectional gRPC + `creack/pty`         |
+| Automatic database backups                    | ✅      | 📋         | roadmap (Q3)                              |
+| K3s runtime (rolling, replicas, ingress)      | partial | 📋         | see `docs/K3S_DEPLOY_ROADMAP.md`          |
+| Template marketplace                          | partial | 📋         | current catalog is static                 |
+| Multi-tenant with billing                     | ❌      | ❌         | out of scope                              |
 
-## 2. Features implementadas
+## 2. Implemented features
 
-### 2.1 Pipeline de deploy
+### 2.1 Deploy pipeline
 
-- ✅ Fila persistida em PostgreSQL com `SELECT ... FOR UPDATE SKIP LOCKED`.
-- ✅ Pool de workers configuravel (`DEPLOY_WORKERS`).
-- ✅ Suporte a Dockerfile e a `docker-compose.yml` por app.
-- ✅ Suporte a monorepos via campo `workdir` em `paasdeploy.json`.
-- ✅ Health check apos build, com retries e timeout configuraveis.
-- ✅ Rollback automatico em caso de falha de health.
-- ✅ Rollback manual por endpoint REST.
-- ✅ Deduplicacao de deploys (`migration 000028_deploy_dedup`).
-- ✅ Logs em tempo real via SSE, sem polling.
+- ✅ Queue persisted in PostgreSQL with `SELECT ... FOR UPDATE SKIP LOCKED`.
+- ✅ Configurable worker pool (`DEPLOY_WORKERS`).
+- ✅ Dockerfile and per-app `docker-compose.yml` support.
+- ✅ Monorepo support via `workdir` in `paasdeploy.json`.
+- ✅ Post-build health check with configurable retries and timeout.
+- ✅ Automatic rollback on health failure.
+- ✅ Manual rollback via REST endpoint.
+- ✅ Deploy deduplication (`migration 000028_deploy_dedup`).
+- ✅ Real-time logs via SSE, no polling.
 
-### 2.2 Multi-servidor
+### 2.2 Multi-server
 
-- ✅ Agente Go leve por VPS, comunicando via gRPC.
-- ✅ mTLS com CA interna (`internal/pki`) e certificados por agente.
-- ✅ Traefik com TCP route SNI para expor a porta gRPC do backend.
-- ✅ Provisionamento automatico via SSH (chaves geradas pelo backend).
-- ✅ Auto-update do binario do agente: backend serve binario, agente baixa,
-  valida hash e reinicia.
-- ✅ Heartbeat com metricas e versao reportada.
-- ✅ `RequireAdminForLocal` impede usuarios comuns de fazer deploy no host.
+- ✅ Lightweight Go agent per VPS, gRPC communication.
+- ✅ mTLS with internal CA (`internal/pki`) and per-agent certificates.
+- ✅ Traefik with TCP route SNI to expose backend gRPC port.
+- ✅ Automatic SSH provisioning (keys generated by backend).
+- ✅ Agent binary auto-update: backend serves binary, agent downloads,
+  validates hash, and restarts.
+- ✅ Heartbeat with metrics and reported version.
+- ✅ `RequireAdminForLocal` prevents regular users from deploying on the host.
 
-### 2.3 Integracoes
+### 2.3 Integrations
 
-- ✅ GitHub OAuth para login e GitHub App para clone de repositorios privados.
-- ✅ Webhooks GitHub com verificacao HMAC-SHA256 em tempo constante.
-- ✅ Cloudflare via OAuth: cria CNAMEs automaticamente em zonas do usuario.
-- ✅ Slack, Discord e Email (SMTP) como canais de notificacao com regras
-  configuraveis por app/evento.
+- ✅ GitHub OAuth for login and GitHub App for private repo clone.
+- ✅ GitHub webhooks with constant-time HMAC-SHA256 verification.
+- ✅ Cloudflare via OAuth: auto CNAMEs in user zones.
+- ✅ Slack, Discord, and Email (SMTP) notification channels with
+  configurable rules per app/event.
 
-### 2.4 Operacao e seguranca
+### 2.4 Operations and security
 
-- ✅ Login com GitHub OAuth ou email/senha (bcrypt).
-- ✅ Sessoes opacas em cookies HttpOnly + Secure + SameSite=Lax.
-- ✅ Roles `admin` e `user`.
-- ✅ Variaveis de ambiente criptografadas no banco.
-- ✅ Tokens GitHub e Cloudflare criptografados antes de persistir.
-- ✅ Auditoria de eventos com payloads de webhook armazenados para replay.
-- ✅ Migracoes embutidas via `golang-migrate` (28+ migracoes).
+- ✅ Login with GitHub OAuth or email/password (bcrypt).
+- ✅ Opaque sessions in HttpOnly + Secure + SameSite=Lax cookies.
+- ✅ `admin` and `user` roles.
+- ✅ Environment variables encrypted in the database.
+- ✅ GitHub and Cloudflare tokens encrypted before persistence.
+- ✅ Event audit with webhook payloads stored for replay.
+- ✅ Embedded migrations via `golang-migrate` (28+ migrations).
 
 ### 2.5 Frontend
 
 - ✅ React 18 + Vite 6 + Tailwind 3.4 + shadcn/ui.
-- ✅ Mobile-first em todas as telas.
-- ✅ TanStack Query 5 + SSE para zero polling.
-- ✅ Tema light/dark com persistencia.
-- ✅ Editor de variaveis de ambiente com mascara para valores sensiveis.
+- ✅ Mobile-first on all screens.
+- ✅ TanStack Query 5 + SSE for zero polling.
+- ✅ Light/dark theme with persistence.
+- ✅ Environment variable editor with masking for sensitive values.
 
-## 3. Em desenvolvimento (🚧)
+## 3. In development (🚧)
 
 | Item                                                | Status                                                   |
 | --------------------------------------------------- | -------------------------------------------------------- |
-| Dashboard de auditoria com filtros avancados        | UI parcial, falta paginacao e exportacao                 |
-| Alertas inteligentes (anomaly detection em metrica) | prototipo so no backend, sem regra ainda                 |
-| Multi-region failover (active-passive)              | discussao tecnica iniciada                               |
+| Audit dashboard with advanced filters               | Partial UI, missing pagination and export                |
+| Smart alerts (metric anomaly detection)             | Backend prototype only, no rules yet                     |
+| Multi-region failover (active-passive)              | Technical discussion started                             |
 
 ## 4. Roadmap (📋)
 
 ### Q2
 
-- 📋 **Backups automaticos de banco** — agendamento de `pg_dump` e
-  envio para storage S3-compativel; ja existe modelo de `cleanup_logs`
-  como inspiracao.
-- 📋 **Templates dinamicos** — permitir que o usuario cadastre seus
-  proprios templates (compose + manifesto) sem alterar codigo.
-- 📋 **Webhooks de saida configuraveis** — disparar HTTP arbitrario para
-  eventos de deploy, similar ao Slack/Discord mas generico.
+- 📋 **Automatic database backups** — schedule `pg_dump` and
+  send to S3-compatible storage; `cleanup_logs` model as inspiration.
+- 📋 **Dynamic templates** — let users register their own
+  templates (compose + manifest) without code changes.
+- 📋 **Configurable outbound webhooks** — fire arbitrary HTTP on
+  deploy events, similar to Slack/Discord but generic.
 
 ### Q3
 
-- 📋 **Runtime K3s opcional** — adicionar K3s como alternativa ao Docker em
-  servidores remotos, com rolling updates, replicas e ingress automatico.
-  Ver [`K3S_DEPLOY_ROADMAP.md`](./K3S_DEPLOY_ROADMAP.md) para detalhes.
-- 📋 **Pipelines compostos** — declarar etapas extras (lint, testes, smoke
-  tests) que rodam dentro do worker antes do `docker build`.
-- 📋 **Marketplace de templates** — catalogo curado, com versionamento e
-  preview de variaveis.
+- 📋 **Optional K3s runtime** — add K3s as alternative to Docker on
+  remote servers, with rolling updates, replicas, and automatic ingress.
+  See [`K3S_DEPLOY_ROADMAP.md`](./K3S_DEPLOY_ROADMAP.md) for details.
+- 📋 **Composite pipelines** — declare extra steps (lint, tests, smoke
+  tests) that run in the worker before `docker build`.
+- 📋 **Template marketplace** — curated catalog with versioning and
+  variable preview.
 
 ### Q4
 
-- 📋 **Suporte a GitLab e Bitbucket** — abstrair `ghclient` como `gitclient`
-  e adicionar implementacoes alternativas; o `webhook.Manager` ja esta
-  desenhado para isso.
-- 📋 **Painel multi-cluster** — agrupar servidores por ambiente (dev /
-  staging / prod) e exibir deploys agregados.
-- 📋 **CLI oficial** — comando `flowdeploy` para listar apps, abrir terminal
-  remoto e disparar deploys via gRPC.
+- 📋 **GitLab and Bitbucket support** — abstract `ghclient` as `gitclient`
+  and add alternative implementations; `webhook.Manager` is already designed for this.
+- 📋 **Multi-cluster panel** — group servers by environment (dev /
+  staging / prod) and show aggregated deploys.
+- 📋 **Official CLI** — `flowdeploy` command to list apps, open remote
+  terminal, and trigger deploys via gRPC.
 
-## 5. Itens explicitamente fora de escopo
+## 5. Explicitly out of scope
 
-- ❌ Multi-tenant SaaS com cobranca embutida.
-- ❌ Construir nosso proprio orquestrador de containers (continuamos
-  apostando em Docker e, no futuro, K3s).
-- ❌ Substituir Traefik por outro proxy.
-- ❌ Suporte a Kubernetes generico (somente K3s opt-in para a feature
-  planejada).
+- ❌ Multi-tenant SaaS with built-in billing.
+- ❌ Building our own container orchestrator (we continue betting on Docker and, later, K3s).
+- ❌ Replacing Traefik with another proxy.
+- ❌ Generic Kubernetes support (K3s opt-in only for the planned feature).
 
-## 6. Como propor novas features
+## 6. How to propose new features
 
-1. Abra uma issue descrevendo o problema antes da solucao.
-2. Aponte qual area do `.cursor/rules/` seria afetada.
-3. Liste alternativas e impactos em seguranca, performance e UX.
-4. Para mudancas grandes, escreva uma RFC em `docs/` (ver
-   `.cursor/skills/create-rfc/` para template).
-5. Valide o roadmap antes de implementar — features fora do escopo
-   declarado devem virar RFC primeiro.
+1. Open an issue describing the problem before the solution.
+2. Point to which area of `.cursor/rules/` would be affected.
+3. List alternatives and impacts on security, performance, and UX.
+4. For large changes, write an RFC in `docs/` (see
+   `.cursor/skills/create-rfc/` for template).
+5. Validate the roadmap before implementing — features outside declared scope should become an RFC first.

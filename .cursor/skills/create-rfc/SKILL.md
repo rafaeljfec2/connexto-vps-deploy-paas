@@ -303,13 +303,6 @@ Would you like me to add anything else?
 - "Draft an RFC comparing self-hosted vs managed Kafka"
 - "I need to get approval to adopt a new design system"
 
-### Portuguese
-
-- "Escreva um RFC para migrar nosso banco de dados"
-- "Preciso de um RFC para propor a adoção de uma nova ferramenta"
-- "Crie um Request for Comments sobre nossa política de on-call"
-- "Quero documentar a decisão de trocar de provedor de cloud"
-
 ### Spanish
 
 - "Escribe un RFC para migrar nuestra infraestructura a la nube"

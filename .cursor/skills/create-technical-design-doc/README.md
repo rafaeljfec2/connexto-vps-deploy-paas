@@ -14,7 +14,7 @@ The skill automatically adapts to:
 
 - **Project size**: Small (< 1 week), Medium (1-4 weeks), Large (> 1 month)
 - **Project type**: Integration, Feature, Refactor, Infrastructure, Payment, Auth, Data migration
-- **User's language**: Automatically generates TDD in Portuguese, English, or Spanish based on your request
+- **User's language**: Automatically generates the TDD in the same language as your request (for example, English or Spanish)
 
 ## How to Use
 
@@ -26,12 +26,6 @@ Simply ask the AI agent to create a TDD:
 
 ```
 Create a TDD for Stripe payment integration
-```
-
-**Portuguese:**
-
-```
-Crie um TDD para integração com Stripe
 ```
 
 **Spanish:**
@@ -108,25 +102,24 @@ Write a design doc for adding user profile pictures
 **Your Request:**
 
 ```
-Crie um TDD para migração do banco de dados PostgreSQL para MongoDB
+Create a TDD for migrating from PostgreSQL to MongoDB
 ```
 
 **What Happens:**
 
-1. Agent detects Portuguese language → generates TDD in Portuguese
-2. Agent identifies this as a migration project
-3. Agent requests: migration strategy, data mapping, rollback plan
-4. Agent offers migration plan section
+1. Agent identifies this as a migration project
+2. Agent requests: migration strategy, data mapping, rollback plan
+3. Agent offers migration plan section
 
-**Result:** A TDD in Portuguese with:
+**Result:** A TDD with:
 
-- Contexto (Context)
-- Definição do Problema (Problem Statement)
-- Escopo (Scope)
-- Solução Técnica (Technical Solution)
-- Plano de Migração (Migration Plan)
-- Plano de Rollback (Rollback Plan)
-- Estratégia de Testes (Testing Strategy)
+- Context
+- Problem Statement
+- Scope
+- Technical Solution
+- Migration Plan
+- Rollback Plan
+- Testing Strategy
 
 ## What to Expect
 
@@ -228,7 +221,6 @@ signature validation, and encrypted storage of payment method tokens.
 The skill automatically detects your language. Just write naturally:
 
 - **English**: "Create a TDD for..."
-- **Portuguese**: "Crie um TDD para..."
 - **Spanish**: "Crea un TDD para..."
 
 ## Language Support
@@ -238,7 +230,6 @@ The skill supports multiple languages:
 | Language   | Example Trigger                           |
 | ---------- | ----------------------------------------- |
 | English    | "Create a TDD for Stripe integration"     |
-| Portuguese | "Crie um TDD para integração com Stripe"  |
 | Spanish    | "Crea un TDD para integración con Stripe" |
 
 All section headers and content are automatically translated to match your language.

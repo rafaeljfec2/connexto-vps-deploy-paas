@@ -14,7 +14,7 @@ The skill automatically adapts to:
 
 - **RFC type**: Technical/Architecture, Process/Workflow, Product/Feature, Vendor Selection, Policy/Compliance
 - **Context provided**: If you give rich context, it generates immediately; if not, it asks targeted questions
-- **User's language**: Automatically generates the RFC in the same language as your request (for example, English, Portuguese, or Spanish)
+- **User's language**: Automatically generates the RFC in the same language as your request (for example, English or Spanish)
 
 ## RFC vs TDD — Which One Do You Need?
 
@@ -37,12 +37,6 @@ Just ask the agent to write an RFC:
 
 ```
 Write an RFC for migrating our database from MySQL to PostgreSQL
-```
-
-**Portuguese:**
-
-```
-Escreva um RFC para migrar nosso banco de dados para PostgreSQL
 ```
 
 **Spanish:**
@@ -223,7 +217,6 @@ These become your Must-have Decision Criteria automatically.
 The skill detects your language automatically:
 
 - **English**: "Write an RFC for..."
-- **Portuguese**: "Escreva um RFC para..."
 - **Spanish**: "Escribe un RFC para..."
 
 ## Language Support
@@ -231,7 +224,6 @@ The skill detects your language automatically:
 | Language   | Example Trigger                              |
 | ---------- | -------------------------------------------- |
 | English    | "Write an RFC for migrating to PostgreSQL"   |
-| Portuguese | "Escreva um RFC para migrar para PostgreSQL" |
 | Spanish    | "Escribe un RFC para migrar a PostgreSQL"    |
 
 All section headers and content are automatically generated in the detected language.

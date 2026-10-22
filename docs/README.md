@@ -17,8 +17,8 @@ project root keeps higher-level entry points:
 | [`CONTRIBUTING.md`](./CONTRIBUTING.md)                         | engineers             | EN       | Local setup, daily commands, workflow, coding standards, testing, release process       |
 | [`GITHUB_INTEGRATION.md`](./GITHUB_INTEGRATION.md)             | engineers             | EN       | OAuth sign-in, GitHub App, webhook architecture, signature verification                 |
 | [`AUTO_DNS_CONFIGURATION.md`](./AUTO_DNS_CONFIGURATION.md)     | engineers + operators | PT-BR    | Cloudflare OAuth, automatic CNAME creation, custom domains lifecycle                    |
-| [`REMOTE_SSH_DEPLOY.md`](./REMOTE_SSH_DEPLOY.md)               | engineers             | PT-BR    | Remote agent architecture (gRPC + mTLS), provisioning, deploy lifecycle, auto-update    |
-| [`REMOTE_SERVER_TUTORIAL.md`](./REMOTE_SERVER_TUTORIAL.md)     | operators             | PT-BR    | Step-by-step tutorial: prepare a VPS, register it, provision the agent, deploy an app   |
+| [`REMOTE_SSH_DEPLOY.md`](./REMOTE_SSH_DEPLOY.md)               | engineers             | EN       | Remote agent architecture (gRPC + mTLS), provisioning, deploy lifecycle, auto-update    |
+| [`REMOTE_SERVER_TUTORIAL.md`](./REMOTE_SERVER_TUTORIAL.md)     | operators             | EN       | Step-by-step tutorial: prepare a VPS, register it, provision the agent, deploy an app   |
 | [`SECURITY.md`](./SECURITY.md)                                 | engineers + operators | EN       | Threat model, trust boundaries, mTLS, secrets handling, hardening checklist, reporting  |
 | [`FEATURES_ROADMAP.md`](./FEATURES_ROADMAP.md)                 | product + engineers   | PT-BR    | What is implemented today vs. roadmap, comparison with similar platforms                |
 | [`K3S_DEPLOY_ROADMAP.md`](./K3S_DEPLOY_ROADMAP.md)             | engineers             | EN       | Planned K3s runtime as an opt-in alternative to Docker                                  |
