@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Remote deploy health checks no longer sleep the whole `startPeriod` before the first probe.** The agent probes immediately, succeeds on the first HTTP 2xx, and the deadline is `startPeriod` (at least 15s) plus the probe budget. A container that is `restarting`, `exited`, or `dead` fails at once with a log tail captured before rollback. The timeout error includes the last probe error, and rollback lines are written to the deploy log. `AGENT_VERSION` is `0.22.5`. Remote container log reads that fail no longer return HTTP 200 with an empty body.
+- **Remote deploy health checks no longer sleep the whole `startPeriod` before the first probe.** The agent probes immediately, succeeds on the first HTTP 2xx, and the deadline is `startPeriod` (at least 15s) plus the probe budget. A container that is `restarting`, `exited`, or `dead` fails at once with a log tail captured before rollback. The timeout error includes the last probe error, and rollback lines are written to the deploy log. Remote container log reads that fail no longer return HTTP 200 with an empty body.
+
+- **Deploy health failures now keep container stderr.** `docker logs` was dropping the CLI stderr pipe when the text contained the word `error`, so Nest/Node crash stacks never reached the deploy log before rollback. Successful log reads now merge stdout and stderr in timestamp order. `AGENT_VERSION` is `0.22.7`.
 
 - **Agent provisioning now fails if systemd user linger is not actually on.**
   `provisionUserLinger` already ran `loginctl enable-linger`, but a silent

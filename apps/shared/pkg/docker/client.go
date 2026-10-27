@@ -316,20 +316,7 @@ func (d *Client) ContainerLogs(ctx context.Context, containerName string, tail i
 	args := buildLogsArgs(containerName, tail, since, false)
 
 	result, err := d.executor.RunQuietWithTimeout(ctx, 30*time.Second, "docker", args...)
-	if err != nil {
-		stderrLower := strings.ToLower(result.Stderr)
-		if strings.Contains(stderrLower, errNoSuchContainer) {
-			return "", fmt.Errorf("container not found: %s", containerName)
-		}
-		return "", fmt.Errorf("failed to get container logs: %w", err)
-	}
-
-	output := result.Stdout
-	if result.Stderr != "" && !strings.Contains(strings.ToLower(result.Stderr), "error") {
-		output = result.Stderr + output
-	}
-
-	return output, nil
+	return containerLogsFromExec(containerName, result.Stdout, result.Stderr, err)
 }
 
 func (d *Client) StreamContainerLogs(ctx context.Context, containerName string, since *time.Time, output chan<- string) error {
