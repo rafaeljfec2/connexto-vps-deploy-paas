@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 
@@ -30,9 +32,14 @@ func isSelfContainerError(err error) bool {
 		strings.Contains(msg, "cannot stop FlowDeploy backend")
 }
 
+type remoteContainerLogs interface {
+	GetContainerLogs(ctx context.Context, host string, port int, containerID string, tail int, follow bool, since *time.Time, onLog agentclient.ContainerLogHandler) error
+}
+
 type ContainerHandler struct {
 	docker      *docker.Client
 	agentClient *agentclient.AgentClient
+	remoteLogs  remoteContainerLogs
 	serverRepo  domain.ServerRepository
 	agentPort   int
 	logger      *slog.Logger
@@ -52,6 +59,7 @@ func NewContainerHandler(cfg ContainerHandlerConfig) *ContainerHandler {
 	return &ContainerHandler{
 		docker:      cfg.Docker,
 		agentClient: cfg.AgentClient,
+		remoteLogs:  cfg.AgentClient,
 		serverRepo:  cfg.ServerRepo,
 		agentPort:   cfg.AgentPort,
 		logger:      cfg.Logger,

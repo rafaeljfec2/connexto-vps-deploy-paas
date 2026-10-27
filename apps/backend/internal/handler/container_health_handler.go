@@ -31,6 +31,7 @@ type ContainerHealthHandler struct {
 	serverRepo  domain.ServerRepository
 	engine      *engine.Engine
 	agentClient *agentclient.AgentClient
+	remoteLogs  remoteContainerLogs
 	agentPort   int
 	logger      *slog.Logger
 }
@@ -48,6 +49,7 @@ func NewContainerHealthHandler(
 		serverRepo:  serverRepo,
 		engine:      eng,
 		agentClient: agentClient,
+		remoteLogs:  agentClient,
 		agentPort:   agentPort,
 		logger:      logger.With("handler", "container_health"),
 	}
@@ -201,20 +203,29 @@ func (h *ContainerHealthHandler) GetContainerLogs(c *fiber.Ctx) error {
 func (h *ContainerHealthHandler) getRemoteContainerLogs(c *fiber.Ctx, app *domain.App, tail int, follow bool, since *time.Time) error {
 	host, err := h.resolveServerHost(app)
 	if err != nil {
-		return response.OK(c, ContainerLogsResponse{Logs: ""})
+		h.logger.Error("failed to resolve server for container logs", "app_id", app.ID, "error", err)
+		return response.ServerError(c, fiber.StatusBadGateway, "failed to read container logs")
 	}
 
 	if follow {
 		return h.streamRemoteContainerLogs(c, app, host, since)
 	}
 
+	source := h.remoteLogs
+	if source == nil {
+		source = h.agentClient
+	}
+	if source == nil {
+		return response.ServerError(c, fiber.StatusBadGateway, "failed to read container logs")
+	}
+
 	var lines []string
-	err = h.agentClient.GetContainerLogs(c.Context(), host, h.agentPort, app.Name, tail, false, since, func(entry *pb.ContainerLogEntry) {
+	err = source.GetContainerLogs(c.Context(), host, h.agentPort, app.Name, tail, false, since, func(entry *pb.ContainerLogEntry) {
 		lines = append(lines, entry.GetMessage())
 	})
 	if err != nil {
 		h.logger.Error("failed to get remote logs", "app_id", app.ID, "error", err)
-		return response.OK(c, ContainerLogsResponse{Logs: ""})
+		return response.ServerError(c, fiber.StatusBadGateway, "failed to read container logs")
 	}
 	return response.OK(c, ContainerLogsResponse{Logs: strings.Join(lines, "\n")})
 }

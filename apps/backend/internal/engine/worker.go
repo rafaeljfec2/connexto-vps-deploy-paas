@@ -227,7 +227,7 @@ func (w *Worker) runLocalDeploy(ctx context.Context, deploy *domain.Deployment, 
 	}
 
 	if err := w.checkHealth(ctx, deploy, app); err != nil {
-		w.log(deploy.ID, app.ID, "Health check failed, attempting rollback...")
+		w.log(deploy.ID, app.ID, "Health check failed: %s", err.Error())
 		if rollbackErr := w.rollback(ctx, deploy, app, appDir); rollbackErr != nil {
 			w.deps.Logger.Error("Rollback failed", "error", rollbackErr)
 		}
@@ -446,42 +446,50 @@ func (w *Worker) collectDomainRoutes(ctx context.Context, appID string) []compos
 func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
 	w.log(deploy.ID, app.ID, "Performing health check...")
 
-	startDelay := healthCheckStartDelay
-	if w.deployConfig.Healthcheck.StartPeriod != "" {
-		if parsed, err := time.ParseDuration(w.deployConfig.Healthcheck.StartPeriod); err == nil && parsed > startDelay {
-			startDelay = parsed
-		}
-	}
-
-	w.log(deploy.ID, app.ID, "Waiting %s for container to be ready...", startDelay)
-	time.Sleep(startDelay)
-
+	deadline := health.ProbeDeadline(time.Now(), w.deployConfig.Healthcheck.StartPeriod, healthCheckStartDelay, w.deps.Health.Timeout())
 	scheme := "http"
 	if w.deployConfig.Healthcheck.TLS {
 		scheme = "https"
 	}
 
-	var healthURL string
-	selfID, _ := w.deps.Docker.GetCurrentContainerID(ctx)
-	useHostPort := w.deployConfig.HostPort > 0 && selfID == ""
-	if useHostPort {
-		healthURL = fmt.Sprintf("%s://127.0.0.1:%d%s", scheme, w.deployConfig.HostPort, w.deployConfig.Healthcheck.Path)
-		w.log(deploy.ID, app.ID, "Health check URL (via host port): %s", healthURL)
-	} else {
-		containerIP, err := w.deps.Docker.GetContainerIP(ctx, app.Name, docker.DefaultNetworkName)
-		if err != nil {
-			return fmt.Errorf("failed to get container IP: %w", err)
-		}
-		healthURL = fmt.Sprintf("%s://%s:%d%s", scheme, containerIP, w.deployConfig.Port, w.deployConfig.Healthcheck.Path)
-		w.log(deploy.ID, app.ID, "Health check URL: %s", healthURL)
-	}
-
-	if err := w.deps.Health.CheckWithBackoff(ctx, healthURL); err != nil {
-		return err
+	var loggedURL bool
+	err := w.deps.Health.CheckUntil(ctx, deadline, health.CheckHooks{
+		BeforeAttempt: func(ctx context.Context) error {
+			return w.deps.Docker.HealthBlock(ctx, app.Name)
+		},
+		ResolveURL: func(ctx context.Context) (string, error) {
+			healthURL, urlErr := w.healthCheckURL(ctx, app, scheme)
+			if urlErr != nil {
+				return "", urlErr
+			}
+			if !loggedURL {
+				w.log(deploy.ID, app.ID, "Health check URL: %s", healthURL)
+				loggedURL = true
+			}
+			return healthURL, nil
+		},
+		OnAttempt: func(attempt int, attemptErr error) {
+			w.log(deploy.ID, app.ID, "Health check attempt %d failed: %s", attempt, attemptErr.Error())
+		},
+	})
+	if err != nil {
+		return w.deps.Docker.AnnotateHealthError(ctx, app.Name, err)
 	}
 
 	w.log(deploy.ID, app.ID, "Health check passed")
 	return nil
+}
+
+func (w *Worker) healthCheckURL(ctx context.Context, app *domain.App, scheme string) (string, error) {
+	selfID, _ := w.deps.Docker.GetCurrentContainerID(ctx)
+	if w.deployConfig.HostPort > 0 && selfID == "" {
+		return fmt.Sprintf("%s://127.0.0.1:%d%s", scheme, w.deployConfig.HostPort, w.deployConfig.Healthcheck.Path), nil
+	}
+	containerIP, err := w.deps.Docker.GetContainerIP(ctx, app.Name, docker.DefaultNetworkName)
+	if err != nil {
+		return "", fmt.Errorf("failed to get container IP: %w", err)
+	}
+	return fmt.Sprintf("%s://%s:%d%s", scheme, containerIP, w.deployConfig.Port, w.deployConfig.Healthcheck.Path), nil
 }
 
 func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *domain.App, appDir string) error {
@@ -500,12 +508,12 @@ func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *d
 		Domains:  domainRoutes,
 		EnvVars:  w.appEnvVars,
 	}); err != nil {
-		w.deps.Logger.Error("Rollback compose generation failed", "error", err)
+		w.log(deploy.ID, app.ID, "Rollback failed: %s", err.Error())
 		return fmt.Errorf("rollback compose generation failed: %w", err)
 	}
 
 	if err := w.deps.Docker.ComposeUp(ctx, appDir, app.ID, nil); err != nil {
-		w.deps.Logger.Error("Rollback compose up failed", "error", err)
+		w.log(deploy.ID, app.ID, "Rollback failed: %s", err.Error())
 		return fmt.Errorf("rollback compose up failed: %w", err)
 	}
 

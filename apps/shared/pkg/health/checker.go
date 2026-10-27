@@ -4,12 +4,15 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 )
+
+var errHealthDeadline = errors.New("health check deadline reached")
 
 type Checker struct {
 	client    *http.Client
@@ -103,47 +106,130 @@ func (h *Checker) singleCheck(ctx context.Context, url string) error {
 	return nil
 }
 
-func (h *Checker) CheckWithBackoff(ctx context.Context, url string) error {
-	h.logger.Info("Starting health check with exponential backoff", "url", url)
+// CheckHooks lets a deploy loop resolve the target each attempt, abort when
+// the container has already crashed, and publish probe failures to the deploy log.
+type CheckHooks struct {
+	ResolveURL    func(ctx context.Context) (string, error)
+	BeforeAttempt func(ctx context.Context) error
+	OnAttempt     func(attempt int, err error)
+}
 
-	deadline := time.Now().Add(h.timeout)
+func (h *Checker) Timeout() time.Duration {
+	return h.timeout
+}
+
+func (h *Checker) CheckWithBackoff(ctx context.Context, url string) error {
+	return h.CheckUntil(ctx, time.Now().Add(h.timeout), CheckHooks{
+		ResolveURL: func(context.Context) (string, error) {
+			return url, nil
+		},
+	})
+}
+
+func (h *Checker) CheckUntil(ctx context.Context, deadline time.Time, hooks CheckHooks) error {
+	if hooks.ResolveURL == nil {
+		return fmt.Errorf("health check: resolve URL is required")
+	}
+
+	window := time.Until(deadline)
+	if window < 0 {
+		window = 0
+	}
 	backoff := h.interval
+	var lastErr error
 
 	for attempt := 1; ; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("health check timed out after %v", h.timeout)
+			return healthTimeoutError(window, lastErr)
+		}
+		if hooks.BeforeAttempt != nil {
+			if err := hooks.BeforeAttempt(ctx); err != nil {
+				return err
+			}
 		}
 
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+		target, err := hooks.ResolveURL(ctx)
+		if err != nil {
+			lastErr = err
+			h.notifyAttempt(hooks, attempt, err)
+			if waitErr := h.wait(ctx, deadline, backoff); waitErr != nil {
+				return h.waitResult(waitErr, window, lastErr)
+			}
+			backoff = nextBackoff(backoff)
+			continue
 		}
 
-		err := h.singleCheck(ctx, url)
+		err = h.singleCheck(ctx, target)
 		if err == nil {
-			h.logger.Info("Health check passed", "url", url, "attempt", attempt)
+			h.logger.Info("Health check passed", "url", target, "attempt", attempt)
 			return nil
 		}
 
+		lastErr = err
+		h.notifyAttempt(hooks, attempt, err)
 		h.logger.Warn("Health check failed, backing off",
-			"url", url,
+			"url", target,
 			"attempt", attempt,
 			"nextBackoff", backoff,
 			"error", err,
 		)
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(backoff):
+		if waitErr := h.wait(ctx, deadline, backoff); waitErr != nil {
+			return h.waitResult(waitErr, window, lastErr)
 		}
-
-		backoff *= 2
-		if backoff > 30*time.Second {
-			backoff = 30 * time.Second
-		}
+		backoff = nextBackoff(backoff)
 	}
+}
+
+func (h *Checker) notifyAttempt(hooks CheckHooks, attempt int, err error) {
+	if hooks.OnAttempt != nil {
+		hooks.OnAttempt(attempt, err)
+	}
+}
+
+func (h *Checker) wait(ctx context.Context, deadline time.Time, backoff time.Duration) error {
+	remaining := time.Until(deadline)
+	if remaining <= 0 {
+		return errHealthDeadline
+	}
+	if backoff > remaining {
+		backoff = remaining
+	}
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func (h *Checker) waitResult(waitErr error, window time.Duration, lastErr error) error {
+	if errors.Is(waitErr, errHealthDeadline) {
+		return healthTimeoutError(window, lastErr)
+	}
+	return waitErr
+}
+
+func healthTimeoutError(window time.Duration, lastErr error) error {
+	if lastErr == nil {
+		return fmt.Errorf("health check timed out after %v", window)
+	}
+	return fmt.Errorf("health check timed out after %v: %w", window, lastErr)
+}
+
+func nextBackoff(current time.Duration) time.Duration {
+	if current <= 0 {
+		return time.Second
+	}
+	next := current * 2
+	if next > 30*time.Second {
+		return 30 * time.Second
+	}
+	return next
 }
 
 func newHealthCheckTLSConfig() *tls.Config {

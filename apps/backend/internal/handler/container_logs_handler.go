@@ -66,13 +66,21 @@ func (h *ContainerHandler) getRemoteContainerLogs(c *fiber.Ctx, serverID, contai
 		return h.streamRemoteContainerLogs(c, host, containerID, since)
 	}
 
+	source := h.remoteLogs
+	if source == nil {
+		source = h.agentClient
+	}
+	if source == nil {
+		return response.ServerError(c, fiber.StatusBadGateway, "failed to read container logs")
+	}
+
 	var logLines []string
-	err = h.agentClient.GetContainerLogs(c.Context(), host, h.agentPort, containerID, tail, false, since, func(entry *pb.ContainerLogEntry) {
+	err = source.GetContainerLogs(c.Context(), host, h.agentPort, containerID, tail, false, since, func(entry *pb.ContainerLogEntry) {
 		logLines = append(logLines, entry.GetMessage())
 	})
 	if err != nil {
 		h.logger.Error("Failed to get remote container logs", "id", containerID, "serverId", serverID, "error", err)
-		return response.OK(c, ContainerLogsResponseGeneral{Logs: ""})
+		return response.ServerError(c, fiber.StatusBadGateway, "failed to read container logs")
 	}
 
 	return response.OK(c, ContainerLogsResponseGeneral{Logs: strings.Join(logLines, "\n")})

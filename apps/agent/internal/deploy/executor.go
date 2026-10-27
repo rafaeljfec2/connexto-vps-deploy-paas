@@ -104,9 +104,9 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 
 	emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO,
 		fmt.Sprintf("Running health check on port %d path %s ...", cfg.Port, cfg.Healthcheck.Path))
-	if err := e.checkHealth(ctx, req, cfg); err != nil {
+	if err := e.checkHealth(ctx, req, cfg, emit); err != nil {
 		emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
-		e.rollback(ctx, req, cfg, appDir)
+		e.rollback(ctx, req, cfg, appDir, emit)
 		return e.failResponse(req, pb.DeployErrorCode_DEPLOY_ERROR_HEALTH_CHECK_FAILED, "health_check", err, startedAt)
 	}
 	emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "Health check passed")
@@ -496,43 +496,62 @@ func (e *Executor) deployContainer(ctx context.Context, req *pb.DeployRequest, c
 	return e.docker.ComposeUp(ctx, appDir, req.AppId, output)
 }
 
-func (e *Executor) checkHealth(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config) error {
-	startDelay := healthCheckStartDelay
-	if cfg.Healthcheck.StartPeriod != "" {
-		if parsed, err := time.ParseDuration(cfg.Healthcheck.StartPeriod); err == nil && parsed > startDelay {
-			startDelay = parsed
-		}
-	}
-
-	e.logger.Info("Waiting for container startup", "delay", startDelay)
-	select {
-	case <-time.After(startDelay):
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-
-	containerIP, err := e.docker.GetContainerIP(ctx, req.AppName, docker.DefaultNetworkName)
-	if err != nil {
-		return fmt.Errorf("failed to get container IP: %w", err)
-	}
-
+func (e *Executor) checkHealth(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config, emit func(pb.DeployStage, pb.DeployLogLevel, string)) error {
+	deadline := health.ProbeDeadline(time.Now(), cfg.Healthcheck.StartPeriod, healthCheckStartDelay, e.health.Timeout())
 	scheme := "http"
 	if cfg.Healthcheck.TLS {
 		scheme = "https"
 	}
-	healthURL := fmt.Sprintf("%s://%s:%d%s", scheme, containerIP, cfg.Port, cfg.Healthcheck.Path)
-	e.logger.Info("Running health check", "url", healthURL)
+	logHealth := func(level pb.DeployLogLevel, message string) {
+		if emit != nil {
+			emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, level, message)
+		}
+	}
 
-	return e.health.CheckWithBackoff(ctx, healthURL)
+	var loggedURL bool
+	err := e.health.CheckUntil(ctx, deadline, health.CheckHooks{
+		BeforeAttempt: func(ctx context.Context) error {
+			return e.docker.HealthBlock(ctx, req.AppName)
+		},
+		ResolveURL: func(ctx context.Context) (string, error) {
+			containerIP, ipErr := e.docker.GetContainerIP(ctx, req.AppName, docker.DefaultNetworkName)
+			if ipErr != nil {
+				return "", ipErr
+			}
+			healthURL := fmt.Sprintf("%s://%s:%d%s", scheme, containerIP, cfg.Port, cfg.Healthcheck.Path)
+			if !loggedURL {
+				e.logger.Info("Running health check", "url", healthURL)
+				logHealth(pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, fmt.Sprintf("Health check URL: %s", healthURL))
+				loggedURL = true
+			}
+			return healthURL, nil
+		},
+		OnAttempt: func(attempt int, attemptErr error) {
+			logHealth(pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO,
+				fmt.Sprintf("Health check attempt %d failed: %s", attempt, attemptErr.Error()))
+		},
+	})
+	if err != nil {
+		return e.docker.AnnotateHealthError(ctx, req.AppName, err)
+	}
+	return nil
 }
 
-func (e *Executor) rollback(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config, appDir string) {
+func (e *Executor) rollback(ctx context.Context, req *pb.DeployRequest, cfg *compose.Config, appDir string, emit func(pb.DeployStage, pb.DeployLogLevel, string)) {
+	logRollback := func(level pb.DeployLogLevel, message string) {
+		if emit != nil {
+			emit(pb.DeployStage_DEPLOY_STAGE_ROLLBACK, level, message)
+		}
+	}
 	if req.RollbackImage == nil || *req.RollbackImage == "" {
 		e.logger.Info("No rollback image specified, skipping rollback")
+		logRollback(pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, "No rollback image specified, skipping rollback")
 		return
 	}
 
-	e.logger.Info("Rolling back deployment", "appName", req.AppName, "rollbackImage", *req.RollbackImage)
+	image := *req.RollbackImage
+	e.logger.Info("Rolling back deployment", "appName", req.AppName, "rollbackImage", image)
+	logRollback(pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, fmt.Sprintf("Rolling back to %s", image))
 
 	var domainRoutes []compose.DomainRoute
 	for _, d := range cfg.Domains {
@@ -541,21 +560,24 @@ func (e *Executor) rollback(ctx context.Context, req *pb.DeployRequest, cfg *com
 
 	if err := compose.WriteComposeFile(appDir, compose.GenerateParams{
 		AppName:  req.AppName,
-		ImageTag: *req.RollbackImage,
+		ImageTag: image,
 		Config:   cfg,
 		Domains:  domainRoutes,
 		EnvVars:  req.EnvVars,
 	}); err != nil {
 		e.logger.Error("Rollback compose generation failed", "error", err)
+		logRollback(pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, fmt.Sprintf("Rollback failed: %s", err.Error()))
 		return
 	}
 
 	if err := e.docker.ComposeUp(ctx, appDir, req.AppId, nil); err != nil {
 		e.logger.Error("Rollback compose up failed", "error", err)
+		logRollback(pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, fmt.Sprintf("Rollback failed: %s", err.Error()))
 		return
 	}
 
 	e.logger.Info("Rollback completed, restored previous image", "appName", req.AppName)
+	logRollback(pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO, fmt.Sprintf("Rollback completed, restored %s", image))
 }
 
 func (e *Executor) cleanupOldImages(currentTag string) {
