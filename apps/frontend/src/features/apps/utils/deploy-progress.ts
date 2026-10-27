@@ -22,7 +22,9 @@ export function deriveDeployProgressState(
     rawLogs.includes("[build]") && !rawLogs.includes("Container deployed");
   const isDeployPhase =
     rawLogs.includes("Deploying container") || rawLogs.includes("[deploy]");
-  const isHealthCheck = rawLogs.includes("Waiting for health check");
+  const isHealthCheck =
+    rawLogs.includes("[health]") || rawLogs.includes("Running health check");
+  const isRollback = rawLogs.includes("[rollback]");
 
   let phase = "Initializing";
   let icon: DeployIcon = "loader";
@@ -31,10 +33,14 @@ export function deriveDeployProgressState(
   if (isPending) {
     phase = "Queued";
     progress = 5;
+  } else if (isRollback) {
+    phase = "Rolling back";
+    icon = "rocket";
+    progress = 95;
   } else if (isHealthCheck) {
     phase = "Health check";
     icon = "rocket";
-    progress = 90;
+    progress = 88;
   } else if (isDeployPhase) {
     phase = "Deploying";
     icon = "rocket";

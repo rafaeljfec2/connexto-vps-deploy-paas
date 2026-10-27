@@ -105,7 +105,7 @@ func (e *Executor) Execute(ctx context.Context, req *pb.DeployRequest, logFn Log
 	emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_INFO,
 		fmt.Sprintf("Running health check on port %d path %s ...", cfg.Port, cfg.Healthcheck.Path))
 	if err := e.checkHealth(ctx, req, cfg, emit); err != nil {
-		emit(pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
+		emitErrorLines(emit, pb.DeployStage_DEPLOY_STAGE_HEALTH_CHECK, pb.DeployLogLevel_DEPLOY_LOG_LEVEL_ERROR, err.Error())
 		e.rollback(ctx, req, cfg, appDir, emit)
 		return e.failResponse(req, pb.DeployErrorCode_DEPLOY_ERROR_HEALTH_CHECK_FAILED, "health_check", err, startedAt)
 	}
@@ -679,19 +679,20 @@ func (e *Executor) UpdateDomains(ctx context.Context, req *pb.UpdateDomainsReque
 }
 
 func (e *Executor) failResponse(req *pb.DeployRequest, code pb.DeployErrorCode, stage string, err error, startedAt time.Time) *pb.DeployResponse {
+	shortMsg := firstNonEmptyLine(err.Error())
 	e.logger.Error("Deployment failed",
 		"deploymentId", req.DeploymentId,
 		"appName", req.AppName,
 		"stage", stage,
-		"error", err,
+		"error", shortMsg,
 	)
 
 	return &pb.DeployResponse{
 		Success: false,
-		Message: fmt.Sprintf("deployment failed at stage %s: %s", stage, err.Error()),
+		Message: fmt.Sprintf("deployment failed at stage %s: %s", stage, shortMsg),
 		Error: &pb.DeployError{
 			Code:    code,
-			Message: err.Error(),
+			Message: shortMsg,
 			Stage:   stage,
 		},
 		Result: &pb.DeployResult{

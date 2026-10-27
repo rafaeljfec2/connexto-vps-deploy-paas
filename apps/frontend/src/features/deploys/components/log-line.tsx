@@ -1,4 +1,8 @@
-import { type DeployLogLine, type DeployLogType } from "@/lib/log-utils";
+import {
+  type DeployLogLine,
+  type DeployLogPrefix,
+  type DeployLogType,
+} from "@/lib/log-utils";
 import { cn } from "@/lib/utils";
 
 export interface LogLineProps {
@@ -17,9 +21,15 @@ const typeColorMap: Record<DeployLogType, string> = {
   default: "text-slate-300",
 };
 
-const prefixStyleMap: Record<string, string> = {
+const prefixStyleMap: Record<Exclude<DeployLogPrefix, null>, string> = {
+  git: "bg-slate-500/20 text-slate-300 border border-slate-500/30",
   build: "bg-violet-500/20 text-violet-400 border border-violet-500/30",
   deploy: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
+  health: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
+  rollback: "bg-orange-500/20 text-orange-400 border border-orange-500/30",
+  cleanup: "bg-slate-500/20 text-slate-400 border border-slate-500/30",
+  complete: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
+  agent: "bg-slate-500/20 text-slate-400 border border-slate-500/30",
 };
 
 function highlightText(text: string, searchTerm: string): React.ReactNode {

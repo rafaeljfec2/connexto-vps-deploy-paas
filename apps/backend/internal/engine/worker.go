@@ -165,7 +165,14 @@ func (w *Worker) runRemoteDeploy(ctx context.Context, deploy *domain.Deployment,
 
 	onLog := func(entry *pb.DeployLogEntry) {
 		prefix := formatLogStage(entry.Stage)
-		w.log(deploy.ID, app.ID, "%s %s", prefix, entry.Message)
+		lines := splitLogMessage(entry.Message)
+		if len(lines) == 0 {
+			w.log(deploy.ID, app.ID, "%s %s", prefix, strings.TrimSpace(entry.Message))
+			return
+		}
+		for _, line := range lines {
+			w.log(deploy.ID, app.ID, "%s %s", prefix, line)
+		}
 	}
 
 	resp, err := w.deps.AgentClient.ExecuteDeployWithLogs(ctx, server.Host, agentPort, req, onLog)
@@ -227,11 +234,19 @@ func (w *Worker) runLocalDeploy(ctx context.Context, deploy *domain.Deployment, 
 	}
 
 	if err := w.checkHealth(ctx, deploy, app); err != nil {
-		w.log(deploy.ID, app.ID, "Health check failed: %s", err.Error())
+		lines := splitLogMessage(err.Error())
+		if len(lines) == 0 {
+			w.log(deploy.ID, app.ID, "[health] Health check failed")
+		} else {
+			w.log(deploy.ID, app.ID, "[health] Health check failed: %s", lines[0])
+			for _, line := range lines[1:] {
+				w.log(deploy.ID, app.ID, "[health] %s", line)
+			}
+		}
 		if rollbackErr := w.rollback(ctx, deploy, app, appDir); rollbackErr != nil {
 			w.deps.Logger.Error("Rollback failed", "error", rollbackErr)
 		}
-		return w.fail(deploy, app, fmt.Errorf("health check failed: %w", err))
+		return w.fail(deploy, app, fmt.Errorf("health check failed: %s", firstNonEmptyLine(err.Error())))
 	}
 
 	appVersion := version.DetectAppVersion(w.deployConfig.Runtime, appDir)
@@ -444,7 +459,7 @@ func (w *Worker) collectDomainRoutes(ctx context.Context, appID string) []compos
 }
 
 func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app *domain.App) error {
-	w.log(deploy.ID, app.ID, "Performing health check...")
+	w.log(deploy.ID, app.ID, "[health] Performing health check...")
 
 	deadline := health.ProbeDeadline(time.Now(), w.deployConfig.Healthcheck.StartPeriod, healthCheckStartDelay, w.deps.Health.Timeout())
 	scheme := "http"
@@ -463,20 +478,20 @@ func (w *Worker) checkHealth(ctx context.Context, deploy *domain.Deployment, app
 				return "", urlErr
 			}
 			if !loggedURL {
-				w.log(deploy.ID, app.ID, "Health check URL: %s", healthURL)
+				w.log(deploy.ID, app.ID, "[health] Health check URL: %s", healthURL)
 				loggedURL = true
 			}
 			return healthURL, nil
 		},
 		OnAttempt: func(attempt int, attemptErr error) {
-			w.log(deploy.ID, app.ID, "Health check attempt %d failed: %s", attempt, attemptErr.Error())
+			w.log(deploy.ID, app.ID, "[health] Health check attempt %d failed: %s", attempt, attemptErr.Error())
 		},
 	})
 	if err != nil {
 		return w.deps.Docker.AnnotateHealthError(ctx, app.Name, err)
 	}
 
-	w.log(deploy.ID, app.ID, "Health check passed")
+	w.log(deploy.ID, app.ID, "[health] Health check passed")
 	return nil
 }
 
@@ -494,11 +509,11 @@ func (w *Worker) healthCheckURL(ctx context.Context, app *domain.App, scheme str
 
 func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *domain.App, appDir string) error {
 	if deploy.PreviousImageTag == "" {
-		w.log(deploy.ID, app.ID, "No previous image to rollback to")
+		w.log(deploy.ID, app.ID, "[rollback] No previous image to rollback to")
 		return nil
 	}
 
-	w.log(deploy.ID, app.ID, "Rolling back to: %s", deploy.PreviousImageTag)
+	w.log(deploy.ID, app.ID, "[rollback] Rolling back to: %s", deploy.PreviousImageTag)
 
 	domainRoutes := w.collectDomainRoutes(ctx, app.ID)
 	if err := compose.WriteComposeFile(appDir, compose.GenerateParams{
@@ -508,16 +523,16 @@ func (w *Worker) rollback(ctx context.Context, deploy *domain.Deployment, app *d
 		Domains:  domainRoutes,
 		EnvVars:  w.appEnvVars,
 	}); err != nil {
-		w.log(deploy.ID, app.ID, "Rollback failed: %s", err.Error())
+		w.log(deploy.ID, app.ID, "[rollback] Rollback failed: %s", err.Error())
 		return fmt.Errorf("rollback compose generation failed: %w", err)
 	}
 
 	if err := w.deps.Docker.ComposeUp(ctx, appDir, app.ID, nil); err != nil {
-		w.log(deploy.ID, app.ID, "Rollback failed: %s", err.Error())
+		w.log(deploy.ID, app.ID, "[rollback] Rollback failed: %s", err.Error())
 		return fmt.Errorf("rollback compose up failed: %w", err)
 	}
 
-	w.log(deploy.ID, app.ID, "Rollback completed, restored previous image")
+	w.log(deploy.ID, app.ID, "[rollback] Rollback completed, restored previous image")
 	return nil
 }
 

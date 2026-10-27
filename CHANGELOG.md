@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Deploy log UI now recognizes all agent stages and health stacks stay readable.** The agent emits health-check failures line-by-line under `[health]` and keeps `failResponse` / deploy status to the first line so `Deployment failed` no longer dumps the full Docker stack twice. The worker splits multiline remote log entries before AppendLogs/SSE and prefixes local health/rollback lines the same way. The frontend parser badges `git|build|deploy|health|rollback|cleanup|complete|agent`, strips leftover Docker timestamps in content, and `deriveDeployProgressState` tracks health (~88%) and rollback (~95%) from real log strings. `AGENT_VERSION` is `0.22.8`.
+
 - **Remote deploy health checks no longer sleep the whole `startPeriod` before the first probe.** The agent probes immediately, succeeds on the first HTTP 2xx, and the deadline is `startPeriod` (at least 15s) plus the probe budget. A container that is `restarting`, `exited`, or `dead` fails at once with a log tail captured before rollback. The timeout error includes the last probe error, and rollback lines are written to the deploy log. Remote container log reads that fail no longer return HTTP 200 with an empty body.
 
 - **Deploy health failures now keep container stderr.** `docker logs` was dropping the CLI stderr pipe when the text contained the word `error`, so Nest/Node crash stacks never reached the deploy log before rollback. Successful log reads now merge stdout and stderr in timestamp order. `AGENT_VERSION` is `0.22.7`.

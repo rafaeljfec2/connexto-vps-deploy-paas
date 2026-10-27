@@ -12,7 +12,17 @@ export type DeployLogType =
   | "warning"
   | "build"
   | "default";
-export type DeployLogPrefix = "build" | "deploy" | null;
+
+export type DeployLogPrefix =
+  | "git"
+  | "build"
+  | "deploy"
+  | "health"
+  | "rollback"
+  | "cleanup"
+  | "complete"
+  | "agent"
+  | null;
 
 export interface DeployLogLine {
   readonly lineNumber: number;
@@ -25,11 +35,29 @@ export interface DeployLogLine {
 }
 
 const DOCKER_TIMESTAMP_REGEX =
-  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s*/;
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?) /;
 
 const DEPLOY_TIMESTAMP_REGEX = /^\[(\d{2}:\d{2}:\d{2})\]\s*/;
-const DEPLOY_PREFIX_REGEX = /^\[(build|deploy)\]\s*/i;
+const DEPLOY_PREFIX_REGEX =
+  /^\[(git|build|deploy|health|rollback|cleanup|complete|agent)\]\s*/i;
 const DEPLOY_STEP_REGEX = /^(#\d+)\s+/;
+
+const DEPLOY_PREFIXES = new Set([
+  "git",
+  "build",
+  "deploy",
+  "health",
+  "rollback",
+  "cleanup",
+  "complete",
+  "agent",
+]);
+
+function isDeployLogPrefix(
+  value: string,
+): value is Exclude<DeployLogPrefix, null> {
+  return DEPLOY_PREFIXES.has(value);
+}
 
 function determineContainerLogType(
   content: string,
@@ -148,6 +176,16 @@ function utcTimeToLocal(utcTime: string): string {
   });
 }
 
+function dockerTimestampToLocal(iso: string): string {
+  const date = new Date(iso);
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 export function parseContainerLogLine(
   line: string,
   index: number,
@@ -157,12 +195,7 @@ export function parseContainerLogLine(
 
   const timestampMatch = DOCKER_TIMESTAMP_REGEX.exec(remaining);
   if (timestampMatch?.[1]) {
-    const date = new Date(timestampMatch[1]);
-    timestamp = date.toLocaleTimeString("pt-BR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
+    timestamp = dockerTimestampToLocal(timestampMatch[1]);
     remaining = remaining.slice(timestampMatch[0].length);
   }
 
@@ -191,8 +224,19 @@ export function parseDeployLogLine(line: string, index: number): DeployLogLine {
 
   const prefixMatch = DEPLOY_PREFIX_REGEX.exec(remaining);
   if (prefixMatch?.[1]) {
-    prefix = prefixMatch[1].toLowerCase() as DeployLogPrefix;
+    const normalized = prefixMatch[1].toLowerCase();
+    if (isDeployLogPrefix(normalized)) {
+      prefix = normalized;
+    }
     remaining = remaining.slice(prefixMatch[0].length);
+  }
+
+  const dockerTsMatch = DOCKER_TIMESTAMP_REGEX.exec(remaining);
+  if (dockerTsMatch?.[1]) {
+    if (timestamp === null) {
+      timestamp = dockerTimestampToLocal(dockerTsMatch[1]);
+    }
+    remaining = remaining.slice(dockerTsMatch[0].length);
   }
 
   const stepMatch = DEPLOY_STEP_REGEX.exec(remaining);
