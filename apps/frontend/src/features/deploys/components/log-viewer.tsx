@@ -22,6 +22,8 @@ interface LogViewerProps {
   readonly logs: string | null;
   readonly autoScroll?: boolean;
   readonly title?: string;
+  readonly contentClassName?: string;
+  readonly hideExpand?: boolean;
 }
 
 interface LogFilters {
@@ -81,6 +83,8 @@ export function LogViewer({
   logs,
   autoScroll = true,
   title = "Logs",
+  contentClassName,
+  hideExpand = false,
 }: LogViewerProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const expandedScrollRef = useRef<HTMLDivElement>(null);
@@ -236,13 +240,16 @@ export function LogViewer({
               onShowSearchToggle={() => setShowSearch(!showSearch)}
               onCopy={handleCopy}
               copied={copied}
-              onExpand={() => setIsExpanded(true)}
+              onExpand={hideExpand ? undefined : () => setIsExpanded(true)}
             />
           </div>
           <LogContent
             lines={filteredLines}
             scrollRef={scrollRef}
-            className="h-[450px] border border-slate-800 bg-slate-950"
+            className={
+              contentClassName ??
+              "h-[450px] border border-slate-800 bg-slate-950"
+            }
             searchTerm={filters.search}
             currentMatchIndex={currentMatchIndex}
             matchingLineNumbers={matchingLineNumbers}
@@ -251,60 +258,62 @@ export function LogViewer({
         </div>
       </div>
 
-      <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
-        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800">
-          <DialogHeader className="border-b border-slate-800 space-y-2 px-4 py-3 shrink-0">
-            <div
-              className={cn(
-                "flex min-w-0 items-center justify-between gap-3",
-                dialogHeaderToolbarClearanceClassName,
-              )}
-            >
-              <DialogTitle className="flex min-w-0 flex-1 items-center gap-2 text-base">
-                <Terminal className="h-4 w-4 shrink-0" />
-                <span className="truncate">{title}</span>
-                <span className="shrink-0 text-xs font-normal text-muted-foreground">
-                  ({visibleCount} lines)
-                </span>
-              </DialogTitle>
-              <div className="flex shrink-0 items-center">
-                <LogToolbar
-                  showSearch={showSearch}
-                  onShowSearchToggle={() => setShowSearch(!showSearch)}
-                  onCopy={handleCopy}
-                  copied={copied}
-                  onMinimize={() => setIsExpanded(false)}
+      {!hideExpand && (
+        <Dialog open={isExpanded} onOpenChange={setIsExpanded}>
+          <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] flex flex-col p-0 gap-0 bg-slate-950 border-slate-800">
+            <DialogHeader className="border-b border-slate-800 space-y-2 px-4 py-3 shrink-0">
+              <div
+                className={cn(
+                  "flex min-w-0 items-center justify-between gap-3",
+                  dialogHeaderToolbarClearanceClassName,
+                )}
+              >
+                <DialogTitle className="flex min-w-0 flex-1 items-center gap-2 text-base">
+                  <Terminal className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{title}</span>
+                  <span className="shrink-0 text-xs font-normal text-muted-foreground">
+                    ({visibleCount} lines)
+                  </span>
+                </DialogTitle>
+                <div className="flex shrink-0 items-center">
+                  <LogToolbar
+                    showSearch={showSearch}
+                    onShowSearchToggle={() => setShowSearch(!showSearch)}
+                    onCopy={handleCopy}
+                    copied={copied}
+                    onMinimize={() => setIsExpanded(false)}
+                    inDialog
+                  />
+                </div>
+              </div>
+              {showSearch && (
+                <LogSearchBar
+                  search={filters.search}
+                  onSearchChange={(v) =>
+                    setFilters((prev) => ({ ...prev, search: v }))
+                  }
+                  filterTypes={filters.types}
+                  onFilterTypeToggle={toggleTypeFilter}
+                  onClearFilters={clearFilters}
+                  matchingLineNumbers={matchingLineNumbers}
+                  currentMatchIndex={currentMatchIndex}
+                  onPreviousMatch={goToPreviousMatch}
+                  onNextMatch={goToNextMatch}
                   inDialog
                 />
-              </div>
-            </div>
-            {showSearch && (
-              <LogSearchBar
-                search={filters.search}
-                onSearchChange={(v) =>
-                  setFilters((prev) => ({ ...prev, search: v }))
-                }
-                filterTypes={filters.types}
-                onFilterTypeToggle={toggleTypeFilter}
-                onClearFilters={clearFilters}
-                matchingLineNumbers={matchingLineNumbers}
-                currentMatchIndex={currentMatchIndex}
-                onPreviousMatch={goToPreviousMatch}
-                onNextMatch={goToNextMatch}
-                inDialog
-              />
-            )}
-          </DialogHeader>
-          <LogContent
-            lines={filteredLines}
-            scrollRef={expandedScrollRef}
-            className="flex-1 min-h-0"
-            searchTerm={filters.search}
-            currentMatchIndex={currentMatchIndex}
-            matchingLineNumbers={matchingLineNumbers}
-          />
-        </DialogContent>
-      </Dialog>
+              )}
+            </DialogHeader>
+            <LogContent
+              lines={filteredLines}
+              scrollRef={expandedScrollRef}
+              className="flex-1 min-h-0"
+              searchTerm={filters.search}
+              currentMatchIndex={currentMatchIndex}
+              matchingLineNumbers={matchingLineNumbers}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

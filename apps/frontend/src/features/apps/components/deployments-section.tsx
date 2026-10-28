@@ -1,8 +1,22 @@
-import { FileText, GitCommit, History, Rocket } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { StatusBadge } from "@/components/status-badge";
-import { DeployTimeline } from "@/features/deploys/components/deploy-timeline";
-import { LogViewer } from "@/features/deploys/components/log-viewer";
+import { useState } from "react";
+import { GitCommit, MoreHorizontal, Rocket } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { DeployList } from "@/features/deploys/components/deploy-list";
+import { DeployLogsModal } from "@/features/deploys/components/deploy-logs-modal";
+import { getDeployStatusPresentation } from "@/features/deploys/utils/deploy-status-label";
 import type { App, Deployment } from "@/types";
 import { CollapsibleSection } from "./collapsible-section";
 import { CommitSelectorInline } from "./commit-selector";
@@ -15,6 +29,8 @@ export interface UseAppActionsReturn {
 interface DeploymentsSectionProps {
   readonly app: App;
   readonly deployments: readonly Deployment[] | undefined;
+  readonly deploymentsLoading?: boolean;
+  readonly deploymentsError?: Error | null;
   readonly expanded: boolean;
   readonly onToggle: () => void;
   readonly actions: UseAppActionsReturn;
@@ -25,84 +41,102 @@ interface DeploymentsSectionProps {
 export function DeploymentsSection({
   app,
   deployments,
+  deploymentsLoading = false,
+  deploymentsError = null,
   expanded,
   onToggle,
   actions,
   selectedDeploy,
   onSelectDeploy,
 }: DeploymentsSectionProps) {
+  const [commitsOpen, setCommitsOpen] = useState(false);
   const successfulDeploys =
     deployments?.filter((d) => d.status === "success").length ?? 0;
   const totalDeploys = deployments?.length ?? 0;
   const latestDeploy = deployments?.[0];
 
+  const handleRedeployFromCommit = (sha: string) => {
+    setCommitsOpen(false);
+    actions.handleRedeploy(sha);
+  };
+
   return (
-    <CollapsibleSection
-      title="Deployments"
-      icon={Rocket}
-      expanded={expanded}
-      onToggle={onToggle}
-      summary={
-        <span>
-          {totalDeploys} deploys ({successfulDeploys} successful)
-          {latestDeploy && (
-            <>
-              {" "}
-              • Latest: <StatusBadge status={latestDeploy.status} size="sm" />
-            </>
-          )}
-        </span>
-      }
-    >
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
-        <Tabs defaultValue="history" className="w-full min-w-0 overflow-hidden">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger
-              value="history"
-              className="gap-1 sm:gap-2 text-xs sm:text-sm"
-            >
-              <History className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden xs:inline">Deploy</span> History
-            </TabsTrigger>
-            <TabsTrigger
-              value="commits"
-              className="gap-1 sm:gap-2 text-xs sm:text-sm"
-            >
-              <GitCommit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              Commits
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="history" className="mt-0">
-            <DeployTimeline appId={app.id} onSelectDeploy={onSelectDeploy} />
-          </TabsContent>
-          <TabsContent value="commits" className="mt-0">
+    <>
+      <CollapsibleSection
+        title="Deployments"
+        icon={Rocket}
+        expanded={expanded}
+        onToggle={onToggle}
+        summary={
+          <span>
+            {totalDeploys} deploys ({successfulDeploys} successful)
+            {latestDeploy && (
+              <>
+                {" "}
+                • Latest:{" "}
+                <Badge variant="outline" className="text-xs px-1.5 py-0">
+                  {getDeployStatusPresentation(latestDeploy.status).label}
+                </Badge>
+              </>
+            )}
+          </span>
+        }
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Deployment section actions"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setCommitsOpen(true)}>
+                <GitCommit className="mr-2 h-4 w-4" />
+                Redeploy from commit
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      >
+        <DeployList
+          deployments={deployments}
+          branch={app.branch}
+          isLoading={deploymentsLoading}
+          error={deploymentsError}
+          onSelectDeploy={onSelectDeploy}
+        />
+      </CollapsibleSection>
+
+      <DeployLogsModal
+        deployment={selectedDeploy}
+        open={selectedDeploy !== undefined}
+        onOpenChange={(open) => {
+          if (!open) onSelectDeploy(null);
+        }}
+      />
+
+      <Dialog open={commitsOpen} onOpenChange={setCommitsOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b border-border px-4 py-3">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <GitCommit className="h-4 w-4" />
+              Redeploy from commit
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
             <CommitSelectorInline
               appId={app.id}
-              onSelect={actions.handleRedeploy}
+              onSelect={handleRedeployFromCommit}
               disabled={actions.redeploy.isPending}
             />
-          </TabsContent>
-        </Tabs>
-        <div className="space-y-4 min-w-0 overflow-hidden">
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <FileText className="h-4 w-4" />
-            Deploy Logs
-            {selectedDeploy && (
-              <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                {selectedDeploy.commitSha.slice(0, 7)}
-              </span>
-            )}
           </div>
-          <LogViewer
-            logs={selectedDeploy?.logs ?? null}
-            title={
-              selectedDeploy
-                ? `Logs (${selectedDeploy.commitSha.slice(0, 7)})`
-                : "Logs"
-            }
-          />
-        </div>
-      </div>
-    </CollapsibleSection>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

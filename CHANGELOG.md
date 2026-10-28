@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **App Deployments section now uses a Vercel-style flat list.** Rows show
+  commit message, status with duration, Production badge, SHA, branch, and
+  relative time. Clicking a row opens a modal with deploy logs. Redeploy from
+  commit moved to the section header menu.
+
 ### Added
 
 - **Server manage action `ensure_agent_autostart`.** Repairs remote agents that

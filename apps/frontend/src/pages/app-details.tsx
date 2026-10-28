@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -56,7 +56,11 @@ function AppNotFound() {
 export function AppDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const { data: app, isLoading: appLoading } = useApp(id ?? "");
-  const { data: deployments } = useDeploys(id ?? "");
+  const {
+    data: deployments,
+    isLoading: deploymentsLoading,
+    error: deploymentsError,
+  } = useDeploys(id ?? "");
   const { data: health } = useAppHealth(id);
   const { data: appUrl } = useAppURL(id);
   const { data: appConfig } = useAppConfig(id);
@@ -80,10 +84,15 @@ export function AppDetailsPage() {
 
   const [selectedDeployId, setSelectedDeployId] = useState<string | null>(null);
 
-  const latestDeploy = deployments?.[0];
   const selectedDeploy = selectedDeployId
     ? deployments?.find((d) => d.id === selectedDeployId)
-    : latestDeploy;
+    : undefined;
+
+  useEffect(() => {
+    if (selectedDeployId && deployments && !selectedDeploy) {
+      setSelectedDeployId(null);
+    }
+  }, [selectedDeployId, deployments, selectedDeploy]);
 
   if (appLoading) return <AppDetailsLoading />;
   if (!app) return <AppNotFound />;
@@ -127,6 +136,8 @@ export function AppDetailsPage() {
           <DeploymentsSection
             app={app}
             deployments={deployments}
+            deploymentsLoading={deploymentsLoading}
+            deploymentsError={deploymentsError}
             expanded={expandedSections.deployments ?? false}
             onToggle={() => toggleSection("deployments")}
             actions={actions}
