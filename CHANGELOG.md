@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Header navigation reorganized with a new Servers entry.** The header now
+  uses three zones — brand on the left, a centered main navigation
+  (Servers, Containers, Images, Audit), and actions on the right. The active
+  route is underlined and exposed via `aria-current="page"` (server detail
+  routes keep Servers active, templates do not mark Containers). `New App` is
+  the primary action, the account menu keeps its management shortcuts, and
+  screens below `lg` fall back to icon-only navigation with accessible names.
+  The brand wordmark starts at `sm` and the Self-hosted badge at `lg` to keep
+  the centered navigation readable.
+
 - **App Deployments section now uses a Vercel-style flat list.** Rows show
   commit message, status with duration, Production badge, SHA, branch, and
   relative time. Clicking a row opens a modal with deploy logs. Redeploy from
