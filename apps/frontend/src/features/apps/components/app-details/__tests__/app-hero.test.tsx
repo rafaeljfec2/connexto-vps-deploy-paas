@@ -91,6 +91,35 @@ describe("AppHero", () => {
     expect(screen.getByText(/v1\.2\.3/)).toBeInTheDocument();
   });
 
+  it("prefers the current success deploy appVersion over app.appVersion", () => {
+    renderWithProviders(
+      <AppHero
+        app={makeApp({ appVersion: "9.9.9" })}
+        health={healthyHealth}
+        deployments={[
+          makeDeploy({
+            id: "running",
+            status: "running",
+            appVersion: "2.0.0",
+          }),
+          makeDeploy({
+            id: "current",
+            status: "success",
+            appVersion: "1.4.2",
+          }),
+        ]}
+        containerStats={null}
+        openAppUrl={null}
+        actions={makeActions()}
+        allExpanded={false}
+        toggleAllSections={() => {}}
+        hasSuccessfulDeploy
+      />,
+    );
+    expect(screen.getByText(/v1\.4\.2/)).toBeInTheDocument();
+    expect(screen.queryByText(/v9\.9\.9/)).not.toBeInTheDocument();
+  });
+
   it("shows the health badge with the correct state", () => {
     renderWithProviders(
       <AppHero

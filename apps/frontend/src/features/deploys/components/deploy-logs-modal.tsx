@@ -21,6 +21,7 @@ export function DeployLogsModal({
   onOpenChange,
 }: DeployLogsModalProps) {
   const sha = deployment ? truncateCommitSha(deployment.commitSha) : null;
+  const appVersion = deployment?.appVersion?.trim() ?? "";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -32,6 +33,11 @@ export function DeployLogsModal({
             {sha && (
               <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-normal text-muted-foreground">
                 {sha}
+              </code>
+            )}
+            {appVersion !== "" && (
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-normal text-muted-foreground">
+                v{appVersion}
               </code>
             )}
           </DialogTitle>

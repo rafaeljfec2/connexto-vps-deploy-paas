@@ -52,6 +52,7 @@ export function DeployListRow({
   const shortSha = truncateCommitSha(deployment.commitSha);
   const message = trimmedMessage !== "" ? trimmedMessage : shortSha;
   const branchLabel = branch !== "" ? branch : "—";
+  const appVersion = deployment.appVersion?.trim() ?? "";
 
   return (
     <div
@@ -87,16 +88,26 @@ export function DeployListRow({
         )}
       </div>
 
-      <Badge
-        variant={isCurrent ? "default" : "outline"}
-        className={cn(
-          "relative z-10 pointer-events-none h-6 gap-1 px-2 text-xs font-medium",
-          isCurrent &&
-            "border-transparent bg-blue-600 text-white hover:bg-blue-600",
+      <div className="relative z-10 pointer-events-none flex items-center gap-1.5 whitespace-nowrap">
+        <Badge
+          variant={isCurrent ? "default" : "outline"}
+          className={cn(
+            "h-6 gap-1 px-2 text-xs font-medium",
+            isCurrent &&
+              "border-transparent bg-blue-600 text-white hover:bg-blue-600",
+          )}
+        >
+          Production
+        </Badge>
+        {appVersion !== "" && (
+          <Badge
+            variant="secondary"
+            className="h-6 px-2 font-mono text-xs font-medium"
+          >
+            v{appVersion}
+          </Badge>
         )}
-      >
-        Production
-      </Badge>
+      </div>
 
       <div className="relative z-10 pointer-events-none flex items-center gap-1 font-mono text-xs text-muted-foreground whitespace-nowrap">
         <Terminal className="h-3.5 w-3.5 shrink-0" aria-hidden />

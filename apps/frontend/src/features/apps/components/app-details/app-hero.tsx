@@ -33,6 +33,7 @@ import {
   parseHealthState,
   pickAppNorthStar,
 } from "../../lib/app-hero-insights";
+import { resolveProductionAppVersion } from "../../utils/resolve-production-app-version";
 import { AppRecentDeploysPanel } from "./app-recent-deploys-panel";
 
 interface AppHeroProps {
@@ -227,6 +228,7 @@ export function AppHero({
     containerStats,
   });
   const showWorkdir = app.workdir && app.workdir !== ".";
+  const productionAppVersion = resolveProductionAppVersion(app, deployments);
 
   return (
     <section
@@ -284,12 +286,12 @@ export function AppHero({
                   <StatusBadge status={latestDeploy.status} size="sm" />
                 </>
               )}
-              {app.appVersion && (
+              {productionAppVersion !== null && (
                 <>
                   <span aria-hidden="true" className="text-border">
                     ·
                   </span>
-                  <span className="font-mono">v{app.appVersion}</span>
+                  <span className="font-mono">v{productionAppVersion}</span>
                 </>
               )}
             </div>
