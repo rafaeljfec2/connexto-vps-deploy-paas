@@ -11,10 +11,11 @@ import (
 const sslConfigTimeout = 3 * time.Minute
 
 func (c *AgentClient) ConfigureContainerSSL(ctx context.Context, host string, port int, req *pb.ConfigureContainerSSLRequest) (*pb.ConfigureContainerSSLResponse, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, sslConfigTimeout)
 	defer cancel()
 	resp, err := cl.ConfigureContainerSSL(ctx, req)
@@ -25,10 +26,11 @@ func (c *AgentClient) ConfigureContainerSSL(ctx context.Context, host string, po
 }
 
 func (c *AgentClient) GetContainerSSLStatus(ctx context.Context, host string, port int, req *pb.GetContainerSSLStatusRequest) (*pb.GetContainerSSLStatusResponse, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.GetContainerSSLStatus(ctx, req)

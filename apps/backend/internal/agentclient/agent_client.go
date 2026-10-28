@@ -35,6 +35,12 @@ func (c *AgentClient) Close() {
 	c.pool.Close()
 }
 
-func (c *AgentClient) client(host string, port int) (pb.AgentServiceClient, error) {
-	return c.pool.getOrDial(host, port)
+// client returns an AgentServiceClient and a release function that MUST be
+// called when the RPC (or stream) finishes so the pool can evict safely.
+func (c *AgentClient) client(host string, port int) (pb.AgentServiceClient, func(), error) {
+	cl, lease, err := c.pool.getOrDial(host, port)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cl, lease.release, nil
 }

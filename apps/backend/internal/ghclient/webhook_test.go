@@ -71,6 +71,14 @@ func (m *mockDeploymentCreator) Create(input domain.CreateDeploymentInput) (*dom
 	return m.deployment, nil
 }
 
+type mockQueuedNotifier struct {
+	calls [][2]string
+}
+
+func (m *mockQueuedNotifier) EmitDeployQueued(deployID, appID string) {
+	m.calls = append(m.calls, [2]string{deployID, appID})
+}
+
 func newTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
@@ -129,10 +137,12 @@ func TestWebhookHandlerPushToMainBranch(t *testing.T) {
 		Status:    domain.DeployStatusPending,
 	}
 
+	queued := &mockQueuedNotifier{}
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
 		&mockDeploymentCreator{deployment: testDeployment},
 		nil,
+		queued,
 		nil,
 		testSecret,
 		newTestLogger(),
@@ -152,6 +162,13 @@ func TestWebhookHandlerPushToMainBranch(t *testing.T) {
 	resp, err := app.Test(req)
 	assertNoError(t, err)
 	assertStatus(t, resp, fiber.StatusAccepted)
+
+	if len(queued.calls) != 1 {
+		t.Fatalf("expected EmitDeployQueued once, got %d", len(queued.calls))
+	}
+	if queued.calls[0][0] != testDeployID || queued.calls[0][1] != testAppID {
+		t.Fatalf("unexpected queued args: %+v", queued.calls[0])
+	}
 }
 
 func TestWebhookHandlerPushToDifferentBranch(t *testing.T) {
@@ -168,6 +185,7 @@ func TestWebhookHandlerPushToDifferentBranch(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
 		&mockDeploymentCreator{},
+		nil,
 		nil,
 		nil,
 		testSecret,
@@ -199,6 +217,7 @@ func TestWebhookHandlerInvalidSignature(t *testing.T) {
 		&mockDeploymentCreator{},
 		nil,
 		nil,
+		nil,
 		testSecret,
 		newTestLogger(),
 	)
@@ -226,6 +245,7 @@ func TestWebhookHandlerAppNotFound(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{err: domain.ErrNotFound},
 		&mockDeploymentCreator{},
+		nil,
 		nil,
 		nil,
 		testSecret,
@@ -257,6 +277,7 @@ func TestWebhookHandlerPingEvent(t *testing.T) {
 		&mockDeploymentCreator{},
 		nil,
 		nil,
+		nil,
 		testSecret,
 		newTestLogger(),
 	)
@@ -284,6 +305,7 @@ func TestWebhookHandlerUnsupportedEvent(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{},
 		&mockDeploymentCreator{},
+		nil,
 		nil,
 		nil,
 		testSecret,
@@ -344,6 +366,7 @@ func TestWebhookHandlerPushWithSkipCi(t *testing.T) {
 		&mockDeploymentCreator{},
 		nil,
 		nil,
+		nil,
 		testSecret,
 		newTestLogger(),
 	)
@@ -378,6 +401,7 @@ func TestWebhookHandlerDeploymentAlreadyPending(t *testing.T) {
 	handler := NewWebhookHandler(
 		&mockAppFinder{app: testApp},
 		&mockDeploymentCreator{createErr: domain.ErrDeploymentAlreadyActive},
+		nil,
 		nil,
 		nil,
 		testSecret,
@@ -584,6 +608,7 @@ func newTestMonorepoHandler(apps []domain.App) *WebhookHandler {
 				Status:    domain.DeployStatusPending,
 			},
 		},
+		nil,
 		nil,
 		nil,
 		testSecret,

@@ -29,12 +29,13 @@ func (c *HealthChecker) Check(ctx context.Context, host string, port int) (time.
 	defer cancel()
 
 	start := time.Now()
-	conn, err := c.pool.getOrDialConn(host, port)
+	lease, err := c.pool.acquire(host, port)
 	if err != nil {
 		return 0, err
 	}
+	defer lease.release()
 
-	client := grpc_health_v1.NewHealthClient(conn)
+	client := grpc_health_v1.NewHealthClient(lease.conn)
 	if _, err := client.Check(ctx, &grpc_health_v1.HealthCheckRequest{}); err != nil {
 		return 0, err
 	}

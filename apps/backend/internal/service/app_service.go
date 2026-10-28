@@ -17,12 +17,17 @@ type AppCleaner interface {
 	CleanApp(ctx context.Context, appID, appName string) error
 }
 
+type DeployQueuedNotifier interface {
+	EmitDeployQueued(deployID, appID string)
+}
+
 type AppService struct {
 	appRepo        domain.AppRepository
 	deploymentRepo domain.DeploymentRepository
 	envVarRepo     domain.EnvVarRepository
 	webhookManager webhook.Manager
 	appCleaner     AppCleaner
+	queuedNotifier DeployQueuedNotifier
 	logger         *slog.Logger
 }
 
@@ -32,6 +37,7 @@ func NewAppService(
 	envVarRepo domain.EnvVarRepository,
 	webhookManager webhook.Manager,
 	appCleaner AppCleaner,
+	queuedNotifier DeployQueuedNotifier,
 	logger *slog.Logger,
 ) *AppService {
 	return &AppService{
@@ -40,6 +46,7 @@ func NewAppService(
 		envVarRepo:     envVarRepo,
 		webhookManager: webhookManager,
 		appCleaner:     appCleaner,
+		queuedNotifier: queuedNotifier,
 		logger:         logger,
 	}
 }
@@ -371,7 +378,12 @@ func (s *AppService) TriggerDeploy(appID string, commitSHA string) (*domain.Depl
 		CommitMessage: "Manual deploy triggered",
 	}
 
-	return s.deploymentRepo.Create(input)
+	deployment, err := s.deploymentRepo.Create(input)
+	if err != nil {
+		return nil, err
+	}
+	s.emitQueued(deployment)
+	return deployment, nil
 }
 
 func (s *AppService) TriggerRollback(appID string) (*domain.Deployment, error) {
@@ -394,7 +406,19 @@ func (s *AppService) TriggerRollback(appID string) (*domain.Deployment, error) {
 		CommitMessage: "Rollback to " + latestSuccess.CommitSHA[:7],
 	}
 
-	return s.deploymentRepo.Create(input)
+	deployment, err := s.deploymentRepo.Create(input)
+	if err != nil {
+		return nil, err
+	}
+	s.emitQueued(deployment)
+	return deployment, nil
+}
+
+func (s *AppService) emitQueued(deployment *domain.Deployment) {
+	if s.queuedNotifier == nil || deployment == nil {
+		return
+	}
+	s.queuedNotifier.EmitDeployQueued(deployment.ID, deployment.AppID)
 }
 
 func (s *AppService) validateCreateInput(input domain.CreateAppInput) error {

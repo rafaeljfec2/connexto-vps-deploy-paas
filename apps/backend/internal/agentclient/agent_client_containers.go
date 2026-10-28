@@ -15,14 +15,25 @@ type ContainerLogHandler func(entry *pb.ContainerLogEntry)
 type ContainerStatsHandler func(stats *pb.ContainerStats)
 
 type ExecContainerStream struct {
-	Stream pb.AgentService_ExecContainerClient
+	Stream  pb.AgentService_ExecContainerClient
+	release func()
+}
+
+// Close releases the pooled agent connection held for this exec stream.
+func (s *ExecContainerStream) Close() {
+	if s == nil || s.release == nil {
+		return
+	}
+	s.release()
+	s.release = nil
 }
 
 func (c *AgentClient) ListContainers(ctx context.Context, host string, port int, all bool, appID string) ([]*pb.ContainerInfo, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	req := &pb.ListContainersRequest{All: all}
@@ -53,10 +64,11 @@ func buildContainerLogsRequest(containerID string, tail int, follow bool, since 
 }
 
 func (c *AgentClient) GetContainerLogs(ctx context.Context, host string, port int, containerID string, tail int, follow bool, since *time.Time, onLog ContainerLogHandler) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	stream, err := cl.GetContainerLogs(ctx, buildContainerLogsRequest(containerID, tail, follow, since))
 	if err != nil {
 		return fmt.Errorf("get container logs: %w", err)
@@ -77,10 +89,11 @@ func (c *AgentClient) GetContainerLogs(ctx context.Context, host string, port in
 }
 
 func (c *AgentClient) GetContainerStats(ctx context.Context, host string, port int, containerID string, onStats ContainerStatsHandler) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	stream, err := cl.GetContainerStats(ctx, &pb.ContainerStatsRequest{ContainerId: containerID, Stream: false})
 	if err != nil {
 		return fmt.Errorf("get container stats: %w", err)
@@ -101,10 +114,11 @@ func (c *AgentClient) GetContainerStats(ctx context.Context, host string, port i
 }
 
 func (c *AgentClient) RestartContainer(ctx context.Context, host string, port int, containerID string) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.RestartContainer(ctx, &pb.RestartContainerRequest{ContainerId: containerID})
@@ -118,10 +132,11 @@ func (c *AgentClient) RestartContainer(ctx context.Context, host string, port in
 }
 
 func (c *AgentClient) StopContainer(ctx context.Context, host string, port int, containerID string) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.StopContainer(ctx, &pb.StopContainerRequest{ContainerId: containerID})
@@ -135,10 +150,11 @@ func (c *AgentClient) StopContainer(ctx context.Context, host string, port int, 
 }
 
 func (c *AgentClient) StartContainer(ctx context.Context, host string, port int, containerID string) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.StartContainer(ctx, &pb.StartContainerRequest{ContainerId: containerID})
@@ -152,10 +168,11 @@ func (c *AgentClient) StartContainer(ctx context.Context, host string, port int,
 }
 
 func (c *AgentClient) RemoveContainer(ctx context.Context, host string, port int, containerID string, force bool) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.RemoveContainer(ctx, &pb.RemoveContainerRequest{ContainerId: containerID, Force: force})
@@ -169,30 +186,33 @@ func (c *AgentClient) RemoveContainer(ctx context.Context, host string, port int
 }
 
 func (c *AgentClient) PruneContainers(ctx context.Context, host string, port int) (*pb.PruneContainersResponse, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return cl.PruneContainers(ctx, &pb.PruneContainersRequest{})
 }
 
 func (c *AgentClient) CreateContainerFromTemplate(ctx context.Context, host string, port int, req *pb.CreateContainerFromTemplateRequest) (*pb.CreateContainerFromTemplateResponse, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	return cl.CreateContainerFromTemplate(ctx, req)
 }
 
 func (c *AgentClient) RunContainerHealthcheck(ctx context.Context, host string, port int, containerID string) (*pb.RunContainerHealthcheckResponse, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 	defer cancel()
 	resp, err := cl.RunContainerHealthcheck(ctx, &pb.RunContainerHealthcheckRequest{ContainerId: containerID})
@@ -203,13 +223,14 @@ func (c *AgentClient) RunContainerHealthcheck(ctx context.Context, host string, 
 }
 
 func (c *AgentClient) ExecContainer(ctx context.Context, host string, port int) (*ExecContainerStream, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, fmt.Errorf("exec container dial: %w", err)
 	}
 	stream, err := cl.ExecContainer(ctx)
 	if err != nil {
+		release()
 		return nil, fmt.Errorf("exec container stream: %w", err)
 	}
-	return &ExecContainerStream{Stream: stream}, nil
+	return &ExecContainerStream{Stream: stream, release: release}, nil
 }

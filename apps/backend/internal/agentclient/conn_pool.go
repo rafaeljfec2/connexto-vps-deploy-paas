@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -22,11 +23,16 @@ import (
 const (
 	defaultPoolTTL      = 5 * time.Minute
 	poolCleanupInterval = 1 * time.Minute
+	clientKeepaliveTime = 30 * time.Second
+	clientKeepaliveWait = 10 * time.Second
+	minConnectTimeout   = 20 * time.Second
 )
 
 type connEntry struct {
 	conn     *grpc.ClientConn
 	lastUsed atomic.Int64
+	refs     atomic.Int32
+	closing  atomic.Bool
 }
 
 func (e *connEntry) touch() {
@@ -36,6 +42,36 @@ func (e *connEntry) touch() {
 func (e *connEntry) idleSince() time.Duration {
 	last := time.Unix(0, e.lastUsed.Load())
 	return time.Since(last)
+}
+
+func (e *connEntry) acquire() {
+	e.refs.Add(1)
+	e.touch()
+}
+
+func (e *connEntry) release() {
+	n := e.refs.Add(-1)
+	if n < 0 {
+		e.refs.Store(0)
+		return
+	}
+	if n == 0 && e.closing.Load() {
+		_ = e.conn.Close()
+	}
+}
+
+// connLease holds a pooled connection reference until release is called.
+type connLease struct {
+	entry *connEntry
+	conn  *grpc.ClientConn
+}
+
+func (l *connLease) release() {
+	if l == nil || l.entry == nil {
+		return
+	}
+	l.entry.release()
+	l.entry = nil
 }
 
 type connPool struct {
@@ -61,12 +97,20 @@ func newConnPool(rootCA []byte, clientCert *tls.Certificate, insecureSkipVerify 
 	return p
 }
 
-func (p *connPool) getOrDial(host string, port int) (pb.AgentServiceClient, error) {
-	conn, err := p.getOrDialConn(host, port)
+func (p *connPool) acquire(host string, port int) (*connLease, error) {
+	conn, entry, err := p.getOrDialConn(host, port)
 	if err != nil {
 		return nil, err
 	}
-	return pb.NewAgentServiceClient(conn), nil
+	return &connLease{entry: entry, conn: conn}, nil
+}
+
+func (p *connPool) getOrDial(host string, port int) (pb.AgentServiceClient, *connLease, error) {
+	lease, err := p.acquire(host, port)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pb.NewAgentServiceClient(lease.conn), lease, nil
 }
 
 func (p *connPool) dial(host, addr string) (*grpc.ClientConn, error) {
@@ -89,9 +133,18 @@ func (p *connPool) dial(host, addr string) (*grpc.ClientConn, error) {
 	return grpc.NewClient(addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                10 * time.Second,
-			Timeout:             5 * time.Second,
+			Time:                clientKeepaliveTime,
+			Timeout:             clientKeepaliveWait,
 			PermitWithoutStream: true,
+		}),
+		grpc.WithConnectParams(grpc.ConnectParams{
+			Backoff: backoff.Config{
+				BaseDelay:  1 * time.Second,
+				Multiplier: 1.6,
+				Jitter:     0.2,
+				MaxDelay:   30 * time.Second,
+			},
+			MinConnectTimeout: minConnectTimeout,
 		}),
 		grpc.WithDefaultCallOptions(grpc.UseCompressor("gzip")),
 		grpc.WithUnaryInterceptor(retryUnaryInterceptor()),
@@ -117,11 +170,24 @@ func (p *connPool) evictIdle() {
 	defer p.mu.Unlock()
 
 	for addr, entry := range p.conns {
-		if entry.idleSince() > p.ttl || !isConnHealthy(entry.conn) {
-			entry.conn.Close()
-			delete(p.conns, addr)
+		idleTooLong := entry.idleSince() > p.ttl
+		dead := !isConnHealthy(entry.conn)
+		if !idleTooLong && !dead {
+			continue
 		}
+		p.removeLocked(addr, entry)
 	}
+}
+
+// removeLocked drops the entry from the map. If refs remain, the conn is
+// soft-closed and actually closed on the last release; otherwise Close now.
+func (p *connPool) removeLocked(addr string, entry *connEntry) {
+	delete(p.conns, addr)
+	if entry.refs.Load() > 0 {
+		entry.closing.Store(true)
+		return
+	}
+	_ = entry.conn.Close()
 }
 
 func (p *connPool) Close() {
@@ -131,12 +197,11 @@ func (p *connPool) Close() {
 	defer p.mu.Unlock()
 
 	for addr, entry := range p.conns {
-		entry.conn.Close()
-		delete(p.conns, addr)
+		p.removeLocked(addr, entry)
 	}
 }
 
-func (p *connPool) getOrDialConn(host string, port int) (*grpc.ClientConn, error) {
+func (p *connPool) getOrDialConn(host string, port int) (*grpc.ClientConn, *connEntry, error) {
 	if port == 0 {
 		port = defaultAgentPort
 	}
@@ -144,38 +209,38 @@ func (p *connPool) getOrDialConn(host string, port int) (*grpc.ClientConn, error
 
 	p.mu.RLock()
 	entry, ok := p.conns[addr]
-	p.mu.RUnlock()
-
-	if ok && isConnHealthy(entry.conn) {
-		entry.touch()
-		return entry.conn, nil
+	if ok && isConnHealthy(entry.conn) && !entry.closing.Load() {
+		entry.acquire()
+		p.mu.RUnlock()
+		return entry.conn, entry, nil
 	}
+	p.mu.RUnlock()
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if entry, ok = p.conns[addr]; ok && isConnHealthy(entry.conn) {
-		entry.touch()
-		return entry.conn, nil
+	if entry, ok = p.conns[addr]; ok && isConnHealthy(entry.conn) && !entry.closing.Load() {
+		entry.acquire()
+		return entry.conn, entry, nil
 	}
 
 	if entry != nil {
-		entry.conn.Close()
-		delete(p.conns, addr)
+		p.removeLocked(addr, entry)
 	}
 
 	conn, err := p.dial(host, addr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	entry = &connEntry{conn: conn}
-	entry.touch()
+	entry.acquire()
 	p.conns[addr] = entry
-	return conn, nil
+	return conn, entry, nil
 }
 
+// isConnHealthy reports whether the conn may still be used. TransientFailure
+// is recoverable by gRPC's internal reconnect — do not treat it as dead.
 func isConnHealthy(conn *grpc.ClientConn) bool {
-	state := conn.GetState()
-	return state != connectivity.Shutdown && state != connectivity.TransientFailure
+	return conn.GetState() != connectivity.Shutdown
 }

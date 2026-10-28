@@ -90,9 +90,14 @@ func ProvideAppService(
 	envVarRepo domain.EnvVarRepository,
 	webhookManager webhook.Manager,
 	appCleaner *cleaner.Cleaner,
+	eng *engine.Engine,
 	logger *slog.Logger,
 ) *service.AppService {
-	return service.NewAppService(appRepo, deploymentRepo, envVarRepo, webhookManager, appCleaner, logger)
+	var queued service.DeployQueuedNotifier
+	if eng != nil {
+		queued = eng.Notifier()
+	}
+	return service.NewAppService(appRepo, deploymentRepo, envVarRepo, webhookManager, appCleaner, queued, logger)
 }
 
 type AppAdminHandlerDeps struct {

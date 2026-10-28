@@ -8,10 +8,11 @@ import (
 )
 
 func (c *AgentClient) ListImages(ctx context.Context, host string, port int, all bool) ([]*pb.ImageInfo, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.ListImages(ctx, &pb.ListImagesRequest{All: all})
@@ -22,10 +23,11 @@ func (c *AgentClient) ListImages(ctx context.Context, host string, port int, all
 }
 
 func (c *AgentClient) RemoveImage(ctx context.Context, host string, port int, imageID string, force bool) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.RemoveImage(ctx, &pb.RemoveImageRequest{ImageId: imageID, Force: force})
@@ -39,10 +41,11 @@ func (c *AgentClient) RemoveImage(ctx context.Context, host string, port int, im
 }
 
 func (c *AgentClient) PruneImages(ctx context.Context, host string, port int) (*pb.PruneImagesResponse, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return cl.PruneImages(ctx, &pb.PruneImagesRequest{})

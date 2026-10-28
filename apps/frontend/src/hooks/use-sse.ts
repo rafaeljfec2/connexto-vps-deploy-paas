@@ -18,6 +18,8 @@ import type {
 
 function deployStatusFromEvent(type: string): DeployStatus | undefined {
   switch (type) {
+    case "QUEUED":
+      return "pending";
     case "RUNNING":
       return "running";
     case "SUCCESS":
@@ -125,6 +127,7 @@ export function useSSE() {
   const handleEvent = useCallback(
     (event: SSEEvent) => {
       switch (event.type) {
+        case "QUEUED":
         case "RUNNING":
         case "SUCCESS":
         case "FAILED":

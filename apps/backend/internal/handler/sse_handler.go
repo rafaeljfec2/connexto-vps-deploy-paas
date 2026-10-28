@@ -195,6 +195,14 @@ func (h *SSEHandler) Emit(event SSEEvent) {
 	}
 }
 
+func (h *SSEHandler) EmitDeployQueued(deployID, appID string) {
+	h.Emit(SSEEvent{
+		Type:     "QUEUED",
+		DeployID: deployID,
+		AppID:    appID,
+	})
+}
+
 func (h *SSEHandler) EmitDeployRunning(deployID, appID string) {
 	h.Emit(SSEEvent{
 		Type:     "RUNNING",

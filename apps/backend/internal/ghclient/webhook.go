@@ -41,10 +41,16 @@ type DeployAuditLogger interface {
 	LogDeployStarted(ctx context.Context, deployID, appID, appName, commitSHA string)
 }
 
+// DeployQueuedNotifier notifies the control plane that a deployment was enqueued.
+type DeployQueuedNotifier interface {
+	EmitDeployQueued(deployID, appID string)
+}
+
 type WebhookHandler struct {
 	appFinder         AppFinder
 	deploymentCreator DeploymentCreator
 	deployAudit       DeployAuditLogger
+	queuedNotifier    DeployQueuedNotifier
 	payloadStore      WebhookPayloadStore
 	webhookSecret     string
 	logger            *slog.Logger
@@ -54,6 +60,7 @@ func NewWebhookHandler(
 	appFinder AppFinder,
 	deploymentCreator DeploymentCreator,
 	deployAudit DeployAuditLogger,
+	queuedNotifier DeployQueuedNotifier,
 	payloadStore WebhookPayloadStore,
 	webhookSecret string,
 	logger *slog.Logger,
@@ -62,6 +69,7 @@ func NewWebhookHandler(
 		appFinder:         appFinder,
 		deploymentCreator: deploymentCreator,
 		deployAudit:       deployAudit,
+		queuedNotifier:    queuedNotifier,
 		payloadStore:      payloadStore,
 		webhookSecret:     webhookSecret,
 		logger:            logger,
@@ -311,6 +319,9 @@ func (h *WebhookHandler) tryCreateDeployment(logger *slog.Logger, app *domain.Ap
 
 	if h.deployAudit != nil {
 		h.deployAudit.LogDeployStarted(context.Background(), deployment.ID, app.ID, app.Name, event.After)
+	}
+	if h.queuedNotifier != nil {
+		h.queuedNotifier.EmitDeployQueued(deployment.ID, app.ID)
 	}
 
 	logger.Info("deployment queued", slog.String("deployment_id", deployment.ID))

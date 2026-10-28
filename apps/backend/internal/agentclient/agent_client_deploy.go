@@ -7,6 +7,7 @@ import (
 	"time"
 
 	pb "github.com/paasdeploy/backend/gen/go/flowdeploy/v1"
+	"google.golang.org/grpc"
 )
 
 type DeployLogHandler func(entry *pb.DeployLogEntry)
@@ -15,13 +16,22 @@ func (c *AgentClient) ExecuteDeployWithLogs(
 	ctx context.Context, host string, port int,
 	req *pb.DeployRequest, onLog DeployLogHandler,
 ) (*pb.DeployResponse, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to agent: %w", err)
 	}
+	defer release()
+
 	if onLog != nil {
 		ready := make(chan struct{})
-		go c.streamLogs(ctx, cl, req.DeploymentId, onLog, ready)
+		streamCl, streamRelease, streamErr := c.client(host, port)
+		if streamErr != nil {
+			return nil, fmt.Errorf("failed to connect to agent for logs: %w", streamErr)
+		}
+		go func() {
+			defer streamRelease()
+			c.streamLogs(ctx, streamCl, req.DeploymentId, onLog, ready)
+		}()
 		select {
 		case <-ready:
 		case <-time.After(5 * time.Second):
@@ -29,7 +39,9 @@ func (c *AgentClient) ExecuteDeployWithLogs(
 			return nil, ctx.Err()
 		}
 	}
-	return cl.ExecuteDeploy(ctx, req)
+	// WaitForReady lets the call park while the pooled conn is in
+	// TransientFailure instead of fail-fast Unavailable; bounded by ctx.
+	return cl.ExecuteDeploy(ctx, req, grpc.WaitForReady(true))
 }
 
 func (c *AgentClient) streamLogs(ctx context.Context, cl pb.AgentServiceClient, deploymentID string, onLog DeployLogHandler, ready chan<- struct{}) {

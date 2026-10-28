@@ -8,6 +8,7 @@ export interface HealthStatus {
 }
 
 export type SSEEventType =
+  | "QUEUED"
   | "RUNNING"
   | "SUCCESS"
   | "FAILED"

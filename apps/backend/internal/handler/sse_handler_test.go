@@ -181,6 +181,30 @@ func TestSSEHandler_EmitDeliversEventToSubscribedClient(t *testing.T) {
 	}
 }
 
+func TestSSEHandler_EmitDeployQueued(t *testing.T) {
+	h, _ := newTestSSEHandler(t, time.Second)
+
+	clientID := "client-queued"
+	ch := make(chan SSEEvent, sseClientBufferSize)
+	h.mu.Lock()
+	h.clients[clientID] = ch
+	h.mu.Unlock()
+
+	h.EmitDeployQueued("deploy-Q", "app-Q")
+
+	select {
+	case got := <-ch:
+		if got.Type != "QUEUED" || got.DeployID != "deploy-Q" || got.AppID != "app-Q" {
+			t.Errorf("unexpected event delivered: %+v", got)
+		}
+		if sseEventName(got.Type) != "deploy" {
+			t.Errorf("QUEUED should map to SSE event name deploy, got %q", sseEventName(got.Type))
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("expected QUEUED event within 250ms")
+	}
+}
+
 func TestSSEHandler_SendRecentEvents_ReplaysBufferedEvents(t *testing.T) {
 	h, _ := newTestSSEHandler(t, time.Second)
 

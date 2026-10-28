@@ -67,7 +67,7 @@ func InitializeApplication() (*Application, func(), error) {
 	postgresDeploymentRepository := repository.NewPostgresDeploymentRepository(db)
 	manager := ProvideWebhookManager(config, logger)
 	cleaner := ProvideAppCleaner(config, logger)
-	appService := ProvideAppService(postgresAppRepository, postgresDeploymentRepository, postgresEnvVarRepository, manager, cleaner, logger)
+	appService := ProvideAppService(postgresAppRepository, postgresDeploymentRepository, postgresEnvVarRepository, manager, cleaner, engineEngine, logger)
 	appHandler := handler.NewAppHandler(appService, auditService, logger)
 	swaggerHandler := handler.NewSwaggerHandler()
 	envVarHandler := handler.NewEnvVarHandler(postgresEnvVarRepository, postgresAppRepository, logger)
@@ -84,7 +84,7 @@ func InitializeApplication() (*Application, func(), error) {
 	}
 	appAdminHandler := ProvideAppAdminHandler(appAdminHandlerDeps)
 	postgresWebhookPayloadRepository := repository.NewPostgresWebhookPayloadRepository(db)
-	webhookHandler := ProvideGitHubWebhookHandler(config, postgresAppRepository, postgresDeploymentRepository, postgresWebhookPayloadRepository, auditService, logger)
+	webhookHandler := ProvideGitHubWebhookHandler(config, postgresAppRepository, postgresDeploymentRepository, postgresWebhookPayloadRepository, auditService, engineEngine, logger)
 	oAuthClient := ProvideOAuthClient(config, logger)
 	postgresUserRepository := repository.NewPostgresUserRepository(db)
 	postgresSessionRepository := repository.NewPostgresSessionRepository(db)

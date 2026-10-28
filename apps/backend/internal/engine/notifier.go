@@ -1,12 +1,14 @@
 package engine
 
 import (
+	"log/slog"
 	"time"
 )
 
 type EventType string
 
 const (
+	EventTypeQueued  EventType = "QUEUED"
 	EventTypeRunning EventType = "RUNNING"
 	EventTypeSuccess EventType = "SUCCESS"
 	EventTypeFailed  EventType = "FAILED"
@@ -43,6 +45,7 @@ type DeployEvent struct {
 }
 
 type Notifier interface {
+	EmitDeployQueued(deployID, appID string)
 	EmitDeployRunning(deployID, appID string)
 	EmitDeploySuccess(deployID, appID string)
 	EmitDeployFailed(deployID, appID, message string)
@@ -77,12 +80,40 @@ func (n *ChannelNotifier) Events() <-chan DeployEvent {
 	return n.events
 }
 
+func isLifecycleEvent(t EventType) bool {
+	switch t {
+	case EventTypeQueued, EventTypeRunning, EventTypeSuccess, EventTypeFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 func (n *ChannelNotifier) emit(event DeployEvent) {
 	event.Timestamp = time.Now().UTC()
+	if isLifecycleEvent(event.Type) {
+		// Lifecycle must not be silently dropped: block until the SSE
+		// consumer drains space (buffer is large; consumer is dedicated).
+		n.events <- event
+		return
+	}
 	select {
 	case n.events <- event:
 	default:
+		slog.Warn("deploy event dropped: channel full",
+			"type", event.Type,
+			"deployId", event.DeployID,
+			"appId", event.AppID,
+		)
 	}
+}
+
+func (n *ChannelNotifier) EmitDeployQueued(deployID, appID string) {
+	n.emit(DeployEvent{
+		Type:     EventTypeQueued,
+		DeployID: deployID,
+		AppID:    appID,
+	})
 }
 
 func (n *ChannelNotifier) EmitDeployRunning(deployID, appID string) {

@@ -23,10 +23,11 @@ func (c *AgentClient) PushUpdate(ctx context.Context, host string, port int, bin
 		return fmt.Errorf("stat binary: %w", err)
 	}
 
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return fmt.Errorf("push update dial: %w", err)
 	}
+	defer release()
 
 	stream, err := cl.PushUpdate(ctx)
 	if err != nil {

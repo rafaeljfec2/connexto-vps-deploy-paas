@@ -10,6 +10,7 @@ import (
 	"github.com/paasdeploy/backend/internal/config"
 	"github.com/paasdeploy/backend/internal/crypto"
 	"github.com/paasdeploy/backend/internal/domain"
+	"github.com/paasdeploy/backend/internal/engine"
 	"github.com/paasdeploy/backend/internal/ghclient"
 	"github.com/paasdeploy/backend/internal/handler"
 	"github.com/paasdeploy/backend/internal/middleware"
@@ -177,13 +178,19 @@ func ProvideGitHubWebhookHandler(
 	deploymentRepo *repository.PostgresDeploymentRepository,
 	payloadStore ghclient.WebhookPayloadStore,
 	auditService *service.AuditService,
+	eng *engine.Engine,
 	logger *slog.Logger,
 ) *ghclient.WebhookHandler {
 	adapter := &webhookDeployAuditAdapter{audit: auditService}
+	var queued ghclient.DeployQueuedNotifier
+	if eng != nil {
+		queued = eng.Notifier()
+	}
 	return ghclient.NewWebhookHandler(
 		appRepo,
 		deploymentRepo,
 		adapter,
+		queued,
 		payloadStore,
 		cfg.GitHub.WebhookSecret,
 		logger,

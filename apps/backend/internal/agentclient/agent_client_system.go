@@ -9,40 +9,44 @@ import (
 )
 
 func (c *AgentClient) GetSystemInfo(ctx context.Context, host string, port int) (*pb.SystemInfo, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return cl.GetSystemInfo(ctx, &emptypb.Empty{})
 }
 
 func (c *AgentClient) GetSystemMetrics(ctx context.Context, host string, port int) (*pb.SystemMetrics, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return cl.GetSystemMetrics(ctx, &emptypb.Empty{})
 }
 
 func (c *AgentClient) GetDockerInfo(ctx context.Context, host string, port int) (*pb.DockerInfo, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return cl.GetDockerInfo(ctx, &emptypb.Empty{})
 }
 
 func (c *AgentClient) GetCertificates(ctx context.Context, host string, port int) ([]*pb.CertificateInfo, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.GetCertificates(ctx, &pb.GetCertificatesRequest{})
@@ -53,10 +57,11 @@ func (c *AgentClient) GetCertificates(ctx context.Context, host string, port int
 }
 
 func (c *AgentClient) ListNetworks(ctx context.Context, host string, port int) ([]*pb.NetworkInfo, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.ListNetworks(ctx, &pb.ListNetworksRequest{})
@@ -67,10 +72,11 @@ func (c *AgentClient) ListNetworks(ctx context.Context, host string, port int) (
 }
 
 func (c *AgentClient) CreateNetwork(ctx context.Context, host string, port int, name string) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.CreateNetwork(ctx, &pb.CreateNetworkRequest{Name: name})
@@ -84,10 +90,11 @@ func (c *AgentClient) CreateNetwork(ctx context.Context, host string, port int, 
 }
 
 func (c *AgentClient) RemoveNetwork(ctx context.Context, host string, port int, name string) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.RemoveNetwork(ctx, &pb.RemoveNetworkRequest{Name: name})
@@ -101,10 +108,11 @@ func (c *AgentClient) RemoveNetwork(ctx context.Context, host string, port int, 
 }
 
 func (c *AgentClient) ConnectContainerNetwork(ctx context.Context, host string, port int, containerID, network string) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.ConnectContainerNetwork(ctx, &pb.ConnectContainerNetworkRequest{
@@ -121,10 +129,11 @@ func (c *AgentClient) ConnectContainerNetwork(ctx context.Context, host string, 
 }
 
 func (c *AgentClient) DisconnectContainerNetwork(ctx context.Context, host string, port int, containerID, network string) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.DisconnectContainerNetwork(ctx, &pb.DisconnectContainerNetworkRequest{
@@ -141,10 +150,11 @@ func (c *AgentClient) DisconnectContainerNetwork(ctx context.Context, host strin
 }
 
 func (c *AgentClient) ListVolumes(ctx context.Context, host string, port int) ([]*pb.VolumeInfo, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.ListVolumes(ctx, &pb.ListVolumesRequest{})
@@ -155,10 +165,11 @@ func (c *AgentClient) ListVolumes(ctx context.Context, host string, port int) ([
 }
 
 func (c *AgentClient) CreateVolume(ctx context.Context, host string, port int, name string) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.CreateVolume(ctx, &pb.CreateVolumeRequest{Name: name})
@@ -172,10 +183,11 @@ func (c *AgentClient) CreateVolume(ctx context.Context, host string, port int, n
 }
 
 func (c *AgentClient) RemoveVolume(ctx context.Context, host string, port int, name string) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.RemoveVolume(ctx, &pb.RemoveVolumeRequest{Name: name})
@@ -189,20 +201,22 @@ func (c *AgentClient) RemoveVolume(ctx context.Context, host string, port int, n
 }
 
 func (c *AgentClient) PruneVolumes(ctx context.Context, host string, port int) (*pb.PruneVolumesResponse, error) {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return nil, err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	return cl.PruneVolumes(ctx, &pb.PruneVolumesRequest{})
 }
 
 func (c *AgentClient) UpdateDomains(ctx context.Context, host string, port int, req *pb.UpdateDomainsRequest) error {
-	cl, err := c.client(host, port)
+	cl, release, err := c.client(host, port)
 	if err != nil {
 		return err
 	}
+	defer release()
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	resp, err := cl.UpdateDomains(ctx, req)

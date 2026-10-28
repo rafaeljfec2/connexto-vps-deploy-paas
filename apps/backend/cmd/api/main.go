@@ -72,6 +72,9 @@ func handleEngineEvents(app *di.Application) {
 
 func processEvent(app *di.Application, event engine.DeployEvent) {
 	switch event.Type {
+	case engine.EventTypeQueued:
+		app.SSEHandler.EmitDeployQueued(event.DeployID, event.AppID)
+		app.SSEHandler.EmitInvalidate("deployments")
 	case engine.EventTypeRunning:
 		app.SSEHandler.EmitDeployRunning(event.DeployID, event.AppID)
 		app.NotificationService.NotifyDeployRunning(event.DeployID, event.AppID)
