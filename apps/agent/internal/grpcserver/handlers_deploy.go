@@ -26,8 +26,10 @@ func (s *AgentService) ExecuteDeploy(ctx context.Context, req *pb.DeployRequest)
 }
 
 func (s *AgentService) StreamDeployLogs(sub *pb.DeployLogSubscription, stream pb.AgentService_StreamDeployLogsServer) error {
+	// Channel lifecycle is owned by ExecuteDeploy (closeLogStream). Do not
+	// Delete on stream exit — a dropped reader must not discard further logs
+	// while the unary deploy is still running; the backend may reattach.
 	ch := s.getOrCreateLogStream(sub.DeploymentId)
-	defer s.logStreams.Delete(sub.DeploymentId)
 
 	s.logger.Info("Deploy log stream opened", "deploymentId", sub.DeploymentId)
 
