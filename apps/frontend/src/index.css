@@ -4,31 +4,43 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    color-scheme: light;
 
-    --status-success: 142 76% 36%;
-    --status-running: 48 96% 53%;
-    --status-failed: 0 84% 60%;
+    /* Surfaces — paper cards over a desk-gray app background. */
+    --background: 220 20% 97%;
+    --foreground: 216 29% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 216 29% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 216 29% 15%;
+
+    /* Brand action — blue CTA. */
+    --primary: 210 100% 38%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 20% 96%;
+    --secondary-foreground: 216 29% 15%;
+    --muted: 220 20% 96%;
+    --muted-foreground: 217 11% 40%;
+    --accent: 220 20% 96%;
+    --accent-foreground: 216 29% 15%;
+    --destructive: 358 80% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 14% 91%;
+    --input: 220 14% 91%;
+    --ring: 210 100% 38%;
+    --radius: 0.75rem;
+
+    /* Deploy statuses — soft fill via /10 alpha, dark `-text` for AA. */
+    --status-success: 154 100% 37%;
+    --status-success-text: 155 100% 25%;
+    --status-running: 40 100% 48%;
+    --status-running-text: 40 100% 29%;
+    --status-failed: 358 85% 57%;
+    --status-failed-text: 358 80% 43%;
     --status-pending: 215 20% 65%;
+    --status-pending-text: 217 11% 40%;
 
     --safe-area-inset-top: env(safe-area-inset-top, 0px);
     --safe-area-inset-right: env(safe-area-inset-right, 0px);
@@ -37,30 +49,39 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    color-scheme: dark;
 
-    --status-success: 142 71% 45%;
-    --status-running: 48 96% 53%;
-    --status-failed: 0 84% 60%;
+    --background: 222 30% 8%;
+    --foreground: 210 40% 96%;
+    --card: 220 25% 10%;
+    --card-foreground: 210 40% 96%;
+    --popover: 220 25% 11%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 210 100% 60%;
+    --primary-foreground: 222 47% 8%;
+
+    --secondary: 217 20% 16%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 20% 15%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 20% 16%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 358 80% 38%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 210 100% 60%;
+
+    --status-success: 152 100% 45%;
+    --status-success-text: 152 83% 60%;
+    --status-running: 45 100% 55%;
+    --status-running-text: 48 100% 62%;
+    --status-failed: 358 88% 65%;
+    --status-failed-text: 358 95% 70%;
     --status-pending: 215 20% 65%;
+    --status-pending-text: 215 20% 65%;
   }
 
   * {

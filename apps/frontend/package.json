@@ -2,7 +2,7 @@
   "name": "@paasdeploy/frontend",
   "private": true,
   "license": "UNLICENSED",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "check:contrast": "node scripts/check-contrast.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist node_modules"
   },

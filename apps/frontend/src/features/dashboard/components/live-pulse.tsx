@@ -39,10 +39,10 @@ export function LivePulse({ isLoading, isSSEConnected }: LivePulseProps) {
   if (isSSEConnected === false) {
     return (
       <span
-        className="inline-flex items-center gap-1.5 text-[11px] text-yellow-600 dark:text-yellow-500"
+        className="inline-flex items-center gap-1.5 text-[11px] text-status-running-text"
         aria-live="polite"
       >
-        <span className="h-1.5 w-1.5 rounded-full bg-yellow-500" />
+        <span className="h-1.5 w-1.5 rounded-full bg-status-running" />
         Reconnecting…
       </span>
     );
@@ -54,8 +54,8 @@ export function LivePulse({ isLoading, isSSEConnected }: LivePulseProps) {
       aria-live="polite"
     >
       <span className="relative flex h-1.5 w-1.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500/70" />
-        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-status-success/70" />
+        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-status-success" />
       </span>
       <span>Live · updated {formatRelativeTime(lastUpdate)}</span>
     </span>

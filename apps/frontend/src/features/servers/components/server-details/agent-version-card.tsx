@@ -118,7 +118,7 @@ export function AgentVersionCard({ server, onUpdated }: AgentVersionCardProps) {
             </span>
           )}
         {isUpToDate && !isUpdateCompleted && (
-          <span className="flex items-center gap-1 text-xs text-emerald-500">
+          <span className="flex items-center gap-1 text-xs text-status-success-text">
             <CheckCircle2 className="h-3.5 w-3.5" />
             Up to date
           </span>
@@ -133,14 +133,14 @@ export function AgentVersionCard({ server, onUpdated }: AgentVersionCardProps) {
       )}
 
       {isUpdateCompleted && agentUpdate != null && (
-        <span className="flex items-center gap-1.5 text-xs text-emerald-500">
+        <span className="flex items-center gap-1.5 text-xs text-status-success-text">
           <CheckCircle2 className="h-3.5 w-3.5" />
           Updated to v{agentUpdate.version}
         </span>
       )}
 
       {isUpdateError && agentUpdate != null && (
-        <span className="text-xs text-red-500">
+        <span className="text-xs text-status-failed-text">
           Update failed: {agentUpdate.errorMessage ?? "unknown error"}
         </span>
       )}
@@ -160,7 +160,7 @@ export function AgentVersionCard({ server, onUpdated }: AgentVersionCardProps) {
       )}
 
       {sendError != null && (
-        <span className="text-xs text-red-500">{sendError}</span>
+        <span className="text-xs text-status-failed-text">{sendError}</span>
       )}
     </div>
   );

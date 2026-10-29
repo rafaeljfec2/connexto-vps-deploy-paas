@@ -47,16 +47,16 @@ interface StatDefinition {
 
 const TONE_TEXT: Record<KpiTone, string> = {
   default: "text-foreground",
-  success: "text-emerald-600 dark:text-emerald-400",
-  warning: "text-yellow-600 dark:text-yellow-400",
-  destructive: "text-red-600 dark:text-red-400",
+  success: "text-status-success-text",
+  warning: "text-status-running-text",
+  destructive: "text-status-failed-text",
 };
 
 const TONE_DOT: Record<KpiTone, string> = {
   default: "bg-muted-foreground/40",
-  success: "bg-emerald-500",
-  warning: "bg-yellow-500",
-  destructive: "bg-red-500",
+  success: "bg-status-success",
+  warning: "bg-status-running",
+  destructive: "bg-status-failed",
 };
 
 export function HeroDashboard() {
@@ -136,7 +136,7 @@ export function HeroDashboard() {
       className="relative overflow-hidden rounded-xl border border-border/60 bg-card"
     >
       <HeroBackground
-        glowClassName="h-[280px] w-[280px] -right-20 -top-20 bg-emerald-400/5 dark:bg-emerald-500/5"
+        glowClassName="h-[280px] w-[280px] -right-20 -top-20 bg-status-success/5"
         dotOpacityClassName="opacity-40 dark:opacity-20"
       />
 
@@ -172,10 +172,7 @@ export function HeroDashboard() {
             className="text-2xl font-semibold tracking-tight text-foreground opacity-0 animate-fade-in-up [animation-delay:0.1s] sm:text-3xl lg:text-4xl"
           >
             {getGreeting()},{" "}
-            <span className="text-emerald-600 dark:text-emerald-400">
-              {firstName}
-            </span>
-            .
+            <span className="text-status-success-text">{firstName}</span>.
           </h1>
           <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground opacity-0 animate-fade-in-up [animation-delay:0.2s]">
             {subtitle}

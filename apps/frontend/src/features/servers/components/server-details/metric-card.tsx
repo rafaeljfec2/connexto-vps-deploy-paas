@@ -2,15 +2,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 function getUsageColor(percent: number): string {
-  if (percent < 60) return "bg-emerald-500";
-  if (percent < 80) return "bg-yellow-500";
-  return "bg-red-500";
+  if (percent < 60) return "bg-status-success";
+  if (percent < 80) return "bg-status-running";
+  return "bg-status-failed";
 }
 
 function getUsageTextColor(percent: number): string {
-  if (percent < 60) return "text-emerald-400";
-  if (percent < 80) return "text-yellow-400";
-  return "text-red-400";
+  if (percent < 60) return "text-status-success-text";
+  if (percent < 80) return "text-status-running-text";
+  return "text-status-failed-text";
 }
 
 interface MetricCardProps {

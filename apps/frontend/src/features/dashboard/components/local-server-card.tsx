@@ -14,9 +14,9 @@ interface LocalServerCardProps {
 }
 
 function getUsageColor(percent: number): string {
-  if (percent < 60) return "bg-emerald-500";
-  if (percent < 80) return "bg-yellow-500";
-  return "bg-red-500";
+  if (percent < 60) return "bg-status-success";
+  if (percent < 80) return "bg-status-running";
+  return "bg-status-failed";
 }
 
 function UsageBar({ percent }: { readonly percent: number }) {
@@ -106,7 +106,7 @@ export function LocalServerCard({
             </div>
             <Badge
               variant="outline"
-              className="shrink-0 border-emerald-500/20 bg-emerald-500/10 text-[10px] text-emerald-500"
+              className="shrink-0 border-status-success/20 bg-status-success/10 text-[10px] text-status-success-text"
             >
               self-hosted
             </Badge>

@@ -74,7 +74,7 @@ function ServerStatusBadge({
       className={cn(
         "inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full",
         isOnline
-          ? "bg-green-500/10 text-green-600 dark:text-green-400"
+          ? "bg-status-success/10 text-status-success-text"
           : "bg-muted text-muted-foreground",
       )}
     >

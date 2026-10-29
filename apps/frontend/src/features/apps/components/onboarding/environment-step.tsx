@@ -149,7 +149,7 @@ export function EnvironmentStep({
               placeholder="Paste your .env file content here..."
               value={pasteContent}
               onChange={(e) => setPasteContent(e.target.value)}
-              className="w-full h-32 p-3 text-sm font-mono bg-background border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full h-32 p-3 text-sm font-mono bg-card border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <div className="flex gap-2 justify-end">
               <Button

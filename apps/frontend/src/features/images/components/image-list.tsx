@@ -145,7 +145,9 @@ export function ImageList({ serverId }: ImageListProps = {}) {
         {unusedCount > 0 && (
           <>
             <span>•</span>
-            <span className="text-yellow-500">{unusedCount} unused</span>
+            <span className="text-status-running-text">
+              {unusedCount} unused
+            </span>
           </>
         )}
         {danglingCount > 0 && (

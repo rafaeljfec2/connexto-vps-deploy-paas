@@ -116,7 +116,7 @@ export function HealthcheckResultDialog({
                 {result.success ? (
                   <Badge
                     variant="outline"
-                    className="border-emerald-500 text-emerald-600 dark:text-emerald-400 gap-1"
+                    className="border-status-success text-status-success-text gap-1"
                   >
                     <CheckCircle2 className="h-3 w-3" />
                     Exit code {result.exitCode}

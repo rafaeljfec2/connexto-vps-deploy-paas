@@ -57,7 +57,7 @@ function DeployProgress({
   const isRunning = deploy.status === "running";
 
   return (
-    <div className="absolute inset-0 z-5 bg-background/80 backdrop-blur-[2px] rounded-lg flex flex-col items-center justify-center gap-2 p-4 pointer-events-none">
+    <div className="absolute inset-0 z-5 bg-card/80 backdrop-blur-[2px] rounded-lg flex flex-col items-center justify-center gap-2 p-4 pointer-events-none">
       <div className="flex items-center gap-2 text-primary">
         <Icon className={cn("h-5 w-5", isRunning && "animate-spin")} />
         <span className="font-medium text-sm">{state.phase}</span>

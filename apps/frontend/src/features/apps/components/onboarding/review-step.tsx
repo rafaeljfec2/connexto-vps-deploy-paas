@@ -36,7 +36,7 @@ function ReviewItem({ icon, label, value, empty }: Readonly<ReviewItemProps>) {
         <p className="text-sm text-muted-foreground">{label}</p>
         <p className="font-medium truncate">{displayValue}</p>
       </div>
-      <Check className="h-4 w-4 text-green-500 mt-1" />
+      <Check className="h-4 w-4 text-status-success-text mt-1" />
     </div>
   );
 }
@@ -183,7 +183,7 @@ export function ReviewStep({ data, onNext, onBack }: Readonly<StepProps>) {
                         )}
                       </Button>
                     )}
-                    <Check className="h-4 w-4 text-green-500" />
+                    <Check className="h-4 w-4 text-status-success-text" />
                   </div>
                 ))}
               </div>

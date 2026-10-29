@@ -37,7 +37,7 @@ export function Stepper({ steps, currentStep, className }: StepperProps) {
                     isCurrent && "border-primary bg-primary/10 text-primary",
                     !isCompleted &&
                       !isCurrent &&
-                      "border-muted-foreground/30 bg-background text-muted-foreground",
+                      "border-muted-foreground/30 bg-card text-muted-foreground",
                   )}
                 >
                   {isCompleted ? (

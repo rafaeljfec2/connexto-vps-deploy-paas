@@ -68,7 +68,7 @@ export function GitHubLinkCard() {
       <CardContent className="space-y-4">
         {justLinked && (
           <Alert>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            <CheckCircle2 className="h-4 w-4 text-status-success-text" />
             <AlertDescription>
               GitHub account linked successfully!
             </AlertDescription>

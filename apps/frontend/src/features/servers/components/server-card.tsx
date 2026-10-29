@@ -51,10 +51,10 @@ interface StatusDescriptor {
 const STATUS: Record<ServerStatus, StatusDescriptor> = {
   online: {
     label: "Online",
-    dotClass: "bg-emerald-500",
-    ringClass: "ring-emerald-500/20",
+    dotClass: "bg-status-success",
+    ringClass: "ring-status-success/20",
     badgeClass:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+      "border-status-success/30 bg-status-success/10 text-status-success-text",
     pulse: true,
   },
   provisioning: {
@@ -67,10 +67,10 @@ const STATUS: Record<ServerStatus, StatusDescriptor> = {
   },
   pending: {
     label: "Pending",
-    dotClass: "bg-yellow-500",
-    ringClass: "ring-yellow-500/20",
+    dotClass: "bg-status-running",
+    ringClass: "ring-status-running/20",
     badgeClass:
-      "border-yellow-500/30 bg-yellow-500/10 text-yellow-700 dark:text-yellow-300",
+      "border-status-running/30 bg-status-running/10 text-status-running-text",
     pulse: false,
   },
   offline: {
@@ -82,10 +82,10 @@ const STATUS: Record<ServerStatus, StatusDescriptor> = {
   },
   error: {
     label: "Error",
-    dotClass: "bg-red-500",
-    ringClass: "ring-red-500/20",
+    dotClass: "bg-status-failed",
+    ringClass: "ring-status-failed/20",
     badgeClass:
-      "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+      "border-status-failed/30 bg-status-failed/10 text-status-failed-text",
     pulse: false,
   },
 };
@@ -180,7 +180,10 @@ function CopyAddressButton({ value }: { readonly value: string }) {
       aria-label={copied ? "Address copied" : "Copy address"}
     >
       {copied ? (
-        <Check className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
+        <Check
+          className="h-3.5 w-3.5 text-status-success-text"
+          aria-hidden="true"
+        />
       ) : (
         <Copy className="h-3.5 w-3.5" aria-hidden="true" />
       )}
@@ -267,8 +270,8 @@ export function ServerCard({ server }: ServerCardProps) {
           className={cn(
             "relative flex h-full flex-col gap-3 overflow-hidden p-4 transition-all",
             "hover:border-border hover:shadow-sm",
-            needsAttention && "border-yellow-500/40",
-            server.status === "error" && "border-red-500/40",
+            needsAttention && "border-status-running/40",
+            server.status === "error" && "border-status-failed/40",
           )}
         >
           <div className="flex items-start justify-between gap-2">
@@ -303,7 +306,7 @@ export function ServerCard({ server }: ServerCardProps) {
               </span>
               {isAgentOutdated && (
                 <span
-                  className="inline-flex items-center rounded-sm border border-yellow-500/30 bg-yellow-500/10 px-1 text-[9px] font-medium uppercase tracking-wide text-yellow-700 dark:text-yellow-300"
+                  className="inline-flex items-center rounded-sm border border-status-running/30 bg-status-running/10 px-1 text-[9px] font-medium uppercase tracking-wide text-status-running-text"
                   title={`Latest: v${server.latestAgentVersion}`}
                 >
                   Old
@@ -394,7 +397,7 @@ export function ServerCard({ server }: ServerCardProps) {
                 let labelClass = "text-muted-foreground/70";
                 if (isDone) {
                   StepIcon = CheckCircle2;
-                  stepIconClass = "h-4 w-4 text-emerald-600 shrink-0";
+                  stepIconClass = "h-4 w-4 text-status-success-text shrink-0";
                   labelClass = "text-muted-foreground";
                 } else if (isRunning) {
                   StepIcon = Loader2;

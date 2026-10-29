@@ -136,7 +136,7 @@ export function AppList() {
             size="sm"
             className={cn(
               "h-7 w-7 p-0",
-              viewMode === "grid" && "bg-background shadow-sm",
+              viewMode === "grid" && "bg-card shadow-input",
             )}
             onClick={() => setViewMode("grid")}
           >
@@ -148,7 +148,7 @@ export function AppList() {
             size="sm"
             className={cn(
               "h-7 w-7 p-0",
-              viewMode === "list" && "bg-background shadow-sm",
+              viewMode === "list" && "bg-card shadow-input",
             )}
             onClick={() => setViewMode("list")}
           >

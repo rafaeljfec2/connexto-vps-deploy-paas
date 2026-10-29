@@ -12,15 +12,15 @@ interface ContainerMetricsProps {
 }
 
 function getUsageColor(percent: number): string {
-  if (percent < 60) return "bg-emerald-500";
-  if (percent < 80) return "bg-yellow-500";
-  return "bg-red-500";
+  if (percent < 60) return "bg-status-success";
+  if (percent < 80) return "bg-status-running";
+  return "bg-status-failed";
 }
 
 function getUsageTextColor(percent: number): string {
-  if (percent < 60) return "text-emerald-400";
-  if (percent < 80) return "text-yellow-400";
-  return "text-red-400";
+  if (percent < 60) return "text-status-success-text";
+  if (percent < 80) return "text-status-running-text";
+  return "text-status-failed-text";
 }
 
 interface MetricCardProps {
@@ -39,7 +39,7 @@ function MetricCard({
   percent,
 }: MetricCardProps) {
   return (
-    <div className="flex flex-col gap-2 p-3 rounded-lg bg-slate-900/50 border border-slate-800">
+    <div className="flex flex-col gap-2 p-3 rounded-lg bg-muted/60 border border-border">
       <div className="flex items-center gap-2 text-muted-foreground">
         <Icon className="h-4 w-4" />
         <span className="text-xs font-medium">{title}</span>
@@ -58,7 +58,7 @@ function MetricCard({
         )}
       </div>
       {percent !== undefined && (
-        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+        <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
           <div
             className={cn(
               "h-full rounded-full transition-all",

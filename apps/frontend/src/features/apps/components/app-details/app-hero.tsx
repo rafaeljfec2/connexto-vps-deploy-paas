@@ -71,16 +71,16 @@ const HEALTH_LABEL: Record<ReturnType<typeof parseHealthState>, string> = {
 
 const TONE_TEXT: Record<KpiTone, string> = {
   default: "text-foreground",
-  success: "text-emerald-600 dark:text-emerald-400",
-  warning: "text-yellow-600 dark:text-yellow-400",
-  destructive: "text-red-600 dark:text-red-400",
+  success: "text-status-success-text",
+  warning: "text-status-running-text",
+  destructive: "text-status-failed-text",
 };
 
 const TONE_DOT: Record<KpiTone, string> = {
   default: "bg-muted-foreground/40",
-  success: "bg-emerald-500",
-  warning: "bg-yellow-500",
-  destructive: "bg-red-500",
+  success: "bg-status-success",
+  warning: "bg-status-running",
+  destructive: "bg-status-failed",
 };
 
 function formatPercent(percent: number | null | undefined): string {
@@ -167,7 +167,7 @@ function NbaBanner({
       className={cn(
         "mb-4 flex items-start gap-3",
         !isDestructive &&
-          "border-yellow-500/40 bg-yellow-500/5 text-yellow-700 dark:border-yellow-500/30 dark:text-yellow-300",
+          "border-status-running/40 bg-status-running/5 text-status-running-text dark:border-status-running/30",
       )}
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -236,7 +236,7 @@ export function AppHero({
       className="relative overflow-hidden rounded-xl border border-border/60 bg-card"
     >
       <HeroBackground
-        glowClassName="h-[260px] w-[260px] -right-16 -top-16 bg-emerald-400/5 dark:bg-emerald-500/5"
+        glowClassName="h-[260px] w-[260px] -right-16 -top-16 bg-status-success/5"
         dotOpacityClassName="opacity-40 dark:opacity-20"
       />
 

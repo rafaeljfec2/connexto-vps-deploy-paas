@@ -65,7 +65,7 @@ export function Header() {
   const displayName = user?.name ?? user?.githubLogin ?? "User";
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-[env(safe-area-inset-top)]">
+    <header className="sticky top-0 z-50 w-full border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 pt-[env(safe-area-inset-top)] shadow-input">
       <div className="container grid h-14 grid-cols-[minmax(max-content,1fr)_auto_minmax(max-content,1fr)] items-center gap-0.5 sm:h-16 sm:gap-4">
         <Link
           to={isAuthenticated ? ROUTES.HOME : ROUTES.LANDING}

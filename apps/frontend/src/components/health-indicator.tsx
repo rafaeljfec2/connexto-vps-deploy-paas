@@ -21,26 +21,26 @@ interface HealthConfig {
 const healthConfig: Record<HealthState, HealthConfig> = {
   healthy: {
     label: "Healthy",
-    color: "text-status-success",
+    color: "text-status-success-text",
     bgColor: "bg-status-success",
     icon: Activity,
   },
   unhealthy: {
     label: "Unhealthy",
-    color: "text-status-failed",
+    color: "text-status-failed-text",
     bgColor: "bg-status-failed",
     icon: AlertCircle,
   },
   starting: {
     label: "Starting",
-    color: "text-status-running",
+    color: "text-status-running-text",
     bgColor: "bg-status-running",
     icon: Loader2,
     animate: true,
   },
   offline: {
     label: "Offline",
-    color: "text-status-pending",
+    color: "text-status-pending-text",
     bgColor: "bg-status-pending",
     icon: Circle,
   },

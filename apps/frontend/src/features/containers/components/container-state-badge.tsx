@@ -5,12 +5,14 @@ interface ContainerStateBadgeProps {
 }
 
 const stateStyles: Record<string, string> = {
-  running: "bg-green-500/20 text-green-400 border-green-500/30",
-  exited: "bg-red-500/20 text-red-400 border-red-500/30",
-  paused: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  restarting: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  dead: "bg-gray-500/20 text-gray-400 border-gray-500/30",
-  created: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  running:
+    "bg-status-success/10 text-status-success-text border-status-success/30",
+  exited: "bg-status-failed/10 text-status-failed-text border-status-failed/30",
+  paused:
+    "bg-status-running/10 text-status-running-text border-status-running/30",
+  restarting: "bg-primary/10 text-primary border-primary/30",
+  dead: "bg-muted text-muted-foreground border-border",
+  created: "bg-muted text-muted-foreground border-border",
 };
 
 export function ContainerStateBadge({ state }: ContainerStateBadgeProps) {
@@ -28,9 +30,12 @@ interface ContainerHealthBadgeProps {
 }
 
 const healthStyles: Record<string, string> = {
-  healthy: "bg-green-500/20 text-green-400 border-green-500/30",
-  unhealthy: "bg-red-500/20 text-red-400 border-red-500/30",
-  starting: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  healthy:
+    "bg-status-success/10 text-status-success-text border-status-success/30",
+  unhealthy:
+    "bg-status-failed/10 text-status-failed-text border-status-failed/30",
+  starting:
+    "bg-status-running/10 text-status-running-text border-status-running/30",
 };
 
 export function ContainerHealthBadge({ health }: ContainerHealthBadgeProps) {

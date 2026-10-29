@@ -29,7 +29,7 @@ export function HeroBackground({
       <div
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute -right-32 -top-32 h-[420px] w-[420px] rounded-full bg-emerald-400/10 blur-3xl animate-glow-pulse dark:bg-emerald-500/10",
+          "pointer-events-none absolute -right-32 -top-32 h-[420px] w-[420px] rounded-full bg-status-success/10 blur-3xl animate-glow-pulse",
           glowClassName,
         )}
       />

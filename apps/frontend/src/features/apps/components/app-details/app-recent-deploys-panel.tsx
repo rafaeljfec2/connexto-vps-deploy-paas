@@ -25,10 +25,10 @@ const statusIcon: Record<
   DeployStatus,
   { icon: typeof Circle; className: string }
 > = {
-  success: { icon: CheckCircle2, className: "text-emerald-500" },
-  failed: { icon: XCircle, className: "text-red-500" },
-  running: { icon: Loader2, className: "text-blue-500 animate-spin" },
-  pending: { icon: Clock, className: "text-yellow-500" },
+  success: { icon: CheckCircle2, className: "text-status-success-text" },
+  failed: { icon: XCircle, className: "text-status-failed-text" },
+  running: { icon: Loader2, className: "text-primary animate-spin" },
+  pending: { icon: Clock, className: "text-status-running-text" },
   cancelled: { icon: Circle, className: "text-muted-foreground" },
 };
 
@@ -42,7 +42,7 @@ export function AppRecentDeploysPanel({
   const items = (deployments ?? []).slice(0, MAX_ITEMS);
 
   return (
-    <div className="flex h-full flex-col gap-3 rounded-xl border border-border/60 bg-background/50 p-4 backdrop-blur">
+    <div className="flex h-full flex-col gap-3 rounded-xl border border-border/60 bg-card/70 p-4 backdrop-blur">
       <div className="flex items-center justify-between">
         <h2 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Recent deploys

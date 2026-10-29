@@ -24,7 +24,7 @@ export function HeroNextBestAction({ action }: HeroNextBestActionProps) {
       className={cn(
         "mb-5 flex items-start gap-3",
         !isDestructive &&
-          "border-yellow-500/40 bg-yellow-500/5 text-yellow-700 dark:border-yellow-500/30 dark:text-yellow-300",
+          "border-status-running/40 bg-status-running/5 text-status-running-text dark:border-status-running/30",
       )}
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

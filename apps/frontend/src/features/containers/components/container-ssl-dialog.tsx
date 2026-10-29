@@ -106,7 +106,7 @@ export function ContainerSSLDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-emerald-500" />
+            <ShieldCheck className="h-5 w-5 text-status-success-text" />
             Configure SSL — {containerName}
           </DialogTitle>
           <DialogDescription>
@@ -117,14 +117,14 @@ export function ContainerSSLDialog({
 
         {result ? (
           <div className="space-y-4 py-2">
-            <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 p-4">
+            <div className="rounded-md bg-status-success/10 border border-status-success/20 p-4">
               <div className="flex items-center gap-2 mb-3">
-                <Lock className="h-4 w-4 text-emerald-500" />
-                <span className="font-medium text-emerald-500">
+                <Lock className="h-4 w-4 text-status-success-text" />
+                <span className="font-medium text-status-success-text">
                   SSL Enabled
                 </span>
                 {result.tlsVersion && (
-                  <span className="text-xs bg-emerald-500/20 text-emerald-400 rounded px-1.5 py-0.5">
+                  <span className="text-xs bg-status-success/10 text-status-success-text rounded px-1.5 py-0.5">
                     {result.tlsVersion}
                   </span>
                 )}
@@ -134,7 +134,7 @@ export function ContainerSSLDialog({
                 Connection String
               </Label>
               <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs bg-background rounded p-2 font-mono break-all select-all border">
+                <code className="flex-1 text-xs bg-muted rounded p-2 font-mono break-all select-all border">
                   {result.connectionString}
                 </code>
                 <Button
@@ -144,7 +144,7 @@ export function ContainerSSLDialog({
                   onClick={handleCopy}
                 >
                   {copied ? (
-                    <Check className="h-4 w-4 text-emerald-500" />
+                    <Check className="h-4 w-4 text-status-success-text" />
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}

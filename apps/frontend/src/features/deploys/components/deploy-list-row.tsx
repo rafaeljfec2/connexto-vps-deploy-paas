@@ -24,16 +24,16 @@ interface DeployListRowProps {
 }
 
 const TONE_DOT_CLASS: Record<DeployStatusTone, string> = {
-  success: "bg-emerald-500",
-  error: "bg-red-500",
-  running: "bg-amber-400 animate-pulse",
+  success: "bg-status-success",
+  error: "bg-status-failed",
+  running: "bg-status-running animate-pulse",
   muted: "bg-muted-foreground/60",
 };
 
 const TONE_TEXT_CLASS: Record<DeployStatusTone, string> = {
-  success: "text-emerald-500",
-  error: "text-red-500",
-  running: "text-amber-500",
+  success: "text-status-success-text",
+  error: "text-status-failed-text",
+  running: "text-status-running-text",
   muted: "text-muted-foreground",
 };
 

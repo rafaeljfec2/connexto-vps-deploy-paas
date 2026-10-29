@@ -138,13 +138,15 @@ export function ServerSettingsSection({
               {isSaving ? "Saving..." : "Save"}
             </Button>
             {saved && (
-              <span className="flex items-center gap-1 text-xs text-emerald-500">
+              <span className="flex items-center gap-1 text-xs text-status-success-text">
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Saved
               </span>
             )}
             {saveError != null && (
-              <span className="text-xs text-red-500">{saveError}</span>
+              <span className="text-xs text-status-failed-text">
+                {saveError}
+              </span>
             )}
           </div>
         </CardContent>
@@ -376,14 +378,14 @@ function ManageResultFeedback({
       <div
         className={`flex items-start gap-2 rounded-md border p-3 ${
           result.success
-            ? "border-emerald-500/50 bg-emerald-500/5"
-            : "border-amber-500/50 bg-amber-500/5"
+            ? "border-status-success/50 bg-status-success/5"
+            : "border-status-running/50 bg-status-running/5"
         }`}
       >
         {result.success ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+          <CheckCircle2 className="h-4 w-4 text-status-success-text mt-0.5 shrink-0" />
         ) : (
-          <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+          <AlertTriangle className="h-4 w-4 text-status-running-text mt-0.5 shrink-0" />
         )}
         {isLogOutput ? (
           <div className="flex-1 min-w-0">

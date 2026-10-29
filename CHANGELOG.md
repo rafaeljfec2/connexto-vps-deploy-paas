@@ -12,6 +12,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Light-first design system with new status color tokens.** The default
+  theme is now `light` (was `system`): a desk-gray app background (`#F6F7F9`)
+  with white cards, a blue primary (`#0062C4`), 0.75rem radii, and softer
+  panel/input shadows. Dark mode keeps token parity with mirrored values.
+  Hardcoded status colors (emerald/yellow/red/green) across dashboard,
+  servers, apps, deploys, containers, images, settings, and templates were
+  replaced by semantic `status-*` tokens with dedicated `-text` variants so
+  badges stay readable over soft fills; logs and terminals stay intentionally
+  dark. Primitive styling was refreshed in step: outline buttons render on
+  card surfaces, inputs are 44px tall and selects render on card surfaces
+  with input shadows, dialogs/popovers/dropdowns use card surfaces with panel
+  shadows, and the active tab sits on a card chip. Deploy/health status
+  badges use soft fills (`status-*`/10 over card) with AA-compliant
+  `-text` colors in both themes.
+
+- **New contrast gate `check:contrast`.** `apps/frontend/scripts/
+  check-contrast.mjs` reads the HSL design tokens from `src/index.css` and
+  validates WCAG 2.1 AA (>= 4.5:1) for all 36 text/surface pairs in both
+  themes, including status text over 10% soft fills, plus dark-token
+  parity. It runs via `pnpm run check:contrast` and currently reports
+  0 failures. The default-theme change is covered by new unit tests in
+  `src/hooks/__tests__/use-theme.test.ts`.
+
 - **Header navigation reorganized with a new Servers entry.** The header now
   uses three zones — brand on the left, a centered main navigation
   (Servers, Containers, Images, Audit), and actions on the right. The active

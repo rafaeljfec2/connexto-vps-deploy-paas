@@ -100,11 +100,28 @@ export default {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         status: {
-          success: "hsl(var(--status-success))",
-          running: "hsl(var(--status-running))",
-          failed: "hsl(var(--status-failed))",
-          pending: "hsl(var(--status-pending))",
+          success: {
+            DEFAULT: "hsl(var(--status-success))",
+            text: "hsl(var(--status-success-text))",
+          },
+          running: {
+            DEFAULT: "hsl(var(--status-running))",
+            text: "hsl(var(--status-running-text))",
+          },
+          failed: {
+            DEFAULT: "hsl(var(--status-failed))",
+            text: "hsl(var(--status-failed-text))",
+          },
+          pending: {
+            DEFAULT: "hsl(var(--status-pending))",
+            text: "hsl(var(--status-pending-text))",
+          },
         },
+      },
+      boxShadow: {
+        panel:
+          "0 1px 2px rgb(27 36 49 / 0.05), 0 6px 18px rgb(27 36 49 / 0.04)",
+        input: "0 1px 2px rgb(27 36 49 / 0.04)",
       },
       borderRadius: {
         lg: "var(--radius)",

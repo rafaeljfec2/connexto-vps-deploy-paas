@@ -326,7 +326,7 @@ export function AppForm() {
                           {envVar.isSecret ? "••••••••" : envVar.value}
                         </span>
                         {envVar.isSecret && (
-                          <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-0.5 rounded">
+                          <span className="text-xs bg-status-running/10 text-status-running-text px-2 py-0.5 rounded">
                             secret
                           </span>
                         )}
@@ -391,7 +391,7 @@ export function AppForm() {
                           className={cn(
                             "font-mono text-xs px-2 py-1 rounded",
                             envVar.isSecret
-                              ? "bg-yellow-500/10 text-yellow-600"
+                              ? "bg-status-running/10 text-status-running-text"
                               : "bg-primary/10 text-primary",
                           )}
                         >

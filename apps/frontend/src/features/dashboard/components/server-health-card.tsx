@@ -16,10 +16,10 @@ interface ServerHealthCardProps {
 function UsageBar({ percent }: { readonly percent: number }) {
   const color =
     percent < 60
-      ? "bg-emerald-500"
+      ? "bg-status-success"
       : percent < 80
-        ? "bg-yellow-500"
-        : "bg-red-500";
+        ? "bg-status-running"
+        : "bg-status-failed";
 
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -32,11 +32,14 @@ function UsageBar({ percent }: { readonly percent: number }) {
 }
 
 const statusStyles: Record<string, string> = {
-  online: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
-  offline: "bg-red-500/10 text-red-500 border-red-500/20",
-  provisioning: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+  online:
+    "bg-status-success/10 text-status-success-text border-status-success/20",
+  offline:
+    "bg-status-failed/10 text-status-failed-text border-status-failed/20",
+  provisioning:
+    "bg-status-running/10 text-status-running-text border-status-running/20",
   pending: "bg-muted text-muted-foreground border-border",
-  error: "bg-red-500/10 text-red-500 border-red-500/20",
+  error: "bg-status-failed/10 text-status-failed-text border-status-failed/20",
 };
 
 export function ServerHealthCard({ server, appCount }: ServerHealthCardProps) {

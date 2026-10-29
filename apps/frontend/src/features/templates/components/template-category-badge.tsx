@@ -5,12 +5,17 @@ interface TemplateCategoryBadgeProps {
 }
 
 const categoryStyles: Record<string, string> = {
-  database: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  webserver: "bg-green-500/20 text-green-400 border-green-500/30",
-  development: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  monitoring: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  messaging: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  storage: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
+  database:
+    "bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30",
+  webserver:
+    "bg-status-success/10 text-status-success-text border-status-success/30",
+  development:
+    "bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/30",
+  monitoring:
+    "bg-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/30",
+  messaging:
+    "bg-status-running/10 text-status-running-text border-status-running/30",
+  storage: "bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border-cyan-500/30",
 };
 
 export function TemplateCategoryBadge({

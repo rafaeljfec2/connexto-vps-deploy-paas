@@ -17,10 +17,10 @@ const statusIcon: Record<
   DeployStatus,
   { icon: typeof Circle; className: string }
 > = {
-  success: { icon: CheckCircle2, className: "text-emerald-500" },
-  failed: { icon: XCircle, className: "text-red-500" },
-  running: { icon: Loader2, className: "text-blue-500 animate-spin" },
-  pending: { icon: Clock, className: "text-yellow-500" },
+  success: { icon: CheckCircle2, className: "text-status-success-text" },
+  failed: { icon: XCircle, className: "text-status-failed-text" },
+  running: { icon: Loader2, className: "text-primary animate-spin" },
+  pending: { icon: Clock, className: "text-status-running-text" },
   cancelled: { icon: Circle, className: "text-muted-foreground" },
 };
 

@@ -158,7 +158,7 @@ export function DeployStep({ data, onBack }: Readonly<DeployStepProps>) {
       case "loading":
         return <Loader2 className="h-5 w-5 text-primary animate-spin" />;
       case "success":
-        return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+        return <CheckCircle2 className="h-5 w-5 text-status-success-text" />;
       case "error":
         return <XCircle className="h-5 w-5 text-destructive" />;
     }
@@ -202,8 +202,8 @@ export function DeployStep({ data, onBack }: Readonly<DeployStepProps>) {
         </div>
 
         {isCompleted && (
-          <div className="p-4 border rounded-lg bg-green-500/10 border-green-500/20">
-            <p className="text-sm text-green-700 dark:text-green-400">
+          <div className="p-4 border rounded-lg bg-status-success/10 border-status-success/20">
+            <p className="text-sm text-status-success-text">
               Your application <strong>{data.name}</strong> has been created and
               the first deployment has started. It may take a few minutes to
               complete.
