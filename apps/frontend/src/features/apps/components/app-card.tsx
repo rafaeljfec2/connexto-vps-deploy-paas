@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  AlertTriangle,
+  Building2,
   Clock,
   ExternalLink,
   Folder,
@@ -8,6 +10,7 @@ import {
   Hammer,
   Loader2,
   MoreVertical,
+  Package,
   Rocket,
   Server,
   Tag,
@@ -23,15 +26,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { HealthIndicator } from "@/components/health-indicator";
-import { IconText } from "@/components/icon-text";
 import { StatusBadge } from "@/components/status-badge";
 import { usePurgeApp } from "@/features/apps/hooks/use-apps";
-import { useAppHealth } from "@/hooks/use-sse";
 import { formatDuration, formatRelativeTime } from "@/lib/format";
-import { cn, formatRepositoryUrl } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { App, Deployment, DeploymentSummary } from "@/types";
 import { deriveDeployProgressState } from "../utils/deploy-progress";
+import { extractRepoOwner } from "../utils/org-helpers";
 import {
   type TechTag,
   detectTechTags,
@@ -57,7 +58,7 @@ function DeployProgress({
   const isRunning = deploy.status === "running";
 
   return (
-    <div className="absolute inset-0 z-5 bg-card/80 backdrop-blur-[2px] rounded-lg flex flex-col items-center justify-center gap-2 p-4 pointer-events-none">
+    <div className="absolute inset-0 z-5 bg-card/80 backdrop-blur-[2px] rounded-xl flex flex-col items-center justify-center gap-2 p-4 pointer-events-none">
       <div className="flex items-center gap-2 text-primary">
         <Icon className={cn("h-5 w-5", isRunning && "animate-spin")} />
         <span className="font-medium text-sm">{state.phase}</span>
@@ -68,7 +69,7 @@ function DeployProgress({
           style={{ width: `${state.progress}%` }}
         />
       </div>
-      <span className="text-[10px] text-muted-foreground">
+      <span className="text-[10px] text-muted-foreground font-mono">
         {deploy.commitSha?.slice(0, 7)}
       </span>
     </div>
@@ -96,12 +97,13 @@ export function AppCard({ app, latestDeploy, serverName }: AppCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const navigate = useNavigate();
   const purgeApp = usePurgeApp();
-  const { data: health } = useAppHealth(app.id);
   const runtimeTag = app.runtime ? getRuntimeTag(app.runtime) : null;
   const inferredTags = detectTechTags(app.name, app.workdir, app.repositoryUrl);
   const techTags = mergeTags(runtimeTag, inferredTags);
 
   const deployment = latestDeploy ?? app.lastDeployment;
+  const repoOwner = extractRepoOwner(app.repositoryUrl);
+  const displayOrgOrServer = repoOwner ?? serverName ?? null;
 
   const handleDelete = () => {
     purgeApp.mutate(app.id, {
@@ -114,44 +116,113 @@ export function AppCard({ app, latestDeploy, serverName }: AppCardProps) {
 
   const isDeploying =
     deployment?.status === "running" || deployment?.status === "pending";
+  const isFailed = deployment?.status === "failed";
 
   return (
     <>
       <Card
         className={cn(
-          "transition-colors cursor-pointer group relative overflow-hidden",
-          isDeploying ? "border-primary/50" : "hover:bg-accent/50",
+          "transition-all cursor-pointer group relative overflow-hidden rounded-xl border",
+          isFailed
+            ? "border-destructive/40 bg-destructive/5 hover:border-destructive/60 hover:bg-destructive/10"
+            : isDeploying
+              ? "border-primary/50 bg-card/80"
+              : "border-border/60 bg-card/50 backdrop-blur-sm hover:border-border hover:bg-card/80 shadow-sm",
         )}
       >
-        <Link to={`/apps/${app.id}`} className="absolute inset-0 z-0" />
+        <Link
+          to={`/apps/${app.id}`}
+          className="absolute inset-0 z-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label={`View ${app.name} details`}
+        />
 
         {deployment && <DeployProgress deploy={deployment} />}
 
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-lg">{app.name}</CardTitle>
-              {app.appVersion && (
-                <Badge
-                  variant="secondary"
-                  className="text-[10px] px-1.5 py-0 h-5 font-mono"
-                >
-                  <Tag className="h-3 w-3 mr-0.5" />v{app.appVersion}
-                </Badge>
-              )}
+        <CardHeader className="pb-3 pt-4 px-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div
+                className={cn(
+                  "h-9 w-9 shrink-0 rounded-lg border flex items-center justify-center transition-colors",
+                  isFailed
+                    ? "border-destructive/30 bg-destructive/10 text-destructive"
+                    : "border-border/50 bg-muted/40 text-muted-foreground group-hover:text-foreground group-hover:border-border",
+                )}
+                aria-hidden="true"
+              >
+                <Package className="h-4.5 w-4.5" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
+                  {app.name}
+                </CardTitle>
+
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  {techTags[0] && (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] px-1.5 py-0 h-4.5 font-medium border",
+                        techTags[0].color,
+                      )}
+                    >
+                      {techTags[0].name}
+                    </Badge>
+                  )}
+
+                  {app.appVersion && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0 h-4.5 font-mono text-muted-foreground border-border/60 bg-muted/30"
+                    >
+                      <Tag className="h-2.5 w-2.5 mr-0.5" />v{app.appVersion}
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <HealthIndicator health={health} />
+
+            <div className="flex items-center gap-1.5 relative z-10 shrink-0">
+              {isFailed && (
+                <AlertTriangle
+                  className="h-4 w-4 text-destructive shrink-0"
+                  aria-label="Deployment failed"
+                />
+              )}
+
               {deployment && <StatusBadge status={deployment.status} />}
+
+              {app.repositoryUrl && (
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <a
+                    href={app.repositoryUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Open repository"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    <span className="sr-only">Open repository</span>
+                  </a>
+                </Button>
+              )}
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-8 w-8 relative z-10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => e.preventDefault()}
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground transition-opacity"
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={`Actions for ${app.name}`}
                   >
-                    <MoreVertical className="h-4 w-4" />
+                    <MoreVertical className="h-3.5 w-3.5" />
                     <span className="sr-only">Open menu</span>
                   </Button>
                 </DropdownMenuTrigger>
@@ -159,7 +230,7 @@ export function AppCard({ app, latestDeploy, serverName }: AppCardProps) {
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive cursor-pointer"
                     onClick={(e) => {
-                      e.preventDefault();
+                      e.stopPropagation();
                       setShowDeleteDialog(true);
                     }}
                   >
@@ -172,54 +243,51 @@ export function AppCard({ app, latestDeploy, serverName }: AppCardProps) {
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-2">
-          {techTags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pb-1">
-              {techTags.map((tag) => (
-                <Badge
-                  key={tag.name}
-                  variant="outline"
-                  className={`text-[10px] px-1.5 py-0 h-5 font-medium border ${tag.color}`}
-                >
-                  {tag.name}
-                </Badge>
-              ))}
-            </div>
-          )}
+        <CardContent className="px-4 pb-4 pt-0">
+          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground border-t border-border/40 pt-3 mt-1">
+            {displayOrgOrServer && (
+              <span className="flex items-center gap-1.5 truncate">
+                {serverName && !repoOwner ? (
+                  <Server className="h-3 w-3 shrink-0" aria-hidden="true" />
+                ) : (
+                  <Building2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+                )}
+                <span className="truncate">{displayOrgOrServer}</span>
+              </span>
+            )}
 
-          {serverName && (
-            <IconText icon={Server}>
-              <span className="truncate">{serverName}</span>
-            </IconText>
-          )}
-
-          <IconText icon={GitBranch}>
-            <span>{app.branch}</span>
-          </IconText>
-
-          <IconText icon={ExternalLink}>
-            <span className="truncate">
-              {formatRepositoryUrl(app.repositoryUrl)}
+            <span className="flex items-center gap-1.5 truncate">
+              <GitBranch className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span className="font-mono text-[11px] truncate">
+                {app.branch}
+              </span>
             </span>
-          </IconText>
 
-          {app.workdir && app.workdir !== "." && (
-            <IconText icon={Folder}>
-              <span className="truncate font-mono text-xs">{app.workdir}</span>
-            </IconText>
-          )}
+            {app.lastDeployedAt && (
+              <span className="flex items-center gap-1.5 truncate">
+                <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">
+                  {formatRelativeTime(app.lastDeployedAt)}
+                </span>
+              </span>
+            )}
 
-          {app.lastDeployedAt && (
-            <IconText icon={Clock}>
-              <span>Deployed {formatRelativeTime(app.lastDeployedAt)}</span>
-            </IconText>
-          )}
+            {deployment?.durationMs && deployment.status === "success" && (
+              <span className="flex items-center gap-1.5 truncate">
+                <Timer className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">
+                  {formatDuration(deployment.durationMs)}
+                </span>
+              </span>
+            )}
 
-          {deployment?.durationMs && deployment.status === "success" && (
-            <IconText icon={Timer}>
-              <span>Build time: {formatDuration(deployment.durationMs)}</span>
-            </IconText>
-          )}
+            {app.workdir && app.workdir !== "." && (
+              <span className="flex items-center gap-1.5 truncate col-span-2 text-[11px] font-mono text-muted-foreground/80">
+                <Folder className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{app.workdir}</span>
+              </span>
+            )}
+          </div>
         </CardContent>
       </Card>
 

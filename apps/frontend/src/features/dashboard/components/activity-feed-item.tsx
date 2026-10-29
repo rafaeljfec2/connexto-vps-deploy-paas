@@ -11,6 +11,7 @@ interface ActivityFeedItemProps {
   readonly commitSha: string;
   readonly commitMessage?: string;
   readonly timestamp: string | null;
+  readonly isLast?: boolean;
 }
 
 const statusIcon: Record<
@@ -31,28 +32,44 @@ export function ActivityFeedItem({
   commitSha,
   commitMessage,
   timestamp,
+  isLast = false,
 }: ActivityFeedItemProps) {
   const { icon: Icon, className: iconClass } = statusIcon[status];
+  const trimmed = commitMessage?.trim() ?? "";
+  const displayMessage = trimmed !== "" ? trimmed : "Manual deploy triggered";
+  const displaySha = truncateCommitSha(commitSha);
 
   return (
     <Link
       to={`/apps/${appId}`}
-      className="group flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/50"
+      className="group relative flex items-start gap-3 rounded-lg px-2.5 py-2.5 transition-colors hover:bg-accent/40"
     >
-      <div className="mt-0.5 shrink-0">
-        <Icon className={cn("h-4 w-4", iconClass)} />
+      {!isLast && (
+        <span
+          className="absolute left-[21px] top-8 bottom-0 w-px bg-border/40 pointer-events-none"
+          aria-hidden="true"
+        />
+      )}
+      <div className="relative z-10 mt-0.5 shrink-0 bg-card/80 rounded-full">
+        <Icon className={cn("h-4 w-4", iconClass)} aria-hidden="true" />
       </div>
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <p className="truncate text-sm font-medium group-hover:text-primary">
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="truncate text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
           {appName}
         </p>
-        {commitMessage && (
-          <p className="truncate text-xs text-muted-foreground">
-            {commitMessage}
-          </p>
-        )}
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground/70">
-          <span className="font-mono">{truncateCommitSha(commitSha)}</span>
+        <p
+          className="truncate text-xs text-muted-foreground"
+          title={displayMessage}
+        >
+          {displayMessage}
+        </p>
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+          {displaySha !== "" && (
+            <span className="font-mono">
+              {commitSha === "HEAD" ? "HEAD" : displaySha}
+            </span>
+          )}
+          {displaySha !== "" && timestamp && <span>•</span>}
           {timestamp && <span>{formatRelativeTime(timestamp)}</span>}
         </div>
       </div>
