@@ -218,7 +218,7 @@ export function AppRow({ app, latestDeploy, serverName }: AppRowProps) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                className="text-destructive focus:text-destructive cursor-pointer"
+                variant="destructive"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowDeleteDialog(true);

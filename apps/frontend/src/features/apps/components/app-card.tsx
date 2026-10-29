@@ -228,7 +228,7 @@ export function AppCard({ app, latestDeploy, serverName }: AppCardProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
-                    className="text-destructive focus:text-destructive cursor-pointer"
+                    variant="destructive"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowDeleteDialog(true);
